@@ -1,0 +1,17 @@
+{
+  "name": "project1",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^2.3.7",
+    "vite-plugin-string": "^1.0.1"
+  },
+  "dependencies": {
+    "dat.gui": "^0.7.7",
+    "tailwindcss": "^2.2.2"
+  }
+}
