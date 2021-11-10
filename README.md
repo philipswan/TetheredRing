@@ -10,7 +10,7 @@ Steps involved:
 4.	Installed 14.17.0 LTS version of node.js from here: https://nodejs.org/en/
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. Then run the following commands in that directory (only use the text after the command prompt below):
 ```
-PS C:\Users\Username\Documents\Three.js\Prject1\> npm init @vitejs/app
+PS C:\Users\Username\Documents\Three.js\Project1\> npm init @vitejs/app
 PS C:\Users\Username\Documents\Three.js\Project1\> npm install
 PS C:\Users\Username\\Documents\Three.js\Project1\> npm run dev
 ```
