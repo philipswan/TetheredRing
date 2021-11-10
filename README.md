@@ -11,7 +11,8 @@ Steps involved:
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. The run the following commands in that directory (only use the text after the command prompt below):
 ```PS C:\Users\Username\Documents\Three.js\Prject1\> npm init @vitejs/app
 PS C:\Users\Username\Documents\Three.js\Project1\> npm install
-PS C:\Users\Username\\Documents\Three.js\Project1\> npm run dev```
+PS C:\Users\Username\\Documents\Three.js\Project1\> npm run dev
+```
 6.	Open Chrome and paste the following url into the browser: http://localhost:3000/
 7.	In a few seconds you should see a rendering of the planet Earth appear. You should be able to interact with it.
 8.	If you make changes to main.js, the changes immediately take effect in the browser.
