@@ -19,9 +19,9 @@ PS C:\Users\Username\\Documents\Three.js\Project1\> npm run dev
 8.	If you make changes to main.js, the changes immediately take effect in the browser.
 9.	Sometimes you need to refresh the browser with \<cntrl\> + \<shift\> + R to get the model to work.
 
-Using the Model - Keyboard
-'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube depending on what the sprite is hovering over when you press this key.
+Using the Model - Keyboard:
+'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
 'O' will mode the point that you orbit around back to the center of the Earth.
 'U' and 'D' will slowly raise and lower the ring.
 'Z' and 'X' will slowly zoom in or out.
-'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'. 
+'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
