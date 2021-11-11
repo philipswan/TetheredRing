@@ -25,3 +25,4 @@ Using the Model - Keyboard:
 'U' and 'D' will slowly raise and lower the ring.
 'Z' and 'X' will slowly zoom in or out.
 'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
+'W' will instantly "warp" you over to a point much closer to the ring.
