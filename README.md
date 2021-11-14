@@ -20,10 +20,10 @@ PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https:
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd ..
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
 ```
-6.	Open Chrome and paste the following url into the browser: http://localhost:3000/
-7.	In a few seconds you should see a rendering of the planet Earth appear. You should be able to interact with it.
-8.	If you make changes to main.js, the changes immediately take effect in the browser.
-9.	Sometimes you need to refresh the browser with \<cntrl\> + \<shift\> + R to get the model to work.
+6.	Open Chrome (other browsers are untested) and paste the following url into the browser: http://localhost:3000/
+7.	You should immediately see a sphere appear. You may need to wait longer (as much as 30 seconds) for the Earth's texture file to load, but then you should see the Earth appear. You should be able to interact with it.
+8.	If you make changes to main.js, the changes will immediately take effect in the browser.
+9.	On occasion you may need to refresh the browser with \<cntrl\> + \<shift\> + R in order for the model to display properly.
 
 Using the Model - Keyboard:
 'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
