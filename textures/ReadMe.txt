@@ -1,1 +1,2 @@
-You will need to download bluemarble_16384.png from NASA website, https://visibleearth.nasa.gov/images/73909/december-blue-marble-next-generation-w-topography-and-bathymetry.
+You will need to download bluemarble_16384.png from the project-atlantis website and save it to this folder. One way to do this is to use teh following command:
+wget https://www.project-atlantis.com/wp-content/threejs-simulation/bluemarble_16384.png -outfile bluemarble_16384.png
