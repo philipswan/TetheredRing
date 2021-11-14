@@ -10,9 +10,15 @@ Steps involved:
 4.	Installed 14.17.0 LTS version of node.js from here: https://nodejs.org/en/
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. Then run the following commands in that directory (only use the text after the command prompt below):
 ```
-PS C:\Users\Username\Documents\Three.js\Project1\> npm init @vitejs/app
-PS C:\Users\Username\Documents\Three.js\Project1\> npm install
-PS C:\Users\Username\\Documents\Three.js\Project1\> npm run dev
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd ..\TetheredRing\
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init @vitejs/app
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init -y
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd textures
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/bluemarble_16384.png -outfile bluemarble_16384.png
+(Note: Downloading the bluemarble image  may take several minutes to complete.)
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd ..
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
 ```
 6.	Open Chrome and paste the following url into the browser: http://localhost:3000/
 7.	In a few seconds you should see a rendering of the planet Earth appear. You should be able to interact with it.
