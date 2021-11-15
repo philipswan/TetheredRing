@@ -6,6 +6,11 @@ import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
 import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/lines/LineMaterial.js'
 //import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+
+//import * as THREE from '/build/three.module.js'
+//import { OrbitControls } from '/jsm/controls/OrbitControls.js'
+//import Stats from '/jsm/libs/stats.module.js'
+
 import * as dat from 'dat.gui'
 import * as tram from './tram.js'
 
@@ -42,7 +47,8 @@ const guidParam = {
   tetherPointBxAvePercent: 50,
   tetherPointBxDeltaPercent: 40,
   tetherEngineeringFactor: 2.0,
-  tetherVisibility: 0.1,
+  cableVisibility: 0.1,
+  tetherVisibility: 0.03,
   moveRing: 1,
   //CameraTilt: 0
   transitTubeUpwardOffset: -100,
@@ -64,6 +70,7 @@ gui.add(guidParam, 'tetherSpanOverlapFactor', 0.5, 4).onChange(adjustRingDesign)
 gui.add(guidParam, 'tetherPointBxAvePercent', 0, 100).onChange(adjustRingDesign)
 gui.add(guidParam, 'tetherPointBxDeltaPercent', 0, 50).onChange(adjustRingDesign)
 gui.add(guidParam, 'tetherEngineeringFactor', 0, 10).onChange(adjustRingDesign)
+gui.add(guidParam, 'cableVisibility', 0, 1).onChange(adjustCableOpacity)
 gui.add(guidParam, 'tetherVisibility', 0, 1).onChange(adjustTetherOpacity)
 gui.add(guidParam, 'moveRing', 0, 1).onChange(adjustRingLatLon)
 
@@ -83,6 +90,7 @@ let dParam = {
   tetherPointBxDeltaPercent: 0,
   tetherPointBx: 30000,
   tetherEngineeringFactor: 2.0,
+  cableVisibility: .1,
   tetherVisibility: .03,
   transitTubeUpwardOffset: -100,
   additionalUpperElevatorCable: 10,
@@ -117,6 +125,7 @@ function updatedParam() {   // Read as "update_dParam"
   dParam.tetherPointBxAvePercent = guidParam.tetherPointBxAvePercent
   dParam.tetherPointBxDeltaPercent = guidParam.tetherPointBxDeltaPercent
   dParam.tetherEngineeringFactor = guidParam.tetherEngineeringFactor
+  dParam.cableVisibility = guidParam.cableVisibility
   dParam.tetherVisibility = guidParam.tetherVisibility
   dParam.transitTubeUpwardOffset = guidParam.transitTubeUpwardOffset
   dParam.additionalUpperElevatorCable = 10
@@ -133,6 +142,11 @@ updatedParam()
 
 function adjustRingDesign() {
   updateRing()
+}
+
+function adjustCableOpacity() {
+  updatedParam()
+  cableMaterial.opacity = dParam.cableVisibility
 }
 
 function adjustTetherOpacity() {
@@ -193,19 +207,50 @@ planetCoordSys.position.z = 0;
 
 scene.add(planetCoordSys)
 
-const planetMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
-  new THREE.ShaderMaterial({
-    vertexShader: vertexShader,
-    fragmentShader: fragmentShader,
-    uniforms: {
-      planetTexture: {
-        value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
-      }
+const eightTextureMode = false
+const planetMeshes = []
+if (eightTextureMode) {
+  let letter
+  for (let j=0; j<1; j++) {
+    for (let i = 0; i<2; i++) {
+      letter = String.fromCharCode(65+i)
+      console.log(letter, `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg`)
+      const planetMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
+        new THREE.ShaderMaterial({
+          vertexShader: vertexShader,
+          fragmentShader: fragmentShader,
+          uniforms: {
+            planetTexture: {
+              //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+              value: new THREE.TextureLoader().load( `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg` ),
+            }
+          },
+          //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+          //displacementScale: 500000,
+        })
+      )
+      planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+      planetMeshes.push(planetMesh)
     }
-  })
-)
-planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+  }
+}
+else {
+  const planetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+    new THREE.ShaderMaterial({
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
+      uniforms: {
+        planetTexture: {
+          value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+        }
+      }
+    })
+  )
+  planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+  planetMeshes.push(planetMesh)
+}
 //planetMesh.castShadow = true
 
 const atmosphereMesh = new THREE.Mesh(
@@ -220,6 +265,42 @@ const atmosphereMesh = new THREE.Mesh(
 // ToDo: Scaling this sphere as opposed to setting its radius directly seems a bit hacky.
 atmosphereMesh.scale.set(1.1, 1.1, 1.1)
 //atmosphereMesh.receiveShadow = true
+
+
+// Experimental code
+// const plane = new THREE.mesh(new THREE.PlaneGeometry(2, 2, 512, 512), 
+//   new THREE.MeshStandardMaterial(
+//     {
+//       map: earthBaseColor,
+//       normalMap: earthNormalMap,
+//       displacementMap: earthDisplacementMap,
+//       displacementScale: 0.1,
+//       roughnessMap: earthRoughnessMap,
+//       roughness: 0.5,
+//       aoMap: earthAmbienOcclusionMap,
+//     }
+//   )
+// )
+// plane.geometry.atributes.uv2 = plane.geometry.atributes.uv
+// scene.add(plane)
+
+// const earth2Geometry = new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, 0, Math.PI/2, 0, Math.PI/2)
+// const earth2Material = new THREE.MeshPhongMaterial({
+//   roughness: 1,
+//   metalness: 0,
+//   map: new THREE.TextureLoader().load( './textures/world.topo.200404.3x21600x21600.A1.jpg' ),
+//   //map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
+//   //map: new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
+//   //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
+//   //bumpScale: 1000000,
+//   displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+//   displacementScale: 20000,
+// })
+// const earth2Mesh = new THREE.Mesh(earth2Geometry, earth2Material)
+// earth2Mesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+//earthMesh.position = 
+//scene.add(earth2Mesh)
+
 
 
 const axisGeometry = new THREE.CylinderGeometry(AxisEquatorThickness, AxisEquatorThickness, 2.5*radiusOfPlanet, 4, 1, false)
@@ -242,7 +323,9 @@ launchOrbitMesh.rotateY(dParam.ringCenterLongtitude)
 launchOrbitMesh.rotateX(Math.PI/2 - dParam.ringCenterLatitude + (Math.PI/2 - dParam.equivalentLatitude))
 
 planetCoordSys.add(sunLight)
-planetCoordSys.add(planetMesh)
+planetMeshes.forEach(mesh => {
+  planetCoordSys.add(mesh)
+})
 planetCoordSys.add(atmosphereMesh)
 planetCoordSys.add(axisMesh)
 planetCoordSys.add(equatorMesh)
@@ -412,6 +495,12 @@ function constructLaunchTube() {
 }
 
 const elevatorCableMeshes = []
+var cableMaterial = new THREE.LineBasicMaterial({
+  vertexColors: THREE.VertexColors,
+  //color: 0x4897f8,
+  transparent: true,
+  opacity: dParam.cableVisibility
+})
 constructElevatorCables()
 const elevatorCarMeshes = []
 let elevatorAltitude = (crv.currentMainRingAltitude+dParam.transitTubeUpwardOffset) - 20
@@ -470,7 +559,7 @@ function constructElevatorCables() {
     // Now create an array of two points use that to make a LineSegment Geometry
     tempGeometry = new THREE.BufferGeometry().setFromPoints([elevatorCableUpperAttachPnt, elevatorCableLowerAttachPnt])
     //tempGeometry.setAttribute("color", new THREE.Float32BufferAttribute(0x0000ff, 3) )
-    elevatorCableMeshes.push( new THREE.LineSegments(tempGeometry.clone(), tetherMaterial) )
+    elevatorCableMeshes.push( new THREE.LineSegments(tempGeometry.clone(), cableMaterial) )
     
     // Add platforms at the top and bottom of each the elevator cable 
     platformMesh.rotation.x = 0
@@ -843,21 +932,6 @@ function animate() {
   renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight );
 
   //planetMesh.rotation.y += 0.000001
-  raycaster.setFromCamera(mouse, camera)
-  const planetIntersects = raycaster.intersectObject(planetMesh)
-  const transitTubeIntersects = raycaster.intersectObject(transitSystemMeshes[0])
-  if (transitTubeIntersects.length>0) {
-    intersectionPoint = transitTubeIntersects[0].point
-    targetPoint = intersectionPoint
-    orbitCenterMarkerSize = 100
-    orbitControlsRotateSpeed = 0.05
-  }
-  else if (planetIntersects.length>0) {
-    intersectionPoint = planetIntersects[0].point
-    targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
-    orbitCenterMarkerSize = 10000
-    orbitControlsRotateSpeed = 0.1
-  }
   if (AnimateZoomingIn || AnimateZoomingOut) {
     var offset = new THREE.Vector3
     offset.copy( orbitControls.object.position ).sub( orbitControls.target )
@@ -932,6 +1006,24 @@ function onKeyDown( event ) {
       camera.up.set(0, 1, 0)
       break;
     case 80: /*P*/
+      raycaster.setFromCamera(mouse, camera)
+      let planetIntersects = []
+      planetMeshes.forEach(mesh => {
+        planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(mesh))
+      })
+      const transitTubeIntersects = raycaster.intersectObject(transitSystemMeshes[0])
+      if (transitTubeIntersects.length>0) {
+        intersectionPoint = transitTubeIntersects[0].point
+        targetPoint = intersectionPoint
+        orbitCenterMarkerSize = 100
+        orbitControlsRotateSpeed = 0.05
+      }
+      else if (planetIntersects.length>0) { // Note: would probably be advisable to assert here that there is only one intersection point.
+        intersectionPoint = planetIntersects[0].point
+        targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
+        orbitCenterMarkerSize = 10000
+        orbitControlsRotateSpeed = 0.1
+      }
       orbitControls.target.copy(targetPoint)
       const upVector = new THREE.Vector3
       upVector.copy(intersectionPoint).normalize()
@@ -990,13 +1082,13 @@ function onKeyDown( event ) {
 }
 
 function recomputeNearFarClippingPlanes() {
-  // Calculate the distance to teh nearest object - for this we will use the sphere encompassing the Earth and it's stratosphere
+  // Calculate the distance to the nearest object - for this we will use the sphere encompassing the Earth and it's stratosphere
   // Multiply that by the cosine of thecamera's fulstrum angle
-  camera.near = Math.max(10, camera.position.distanceTo(planetMesh.position) - (radiusOfPlanet+dParam.ringFinalAltitude+orbitCenterMarkerSize)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
+  camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParam.ringFinalAltitude+orbitCenterMarkerSize)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,
   // then add the distrance from there to the edge of the sphere that represents the atmosphere,
   // then pad this sum by a factor of 1.5
-  camera.far = Math.max(camera.near*16384, (Math.sqrt(camera.position.distanceTo(planetMesh.position)**2 - radiusOfPlanet**2) + Math.sqrt((radiusOfPlanet*1.1)**2 - radiusOfPlanet**2)) * 1.5)
+  camera.far = Math.max(camera.near*16384, (Math.sqrt(camera.position.distanceTo(planetMeshes[0].position)**2 - radiusOfPlanet**2) + Math.sqrt((radiusOfPlanet*1.1)**2 - radiusOfPlanet**2)) * 1.5)
   camera.updateProjectionMatrix()
   nearClippingPlane = camera.near
   farClippingPlane = camera.far
