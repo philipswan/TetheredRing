@@ -4,9 +4,8 @@ A Tethered Ring is a dynamic structure that can cost-effectively support space l
 This is a great tutorial on getting started with Three.js: https://www.youtube.com/watch?v=YK1Sw_hnm58&ab_channel=ChrisCourses.
 
 Steps involved:
-1.	Create a directory where you want to put the model on your PC. For example: C:\Users\<username>\Documents\Three.js\Project1
-2.	Copy the latest version of the project into this directory and unzip the file (you will need to receive an up-to-date OneDrive link for this step).
-3.	Install git from: Git - Downloads (git-scm.com)
+1.	Create a directory where you want to put the model on your PC. For example: C:\Users\Username\Documents\repos\Three.js\
+2.	Clone the latest version of the project into this directory
 4.	Installed 14.17.0 LTS version of node.js from here: https://nodejs.org/en/
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. Then run the following commands in that directory (only use the text after the command prompt below):
 ```
