@@ -6,10 +6,10 @@ This is a great tutorial on getting started with Three.js: https://www.youtube.c
 Steps involved:
 1.	Create a directory where you want to put the model on your PC. For example: C:\Users\Username\Documents\repos\Three.js\
 2.	Clone the latest version of the project into this directory
-4.	Installed 14.17.0 LTS version of node.js from here: https://nodejs.org/en/
+4.	Install 14.17.0 LTS (16.13.0 LST may work too) version of node.js from here: https://nodejs.org/en/
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. Then run the following commands in that directory (only use the text after the command prompt below):
 ```
-PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd ..\TetheredRing\
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd TetheredRing
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init @vitejs/app
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init -y
