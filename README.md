@@ -9,12 +9,14 @@ Steps involved:
 ```
 PS C:\Users\Username\Documents\repos\Three.js> git clone https://github.com/philipswan/TetheredRing.git
 ```
-4.	Install the 14.17.0 LTS version of node.js (16.13.0 LST may work too) from here: https://nodejs.org/en/
+4.	Install the 16.13.0 LTS version of node.js (note: a more recent version may work too) from here: https://nodejs.org/en/
 5.	Open “PowerShell”. “cd” to the directory that you created is step 1. Then run the following commands in that directory (only use the text after the command prompt below):
 ```
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd TetheredRing
-PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init vitejs/app     (if on 16.13.0, use "npm init vite")
-PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y          (There is a "high severity vulnerability" warning, but there is no fix available)
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init vite
+Answer 'yes' to 'Need to install the following packages:  create-vite'
+
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y          (There is a "high severity vulnerability" warning, but there was no fix available)
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init -y
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd textures
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/bluemarble_16384.png -outfile bluemarble_16384.png
