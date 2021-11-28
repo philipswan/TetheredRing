@@ -1,1 +1,0 @@
-This directory should be populated with many files if you follow the install directions.

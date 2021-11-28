@@ -5,7 +5,7 @@ import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
 import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
 import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/lines/LineMaterial.js'
-//import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
 
 //import * as THREE from '/build/three.module.js'
 //import { OrbitControls } from '/jsm/controls/OrbitControls.js'
@@ -13,8 +13,9 @@ import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm
 
 import * as dat from 'dat.gui'
 import * as tram from './tram.js'
-
 import * as launcher from './launcher.js'
+
+const enableVR = false
 
 // Useful constants that we never plan to change
 const gravitationalConstant = 0.0000000000667408
@@ -40,6 +41,7 @@ const guidParam = {
   
   ringAmountRaisedFactor: 1.0,
   numMainRings: 5,
+  mainRingTubeRadius: 0.5,
   mainRingSpacing: 10,
   numTethers: 3600,
   numForkLevels: 5,      // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
@@ -47,20 +49,25 @@ const guidParam = {
   tetherPointBxAvePercent: 50,
   tetherPointBxDeltaPercent: 40,
   tetherEngineeringFactor: 2.0,
-  cableVisibility: 0.1,
-  tetherVisibility: 0.03,
+  cableVisibility: 0.2,
+  tetherVisibility: 0.2,
   moveRing: 1,
   //CameraTilt: 0
   transitTubeUpwardOffset: -100,
   launchTubeUpwardOffset: 100,
   numTransitTrackLevels: 2,
+  numElevatorCables: 360*5,
+  numElevatorCars: 360*5,
 }
+
+const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perfectly circular ring can be and still fits within the Pacific Ocean
+guidParam.equivalentLatitude = Math.acos(targetRadius/(radiusOfPlanet + guidParam.ringFinalAltitude)) * 180 / Math.PI
 
 const gui = new dat.GUI()
 gui.add(guidParam, 'equivalentLatitude', 10, 80).onChange(adjustRingDesign)   // Need this to be in radians somehow
 gui.add(guidParam, 'ringCenterLongtitude', 0, 360).onChange(adjustRingLatLon)
 gui.add(guidParam, 'ringCenterLatitude', -90, 90).onChange(adjustRingLatLon)
-gui.add(guidParam, 'ringFinalAltitude', 0, 100000).onChange(adjustRingDesign)
+gui.add(guidParam, 'ringFinalAltitude', 0, 200000).onChange(adjustRingDesign)
 gui.add(guidParam, 'ringAmountRaisedFactor', 0, 1).onChange(adjustRingDesign)
 gui.add(guidParam, 'numMainRings', 1, 7).onChange(adjustRingDesign).step(1)
 gui.add(guidParam, 'mainRingSpacing', 1, 30).onChange(adjustRingDesign).step(1)
@@ -82,6 +89,7 @@ let dParam = {
   ringFinalAltitude: 32000,  // m
   ringAmountRaisedFactor: 1.0,
   numMainRings: 1,              // Can't make this larger until the dispose/recreate code is improved
+  mainRingTubeRadius: 0.5,
   mainRingSpacing: 10,
   numTethers: 360*5,
   numForkLevels: 7,      // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
@@ -107,6 +115,14 @@ let dParam = {
   elevatorUpperTerminusOutwardOffset: -30, // m 
   numElevatorCables: 360*5,
   numElevatorCars: 360*5,
+  showEarthEquator: false,
+  showEarthAxis: false,
+  showLaunchOrbit: false,
+  showLaunchTrajectory: false,
+  showTransitSystem: true,
+  showLaunchTubes: false,
+  showElevators: true,
+  animateElevators: true,
 }
 
 function updatedParam() {   // Read as "update_dParam"
@@ -119,6 +135,7 @@ function updatedParam() {   // Read as "update_dParam"
   dParam.ringFinalAltitude = guidParam.ringFinalAltitude
   dParam.ringAmountRaisedFactor = guidParam.ringAmountRaisedFactor
   dParam.numMainRings = guidParam.numMainRings
+  dParam.mainRingTubeRadius = guidParam.mainRingTubeRadius
   dParam.numTethers = guidParam.numTethers
   dParam.numForkLevels = guidParam.numForkLevels
   dParam.tetherSpan = 2 * Math.PI / guidParam.numTethers * guidParam.tetherSpanOverlapFactor
@@ -136,6 +153,8 @@ function updatedParam() {   // Read as "update_dParam"
   dParam.launchTubeLength = dParam.launchTubeExitVelocity**2 /2 / dParam.launchTubeAcceleration
   dParam.launchTubeAccelerationTime = dParam.launchTubeExitVelocity / dParam.launchTubeAcceleration
   dParam.launchTragectoryVisibility = 1.0
+  dParam.numElevatorCables = guidParam.numElevatorCables
+  dParam.numElevatorCars = guidParam.numElevatorCars
 }
 
 updatedParam()
@@ -173,7 +192,18 @@ let nearClippingPlane = 0.1 * radiusOfPlanet
 let farClippingPlane = 100 * radiusOfPlanet
 
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
+const cameraGroup = new THREE.Group()
+cameraGroup.add(camera)
 camera.position.z = -100 * radiusOfPlanet/8
+
+// Need to add these two lines to have the planet apper in VR
+if (enableVR) {
+  cameraGroup.position.z = -1.005 * radiusOfPlanet
+  cameraGroup.rotation.z = Math.PI / 2
+  cameraGroup.rotation.y = -Math.PI / 2
+}
+scene.add(cameraGroup)
+
 const sunLight = new THREE.DirectionalLight(0xffffff, 1)
 sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
 
@@ -185,6 +215,8 @@ const renderer = new THREE.WebGLRenderer({
 //renderer.setSize(innerWidth, innerHeight)
 renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
 renderer.setPixelRatio(devicePixelRatio)
+renderer.xr.enabled = true
+renderer.xr.setReferenceSpaceType( 'local' )
 //document.body.appendChild(renderer.domElement)
 
 const orbitControls = new OrbitControls(camera, renderer.domElement)
@@ -199,39 +231,51 @@ const AxisEquatorThickness = radiusOfPlanet * 0.004
 const planetWidthSegments = 512
 const planetHeightSegments = 128
 
-const planetCoordSys = new THREE.Group();
+const planetCoordSys = new THREE.Group()
 
-planetCoordSys.position.x = 0;
-planetCoordSys.position.y = 0;
-planetCoordSys.position.z = 0;
-
+planetCoordSys.position.x = 0
+planetCoordSys.position.y = 0
+planetCoordSys.position.z = 0
+let eightTextureMode
+if (enableVR) {
+  planetCoordSys.rotation.y = Math.PI * -5.253 / 16
+  planetCoordSys.rotation.x = Math.PI * -4 / 16
+  eightTextureMode = true
+}
+else {
+  eightTextureMode = false
+}
 scene.add(planetCoordSys)
 
-const eightTextureMode = false
 const planetMeshes = []
+let filename
 if (eightTextureMode) {
   let letter
-  for (let j=0; j<1; j++) {
-    for (let i = 0; i<2; i++) {
-      letter = String.fromCharCode(65+i)
-      console.log(letter, `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg`)
-      const planetMesh = new THREE.Mesh(
+  for (let j=0; j<2; j++) {
+    for (let i = 0; i<4; i++) {
+      if ((i==0) || (i==1) || (i==3)) {
+        letter = String.fromCharCode(65+i)
+        //filename = `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg`
+        filename = `./textures/world.topo.200404.3x16384x16384.${letter}${j+1}.jpg`
+        console.log(letter, filename)
+        const planetMesh = new THREE.Mesh(
           new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
-        new THREE.ShaderMaterial({
-          vertexShader: vertexShader,
-          fragmentShader: fragmentShader,
-          uniforms: {
-            planetTexture: {
-              //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
-              value: new THREE.TextureLoader().load( `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg` ),
-            }
-          },
-          //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
-          //displacementScale: 500000,
-        })
-      )
-      planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
-      planetMeshes.push(planetMesh)
+          new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: {
+              planetTexture: {
+                //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+                value: new THREE.TextureLoader().load(filename),
+              }
+            },
+            //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+            //displacementScale: 500000,
+          })
+        )
+        planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+        planetMeshes.push(planetMesh)
+      }
     }
   }
 }
@@ -301,35 +345,40 @@ atmosphereMesh.scale.set(1.1, 1.1, 1.1)
 //earthMesh.position = 
 //scene.add(earth2Mesh)
 
-
-
-const axisGeometry = new THREE.CylinderGeometry(AxisEquatorThickness, AxisEquatorThickness, 2.5*radiusOfPlanet, 4, 1, false)
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
 const whiteMaterial = new THREE.MeshBasicMaterial({color: 0x5f5f5f})
 const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
 const metalicMaterial = new THREE.MeshLambertMaterial({color: 0x878681, transparent: false});
 const transparentMaterial = new THREE.MeshLambertMaterial({color: 0xffffff, transparent: true, opacity: 0.15});
-const axisMesh = new THREE.Mesh(axisGeometry, grayMaterial)
-
-const equatorGeometry = new THREE.TorusGeometry(radiusOfPlanet, AxisEquatorThickness, 8, 128)
-const equatorMesh = new THREE.Mesh(equatorGeometry, grayMaterial)
-equatorMesh.rotation.x = 3.1415927/2
-
-const OrbitalAltitude = 200000 // m
-const launchOrbitGeometry = new THREE.TorusGeometry(radiusOfPlanet + OrbitalAltitude, AxisEquatorThickness, 8, 128)
-const launchOrbitMesh = new THREE.Mesh(launchOrbitGeometry, grayMaterial)
-//launchOrbitMesh.setRotationFromEuler(Math.PI/2 + dParam.ringCenterLatitude - (Math.PI/2 - dParam.equivalentLatitude), Math.PI/2 + dParam.ringCenterLongtitude, 0)
-launchOrbitMesh.rotateY(dParam.ringCenterLongtitude)
-launchOrbitMesh.rotateX(Math.PI/2 - dParam.ringCenterLatitude + (Math.PI/2 - dParam.equivalentLatitude))
 
 planetCoordSys.add(sunLight)
 planetMeshes.forEach(mesh => {
   planetCoordSys.add(mesh)
 })
 planetCoordSys.add(atmosphereMesh)
-planetCoordSys.add(axisMesh)
-planetCoordSys.add(equatorMesh)
-planetCoordSys.add(launchOrbitMesh)
+
+if (dParam.showEarthAxis) {
+  const axisGeometry = new THREE.CylinderGeometry(AxisEquatorThickness, AxisEquatorThickness, 2.5*radiusOfPlanet, 4, 1, false)
+  const axisMesh = new THREE.Mesh(axisGeometry, grayMaterial)
+  planetCoordSys.add(axisMesh)
+}
+
+if (dParam.showEarthEquator) {
+  const equatorGeometry = new THREE.TorusGeometry(radiusOfPlanet, AxisEquatorThickness, 8, 128)
+  const equatorMesh = new THREE.Mesh(equatorGeometry, grayMaterial)
+  equatorMesh.rotation.x = 3.1415927/2
+  planetCoordSys.add(equatorMesh)
+}
+
+if (dParam.showLaunchOrbit) {
+  const OrbitalAltitude = 200000 // m
+  const launchOrbitGeometry = new THREE.TorusGeometry(radiusOfPlanet + OrbitalAltitude, AxisEquatorThickness, 8, 128)
+  const launchOrbitMesh = new THREE.Mesh(launchOrbitGeometry, grayMaterial)
+  //launchOrbitMesh.setRotationFromEuler(Math.PI/2 + dParam.ringCenterLatitude - (Math.PI/2 - dParam.equivalentLatitude), Math.PI/2 + dParam.ringCenterLongtitude, 0)
+  launchOrbitMesh.rotateY(dParam.ringCenterLongtitude)
+  launchOrbitMesh.rotateX(Math.PI/2 - dParam.ringCenterLatitude + (Math.PI/2 - dParam.equivalentLatitude))
+  planetCoordSys.add(launchOrbitMesh)
+}
 
 // const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
 let orbitCenterMarkerSize = 100000
@@ -392,10 +441,9 @@ const mainRingMeshes = []
 constructMainRings()
 
 function constructMainRings() {
-  const mainRingTubeRadius = 0.5    // This should be a dParam
   const mainRingRadialSegments = 8
   const mainRingTubularSegments = 8192
-  const mainRingGeometry = new THREE.TorusGeometry(crv.mainRingRadius, mainRingTubeRadius, mainRingRadialSegments, mainRingTubularSegments)
+  const mainRingGeometry = new THREE.TorusGeometry(crv.mainRingRadius, dParam.mainRingTubeRadius, mainRingRadialSegments, mainRingTubularSegments)
   for (let i = 0; i<dParam.numMainRings; i++) {
     const mainRingMesh = new THREE.Mesh(mainRingGeometry, metalicMaterial)
     mainRingMesh.rotation.x = Math.PI/2      // We need a torus that sits on the x-z plane because .setFromSphericalCoords's polar angle is reletive to the y-axis
@@ -405,10 +453,7 @@ function constructMainRings() {
   mainRingMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
 }
 
-// Create the transit system
 const transitSystemMeshes = []
-constructTransitSystem()
-
 function constructTransitSystem() {
   // Add the transit tube
   // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
@@ -446,11 +491,12 @@ function constructTransitSystem() {
   }
   transitSystemMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
 }
+if (dParam.showTransitSystem) {
+  // Create the transit system
+  constructTransitSystem()
+}
 
-// Create the launch sytem
 const launchTubeMeshes = []
-//constructLaunchTube()
-
 function constructLaunchTube() {
   // Add the launch tube
   // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
@@ -493,7 +539,13 @@ function constructLaunchTube() {
   }
   launchTubeMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
 }
+// Create the launch sytem
+if (dParam.showLaunchTubes) {
+  constructLaunchTube()
+}
 
+let elevatorAltitude = (crv.currentMainRingAltitude+dParam.transitTubeUpwardOffset) - 20
+const elevatorCarMeshes = []
 const elevatorCableMeshes = []
 var cableMaterial = new THREE.LineBasicMaterial({
   vertexColors: THREE.VertexColors,
@@ -501,10 +553,6 @@ var cableMaterial = new THREE.LineBasicMaterial({
   transparent: true,
   opacity: dParam.cableVisibility
 })
-constructElevatorCables()
-const elevatorCarMeshes = []
-let elevatorAltitude = (crv.currentMainRingAltitude+dParam.transitTubeUpwardOffset) - 20
-constructElevatorCars()
 
 function addStraightLineSegment(points, ) {
 
@@ -599,6 +647,10 @@ function constructElevatorCars() {
   }
   elevatorCarMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
 }
+if (dParam.showElevators) {
+  constructElevatorCables()
+  constructElevatorCars()
+}
 
 // Tethers
 // Tethered Ring Math
@@ -668,6 +720,8 @@ function tetherMath() {
   tempPointP.x = c * Math.acos(Math.exp(-tempPointP.y/c))      // Eq 11
   tempPointP.s = c * Math.acosh(Math.exp(tempPointP.y/c))      // Eq 13b
   
+  const pointB_s = []
+  
   currentCatenaryTypes.forEach((catenaryType, j) => {
     const pointB = new tram.CateneryVec3()
     const pointP = new tram.CateneryVec3()
@@ -675,11 +729,12 @@ function tetherMath() {
     pointB.x = tempPointP.x * (dParam.tetherPointBxAvePercent + minusplus[j] * dParam.tetherPointBxDeltaPercent/2)/100
     pointB.y = c * Math.log(1.0/Math.cos(pointB.x/c))    // Eq 10
     pointB.s = c * Math.acosh(Math.exp(pointB.y/c))      // Eq 13b
+    pointB_s[j] = pointB.s  // We'll need to use this later
     pointP.y = pointB.y + crv.currentMainRingAltitude
     pointP.x = c * Math.acos(Math.exp(-pointP.y/c))      // Eq 11
     pointP.s = c * Math.acosh(Math.exp(pointP.y/c))      // Eq 13b
     const θ_P = pointP.x / c
-    const φ_P = -(Math.PI/2 - crv.currentEquivalentLatitude)
+    const φ_P = -(Math.PI/2 - crv.currentEquivalentLatitude)   // negative because angle increases in clockwise direction
     fT.x = fT.z / (Math.tan(θ_P+φ_P))         // Eq 19
     fI.x = -fG.x - fT.x                           // Eq 20
 
@@ -687,13 +742,13 @@ function tetherMath() {
     
     for (let i = 0; i<=numTetherPoints-1; i++) {
       const sFraction = i / (numTetherPoints-1)
-      let s = pointB.s + Math.max(0, currentTetherLength[j] - finalTetherLength[j] * (1 - sFraction))
+      let s = pointB.s + currentTetherLength[j] - finalTetherLength[j] * (1 - sFraction)
       // Compute a distance from the center of the planet and a angle from the ring's axis of symmetry
       let x = 2 * c * Math.atan(Math.exp(s/c)) - (c * Math.PI / 2)   // Eq 15
       let y = c * Math.log(Math.cosh(s/c))                           // Eq 16
       let r = radiusOfPlanet + (y - pointB.y)
-      let φ_anchor = -φ_P - (pointP.x-pointB.x) / radiusOfPlanet     // Left this unreduced to make it a bit easier to understand the logic
-      let φ = φ_anchor + (x-pointB.x) / radiusOfPlanet
+      let φ_anchor = φ_P + (pointP.x-pointB.x) / radiusOfPlanet     // Left this unreduced to make it a bit easier to understand the logic
+      let φ = φ_anchor - (x-pointB.x) / radiusOfPlanet
       catenaryType.push(new tram.CatenaryPolarVec3(r, φ, s))
     }
   })
@@ -701,16 +756,17 @@ function tetherMath() {
   class Branch {
     constructor(base_point, base_dθ, target_point, target_dθ) {
       this.base_point = base_point
-      this.base_dθ = base_dθ
+      this.base_dθ = base_dθ                   // This is the distance from the root tether segment to the base of the current branch in the θ-axis
       this.target_point = target_point
-      this.target_dθ = target_dθ
+      this.target_dθ = target_dθ               // This is the distance from the root tether segment to point on the ring that the current segment is heading towards, in the θ-axis
       this.dθ_0 = base_dθ
-      let dθ_1
+      this.dθ_1 = 0
     }
   }
 
   // The 'j' index is used to stagger the tethers 
   const tetherSegments = [[], []]
+  let indexesToDelete
   tetherTypes.forEach((tetherType, j) => {
     const catenaryPoints = currentCatenaryTypes[j]
     const θ = j / dParam.numTethers * 2.0 * Math.PI
@@ -730,6 +786,13 @@ function tetherMath() {
       φ_1 = catenaryPoints[i+1].φ
       s_1 = catenaryPoints[i+1].s
 
+      if ((s_0<pointB_s[j]) && (pointB_s[j]<s_1)) {
+        // We need to recalculate the r_0, φ_0 values more accurately by using lerps...
+        const frac = (pointB_s[j]-s_0)/(s_1-s_0)
+        r_0 = tram.lerp(r_0, r_1, frac)
+        φ_0 = tram.lerp(φ_0, φ_1, frac)
+      }
+
       if ((i>0) && (Number.isInteger(Math.log2(numTetherPoints-i)))) {      // If we're at a point where the tether segments fork...
         const logNumStays = dParam.numForkLevels + 1 - Math.log2(numTetherPoints-i)
         const target_dθ_Alteration = dParam.tetherSpan/(2**(logNumStays+1))
@@ -740,9 +803,14 @@ function tetherMath() {
           delete branches[index]    // Some advice out there says not to use delete because then len() will return wrong results, but it's efficient at this task
         })
       }
-      branches.forEach(branch => {
+      branches.forEach((branch) => {
         branch.dθ_1 = tram.lerp(branch.base_dθ, branch.target_dθ, (i+1 - branch.base_point)/(numTetherPoints-1 - branch.base_point))
-        if (s_1>s_0) {   // When raising the ring, catenaryPoints.s values are zero for the portion of the tether that is still wrapped around its spool.
+        if (s_1>pointB_s[j]) {   // When raising the ring, points on the parts of the tether that are on the spool have all have the same coordinates (i.e. the spool's coordinates).
+          if (s_0<pointB_s[j]) {
+            // We need to recalculate the branch.dθ_0 value more accurately by using a lerp...
+            const frac = (pointB_s[j]-s_0)/(s_1-s_0)
+            branch.dθ_0 = tram.lerp(branch.dθ_0, branch.dθ_1, frac)
+          }
           if (i<numTetherPoints-2) {
             tetherPoints.push( new THREE.Vector3().setFromSphericalCoords(r_0, φ_0, θ + branch.dθ_0))
             tetherPoints.push( new THREE.Vector3().setFromSphericalCoords(r_1, φ_1, θ + branch.dθ_1))
@@ -783,66 +851,67 @@ for (let i=0; i<dParam.numTethers/2; i++) {
 }
 tetherPoints.splice(0, tetherPoints.length)   // Frees the memory used for these points
 
-// Launch Tragectory Line
-const l = new launcher.launcher()
-l.Update()
-let ADandV
-ADandV = l.GetAltitudeDistanceAndVelocity(0)
-//const displacement = new THREE.Vector3(0, 0, 0)
-//let distanceTraveledInsideTube = 0
-//let distanceTraveledOutsideTube = 0
-//let angularDistance = (distanceTraveledInsideTube-dParam.launchTubeLength)/crv.mainRingRadius
-//let prevVehiclePostion = new THREE.Vector3(crv.mainRingRadius * Math.sin(angularDistance), crv.yf, crv.mainRingRadius * Math.cos(angularDistance))
+if (dParam.showLaunchTrajectory) {
+  // Launch Tragectory Line
+  const l = new launcher.launcher()
+  l.Update()
+  let ADandV
+  ADandV = l.GetAltitudeDistanceAndVelocity(0)
+  //const displacement = new THREE.Vector3(0, 0, 0)
+  //let distanceTraveledInsideTube = 0
+  //let distanceTraveledOutsideTube = 0
+  //let angularDistance = (distanceTraveledInsideTube-dParam.launchTubeLength)/crv.mainRingRadius
+  //let prevVehiclePostion = new THREE.Vector3(crv.mainRingRadius * Math.sin(angularDistance), crv.yf, crv.mainRingRadius * Math.cos(angularDistance))
 
-let t = 0
-let prevVehiclePostion = new THREE.Vector3(
-  (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
-  crv.yf,
-  (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
-let currVehiclePostion  = new THREE.Vector3(0, 0, 0)
-const color = new THREE.Color()
-const launchTragectoryPoints = []
-const launchTragectoryColors = []
-
-for (t=1; t<3*dParam.launchTubeAccelerationTime; t++) {
-  // distanceTraveledInsideTube = 0.5 * dParam.launchTubeAcceleration * t**2
-  // distanceTraveledOutsideTube = Math.max(0, dParam.launchTubeExitVelocity * (t - dParam.launchTubeAccelerationTime))
-  // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParam.launchTubeLength)/crv.mainRingRadius)
-  // currVehiclePostion = new THREE.Vector3(
-  //   crv.mainRingRadius * Math.sin(angularDistance) + distanceTraveledOutsideTube,
-  //   crv.yf,
-  //   crv.mainRingRadius * Math.cos(angularDistance))
-  //displacement.add()
-  //currVehiclePostion = prevVehiclePostion.clone().add(displacement)
-  //console.log(prevVehiclePostion, currVehiclePostion)
-
-  ADandV = l.GetAltitudeDistanceAndVelocity(t)
-  currVehiclePostion = new THREE.Vector3(
+  let t = 0
+  let prevVehiclePostion = new THREE.Vector3(
     (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
     crv.yf,
     (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
-  //console.log(ADandV)
-  
-  launchTragectoryPoints.push(prevVehiclePostion)
-  launchTragectoryPoints.push(currVehiclePostion)
-  prevVehiclePostion = currVehiclePostion.clone()
-  color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))
-  launchTragectoryColors.push(color.r, color.g, color.b)
-  launchTragectoryColors.push(color.r, color.g, color.b)
+  let currVehiclePostion  = new THREE.Vector3(0, 0, 0)
+  const color = new THREE.Color()
+  const launchTragectoryPoints = []
+  const launchTragectoryColors = []
+
+  for (t=1; t<3*dParam.launchTubeAccelerationTime; t++) {
+    // distanceTraveledInsideTube = 0.5 * dParam.launchTubeAcceleration * t**2
+    // distanceTraveledOutsideTube = Math.max(0, dParam.launchTubeExitVelocity * (t - dParam.launchTubeAccelerationTime))
+    // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParam.launchTubeLength)/crv.mainRingRadius)
+    // currVehiclePostion = new THREE.Vector3(
+    //   crv.mainRingRadius * Math.sin(angularDistance) + distanceTraveledOutsideTube,
+    //   crv.yf,
+    //   crv.mainRingRadius * Math.cos(angularDistance))
+    //displacement.add()
+    //currVehiclePostion = prevVehiclePostion.clone().add(displacement)
+    //console.log(prevVehiclePostion, currVehiclePostion)
+
+    ADandV = l.GetAltitudeDistanceAndVelocity(t)
+    currVehiclePostion = new THREE.Vector3(
+      (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
+      crv.yf,
+      (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
+    //console.log(ADandV)
+    
+    launchTragectoryPoints.push(prevVehiclePostion)
+    launchTragectoryPoints.push(currVehiclePostion)
+    prevVehiclePostion = currVehiclePostion.clone()
+    color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))
+    launchTragectoryColors.push(color.r, color.g, color.b)
+    launchTragectoryColors.push(color.r, color.g, color.b)
+  }
+
+  const launchTragectoryGeometry = new THREE.BufferGeometry().setFromPoints(launchTragectoryPoints)
+  launchTragectoryGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( launchTragectoryColors, 3 ) );
+
+  var launchTragectoryMaterial = new THREE.LineBasicMaterial({
+    vertexColors: THREE.VertexColors,
+    transparent: true,
+    opacity: dParam.launchTragectoryVisibility
+  })
+  const launchTragectoryMesh = new THREE.LineSegments(launchTragectoryGeometry, launchTragectoryMaterial)
+  TetheredRingRefCoordSys.add( launchTragectoryMesh )
+  // End Launch Tragectory Line
 }
-
-const launchTragectoryGeometry = new THREE.BufferGeometry().setFromPoints(launchTragectoryPoints)
-launchTragectoryGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( launchTragectoryColors, 3 ) );
-
-var launchTragectoryMaterial = new THREE.LineBasicMaterial({
-  vertexColors: THREE.VertexColors,
-  transparent: true,
-  opacity: dParam.launchTragectoryVisibility
-})
-const launchTragectoryMesh = new THREE.LineSegments(launchTragectoryGeometry, launchTragectoryMaterial)
-TetheredRingRefCoordSys.add( launchTragectoryMesh )
-// End Launch Tragectory Line
-
 
 function updateRing() {
   
@@ -854,33 +923,39 @@ function updateRing() {
   })
   mainRingMeshes.splice(0, mainRingMeshes.length)
 
-  transitSystemMeshes.forEach(mesh => {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    TetheredRingRefCoordSys.remove(mesh)
-  })
-  transitSystemMeshes.splice(0, transitSystemMeshes.length)
+  if (dParam.showTransitSystem) {
+    transitSystemMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      TetheredRingRefCoordSys.remove(mesh)
+    })
+    transitSystemMeshes.splice(0, transitSystemMeshes.length)
+  }
 
-  launchTubeMeshes.forEach(mesh => {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    TetheredRingRefCoordSys.remove(mesh)
-  })
-  launchTubeMeshes.splice(0, launchTubeMeshes.length)
+  if (dParam.showLaunchTubes) {
+    launchTubeMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      TetheredRingRefCoordSys.remove(mesh)
+    })
+    launchTubeMeshes.splice(0, launchTubeMeshes.length)
+  }
 
-  elevatorCableMeshes.forEach(mesh => {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    TetheredRingRefCoordSys.remove(mesh)
-  })
-  elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
+  if (dParam.showElevators) {
+    elevatorCableMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      TetheredRingRefCoordSys.remove(mesh)
+    })
+    elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
 
-  elevatorCarMeshes.forEach(mesh => {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    TetheredRingRefCoordSys.remove(mesh)
-  })
-  elevatorCarMeshes.splice(0, elevatorCarMeshes.length)
+    elevatorCarMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      TetheredRingRefCoordSys.remove(mesh)
+    })
+    elevatorCarMeshes.splice(0, elevatorCarMeshes.length)
+  }
 
   for (let i=0; i<dParam.numTethers/2; i++) {
     tethers[i].geometry.dispose()
@@ -896,10 +971,16 @@ function updateRing() {
   crv = new tram.commonRingVariables(radiusOfPlanet, dParam.ringFinalAltitude, dParam.equivalentLatitude, dParam.ringAmountRaisedFactor)
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParam.ringFinalAltitude, dParam.equivalentLatitude, dParam.ringAmountRaisedFactor, dParam, crv)
   constructMainRings()
-  constructTransitSystem()
-  //constructLaunchTube()
-  constructElevatorCables()
-  constructElevatorCars()
+  if (dParam.showTransitSystem) {
+    constructTransitSystem()
+  }
+  if (dParam.showLaunchTubes) {
+    constructLaunchTube()
+  }
+  if (dParam.showElevators) {
+    constructElevatorCables()
+    constructElevatorCars()
+  }
   tetherMath()       // Regenerate the geometry
 
   const tempGeometry = new THREE.BufferGeometry().setFromPoints(tetherPoints)    // Add the new geometry back
@@ -927,9 +1008,15 @@ const clock = new THREE.Clock();
 let timeSinceStart = 0
 
 function animate() {
-  requestAnimationFrame(animate)
+  renderer.setAnimationLoop( renderFrame )
+}
+
+function renderFrame() {
+  //requestAnimationFrame(animate)
+  //simContainer = document.querySelector('#simContainer')
+  //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
+  //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
   renderer.render(scene, camera)
-  renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight );
 
   //planetMesh.rotation.y += 0.000001
   if (AnimateZoomingIn || AnimateZoomingOut) {
@@ -948,29 +1035,42 @@ function animate() {
 
   if (AnimateRaising || AnimateLowering) {
     if (AnimateRaising) {
-      guidParam.ringAmountRaisedFactor = Math.min(1, guidParam.ringAmountRaisedFactor+delta*0.03)
+      guidParam.ringAmountRaisedFactor = Math.min(1, guidParam.ringAmountRaisedFactor+delta*0.01)
       if (guidParam.ringAmountRaisedFactor==1) AnimateRaising = false
     }
     if (AnimateLowering) {
-      guidParam.ringAmountRaisedFactor = Math.max(0, guidParam.ringAmountRaisedFactor-delta*0.03)
+      guidParam.ringAmountRaisedFactor = Math.max(0, guidParam.ringAmountRaisedFactor-delta*0.01)
       if (guidParam.ringAmountRaisedFactor==0) AnimateLowering = false
+      cameraGroup.position.z -= -0.0001 * radiusOfPlanet
+      console.log(cameraGroup.position.z/radiusOfPlanet)
     }
     adjustRingDesign()
   }
 
-  elevatorAltitude = tram.getElevatorCarAltitude(dParam, crv, ecv, timeSinceStart)
-  //console.log(elevatorAltitude)
-  const cableOutwardOffset = dParam.transitTubeOutwardOffset - dParam.transitTubeTubeRadius + dParam.elevatorUpperTerminusOutwardOffset
-  elevatorCarMeshes.forEach(mesh => {
-    const a = mesh.userData
-    const elevatorCarPosition_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    const elevatorCarPosition_y = crv.yc + tram.offset_y(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    mesh.position.set(elevatorCarPosition_r * Math.cos(a), elevatorCarPosition_y, elevatorCarPosition_r * Math.sin(a))
-  })
+  if (dParam.showElevators && dParam.animateElevators) {
+    elevatorAltitude = tram.getElevatorCarAltitude(dParam, crv, ecv, timeSinceStart)
+    //console.log(elevatorAltitude)
+    const cableOutwardOffset = dParam.transitTubeOutwardOffset - dParam.transitTubeTubeRadius + dParam.elevatorUpperTerminusOutwardOffset
+    elevatorCarMeshes.forEach(mesh => {
+      const a = mesh.userData
+      const elevatorCarPosition_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+      const elevatorCarPosition_y = crv.yc + tram.offset_y(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+      mesh.position.set(elevatorCarPosition_r * Math.cos(a), elevatorCarPosition_y, elevatorCarPosition_r * Math.sin(a))
+    })
+  }
+}
+
+document.addEventListener( 'resize', onWindowResize )
+function onWindowResize() {
+  simContainer = document.querySelector('#simContainer')
+  camera.aspect = simContainer.offsetWidth/simContainer.offsetHeight
+  camera.updateProjectionMatrix()
+  //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
+  renderer.setSize( simContainer.offsetWidth, simContainer.offsetHeight)
 }
 
 document.addEventListener( 'keydown', onKeyDown )
-//document.body.appendChild( VRButton.createButton( renderer ) )
+document.body.appendChild( VRButton.createButton( renderer ) )
 
 animate()
 
@@ -1003,7 +1103,7 @@ function onKeyDown( event ) {
     case 79: /*O*/
       orbitControls.target.copy(new THREE.Vector3(0, 0, 0))
       orbitControls.rotateSpeed = 1
-      camera.up.set(0, 1, 0)
+      cameraGroup.up.set(0, 1, 0)
       break;
     case 80: /*P*/
       raycaster.setFromCamera(mouse, camera)
@@ -1011,7 +1111,13 @@ function onKeyDown( event ) {
       planetMeshes.forEach(mesh => {
         planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(mesh))
       })
-      const transitTubeIntersects = raycaster.intersectObject(transitSystemMeshes[0])
+
+      let transitTubeIntersects = []
+      if (dParam.showTransitSystem) {
+        transitSystemMeshes.forEach(mesh => {
+          transitTubeIntersects.push.apply(transitTubeIntersects, raycaster.intersectObject(mesh))
+        })
+      }
       if (transitTubeIntersects.length>0) {
         intersectionPoint = transitTubeIntersects[0].point
         targetPoint = intersectionPoint
@@ -1022,14 +1128,15 @@ function onKeyDown( event ) {
         intersectionPoint = planetIntersects[0].point
         targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
         orbitCenterMarkerSize = 10000
-        orbitControlsRotateSpeed = 0.1
+        orbitControlsRotateSpeed = 0.9
       }
       orbitControls.target.copy(targetPoint)
       const upVector = new THREE.Vector3
       upVector.copy(intersectionPoint).normalize()
       //console.log(upVector)
       //camera.up.set(intersectionPoint.normalize())
-      camera.up.set(upVector.x, upVector.y, upVector.z)
+      cameraGroup.up.set(upVector.x, upVector.y, upVector.z)
+      //orbitControls.up.set(upVector.x, upVector.y, upVector.z)
       orbitControls.screenSpacePanning = false      
       orbitControls.rotateSpeed = orbitControlsRotateSpeed
       break;
@@ -1073,10 +1180,31 @@ function onKeyDown( event ) {
       AnimateLowering = !AnimateLowering
       break;
     case 69: /*E*/
-      //planetCoordSys.dispose(equatorMesh)
-      camera.near = Math.max(1, camera.position.distanceTo(planetMesh.position) - radiusOfPlanet * 1.5)
-      camera.far = camera.position.distanceTo(planetMesh.position) + radiusOfPlanet
-      camera.updateProjectionMatrix()
+      recomputeNearFarClippingPlanes()
+      break;
+    case 70: /*F*/
+      guidParam.ringFinalAltitude = 200000  // m
+      guidParam.equivalentLatitude = Math.acos(targetRadius/(radiusOfPlanet + guidParam.ringFinalAltitude)) * 180 / Math.PI
+      guidParam.ringAmountRaisedFactor = 0.01
+      guidParam.numMainRings = 1
+      //guidParam.mainRingTubeRadius = 1
+      guidParam.numTethers = 180
+      guidParam.numForkLevels = 6
+      guidParam.tetherSpanOverlapFactor = 1
+      guidParam.tetherPointBxAvePercent = 0.8
+      guidParam.tetherPointBxDeltaPercent = 0
+      guidParam.tetherEngineeringFactor = 0.5
+      guidParam.numElevatorCables = 45
+      guidParam.numElevatorCars = 0
+      adjustRingDesign()
+      guidParam.moveRing = 0
+      adjustRingLatLon()
+      guidParam.cableVisibility = 0.1
+      adjustCableOpacity()
+      guidParam.tetherVisibility = 1
+      adjustTetherOpacity()
+      planetCoordSys.rotation.y = 2 * Math.PI * -(213.7+180) / 360
+      planetCoordSys.rotation.x = 2 * Math.PI * (90+19.2) / 360
       break;
   }
 }
@@ -1088,7 +1216,29 @@ function recomputeNearFarClippingPlanes() {
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,
   // then add the distrance from there to the edge of the sphere that represents the atmosphere,
   // then pad this sum by a factor of 1.5
-  camera.far = Math.max(camera.near*16384, (Math.sqrt(camera.position.distanceTo(planetMeshes[0].position)**2 - radiusOfPlanet**2) + Math.sqrt((radiusOfPlanet*1.1)**2 - radiusOfPlanet**2)) * 1.5)
+  const d1Squared = camera.position.distanceTo(planetMeshes[0].position)**2 - radiusOfPlanet**2
+  const d2Squared = (radiusOfPlanet*1.1)**2 - radiusOfPlanet**2
+  let d1, d2
+  if (d1Squared>0) {
+    d1 = Math.sqrt(d1Squared)
+  }
+  else {
+    d1 = 0
+  }
+  if (d2Squared>0) {
+    d2 = Math.sqrt(d2Squared)
+  }
+  else {
+    d2 = 0
+  }
+  camera.far = Math.max(camera.near*16384, (d1 + d2) * 1.5)
+
+  // Hack
+  if (enableVR) {
+    camera.near = 0.0001 * radiusOfPlanet
+    camera.far = 1 * radiusOfPlanet
+  }
+  //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)
   camera.updateProjectionMatrix()
   nearClippingPlane = camera.near
   farClippingPlane = camera.far
