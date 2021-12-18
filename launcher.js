@@ -1,5 +1,5 @@
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import * as THREE from '../three.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//import * as THREE from '../three.js'
 
 export class launcher {
 

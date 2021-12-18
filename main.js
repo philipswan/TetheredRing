@@ -1,19 +1,21 @@
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import * as THREE from '../three.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//import * as THREE from '../three.js'
+
+//import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
+//import { OrbitControls } from '../three.js/examples/jsm/controls/OrbitControls.js'
+import { OrbitControls } from './OrbitControlsModified.js'
+
+//import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/lines/LineMaterial.js'
+
+import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+//import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
+
+//import Stats from '/jsm/libs/stats.module.js'
+
 import vertexShader from './shaders/vertex.glsl'
 import fragmentShader from './shaders/fragment.glsl'
 import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
 import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
-//import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
-//import { OrbitControls } from './OrbitControlsModified.js'
-import { OrbitControls } from '../three.js/examples/jsm/controls/OrbitControls.js'
-//import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/lines/LineMaterial.js'
-//import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
-import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
-
-//import * as THREE from '/build/three.module.js'
-//import { OrbitControls } from '/jsm/controls/OrbitControls.js'
-//import Stats from '/jsm/libs/stats.module.js'
 
 import * as dat from 'dat.gui'
 import * as tram from './tram.js'
