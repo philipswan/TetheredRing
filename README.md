@@ -19,7 +19,7 @@ Answer 'yes' to 'Need to install the following packages:  create-vite'
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y          (There is a "high severity vulnerability" warning, but there was no fix available)
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init -y
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd textures
-PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/bluemarble_16384.png -outfile bluemarble_16384.png
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/textures/bluemarble_16384.png -outfile bluemarble_16384.png
 (Note: Downloading the bluemarble image  may take several minutes to complete.)
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd ..
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
@@ -32,7 +32,8 @@ PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
 Using the Model - Keyboard:
 'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
 'O' will mode the point that you orbit around back to the center of the Earth.
-'U' and 'D' will slowly raise and lower the ring.
+'R' and 'L' will slowly raise and lower the ring.
+'U' and 'D' will increase and decrease teh altitude of the camera.
 'Z' and 'X' will slowly zoom in or out.
 'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
 'W' will instantly "warp" you over to a point much closer to the ring.
