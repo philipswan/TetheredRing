@@ -79,34 +79,6 @@ export class commonRingVariables {
   }
 }
 
-export class elevatorCarVariables {
-  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParam, crv) {
-    this.gravitationalConstant = gravitationalConstant
-    this.massOfPlanet = massOfPlanet
-    this.radiusOfPlanet = radiusOfPlanet
-    this.dParam = dParam
-    this.crv = crv
-    this.update()
-  }
-  update() {
-    // Not verified yet!!!
-    this.waitTime = 20 // seconds - a bit short for people to disembark/embark but will suffice for now
-    this.energyRequirementPerKg = (this.gravitationalConstant * 1 * this.massOfPlanet) * (1/this.radiusOfPlanet - 1/(this.radiusOfPlanet+this.crv.currentMainRingAltitude))
-    this.batterySpecificEnergy = 265 // Wh/kg
-    this.driveSystemEfficiency = 0.8
-    this.batteryMassPerKg = this.energyRequirementPerKg / (this.batterySpecificEnergy * 3600 * this.driveSystemEfficiency)
-    this.travelDistance = this.crv.currentMainRingAltitude + this.dParam.transitTubeUpwardOffset    // May need to subtract the altitude of the terestrial terminus
-    this.maxAccelleration = 2 // m/s2
-    this.maxSpeed = 200 // m/s
-    this.accellerationTime = this.maxSpeed / this.maxAccelleration
-    this.accellerationDistance = Math.min(this.travelDistance/2, 0.5 * this.maxAccelleration * this.accellerationTime**2)
-    this.accellerationTime = Math.sqrt(2 * this.accellerationDistance / this.maxAccelleration)
-    this.steadySpeedDistance = (this.crv.currentMainRingAltitude + this.dParam.transitTubeUpwardOffset) - 2*this.accellerationDistance
-    this.steadySpeedTime = this.steadySpeedDistance / this.maxSpeed
-    this.totalTravelTime = this.steadySpeedTime + 2 * this.accellerationTime
-  }
-}
-
 export class elevatorCableVariables {
   constructor() {}
   update() {
@@ -120,6 +92,33 @@ export class elevatorCableVariables {
   }
 }
   
+export class elevatorCarVariables {
+  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv) {
+    this.gravitationalConstant = gravitationalConstant
+    this.massOfPlanet = massOfPlanet
+    this.radiusOfPlanet = radiusOfPlanet
+    this.dParamWithUnits = dParamWithUnits
+    this.crv = crv
+    this.update()
+  }
+  update() {
+    // Not verified yet!!!
+    this.waitTime = 20 // seconds - a bit short for people to disembark/embark but will suffice for now
+    this.energyRequirementPerKg = (this.gravitationalConstant * 1 * this.massOfPlanet) * (1/this.radiusOfPlanet - 1/(this.radiusOfPlanet+this.crv.currentMainRingAltitude))
+    this.batterySpecificEnergy = 265 // Wh/kg
+    this.driveSystemEfficiency = 0.8
+    this.batteryMassPerKg = this.energyRequirementPerKg / (this.batterySpecificEnergy * 3600 * this.driveSystemEfficiency)
+    this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value    // May need to subtract the altitude of the terestrial terminus
+    this.maxAccelleration = 2 // m/s2
+    this.maxSpeed = 200 // m/s
+    this.accellerationTime = this.maxSpeed / this.maxAccelleration
+    this.accellerationDistance = Math.min(this.travelDistance/2, 0.5 * this.maxAccelleration * this.accellerationTime**2)
+    this.accellerationTime = Math.sqrt(2 * this.accellerationDistance / this.maxAccelleration)
+    this.steadySpeedDistance = (this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value) - 2*this.accellerationDistance
+    this.steadySpeedTime = this.steadySpeedDistance / this.maxSpeed
+    this.totalTravelTime = this.steadySpeedTime + 2 * this.accellerationTime
+  }
+}
 
 export class accellerationElement {
   constructor(isDVOrA, valueDVOrA, t) {
@@ -129,12 +128,12 @@ export class accellerationElement {
   }
 }
 
-export function getElevatorCarAltitude(dParam, crv, ecv, t) {
+export function getElevatorCarAltitude(dParamWithUnits, crv, ecv, t) {
   const cycleTime = (ecv.totalTravelTime + ecv.waitTime) * 2
   const tt = t % cycleTime
 
   const accellerationProfile = []
-  accellerationProfile.push(new accellerationElement("D", crv.currentMainRingAltitude + dParam.transitTubeUpwardOffset, ecv.waitTime))
+  accellerationProfile.push(new accellerationElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value, ecv.waitTime))
   accellerationProfile.push(new accellerationElement("A", -ecv.maxAccelleration, ecv.accellerationTime))
   accellerationProfile.push(new accellerationElement("V", -ecv.maxSpeed, ecv.steadySpeedTime))
   accellerationProfile.push(new accellerationElement("A", ecv.maxAccelleration, ecv.accellerationTime))
@@ -187,6 +186,24 @@ export function getElevatorCarAltitude(dParam, crv, ecv, t) {
 
 }
 
+export class transitVehicleVariables {
+  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv) {
+    this.gravitationalConstant = gravitationalConstant
+    this.massOfPlanet = massOfPlanet
+    this.radiusOfPlanet = radiusOfPlanet
+    this.dParamWithUnits = dParamWithUnits
+    this.crv = crv
+    this.update()
+  }
+  update() {
+    // Not verified yet!!!
+    this.waitTime = 20 // seconds - a bit short for people to disembark/embark but will suffice for now
+  }  
+}
+
+export function getTransitVehiclePosition(dParamWithUnits, crv, ecv, t) {
+  return t*1100   // m/s
+}
 
 export function xyz2lla(x,y,z) {
   // Function to convert ECEF (xyz) to lat-lon-altitude (llh)
