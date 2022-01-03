@@ -112,7 +112,7 @@ export class transitTubeGeometry extends BufferGeometry {
 		const normals = [];
 		const colors = [];
 
-		const color1 = [ 1, 1, 1 ];
+		const color1 = [ .4, .6, .8 ];
 		const color2 = [ 1, 1, 0 ];
 
 		const up = new Vector3( 0, 1, 0 );
@@ -156,13 +156,15 @@ export class transitTubeGeometry extends BufferGeometry {
 		function extrudeTubeShape( shape, offset, color ) {
 
 			for ( let j = 0, jl = shape.length; j < jl; j ++ ) {
-				const point1 = shape[ j ].clone().add(offset)
-				const point2 = shape[ ( j + 1 ) % jl ].clone().add(offset)
+				const point1 = shape[ j ]
+				const point2 = shape[ ( j + 1 ) % jl ]
+				const point1b = point1.clone().add(offset)
+				const point2b = point2.clone().add(offset)
 
-				vector1.copy( point ).add( right.clone().multiplyScalar(point1.x) ).add(up.clone().multiplyScalar(point1.y))
-				vector2.copy( point ).add( right.clone().multiplyScalar(point2.x) ).add(up.clone().multiplyScalar(point2.y))
-				vector3.copy( prevPoint ).add( right.clone().multiplyScalar(point2.x) ).add(up.clone().multiplyScalar(point2.y))
-				vector4.copy( prevPoint ).add( right.clone().multiplyScalar(point1.x) ).add(up.clone().multiplyScalar(point1.y))
+				vector1.copy( point ).add( right.clone().multiplyScalar(point1b.x) ).add(up.clone().multiplyScalar(point1b.y))
+				vector2.copy( point ).add( right.clone().multiplyScalar(point2b.x) ).add(up.clone().multiplyScalar(point2b.y))
+				vector3.copy( prevPoint ).add( right.clone().multiplyScalar(point2b.x) ).add(up.clone().multiplyScalar(point2b.y))
+				vector4.copy( prevPoint ).add( right.clone().multiplyScalar(point1b.x) ).add(up.clone().multiplyScalar(point1b.y))
 
 				vertices.push( vector1.x, vector1.y, vector1.z );
 				vertices.push( vector2.x, vector2.y, vector2.z );
@@ -171,6 +173,39 @@ export class transitTubeGeometry extends BufferGeometry {
 				vertices.push( vector2.x, vector2.y, vector2.z );
 				vertices.push( vector3.x, vector3.y, vector3.z );
 				vertices.push( vector4.x, vector4.y, vector4.z );
+
+				normal1.copy( point1 );
+				normal1.applyQuaternion( quaternion );
+				normal1.normalize();
+
+				normal2.copy( point2 );
+				normal2.applyQuaternion( quaternion );
+				normal2.normalize();
+
+				normal3.copy( point2 );
+				normal3.applyQuaternion( prevQuaternion );
+				normal3.normalize();
+
+				normal4.copy( point1 );
+				normal4.applyQuaternion( prevQuaternion );
+				normal4.normalize();
+
+				normals.push( normal1.x, normal1.y, normal1.z );
+				normals.push( normal2.x, normal2.y, normal2.z );
+				normals.push( normal4.x, normal4.y, normal4.z );
+
+				normals.push( normal2.x, normal2.y, normal2.z );
+				normals.push( normal3.x, normal3.y, normal3.z );
+				normals.push( normal4.x, normal4.y, normal4.z );
+
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+				colors.push( color[ 0 ], color[ 1 ], color[ 2 ] );
+
 			}
 
 		}
@@ -193,8 +228,8 @@ export class transitTubeGeometry extends BufferGeometry {
 		}
 
 		this.setAttribute( 'position', new BufferAttribute( new Float32Array( vertices ), 3 ) );
-		//this.setAttribute( 'normal', new BufferAttribute( new Float32Array( normals ), 3 ) );
-		//this.setAttribute( 'color', new BufferAttribute( new Float32Array( colors ), 3 ) );
+		this.setAttribute( 'normal', new BufferAttribute( new Float32Array( normals ), 3 ) );
+		this.setAttribute( 'color', new BufferAttribute( new Float32Array( colors ), 3 ) );
 
 	}
 
