@@ -16,7 +16,44 @@
     <div class="flex h-screen bg-black">
       <div id="simContainer" class="w-full">
         <canvas></canvas>
-        <script type="module" src="/main.js"></script>
+        <script id="fragmentShader" type="x-shader/x-fragment">
+          uniform sampler2D planetTexture;
+          varying vec2 vertexUV;
+          varying vec3 vertexNormal;
+
+          void main() {
+              //gl_FragColor = vec4(0, 1, 0, 1);
+              float intensity = 1.05 - dot(vertexNormal, vec3(0.0, 0.0, 1.0 ));
+              vec3 atmosphere = vec3(0.3, 0.6, 1.0) * pow(intensity, 1.5);
+              gl_FragColor = vec4(atmosphere + texture2D(planetTexture, vertexUV).xyz, 1.0);
+          }          
+        </script>
+        <script id="atmosphereFragmentShader" type="x-shader/x-fragment">
+          varying vec3 vertexNormal;
+          void main() {
+              float intensity = pow(0.7 - dot(vertexNormal, vec3(0.0, 0.0, 1.0)), 4.0);
+              gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+          }          
+        </script>
+        <script id="vertexShader" type="x-shader/x-vertex">
+          varying vec2 vertexUV;
+          varying vec3 vertexNormal;
+
+          void main() {
+              vertexUV = uv;
+              vertexNormal = normalize(normalMatrix * normal);
+              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+          }
+        </script>
+        <script id="atmosphereVertexShader" type="x-shader/x-vertex">
+          varying vec3 vertexNormal;
+
+          void main() {
+              vertexNormal = normalize(normalMatrix * normal);
+              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.05 );
+          }          
+        </script>
+        <script type="module" src="./main.js"></script>
         <button id="createkml">Download kml file</button>
         <a download="info.txt" id="downloadlink" style="display: none">Download</a>
         <button id="createSpecs">Download specs file</button>
