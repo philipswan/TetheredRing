@@ -1,5 +1,5 @@
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import * as THREE from '../three.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//import * as THREE from '../three.js'
 
 //import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
 //import { OrbitControls } from '../three.js/examples/jsm/controls/OrbitControls.js'
@@ -7,18 +7,19 @@ import { OrbitControls } from './OrbitControlsModified.js'
 
 //import { LineMaterial } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/lines/LineMaterial.js'
 
-//import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
-import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
+import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+//import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
 
 //import Stats from '/jsm/libs/stats.module.js'
 
-import vertexShader from './shaders/vertex.glsl'
-import fragmentShader from './shaders/fragment.glsl'
-import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
-import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
+// import vertexShader from './shaders/vertex.glsl'
+// import fragmentShader from './shaders/fragment.glsl'
+// import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
+// import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 
-import Stats from '../three.js/examples/jsm/libs/stats.module.js'
-import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
+//import Stats from '../three.js/examples/jsm/libs/stats.module.js'
+//import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
+import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 
 //import * as dat from 'dat.gui'
@@ -36,6 +37,7 @@ const majorRedesign = true // False enables work in progress...
 
 // Useful constants that we never plan to change
 const gravitationalConstant = 0.0000000000667408
+const idealGasConstant = 8314.5 // Joules/kgmole-K
 const massOfPlanet = 5.97E+24   // kg   using mass of Earth for now
 const radiusOfPlanet = 6378100 // m   using radius of Earth for now
 const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
@@ -99,15 +101,23 @@ const guidParamWithUnits = {
   numTransitTrackLevels: {value:2, units: "", autoMap: true, min: 1, max: 3, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitTubeOutwardOffset: {value: -10, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitTubeInteriorPressure: {value: 10, units: 'Pa', autoMap: true, min: .1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitTubeInteriorGasMolecularWeight: {value: 29, units: 'kg/kgmole', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitTubeInteriorTemperature: {value: 20, units: 'C', autoMap: true, min: 0, max: 40, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitTrackCost: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: adjustRingDesign, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
   numTransitVehicles: {value: 1800, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitVehicleLength: {value: 20, units: 'm', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitVehicleRadius: {value: 2, units: 'm', autoMap: true, min: 1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTrackCost: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: adjustRingDesign, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
+  transitVehicleCruisingSpeed: {value: 1100, units: 'm/s', autoMap: true, min: 100, max: 2000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitSystemEfficiencyAtCruisingSpeed: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  transitVehicleCoefficientOfDrag: {value: 0.25, units: '', autoMap: true, min: .1, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Launch System
   launchTubeUpwardOffset: {value:100, units: "m", autoMap: true, min: -1000, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
   launchTubeAcceleration: {value: 30, units: 'm', autoMap: true, min: 1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
   launchTubeExitVelocity: {value: 8000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  launchVehicleCoefficientOfDrag: {value: 1, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
+  launchVehicleRadius: {value: 1, units: '2', autoMap: true, min: .1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Power
   powerRequirement: {value: 1000, units: "W/m", autoMap: true, min: 1, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},   // This is the power that is consumed by the rings maglev systems and all equipment supported by the ring, per meter length of the ring.
@@ -139,7 +149,6 @@ const wireLength = 2*84354.4319347572  // This needs to be computed in the tethe
 const wireCrossSectionalArea = wireLength / guidParamWithUnits['powerConductorConductivity'].value / wireResistance
 const wireCrossSectionalArea_mm2perkm = wireCrossSectionalArea * 1000 * 1000000
 const wireDiameter = 2 * Math.sqrt(wireCrossSectionalArea_mm2perkm / Math.PI)
-console.log("WireDiameter (mm/km): "+wireDiameter)
 
 // A = S*V = kg−1⋅m−2⋅s3⋅A2*m-1 * kg·m2·s−3·A−1
 // WireResistance = Voltage^2 / Power
@@ -221,9 +230,9 @@ function adjustLaunchTrajectoryOpacity() {
 
 function adjustRingLatLon() {
   updatedParam()
-  const object1 = scene.getObjectByName("TetheredRingLonCoordSys")
+  const object1 = scene.getObjectByName("tetheredRingLonCoordSys")
   object1.rotation.y = dParamWithUnits['ringCenterLongitude'].value
-  const object2 = scene.getObjectByName("TetheredRingLatCoordSys")
+  const object2 = scene.getObjectByName("tetheredRingLatCoordSys")
   object2.rotation.x = -dParamWithUnits['ringCenterLatitude'].value
 }
 
@@ -237,6 +246,7 @@ const fov = 12
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
 let nearClippingPlane = 0.1 * radiusOfPlanet
 let farClippingPlane = 100 * radiusOfPlanet
+let extraDistanceForCamera = 10000
 
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
 const cameraGroup = new THREE.Group()
@@ -267,7 +277,7 @@ renderer.xr.setReferenceSpaceType( 'local' )
 //document.body.appendChild(renderer.domElement)
 
 const orbitControls = new OrbitControls(camera, renderer.domElement)
-orbitControls.addEventListener('change', recomputeNearFarClippingPlanes)
+orbitControls.addEventListener('change', orbitControlsEventHandler)
 
 //orbitControls.autoRotate = true
 orbitControls.autoRotateSpeed = 0.1
@@ -312,8 +322,10 @@ if (eightTextureMode) {
         const planetMesh = new THREE.Mesh(
           new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
           new THREE.ShaderMaterial({
-            vertexShader: vertexShader,
-            fragmentShader: fragmentShader,
+            //vertexShader: vertexShader,
+            //fragmentShader: fragmentShader,
+            vertexShader: document.getElementById( 'vertexShader' ).textContent,
+            fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
             uniforms: {
               planetTexture: {
                 //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
@@ -334,12 +346,16 @@ else {
   const planetMesh = new THREE.Mesh(
     new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
     new THREE.ShaderMaterial({
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
+      //vertexShader: vertexShader,
+      //fragmentShader: fragmentShader,
+      vertexShader: document.getElementById( 'vertexShader' ).textContent,
+      fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
       uniforms: {
         planetTexture: {
+          //value: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' )
+          value: new THREE.TextureLoader().load( './textures/bluemarble_16384.jpg' )
           //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
-          value: new THREE.TextureLoader().load( './textures/human_population_density_map.png' )
+          //value: new THREE.TextureLoader().load( './textures/human_population_density_map.png' )
         }
       }
     })
@@ -352,8 +368,11 @@ else {
 const atmosphereMesh = new THREE.Mesh(
   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
   new THREE.ShaderMaterial({
-    vertexShader: atmosphereVertexShader,
-    fragmentShader: atmosphereFragmentShader,
+    //vertexShader: atmosphereVertexShader,
+    //fragmentShader: atmosphereFragmentShader,
+    vertexShader: document.getElementById( 'atmosphereVertexShader' ).textContent,
+    fragmentShader: document.getElementById( 'atmosphereFragmentShader' ).textContent,
+
     blending: THREE.AdditiveBlending,
     side: THREE.BackSide
   })
@@ -444,15 +463,26 @@ if (dParamWithUnits['showLaunchOrbit'].value) {
   planetCoordSys.add(launchOrbitMesh)
 }
 
-// const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
-let orbitCenterMarkerSize = 100000
+// const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), grayMaterial)
+// let orbitControlsCenterMarkerSize = 5000
 // orbitControlsCenterMarker.position.x = 0
 // orbitControlsCenterMarker.position.y = 0
 // orbitControlsCenterMarker.position.z = -radiusOfPlanet
-// orbitControlsCenterMarker.scale.x = orbitCenterMarkerSize
-// orbitControlsCenterMarker.scale.y = orbitCenterMarkerSize
-// orbitControlsCenterMarker.scale.z = orbitCenterMarkerSize
+// orbitControlsCenterMarker.scale.x = orbitControlsCenterMarkerSize
+// orbitControlsCenterMarker.scale.y = orbitControlsCenterMarkerSize
+// orbitControlsCenterMarker.scale.z = orbitControlsCenterMarkerSize
 // scene.add(orbitControlsCenterMarker)
+
+// const orbitControlsSurfaceMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
+// let orbitControlsSurfaceMarkerSize = 50000
+// orbitControlsSurfaceMarker.position.x = 0
+// orbitControlsSurfaceMarker.position.y = 0
+// orbitControlsSurfaceMarker.position.z = -radiusOfPlanet
+// orbitControlsSurfaceMarker.scale.x = orbitControlsSurfaceMarkerSize
+// orbitControlsSurfaceMarker.scale.y = orbitControlsSurfaceMarkerSize
+// orbitControlsSurfaceMarker.scale.z = orbitControlsSurfaceMarkerSize
+// orbitControlsSurfaceMarker.visible = false
+// scene.add(orbitControlsSurfaceMarker)
 
 // Add Some Stars
 const starGeometry = new THREE.BufferGeometry()
@@ -480,23 +510,23 @@ starGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( starVer
 const stars = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
 planetCoordSys.add(stars)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
-// "Gimbal" code for the TetheredRingRefCoordSys    
-const TetheredRingLonCoordSys = new THREE.Group();
-TetheredRingLonCoordSys.name = "TetheredRingLonCoordSys"
-planetCoordSys.add(TetheredRingLonCoordSys)
-TetheredRingLonCoordSys.position.x = 0
-TetheredRingLonCoordSys.position.y = 0
-TetheredRingLonCoordSys.rotation.y = dParamWithUnits['ringCenterLongitude'].value
+// "Gimbal" code for the tetheredRingRefCoordSys    
+const tetheredRingLonCoordSys = new THREE.Group();
+tetheredRingLonCoordSys.name = "tetheredRingLonCoordSys"
+planetCoordSys.add(tetheredRingLonCoordSys)
+tetheredRingLonCoordSys.position.x = 0
+tetheredRingLonCoordSys.position.y = 0
+tetheredRingLonCoordSys.rotation.y = dParamWithUnits['ringCenterLongitude'].value
 
-const TetheredRingLatCoordSys = new THREE.Group();
-TetheredRingLatCoordSys.name = "TetheredRingLatCoordSys"
-TetheredRingLonCoordSys.add(TetheredRingLatCoordSys)
-TetheredRingLatCoordSys.rotation.x = -dParamWithUnits['ringCenterLatitude'].value
+const tetheredRingLatCoordSys = new THREE.Group();
+tetheredRingLatCoordSys.name = "tetheredRingLatCoordSys"
+tetheredRingLonCoordSys.add(tetheredRingLatCoordSys)
+tetheredRingLatCoordSys.rotation.x = -dParamWithUnits['ringCenterLatitude'].value
 
-const TetheredRingRefCoordSys = new THREE.Group();
-TetheredRingLatCoordSys.add(TetheredRingRefCoordSys)
-TetheredRingRefCoordSys.rotation.x = Math.PI/2
-//TetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
+const tetheredRingRefCoordSys = new THREE.Group();
+tetheredRingLatCoordSys.add(tetheredRingRefCoordSys)
+tetheredRingRefCoordSys.rotation.x = Math.PI/2
+//tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
 // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
 // This is needed because the ring will be centered around the coordinate system's y-axis
 // We want the ring centered around the y-axis because .setFromSphericalCoords's polar angle is relative to the y-axis
@@ -535,7 +565,7 @@ function constructMainRingCurve() {
     new THREE.LineBasicMaterial( { color: 0x00ff00 } )
   )
   mainRingCurveLineMeshes.push(mainRingCurveLineMesh)
-  //mainRingCurveLineMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  //mainRingCurveLineMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 
   if (genKMLFile) {
     //KML file placemark creation code for the ring and elevator cables.
@@ -544,11 +574,11 @@ function constructMainRingCurve() {
     let coordString, firstCoordString
 
     planetCoordSys.updateWorldMatrix(true)
-    TetheredRingLonCoordSys.updateMatrixWorld(true)
-    TetheredRingLatCoordSys.updateMatrixWorld(true)
-    TetheredRingRefCoordSys.updateMatrixWorld(true)
+    tetheredRingLonCoordSys.updateMatrixWorld(true)
+    tetheredRingLatCoordSys.updateMatrixWorld(true)
+    tetheredRingRefCoordSys.updateMatrixWorld(true)
     points.forEach((point, i) => {
-      xyzWorld = TetheredRingRefCoordSys.localToWorld(point.clone())
+      xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
       xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
       const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
       coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
@@ -584,7 +614,7 @@ function constructMainRings() {
       mainRingMeshes.push( mainRingMesh )
     }
   }
-  mainRingMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  mainRingMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 
 const transitSystemMeshes = []
@@ -597,7 +627,7 @@ if (dParamWithUnits['showTransitSystem'].value) {
 function constructTransitSystem() {
   // Add the transit tube
   // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
-  const transitTubeRadius = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+  const transitTube_r = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
   const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
 
   const trackHalfWidth = 0.2
@@ -633,7 +663,7 @@ function constructTransitSystem() {
       transitSystemMeshes.push( transitTrackMesh )
     }
   }
-  transitSystemMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  transitSystemMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 
 const transitVehicleMeshes = []
@@ -648,6 +678,19 @@ function computeTransitVehiclePositionAndRotation(transitVehicleMesh, outwardOff
 function constructTransitVehicles() {
   // Add Transit Vehicles
   // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
+  const C_D = dParamWithUnits['transitVehicleCoefficientOfDrag'].value
+  const P = dParamWithUnits['transitTubeInteriorPressure'].value
+  const MW = dParamWithUnits['transitTubeInteriorGasMolecularWeight'].value
+  const T = dParamWithUnits['transitTubeInteriorTemperature'].value
+  const ρ = P * MW / (T+273.15) / idealGasConstant
+  specs['transitTubeInteriorGasDensity'] = {value: ρ, units: "kg*m-3"}
+  const A = Math.PI * dParamWithUnits['transitVehicleRadius'].value**2
+  const V = dParamWithUnits['transitVehicleCruisingSpeed'].value
+  const F = C_D * ρ * A * V**2
+  specs['transitVehicleAerodynamicDragForce'] = {value: F, units: "N"}
+  const η = dParamWithUnits['transitSystemEfficiencyAtCruisingSpeed'].value
+  specs['transitVehiclePowerConsumptionWhenCruising'] = {value: F * V / η, units: "W"}
+
   function makeTransitVehicleMesh(outwardOffset, upwardOffset, a, i) {
     const transitVehicleGeometry = new THREE.CylinderGeometry(dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleLength'].value, 64, 1)
     const transitVehicleMesh = new THREE.Mesh(transitVehicleGeometry, metalicMaterial)
@@ -663,7 +706,7 @@ function constructTransitVehicles() {
       transitVehicleMeshes.push(makeTransitVehicleMesh(outwardOffset, upwardOffset, a, i))
     }
   }
-  transitVehicleMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  transitVehicleMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 if (dParamWithUnits['showTransitSystem'].value && dParamWithUnits['showTransitVehicles'].value) {
   constructTransitVehicles()
@@ -710,7 +753,7 @@ function constructLaunchTube() {
     let upwardOffset = trackOffsetsList[i][1] * launchTubeTubeRadius
     launchTubeMeshes.push(makeTrackMesh(outwardOffset, upwardOffset, trackWidth, trackHeight, launchTubeRadius, launchTubeMesh.position.y, crv.currentEquivalentLatitude))
   }
-  launchTubeMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  launchTubeMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 // Create the launch sytem
 if (dParamWithUnits['showLaunchTubes'].value) {
@@ -728,7 +771,7 @@ function addStraightLineSegment(points, ) {
   // for (let i=0; i<dParamWithUnits['numTethers'].value/2; i++) {
   //   tethers[i] = new THREE.LineSegments(tempGeometry.clone(), tetherMaterial);
   //   tethers[i].rotation.y = 2 * Math.PI * i * 2 / dParamWithUnits['numTethers'].value
-  //   TetheredRingRefCoordSys.add(tethers[i])
+  //   tetheredRingRefCoordSys.add(tethers[i])
   // }
 
   // const points.push(new THREE.Vector3().setFromSphericalCoords(r_0, ω_0, θ + branch.dθ_0))
@@ -753,15 +796,15 @@ function constructElevatorCables() {
   //const elevatorCableTubularSegments = 8 
 
   let tempGeometry
-  const upperElevatorTerminusLength = dParamWithUnits['elevatorUpperTerminusOutwardOffset'].value + 10
+  const upperElevatorTerminusLength = 2*(-dParamWithUnits['elevatorUpperTerminusOutwardOffset'].value)
   const upperElevatorTerminusWidth = 20
   const upperElevatorTerminusThickness = 10 
   const upperElevatorTerminusMesh = new THREE.Mesh(new THREE.BoxGeometry(upperElevatorTerminusLength, upperElevatorTerminusThickness, upperElevatorTerminusWidth), transparentMaterial2)
 
   // planetCoordSys.updateWorldMatrix(true)
-  // TetheredRingLonCoordSys.updateMatrixWorld(true)
-  // TetheredRingLatCoordSys.updateMatrixWorld(true)
-  // TetheredRingRefCoordSys.updateMatrixWorld(true)
+  // tetheredRingLonCoordSys.updateMatrixWorld(true)
+  // tetheredRingLatCoordSys.updateMatrixWorld(true)
+  // tetheredRingRefCoordSys.updateMatrixWorld(true)
 
   const n = dParamWithUnits['numElevatorCables'].value
   for (let a = 0, i = 0; i<n; a+=Math.PI*2/n, i++) {
@@ -799,11 +842,11 @@ function constructElevatorCables() {
     upperElevatorTerminusMesh.rotation.z = crv.currentEquivalentLatitude - Math.PI/2
     upperElevatorTerminusMesh.position.set(elevatorCableupperElevatorTerminus.x, elevatorCableupperElevatorTerminus.y, elevatorCableupperElevatorTerminus.z)
     elevatorCableMeshes.push(upperElevatorTerminusMesh.clone())
-    // For teh Lower terminus, just duplicating the upperElevatorTerminus for now
+    // For the lower terminus, just duplicating the upperElevatorTerminus for now
     upperElevatorTerminusMesh.position.set(elevatorCableLowerAttachPnt.x, elevatorCableLowerAttachPnt.y, elevatorCableLowerAttachPnt.z)
     elevatorCableMeshes.push(upperElevatorTerminusMesh.clone())
   }
-  elevatorCableMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  elevatorCableMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 
 }
 
@@ -831,7 +874,7 @@ function constructElevatorCars() {
     elevatorCarMesh.userData = a
     elevatorCarMeshes.push(elevatorCarMesh.clone())
   }
-  elevatorCarMeshes.forEach(mesh => TetheredRingRefCoordSys.add(mesh))
+  elevatorCarMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 if (dParamWithUnits['showElevators'].value) {
   constructElevatorCables()
@@ -934,8 +977,8 @@ function constructTethers() {
       specs['tetherMass_Rough'+j] = {value: specs['tetherVolume_Rough'+j].value * dParamWithUnits['tetherMaterialDensity'].value, units: "kg"}
     })
     specs['tetherMaterialTotalMass_Rough'] = {value: (specs['tetherMass_Rough'+0].value + specs['tetherMass_Rough'+1].value) / 2 * dParamWithUnits['numTethers'].value, units: "kg"}
+    specs['tetherEqCO2TotalMass_Rough'] = {value: specs['tetherMaterialTotalMass_Rough'].value * 44/12, units: "kg"}
     specs['tetherCost_Rough'] = {value: specs['tetherMaterialTotalMass_Rough'].value * dParamWithUnits['tetherMaterialCost'].value / 1000000000, units: "Billion USD"}
-    //console.log(dParamWithUnits['tetherPointBxAvePercent'].value, specs['tetherCost_Rough'])
 
     // At this point the final length of the tethers (measured along the catenary) is known, but the tethers current shape is still
     // a function of its state of deployment.
@@ -1120,14 +1163,14 @@ function constructTethers() {
     // Add tether points to KML file
     if (genKMLFile) {
       planetCoordSys.updateWorldMatrix(true)
-      TetheredRingLonCoordSys.updateMatrixWorld(true)
-      TetheredRingLatCoordSys.updateMatrixWorld(true)
-      TetheredRingRefCoordSys.updateMatrixWorld(true)
+      tetheredRingLonCoordSys.updateMatrixWorld(true)
+      tetheredRingLatCoordSys.updateMatrixWorld(true)
+      tetheredRingRefCoordSys.updateMatrixWorld(true)
 
       tetherStrips.forEach(strip => {
         kmlFile = kmlFile.concat(kmlutils.kmlTetherPlacemarkHeader)
         strip.forEach((point) => {
-          const xyzWorld = TetheredRingRefCoordSys.localToWorld(point.clone())
+          const xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
           const xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
           const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
           //const coordString = '          ' + lla.lon + ',' + lla.lat + ',' + lla.alt + '\n'
@@ -1160,18 +1203,31 @@ function constructTethers() {
       tempTetherMesh.position.copy(referencePoint)
       tempTetherMesh.rotation.y = θ
       tethers[i] = tempTetherMesh.clone()
-      TetheredRingRefCoordSys.add(tethers[i])
+      tetheredRingRefCoordSys.add(tethers[i])
     }
   }
   else {
     tethers[0] = tempTetherMesh.clone()
-    TetheredRingRefCoordSys.add(tethers[0])
+    tetheredRingRefCoordSys.add(tethers[0])
   }
 }
 
 if (dParamWithUnits['showLaunchTrajectory'].value) {
   // Launch Trajectory Line
   const l = new launcher.launcher()
+  const angleFromNorthPole = (Math.PI/2 - dParamWithUnits['ringCenterLatitude'].value + (Math.PI/2 - crv.currentEquivalentLatitude))
+  const launcherExitPosition = new THREE.Vector3().setFromSphericalCoords(
+    radiusOfPlanet + crv.currentMainRingAltitude,
+    angleFromNorthPole,
+    dParamWithUnits['ringCenterLongitude'].value
+  )
+
+  const launcherExitMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
+  let launcherExitMarkerSize = 1000
+  launcherExitMarker.position.copy(launcherExitPosition)
+  launcherExitMarker.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
+  planetCoordSys.add(launcherExitMarker)
+
   l.Update()
   let ADandV
   ADandV = l.GetAltitudeDistanceAndVelocity(0)
@@ -1208,14 +1264,21 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
       (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
       crv.yf,
       (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
-    //console.log(ADandV)
     
     launchTrajectoryPoints.push(prevVehiclePostion)
     launchTrajectoryPoints.push(currVehiclePostion)
     prevVehiclePostion = currVehiclePostion.clone()
-    color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))
+    color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))   // Draw line with thick and thin tick marks
     launchTrajectoryColors.push(color.r, color.g, color.b)
     launchTrajectoryColors.push(color.r, color.g, color.b)
+    
+    const currentAltitude = 32000
+    const airDensity = l.GetAirDensity(currentAltitude)
+    const vehicleVelocity = 8000  // ToDo
+    const vehicleCrossSectionalArea = Math.PI * dParamWithUnits['launchVehicleRadius'].value**2
+    const forceOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value * airDensity * vehicleCrossSectionalArea * vehicleVelocity**2
+    const powerToOvercomeDrag = forceOfDrag * vehicleVelocity
+
   }
 
   const launchTrajectoryGeometry = new THREE.BufferGeometry().setFromPoints(launchTrajectoryPoints)
@@ -1227,7 +1290,8 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
     opacity: dParamWithUnits['launchTrajectoryVisibility'].value
   })
   const launchTrajectoryMesh = new THREE.LineSegments(launchTrajectoryGeometry, launchTrajectoryMaterial)
-  TetheredRingRefCoordSys.add( launchTrajectoryMesh )
+  tetheredRingRefCoordSys.add( launchTrajectoryMesh )
+  //planetCoordSys.add( launchTrajectoryMesh )
   // End Launch Trajectory Line
 }
 
@@ -1237,7 +1301,7 @@ function updateRing() {
   mainRingCurveLineMeshes.forEach(mesh => {
     mesh.geometry.dispose()
     mesh.material.dispose()
-    TetheredRingRefCoordSys.remove(mesh)
+    tetheredRingRefCoordSys.remove(mesh)
   })
   mainRingCurveLineMeshes.splice(0, mainRingCurveLineMeshes.length)
 
@@ -1245,7 +1309,7 @@ function updateRing() {
     mainRingMeshes.forEach(mesh => {
       mesh.geometry.dispose()
       mesh.material.dispose()
-      TetheredRingRefCoordSys.remove(mesh)
+      tetheredRingRefCoordSys.remove(mesh)
     })
     mainRingMeshes.splice(0, mainRingMeshes.length)
   }
@@ -1255,14 +1319,14 @@ function updateRing() {
       transitSystemMeshes.forEach(mesh => {
         mesh.geometry.dispose()
         mesh.material.dispose()
-        TetheredRingRefCoordSys.remove(mesh)
+        tetheredRingRefCoordSys.remove(mesh)
       })
       transitSystemMeshes.splice(0, transitSystemMeshes.length)
       if (dParamWithUnits['showTransitVehicles'].value) {
         transitVehicleMeshes.forEach(mesh => {
           mesh.geometry.dispose()
           mesh.material.dispose()
-          TetheredRingRefCoordSys.remove(mesh)
+          tetheredRingRefCoordSys.remove(mesh)
         })
         transitVehicleMeshes.splice(0, transitVehicleMeshes.length)
       }
@@ -1273,7 +1337,7 @@ function updateRing() {
     launchTubeMeshes.forEach(mesh => {
       mesh.geometry.dispose()
       mesh.material.dispose()
-      TetheredRingRefCoordSys.remove(mesh)
+      tetheredRingRefCoordSys.remove(mesh)
     })
     launchTubeMeshes.splice(0, launchTubeMeshes.length)
   }
@@ -1282,14 +1346,14 @@ function updateRing() {
     elevatorCableMeshes.forEach(mesh => {
       mesh.geometry.dispose()
       mesh.material.dispose()
-      TetheredRingRefCoordSys.remove(mesh)
+      tetheredRingRefCoordSys.remove(mesh)
     })
     elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
 
     elevatorCarMeshes.forEach(mesh => {
       mesh.geometry.dispose()
       mesh.material.dispose()
-      TetheredRingRefCoordSys.remove(mesh)
+      tetheredRingRefCoordSys.remove(mesh)
     })
     elevatorCarMeshes.splice(0, elevatorCarMeshes.length)
   }
@@ -1298,7 +1362,7 @@ function updateRing() {
     tether.geometry.dispose()
     tether.material.dispose()
     //tether.color.dispose()
-    TetheredRingRefCoordSys.remove(tether)
+    tetheredRingRefCoordSys.remove(tether)
   })
   tethers.splice(0, tethers.length)
 
@@ -1364,7 +1428,6 @@ const mouse = {
 }
 let intersectionPoint = new THREE.Vector3
 let targetPoint = new THREE.Vector3
-let orbitControlsRotateSpeed = 1
 let animateRingRaising = false
 let animateRingLowering = false
 let animateZoomingIn = false
@@ -1383,6 +1446,23 @@ function renderFrame() {
   //simContainer = document.querySelector('#simContainer')
   //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
   //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
+
+  if (orbitControlsEarthRingLerpFactor!=orbitControlsEarthRingLerpTarget) {
+    orbitControlsEarthRingLerpFactor = tram.clamp(orbitControlsEarthRingLerpFactor + orbitControlsEarthRingLerpSpeed * tram.sign(orbitControlsEarthRingLerpTarget-orbitControlsEarthRingLerpFactor), 0, 1)
+
+    orbitControls.enabled = false
+    orbitControls.target.lerpVectors(previousTargetPoint, orbitControlsTargetPoint, orbitControlsEarthRingLerpFactor)
+    const upVector = new THREE.Vector3()
+    upVector.lerpVectors(previousUpVector, orbitControlsTargetUpVector, orbitControlsEarthRingLerpFactor).normalize()
+    camera.up.copy(upVector)
+    orbitControls.upDirection.copy(upVector)
+    orbitControls.screenSpacePanning = false
+    orbitControls.enabled = true
+    orbitControls.update()
+  }
+  else {
+    orbitControls.maxPolarAngle = orbitControlsNewMaxPolarAngle
+  }
 
   //planetMesh.rotation.y += 0.000001
   if (animateZoomingIn || animateZoomingOut) {
@@ -1535,6 +1615,7 @@ function onKeyDown( event ) {
       orbitControls.rotateSpeed = 1
       orbitControls.upDirection.set(0, 1, 0)
       orbitControls.maxPolarAngle = Math.PI
+      orbitControlsNewMaxPolarAngle = Math.PI
       camera.up.set(0, 1, 0)
       break;
     case 80: /*P*/
@@ -1553,34 +1634,27 @@ function onKeyDown( event ) {
       if (transitTubeIntersects.length>0) {
         intersectionPoint = transitTubeIntersects[0].point
         targetPoint = intersectionPoint
-        orbitCenterMarkerSize = 100
-        orbitControlsRotateSpeed = 0.05
+        extraDistanceForCamera = 100
+        orbitControls.rotateSpeed = 0.05
       }
       else if (planetIntersects.length>0) { // Note: would probably be advisable to assert here that there is only one intersection point.
         intersectionPoint = planetIntersects[0].point
         // Because we want to orbit around a point at the altitude of the ring...
         targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
-        //targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + 100)/radiusOfPlanet)
-        orbitCenterMarkerSize = 10000
-        orbitControlsRotateSpeed = 0.9
+        extraDistanceForCamera = 10000
+        orbitControls.rotateSpeed = 0.9
         // Uncomment this line if you want to print lat, lon, and alt to console
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
       if (planetIntersects.length>0 || transitTubeIntersects.length>0) {
-        orbitControls.target.copy(targetPoint)
-        orbitControls.enabled = false
-        //orbitControls.minAzimuthAngle = Math.PI - .5
-        //orbitControls.maxAzimuthAngle = Math.PI + .5
-        //orbitControls.minPolarAngle = Math.PI/2 - .01
-        orbitControls.maxPolarAngle = Math.PI/2 + .1
-
-        const upVector = planetCoordSys.worldToLocal(intersectionPoint).normalize()
-        camera.up = upVector     // Optional, but recommended
-        orbitControls.upDirection = upVector
-        orbitControls.screenSpacePanning = false      
-        orbitControls.rotateSpeed = orbitControlsRotateSpeed
-        orbitControls.enabled = true
-        orbitControls.update()
+        previousTargetPoint.copy(orbitControlsTargetPoint.clone())
+        previousUpVector.copy(orbitControlsTargetUpVector.clone())
+        orbitControlsTargetPoint.copy(targetPoint.clone())
+        orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
+        orbitControlsEarthRingLerpFactor = 0
+        orbitControlsEarthRingLerpTarget = 1
+        orbitControlsEarthRingLerpSpeed = 1/32
+        orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
       }
       break;
     case 81: /*Q*/
@@ -1616,6 +1690,7 @@ function onKeyDown( event ) {
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
       orbitControls.maxPolarAngle = Math.PI/2 + .1
+      orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
       orbitControls.target.set(-3763210.8232434946, 4673319.5670904, -2255256.723306473)
       orbitControls.upDirection.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
       orbitControls.object.position.set (-3764246.447379286, 4672428.630481427, -2255483.089866906)
@@ -1669,10 +1744,15 @@ function onKeyDown( event ) {
     })
 }
 
+function orbitControlsEventHandler() {
+  recomputeNearFarClippingPlanes()
+  autoAdjustOrbitControlsCenter()
+}
+
 function recomputeNearFarClippingPlanes() {
   // Calculate the distance to the nearest object - for this we will use the sphere encompassing the Earth and it's stratosphere
   // Multiply that by the cosine of thecamera's fulstrum angle
-  camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+orbitCenterMarkerSize)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
+  camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,
   // then add the distrance from there to the edge of the sphere that represents the atmosphere,
   // then pad this sum by a factor of 1.5
@@ -1702,6 +1782,84 @@ function recomputeNearFarClippingPlanes() {
   camera.updateProjectionMatrix()
   nearClippingPlane = camera.near
   farClippingPlane = camera.far
+}
+
+let previousUpVector = new THREE.Vector3(0, 1, 0)
+let orbitControlsTargetUpVector = new THREE.Vector3(0, 1, 0)
+let previousTargetPoint = new THREE.Vector3(0, 0, 0)
+let orbitControlsTargetPoint = new THREE.Vector3(0, 0, 0)
+let orbitControlsLerpFactor = 1
+let toRingAlreadyTriggered = false
+let toPlanetAlreadyTriggered = true
+let orbitControlsEarthRingLerpFactor = 0 // 0 means earth-centered, 1 means ring centered
+let orbitControlsEarthRingLerpTarget = 0
+let orbitControlsEarthRingLerpSpeed
+let orbitControlsNewMaxPolarAngle = Math.PI
+
+function autoAdjustOrbitControlsCenter() {
+  const distanceToCenterOfEarth = camera.position.length()
+  const innerTransitionDistance = radiusOfPlanet+10000000
+  const outerTransitionDistance = radiusOfPlanet+20000000
+  if (distanceToCenterOfEarth>outerTransitionDistance) {
+    toRingAlreadyTriggered = false  // Reset the trigger
+    if (!toPlanetAlreadyTriggered) {
+      previousTargetPoint.copy(orbitControlsTargetPoint.clone())
+      previousUpVector.copy(orbitControlsTargetUpVector.clone())
+      orbitControlsTargetPoint.set(0, 0, 0)
+      // ToDo: Need to find the nearest point on the ring to the orbitControlsSurfaceMarker and set orbitControlsTargetPoint to that
+      orbitControlsTargetUpVector.set(0, 1, 0)
+      orbitControlsEarthRingLerpFactor = 0
+      orbitControlsEarthRingLerpTarget = 1
+      orbitControlsEarthRingLerpSpeed = 1/256
+      orbitControls.maxPolarAngle = Math.PI
+      orbitControlsNewMaxPolarAngle = Math.PI
+      orbitControls.rotateSpeed = 1
+      //orbitControlsSurfaceMarker.visible = false
+      toPlanetAlreadyTriggered = true
+    }
+  }
+  //else if ((distanceToCenterOfEarth>innerTransitionDistance) && (distanceToCenterOfEarth<outerTransitionDistance)) {
+    //const pointAboveEarthsSurface = pointOnEarthsSurface.clone().multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
+    //orbitControlsSurfaceMarker.position.copy(pointAboveEarthsSurface)
+    //orbitControlsSurfaceMarker.visible = true
+  //}
+  else if (distanceToCenterOfEarth<=innerTransitionDistance) {
+    if (!toRingAlreadyTriggered) {
+      const screenCenter = new THREE.Vector2(0, 0) // The center of the screen is, by definition, (0,0)
+      raycaster.setFromCamera(screenCenter, camera)
+      const planetIntersects = []
+      planetMeshes.forEach(mesh => {
+        planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(mesh))
+      })
+      const pointOnEarthsSurface = planetIntersects[0].point
+      previousTargetPoint.copy(orbitControlsTargetPoint.clone())
+      previousUpVector.copy(orbitControlsTargetUpVector.clone())
+      // ToDo: Need to find the nearest point on the ring to the orbitControlsSurfaceMarker and set orbitControlsTargetPoint to that
+      // Convert pointOnEarthsSurface into tetheredRingRefCoordSys
+      const localPoint = tetheredRingRefCoordSys.worldToLocal(pointOnEarthsSurface.clone()).normalize()
+      // Then compute it's theata value
+      const originalTheta = Math.atan2(localPoint.z, localPoint.x)
+      // Round theta to align it with the position of an elevator cable
+      const roundedTheta = Math.round(originalTheta/(Math.PI*2)*dParamWithUnits['numElevatorCables'].value) / dParamWithUnits['numElevatorCables'].value * Math.PI*2
+      // Then find a point on the ring with the same theta value
+      const transitTube_r = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+      const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+      localPoint.set(transitTube_r*Math.cos(roundedTheta), transitTube_y, transitTube_r*Math.sin(roundedTheta))
+      // Convert that point back into planetCoordSys
+      const worldPoint = tetheredRingRefCoordSys.localToWorld(localPoint.clone())
+      //orbitControlsCenterMarker.position.copy(worldPoint.clone())
+      orbitControlsTargetPoint.copy(worldPoint.clone())
+      orbitControlsTargetUpVector = planetCoordSys.worldToLocal(worldPoint.clone()).normalize()
+      orbitControlsEarthRingLerpFactor = 0
+      orbitControlsEarthRingLerpTarget = 1
+      orbitControlsEarthRingLerpSpeed = 1/256
+      orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
+      orbitControls.rotateSpeed = 0.9
+      //orbitControlsSurfaceMarker.visible = false
+      toRingAlreadyTriggered = true
+    }
+    toPlanetAlreadyTriggered = false // Reset trigger      
+  }
 }
 
 addEventListener('mousemove', (event) => {
