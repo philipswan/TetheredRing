@@ -4,7 +4,7 @@ import {
 	Quaternion,
 	Raycaster,
 	Vector3
-} from '../three.js/build/three.module.js';
+} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 
 export class mainRingTubeGeometry extends BufferGeometry {
 

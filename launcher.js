@@ -1,5 +1,5 @@
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import * as THREE from '../three.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//import * as THREE from '../three.js'
 
 export class launcher {
 
@@ -94,7 +94,7 @@ export class launcher {
         this.CurveUpTime = this.CurveUpDistance / this.EllipticalOrbitPerigeeVelocity;
         this.CurveDownTime = this.CurveDownDistance / this.EllipticalOrbitPerigeeVelocity;
         this.TotalTimeInLaunchSystem = this.AccelerationTime + this.CurveUpTime + this.CurveDownTime;
-        this.VehicleCrossSectionalAreaForDrag = Math.PI * this.VehicleRadius;
+        this.VehicleCrossSectionalAreaForDrag = Math.PI * this.VehicleRadius ** 2
     }
 
     // The following functions were ported from 	// Equation 3.66c, http://www.nssc.ac.cn/wxzygx/weixin/201607/P020160718380095698873.pdf

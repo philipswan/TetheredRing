@@ -5,6 +5,22 @@ export function lerp (start, end, amt) {
   return (1-amt)*start+amt*end
 }
 
+export function clamp(num, min, max) {
+  return Math.min(Math.max(num, min), max)
+}
+
+export function sign(num) {
+  if (num<0) {
+    return -1
+  }
+  else if (num>0) {
+    return 1
+  }
+  else {
+    return 0
+  }
+}
+
 // Returns a "delta r" in the ring-centered cylindrical coordinate space relative to the middlemost main ring  
 export function offset_r(outwardOffset, upwardOffset, currentEquivalentLatitude) {
   return outwardOffset * Math.sin(currentEquivalentLatitude) + upwardOffset * Math.cos(currentEquivalentLatitude)
