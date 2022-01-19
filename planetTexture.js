@@ -2,7 +2,7 @@ import * as THREE from "https://cdn.skypack.dev/three@0.133.1/build/three.module
 import { getBounds } from "./utils";
 
 
-export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPlanet, partial, callback) => {
+export const makePlanetTexture = (canvasName, planetMesh, orbitControls, camera, radiusOfPlanet, partial, callback) => {
     const osm = new ol.layer.Tile({
         extent: [-180, -90, 180, 90],
         source: new ol.source.XYZ({
@@ -45,7 +45,7 @@ export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPla
         mapCanvas.height = size[1];
         const mapContext = mapCanvas.getContext("2d");
         Array.prototype.forEach.call(
-            document.querySelectorAll(".ol-layer canvas"),
+            document.querySelectorAll(canvasName + " .ol-layer canvas"),
             function (canvas) {
                 if (canvas.width > 0) {
                     const opacity = canvas.parentNode.style.opacity;
@@ -79,7 +79,6 @@ export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPla
 
     if (partial) {
         orbitControls.addEventListener("end", () => {
-            console.log("Test");
             const bounds = getBounds(planetMesh, camera, radiusOfPlanet);
             console.log(bounds)
             osm.setExtent(bounds);

@@ -18,6 +18,7 @@ import * as launcher from './launcher.js'
 //import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
 //import { OrbitControls } from '../three.js/examples/jsm/controls/OrbitControls.js'
 import { OrbitControls } from './OrbitControlsModified.js'
+import { makePlanetMesh } from './planetMesh.js'
 import { makePlanetTexture } from './planetTexture.js'
 //import * as dat from 'dat.gui'
 import * as tram from './tram.js'
@@ -371,20 +372,8 @@ else if (TextureModeOpenLayers) {
 
 
 
-  const planetMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
-    new THREE.ShaderMaterial({
-      vertexShader: document.getElementById('vertexShader').textContent,
-      fragmentShader: document.getElementById('fragmentShader').textContent,
-      uniforms: {
-        planetTexture: {
-          value: undefined,
-        }
-      },
-
-    })
-  )
-  makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
+  const planetMesh = makePlanetMesh(orbitControls, camera, radiusOfPlanet, true, planetWidthSegments, planetHeightSegments)
+  makePlanetTexture("#map", planetMesh, orbitControls, camera, radiusOfPlanet, true, (planetTexture) => {
     planetMesh.material.uniforms.planetTexture.value = planetTexture;
     planetMesh.material.uniforms.planetTexture.needsUpdate = true;
   });
