@@ -1,4 +1,6 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
+import * as THREE from "https://cdn.skypack.dev/three@0.133.1/build/three.module.js";
+import { getBounds } from "./utils";
+
 
 export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPlanet, partial, callback) => {
     const osm = new ol.layer.Tile({
@@ -75,5 +77,10 @@ export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPla
         view.setResolution(0.18);
     });
 
-    return
-}
+    orbitControls.addEventListener("end", () => {
+        console.log("Test");
+        getBounds(planetMesh, camera, radiusOfPlanet);
+    })
+
+    return;
+};
