@@ -18,10 +18,10 @@ import * as launcher from './launcher.js'
 //import { OrbitControls } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/controls/OrbitControls.js'
 //import { OrbitControls } from '../three.js/examples/jsm/controls/OrbitControls.js'
 import { OrbitControls } from './OrbitControlsModified.js'
+import { makePlanetTexture } from './planetTexture.js'
 //import * as dat from 'dat.gui'
 import * as tram from './tram.js'
 import { mainRingTubeGeometry, transitTrackGeometry, transitTubeGeometry } from './TransitTrack.js'
-
 
 
 const enableVR = false
@@ -316,6 +316,7 @@ planetCoordSys.position.z = 0
 
 let eightTextureMode = false
 let TextureMode24x12 = false
+let TextureModeOpenLayers = true;
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
   planetCoordSys.rotation.x = Math.PI * -4 / 16
@@ -365,6 +366,34 @@ if (TextureMode24x12) {
       planetMeshes.push(planetMesh)
     }
   }
+}
+else if (TextureModeOpenLayers) {
+
+
+
+  const planetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+    new THREE.ShaderMaterial({
+      vertexShader: document.getElementById('vertexShader').textContent,
+      fragmentShader: document.getElementById('fragmentShader').textContent,
+      uniforms: {
+        planetTexture: {
+          value: undefined,
+        }
+      },
+
+    })
+  )
+  makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
+    planetMesh.material.uniforms.planetTexture.value = planetTexture;
+    planetMesh.material.uniforms.planetTexture.needsUpdate = true;
+  });
+
+
+  planetMesh.rotation.y = -Math.PI / 2  // This is needed to have the planet's texture align with the planet's Longintitude system
+  planetMeshes.push(planetMesh)
+
+
 }
 else if (eightTextureMode) {
   let letter
@@ -494,12 +523,14 @@ var tetherMaterial = new THREE.LineBasicMaterial({
   vertexColors: THREE.VertexColors,
   color: 0x4897f8,     // This line doesn't seem to work
   transparent: true,
+  depthWrite: false,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
 var cableMaterial = new THREE.LineBasicMaterial({
   vertexColors: THREE.VertexColors,
   //color: 0x4897f8,
   transparent: true,
+  depthWrite: false,
   opacity: dParamWithUnits['cableVisibility'].value
 })
 
@@ -781,6 +812,7 @@ function constructTransitVehicles() {
       for (let i = 0; i < trackOffsetsList.length; i++) {
         const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0] * dParamWithUnits['transitTubeTubeRadius'].value
         const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1] * dParamWithUnits['transitTubeTubeRadius'].value - dParamWithUnits['transitVehicleRadius'].value - 0.35  // Last is half of the track height
+
         transitVehicleMeshes.push(makeTransitVehicleMesh(object, outwardOffset, upwardOffset, a, i))
       }
     }
@@ -1981,10 +2013,19 @@ function autoAdjustOrbitControlsCenter() {
       const screenCenter = new THREE.Vector2(0, 0) // The center of the screen is, by definition, (0,0)
       raycaster.setFromCamera(screenCenter, camera)
       const planetIntersects = []
+
+      const intersection = (mesh) => {
+        const point = new THREE.Vector3();
+        return raycaster.ray.intersectSphere(mesh.geometry.boundingSphere, point)
+      }
+
       planetMeshes.forEach(mesh => {
-        planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(mesh))
+        const intersects = intersection(mesh);
+        intersects && planetIntersects.push(intersects)
       })
-      const pointOnEarthsSurface = planetIntersects[0].point
+
+      console.log(planetIntersects)
+      const pointOnEarthsSurface = planetIntersects[0]
       // Second criteria is that we're sufficiently close to the point that the user wants to zoom into, even if they are zooming in at an oblique angle.
       const distanceToPointOnEarthsSurface = pointOnEarthsSurface.clone().sub(camera.position).length()
       if (distanceToPointOnEarthsSurface < innerTransitionDistance) {
