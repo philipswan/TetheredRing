@@ -17,10 +17,12 @@ import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/web
 // import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
 // import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 
-//import Stats from '../three.js/examples/jsm/libs/stats.module.js'
+import Stats from '../three.js/examples/jsm/libs/stats.module.js'
 //import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
 import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
+import { OBJLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/OBJLoader.js';
+import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js';
 
 //import * as dat from 'dat.gui'
 import * as tram from './tram.js'
@@ -44,8 +46,9 @@ const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact sha
 const lengthOfSiderealDay = 86164.0905 // seconds    using value for Earth for now
 
 const gui = new GUI()
-const folderLocation = gui.addFolder('Location')
+const folderGeography = gui.addFolder('Location (V6)')
 const folderEngineering = gui.addFolder('Engineering')
+const folderEconomics = gui.addFolder('Economics')
 const folderRendering = gui.addFolder('Rendering')
 
 const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perfectly circular ring can be and still fits within the Pacific Ocean
@@ -58,17 +61,17 @@ const guidParamWithUnits = {
   //ringCenterLongitude: 182,
   //ringCenterLatitude: 11,
   //ringFinalAltitude: 32000,  // m
-  equivalentLatitude: {value: equivalentLatitudePreset, units: "degrees", autoMap: false, min: 10, max: 80, updateFunction: adjustRingDesign, folder: folderLocation},
+  equivalentLatitude: {value: equivalentLatitudePreset, units: "degrees", autoMap: false, min: 10, max: 80, updateFunction: adjustRingDesign, folder: folderGeography},
   // Final Location
-  buildLocationRingCenterLongitude: {value: 213.7, units: "degrees", autoMap: false, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderLocation},
-  finalLocationRingCenterLongitude: {value: 186.3, units: "degrees", autoMap: false, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderLocation},
-  buildLocationRingCenterLatitude: {value: -19.2, units: "degrees", autoMap: false, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderLocation},
-  finalLocationRingCenterLatitude: {value: 14.2, units: "degrees", autoMap: false, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderLocation},
+  buildLocationRingCenterLongitude: {value: 213.7, units: "degrees", autoMap: false, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
+  finalLocationRingCenterLongitude: {value: 186.3, units: "degrees", autoMap: false, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
+  buildLocationRingCenterLatitude: {value: -19.2, units: "degrees", autoMap: false, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderGeography},
+  finalLocationRingCenterLatitude: {value: 14.2, units: "degrees", autoMap: false, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderGeography},
   // Build location (assumes equivalentLatitude = 35)
-  buildLocationRingEccentricity: {value:1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderLocation},
-  finalLocationRingEccentricity: {value:1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderLocation},
+  buildLocationRingEccentricity: {value:1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
+  finalLocationRingEccentricity: {value:1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   // ToDo: moveRing needs to call adjustRingDesign when buildLocationRingEccentricity differs from finalLocationRingEccentricity
-  moveRing: {value:1, units: "", autoMap: false, min: 0, max: 1, updateFunction: adjustRingLatLon, folder: folderLocation},
+  moveRing: {value:1, units: "", autoMap: false, min: 0, max: 1, updateFunction: adjustRingLatLon, folder: folderGeography},
 
   // Engineering Parameters - Ring
   ringFinalAltitude: {value:32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -105,7 +108,8 @@ const guidParamWithUnits = {
   transitTubeInteriorGasMolecularWeight: {value: 29, units: 'kg/kgmole', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitTubeInteriorTemperature: {value: 20, units: 'C', autoMap: true, min: 0, max: 40, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitTrackCost: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: adjustRingDesign, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
-  numTransitVehicles: {value: 1800, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  // This is really "aveNumTransitVehiclesPerTrack" at the moment...
+  numTransitVehicles: {value: 90, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitVehicleLength: {value: 20, units: 'm', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitVehicleRadius: {value: 2, units: 'm', autoMap: true, min: 1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
   transitVehicleCruisingSpeed: {value: 1100, units: 'm/s', autoMap: true, min: 100, max: 2000, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -139,6 +143,8 @@ const guidParamWithUnits = {
   cableVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustCableOpacity, folder: folderRendering},
   tetherVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
+  cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, updateFunction: updateCamerFieldOfView, folder: folderRendering},
+
 }
 
 const current = guidParamWithUnits['powerRequirement'].value / guidParamWithUnits['powerVoltageAcrossLoad'].value
@@ -162,6 +168,7 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   guidParam[k] = v.value
 })
 
+// Add sliders for each entry in guidParamWithUnits to the gui...
 Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   if (v.step) {
     guidParamWithUnits[k].folder.add(guidParam, k, v.min, v.max).onChange(v.updateFunction).step(v.step)
@@ -170,6 +177,12 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
     guidParamWithUnits[k].folder.add(guidParam, k, v.min, v.max).onChange(v.updateFunction)
   }
 })
+// Add an additional button to the gui to display instructions for the new user
+function displayHelp() {
+  alert('"Z" and "X" keys zoom in and out.\n"P" key moves the point that the simulation orbits around to a position just above the planet\'s surface near to where the sprite is pointing.\n')
+}
+guidParam['Help'] = displayHelp
+gui.add(guidParam, 'Help')
 
 // Actual Design Parameters derived from slider values
 let dParamWithUnits = {}
@@ -241,9 +254,12 @@ let simContainer = document.querySelector('#simContainer')
 
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
+//scene.fog = new THREE.FogExp2(0x202040, 0.000005)
+
 //scene.background = new THREE.Color( 0xffffff )
-const fov = 12
+const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
+//console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
 let nearClippingPlane = 0.1 * radiusOfPlanet
 let farClippingPlane = 100 * radiusOfPlanet
 let extraDistanceForCamera = 10000
@@ -251,7 +267,12 @@ let extraDistanceForCamera = 10000
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
 const cameraGroup = new THREE.Group()
 cameraGroup.add(camera)
-camera.position.z = -100 * radiusOfPlanet/8
+camera.position.z = -30 * radiusOfPlanet/8
+
+function updateCamerFieldOfView() {
+  updatedParam()
+  camera.fov = dParamWithUnits['cameraFieldOfView'].value
+}
 
 // Need to add these two lines to have the planet apper in VR
 if (enableVR) {
@@ -271,10 +292,13 @@ const renderer = new THREE.WebGLRenderer({
 })
 //renderer.setSize(innerWidth, innerHeight)
 renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
-renderer.setPixelRatio(devicePixelRatio)
+//console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
+renderer.setPixelRatio(window.devicePixelRatio)
 renderer.xr.enabled = true
 renderer.xr.setReferenceSpaceType( 'local' )
 //document.body.appendChild(renderer.domElement)
+const stats = new Stats()
+simContainer.appendChild( stats.dom )
 
 const orbitControls = new OrbitControls(camera, renderer.domElement)
 orbitControls.addEventListener('change', orbitControlsEventHandler)
@@ -295,7 +319,8 @@ planetCoordSys.position.y = 0
 planetCoordSys.position.z = 0
 //planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
 
-let eightTextureMode
+let eightTextureMode = false
+let TextureMode24x12 = false
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
   planetCoordSys.rotation.x = Math.PI * -4 / 16
@@ -303,13 +328,50 @@ if (enableVR) {
 }
 else {
   eightTextureMode = false
+  TextureMode24x12 = false
 }
 
 scene.add(planetCoordSys)
 
 const planetMeshes = []
 let filename
-if (eightTextureMode) {
+let letter
+
+if (TextureMode24x12) {
+  const w = 24
+  const h = 12
+  for (let j=0; j<h; j++) {
+    for (let i = 0; i<w; i++) {
+      if ((j!=2) || (i!=3)) {
+        filename = `./textures/24x12/LR/earth_LR_${w}x${h}_${i}x${j}.jpg`
+      }
+      else {
+        filename = `./textures/24x12/HR/earth_HR_${w}x${h}_${i}x${j}.jpg`
+      }
+      console.log(filename)
+      const planetMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h),
+        new THREE.ShaderMaterial({
+          //vertexShader: vertexShader,
+          //fragmentShader: fragmentShader,
+          vertexShader: document.getElementById( 'vertexShader' ).textContent,
+          fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+          uniforms: {
+            planetTexture: {
+              //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+              value: new THREE.TextureLoader().load(filename),
+            }
+          },
+          //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+          //displacementScale: 500000,
+        })
+      )
+      planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+      planetMeshes.push(planetMesh)
+    }
+  }
+}
+else if (eightTextureMode) {
   let letter
   for (let j=0; j<2; j++) {
     for (let i = 0; i<4; i++) {
@@ -345,6 +407,18 @@ if (eightTextureMode) {
 else {
   const planetMesh = new THREE.Mesh(
     new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+    // new THREE.MeshPhongMaterial({
+    //   //roughness: 1,
+    //   //metalness: 0,
+    //   map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ),
+    //   //map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
+    //   //map: new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
+    //   //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
+    //   //bumpScale: 1000000,
+    //   //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+    //   //displacementScale: 20000,
+    // })
+    // Hack
     new THREE.ShaderMaterial({
       //vertexShader: vertexShader,
       //fragmentShader: fragmentShader,
@@ -487,7 +561,7 @@ if (dParamWithUnits['showLaunchOrbit'].value) {
 // Add Some Stars
 const starGeometry = new THREE.BufferGeometry()
 const starVertices = []
-for ( let i = 0; i < 100000;) {
+for ( let i = 0; i < 10000;) {
   // Probably should eliminate all of the stars that are too close to the planet 
   // starVertices.push( THREE.MathUtils.randFloatSpread( 2000 * radiusOfPlanet/8 ) ) // x
   // starVertices.push( THREE.MathUtils.randFloatSpread( 2000 * radiusOfPlanet/8 ) ) // y
@@ -595,7 +669,9 @@ function constructMainRingCurve() {
 const numWedges = 256
 let start, end
 
+console.log("V6")
 const mainRingMeshes = []
+console.log("Constructing Main Rings")
 constructMainRings()
 
 function constructMainRings() {
@@ -622,6 +698,7 @@ const trackOffsetsList = [[-0.4, 0.8], [0.4, 0.8], [-0.4, -0.1], [0.4, -0.1]]
 
 if (dParamWithUnits['showTransitSystem'].value) {
   // Create the transit system
+  console.log("Constructing Transit System")
   constructTransitSystem()
 }
 function constructTransitSystem() {
@@ -667,17 +744,12 @@ function constructTransitSystem() {
 }
 
 const transitVehicleMeshes = []
-function computeTransitVehiclePositionAndRotation(transitVehicleMesh, outwardOffset, upwardOffset, a, d) {
-  const transitVehiclePosition_r = crv.mainRingRadius + tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-  const a2 = a + d/transitVehiclePosition_r
-  transitVehicleMesh.position.set(transitVehiclePosition_r * Math.cos(a2), crv.yc + tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude), transitVehiclePosition_r * Math.sin(a2))
-  transitVehicleMesh.rotation.set(0, -a2, crv.currentEquivalentLatitude)
-  transitVehicleMesh.rotateX(Math.PI/2)
+if (dParamWithUnits['showTransitSystem'].value && dParamWithUnits['showTransitVehicles'].value) {
+  console.log("Constructing Transit Vehicles")
+  constructTransitVehicles()
 }
-
 function constructTransitVehicles() {
-  // Add Transit Vehicles
-  // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
+
   const C_D = dParamWithUnits['transitVehicleCoefficientOfDrag'].value
   const P = dParamWithUnits['transitTubeInteriorPressure'].value
   const MW = dParamWithUnits['transitTubeInteriorGasMolecularWeight'].value
@@ -691,25 +763,50 @@ function constructTransitVehicles() {
   const η = dParamWithUnits['transitSystemEfficiencyAtCruisingSpeed'].value
   specs['transitVehiclePowerConsumptionWhenCruising'] = {value: F * V / η, units: "W"}
 
-  function makeTransitVehicleMesh(outwardOffset, upwardOffset, a, i) {
-    const transitVehicleGeometry = new THREE.CylinderGeometry(dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleLength'].value, 64, 1)
-    const transitVehicleMesh = new THREE.Mesh(transitVehicleGeometry, metalicMaterial)
-    computeTransitVehiclePositionAndRotation(transitVehicleMesh, outwardOffset, upwardOffset, a, 0)
-    transitVehicleMesh.userData = {'a': a, 'i': i}
-    return transitVehicleMesh
-  }
-
-  for (let a = 0, i = 0; i<dParamWithUnits['numTransitVehicles'].value; a+=Math.PI*2/dParamWithUnits['numTransitVehicles'].value, i++) {
-    for (let i = 0; i<trackOffsetsList.length; i++) {
-      const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0] * dParamWithUnits['transitTubeTubeRadius'].value
-      const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1] * dParamWithUnits['transitTubeTubeRadius'].value - dParamWithUnits['transitVehicleRadius'].value - 0.35  // Last is half of the track height
-      transitVehicleMeshes.push(makeTransitVehicleMesh(outwardOffset, upwardOffset, a, i))
+  const loader = new FBXLoader()
+  loader.load('models/TransitCar.fbx', addTransitVehicles,
+    // called when loading is in progresses
+    function ( xhr ) {
+      console.log( ( xhr.loaded / xhr.total * 100 ) + '% transit car loaded' );
+    },
+    // called when loading has errors
+    function ( error ) {
+      console.log( 'An error happened', error );
     }
+  )
+  
+  function addTransitVehicles(object) {
+    // Add Transit Vehicles
+
+    object.scale.set(.034, .034, .034)
+    //object.visible = false
+    for (let a = 0, i = 0; i<dParamWithUnits['numTransitVehicles'].value; a+=Math.PI*2/dParamWithUnits['numTransitVehicles'].value, i++) {
+      for (let i = 0; i<trackOffsetsList.length; i++) {
+        const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0] * dParamWithUnits['transitTubeTubeRadius'].value
+        const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1] * dParamWithUnits['transitTubeTubeRadius'].value - dParamWithUnits['transitVehicleRadius'].value - 0.35  // Last is half of the track height
+        transitVehicleMeshes.push(makeTransitVehicleMesh(object, outwardOffset, upwardOffset, a, i))
+      }
+    }
+
+    function makeTransitVehicleMesh(object, outwardOffset, upwardOffset, a, i) {
+      //const transitVehicleGeometry = new THREE.CylinderGeometry(dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleRadius'].value, dParamWithUnits['transitVehicleLength'].value, 64, 1)
+      //const transitVehicleMesh = new THREE.Mesh(transitVehicleGeometry, metalicMaterial)
+      const transitVehicleMesh = object.clone()
+      if ((a==0) && (i==0)) {console.log(object)}
+      computeTransitVehiclePositionAndRotation(transitVehicleMesh, outwardOffset, upwardOffset, a, 0)
+      transitVehicleMesh.userData = {'a': a, 'i': i}
+      return transitVehicleMesh
+    }
+
+    transitVehicleMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
   }
-  transitVehicleMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
-if (dParamWithUnits['showTransitSystem'].value && dParamWithUnits['showTransitVehicles'].value) {
-  constructTransitVehicles()
+function computeTransitVehiclePositionAndRotation(transitVehicleMesh, outwardOffset, upwardOffset, a, d) {
+  const transitVehiclePosition_r = crv.mainRingRadius + tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
+  const a2 = a + d/transitVehiclePosition_r
+  transitVehicleMesh.position.set(transitVehiclePosition_r * Math.cos(a2), crv.yc + tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude), transitVehiclePosition_r * Math.sin(a2))
+  transitVehicleMesh.rotation.set(0, -a2, crv.currentEquivalentLatitude)
+  transitVehicleMesh.rotateZ(-Math.PI/2)
 }
 
 const launchTubeMeshes = []
@@ -757,6 +854,7 @@ function constructLaunchTube() {
 }
 // Create the launch sytem
 if (dParamWithUnits['showLaunchTubes'].value) {
+  console.log("Constructing Launch Tube")
   constructLaunchTube()
 }
 
@@ -851,38 +949,63 @@ function constructElevatorCables() {
 }
 
 function constructElevatorCars() {
-  // Add elevator Cars
-  // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
-  const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorUpperTerminusOutwardOffset'].value
-  const elevatorCarPosition_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-  const elevatorCarPosition_y = crv.yc + tram.offset_y(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
 
-  const elevatorCarMesh = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 10, 16), metalicMaterial)
+  const loader = new OBJLoader()
+  //const loader = new FBXLoader()//
+  loader.load(
+    'models/ElevatorPod.obj',
+    //'models/TransitCar.fbx',
+    addCars,
+    // called when loading is in progresses
+    function ( xhr ) {
+      console.log( ( xhr.loaded / xhr.total * 100 ) + '% elevator car loaded' )
+    },
+    // called when loading has errors
+    function ( error ) {
+      console.log( 'An error happened' )
+    }
+  )
+  
+  function addCars(object) {
 
-  for (let a = 0, i = 0; i<dParamWithUnits['numElevatorCars'].value; a+=Math.PI*2/dParamWithUnits['numElevatorCars'].value, i++) {
-    const elevatorCarPosition = new THREE.Vector3(
-      elevatorCarPosition_r * Math.cos(a),
-      elevatorCarPosition_y,
-      elevatorCarPosition_r * Math.sin(a)
-    )
-    
-    // Add elevator car
-    elevatorCarMesh.position.set(elevatorCarPosition.x, elevatorCarPosition.y, elevatorCarPosition.z)
-    elevatorCarMesh.rotation.x = 0
-    elevatorCarMesh.rotation.y = -a
-    elevatorCarMesh.rotation.z = crv.currentEquivalentLatitude - Math.PI/2
-    elevatorCarMesh.userData = a
-    elevatorCarMeshes.push(elevatorCarMesh.clone())
+    // Add elevator Cars
+    // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
+    const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorUpperTerminusOutwardOffset'].value
+    const elevatorCarPosition_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+    const elevatorCarPosition_y = crv.yc + tram.offset_y(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+
+    //const elevatorCarMesh = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 10, 16), metalicMaterial)
+    const elevatorCarMesh = object
+    elevatorCarMesh.scale.set(0.25, 0.25, 0.25)
+      
+    for (let a = 0, i = 0; i<dParamWithUnits['numElevatorCars'].value; a+=Math.PI*2/dParamWithUnits['numElevatorCars'].value, i++) {
+      const elevatorCarPosition = new THREE.Vector3(
+        elevatorCarPosition_r * Math.cos(a),
+        elevatorCarPosition_y,
+        elevatorCarPosition_r * Math.sin(a)
+      )
+      
+      // Add elevator car
+      elevatorCarMesh.position.set(elevatorCarPosition.x, elevatorCarPosition.y, elevatorCarPosition.z)
+      elevatorCarMesh.rotation.x = 0
+      elevatorCarMesh.rotation.y = -a
+      elevatorCarMesh.rotation.z = crv.currentEquivalentLatitude - Math.PI/2
+      elevatorCarMesh.userData = a
+      elevatorCarMeshes.push(elevatorCarMesh.clone())
+    }
+    elevatorCarMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
   }
-  elevatorCarMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 }
 if (dParamWithUnits['showElevators'].value) {
+  console.log("Constructing Elevator Cables")
   constructElevatorCables()
+  console.log("Constructing Elevator Cars")
   constructElevatorCars()
 }
 
 // Tethers
 const tethers = []
+console.log("Constructing Tethers")
 constructTethers()
 
 function constructTethers() {
@@ -1323,9 +1446,10 @@ function updateRing() {
       })
       transitSystemMeshes.splice(0, transitSystemMeshes.length)
       if (dParamWithUnits['showTransitVehicles'].value) {
+        //console.log(transitVehicleMeshes)
         transitVehicleMeshes.forEach(mesh => {
-          mesh.geometry.dispose()
-          mesh.material.dispose()
+          //mesh.geometry.dispose()
+          //mesh.material.dispose()
           tetheredRingRefCoordSys.remove(mesh)
         })
         transitVehicleMeshes.splice(0, transitVehicleMeshes.length)
@@ -1351,8 +1475,8 @@ function updateRing() {
     elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
 
     elevatorCarMeshes.forEach(mesh => {
-      mesh.geometry.dispose()
-      mesh.material.dispose()
+      //mesh.geometry.dispose()
+      //mesh.material.dispose()
       tetheredRingRefCoordSys.remove(mesh)
     })
     elevatorCarMeshes.splice(0, elevatorCarMeshes.length)
@@ -1406,15 +1530,20 @@ function updateRing() {
   }
 
   if (dParamWithUnits['showLaunchTubes'].value) {
+    console.log("Updating Launch Tube")
     constructLaunchTube()
   }
   if (dParamWithUnits['showElevators'].value) {
+    console.log("Updating Elevator Cables")
     constructElevatorCables()
+    console.log("Updating Elevator Cars")
     constructElevatorCars()
   }
+  console.log("Updating Tethers")
   constructTethers()
 
   if (genSpecsFile) {
+    console.log("Generating Specs File")
     specsFile = specsFile.concat('// Derived Specifications\n')
     Object.entries(specs).forEach(([k, v]) => {
       specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
@@ -1447,8 +1576,9 @@ function renderFrame() {
   //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
   //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
 
-  if (orbitControlsEarthRingLerpFactor!=orbitControlsEarthRingLerpTarget) {
-    orbitControlsEarthRingLerpFactor = tram.clamp(orbitControlsEarthRingLerpFactor + orbitControlsEarthRingLerpSpeed * tram.sign(orbitControlsEarthRingLerpTarget-orbitControlsEarthRingLerpFactor), 0, 1)
+  if (orbitControlsEarthRingLerpFactor!=1) {
+    console.log("Lerping...")
+    orbitControlsEarthRingLerpFactor = tram.clamp(orbitControlsEarthRingLerpFactor + orbitControlsEarthRingLerpSpeed, 0, 1)
 
     orbitControls.enabled = false
     orbitControls.target.lerpVectors(previousTargetPoint, orbitControlsTargetPoint, orbitControlsEarthRingLerpFactor)
@@ -1462,6 +1592,12 @@ function renderFrame() {
   }
   else {
     orbitControls.maxPolarAngle = orbitControlsNewMaxPolarAngle
+    // const offTarget = orbitControls.target.clone().sub(orbitControlsTargetPoint).length()
+    // console.log(offTarget)
+    // if ((offTarget>100) && (offTarget<10000) && (orbitControlsTargetPoint.length()>radiusOfPlanet)) {
+    //   orbitControls.target.lerp(orbitControlsTargetPoint, 0.02)
+    //   console.log("pulling towards last target")
+    // }
   }
 
   //planetMesh.rotation.y += 0.000001
@@ -1564,20 +1700,35 @@ function renderFrame() {
   }
   renderer.render(scene, camera)
   transitSystemMeshes.forEach(mesh => {mesh.visible = true})
+
+  stats.update();
 }
 
-document.addEventListener( 'resize', onWindowResize )
+console.log("Adding resize event listener")
+window.addEventListener( 'resize', onWindowResize )
 function onWindowResize() {
   simContainer = document.querySelector('#simContainer')
   camera.aspect = simContainer.offsetWidth/simContainer.offsetHeight
   camera.updateProjectionMatrix()
   //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
   renderer.setSize( simContainer.offsetWidth, simContainer.offsetHeight)
+  //console.log("resizing...", simContainer.offsetWidth, simContainer.offsetHeight)
 }
 
+console.log("Adding keydown event listener")
 document.addEventListener( 'keydown', onKeyDown )
+
+console.log("Adding mousemove event listener")
+addEventListener('mousemove', (event) => {
+  mouse.x = 2 * (event.clientX / simContainer.offsetWidth) - 1
+  mouse.y = 1 - 2 * (event.clientY / simContainer.offsetHeight)
+})
+
+console.log("Adding keydown event listener")
+console.log("Adding VR button")
 document.body.appendChild( VRButton.createButton( renderer ) )
 
+console.log("Calling animate")
 animate()
 
 // function findNearestPointOnRing(intersectionPoint) {
@@ -1630,7 +1781,6 @@ function onKeyDown( event ) {
           transitTubeIntersects.push.apply(transitTubeIntersects, raycaster.intersectObject(mesh))
         })
       }
-      console.log(planetIntersects.length, transitTubeIntersects.length)
       if (transitTubeIntersects.length>0) {
         intersectionPoint = transitTubeIntersects[0].point
         targetPoint = intersectionPoint
@@ -1647,12 +1797,11 @@ function onKeyDown( event ) {
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
       if (planetIntersects.length>0 || transitTubeIntersects.length>0) {
-        previousTargetPoint.copy(orbitControlsTargetPoint.clone())
-        previousUpVector.copy(orbitControlsTargetUpVector.clone())
+        previousTargetPoint.copy(orbitControls.target.clone())
+        previousUpVector.copy(orbitControls.upDirection.clone())
         orbitControlsTargetPoint.copy(targetPoint.clone())
         orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
         orbitControlsEarthRingLerpFactor = 0
-        orbitControlsEarthRingLerpTarget = 1
         orbitControlsEarthRingLerpSpeed = 1/32
         orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
       }
@@ -1693,15 +1842,19 @@ function onKeyDown( event ) {
       orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
       orbitControls.target.set(-3763210.8232434946, 4673319.5670904, -2255256.723306473)
       orbitControls.upDirection.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
-      orbitControls.object.position.set (-3764246.447379286, 4672428.630481427, -2255483.089866906)
+      orbitControls.object.position.set(-3764246.447379286, 4672428.630481427, -2255483.089866906)
       camera.up.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
+      toRingAlreadyTriggered = true
+      toPlanetAlreadyTriggered = false
+      orbitControlsTargetPoint.copy(orbitControls.target.clone())
+      orbitControlsTargetUpVector.copy(orbitControls.upDirection.clone())
       orbitControls.update()
-      guidParamWithUnits['numForkLevels'].value = 8
-      for (var i in gui.__controllers) {
-        gui.__controllers[i].updateDisplay()
-      }
-      updatedParam()
-      updateRing()
+      // guidParamWithUnits['numForkLevels'].value = 8
+      // for (var i in gui.__controllers) {
+      //   gui.__controllers[i].updateDisplay()
+      // }
+      // updatedParam()
+      // updateRing()
       break;
     case 88: /*X*/
       animateZoomingIn = false
@@ -1745,8 +1898,11 @@ function onKeyDown( event ) {
 }
 
 function orbitControlsEventHandler() {
+  //console.log("recomputing near/far")
   recomputeNearFarClippingPlanes()
+  //console.log("auto-adjusting orbit target")
   autoAdjustOrbitControlsCenter()
+  //console.log("done")
 }
 
 function recomputeNearFarClippingPlanes() {
@@ -1788,28 +1944,27 @@ let previousUpVector = new THREE.Vector3(0, 1, 0)
 let orbitControlsTargetUpVector = new THREE.Vector3(0, 1, 0)
 let previousTargetPoint = new THREE.Vector3(0, 0, 0)
 let orbitControlsTargetPoint = new THREE.Vector3(0, 0, 0)
-let orbitControlsLerpFactor = 1
 let toRingAlreadyTriggered = false
 let toPlanetAlreadyTriggered = true
-let orbitControlsEarthRingLerpFactor = 0 // 0 means earth-centered, 1 means ring centered
-let orbitControlsEarthRingLerpTarget = 0
+let orbitControlsEarthRingLerpFactor = 1 // When 1, this indicates no tweening is in progress
 let orbitControlsEarthRingLerpSpeed
 let orbitControlsNewMaxPolarAngle = Math.PI
 
 function autoAdjustOrbitControlsCenter() {
   const distanceToCenterOfEarth = camera.position.length()
-  const innerTransitionDistance = radiusOfPlanet+10000000
-  const outerTransitionDistance = radiusOfPlanet+20000000
+  const innerTransitionDistance = radiusOfPlanet+1000000
+  const outerTransitionDistance = radiusOfPlanet+2000000
   if (distanceToCenterOfEarth>outerTransitionDistance) {
     toRingAlreadyTriggered = false  // Reset the trigger
     if (!toPlanetAlreadyTriggered) {
-      previousTargetPoint.copy(orbitControlsTargetPoint.clone())
-      previousUpVector.copy(orbitControlsTargetUpVector.clone())
+      //previousTargetPoint.copy(orbitControlsTargetPoint.clone())
+      //previousUpVector.copy(orbitControlsTargetUpVector.clone())
+      previousTargetPoint.copy(orbitControls.target.clone())
+      previousUpVector.copy(orbitControls.upDirection.clone())
       orbitControlsTargetPoint.set(0, 0, 0)
       // ToDo: Need to find the nearest point on the ring to the orbitControlsSurfaceMarker and set orbitControlsTargetPoint to that
       orbitControlsTargetUpVector.set(0, 1, 0)
       orbitControlsEarthRingLerpFactor = 0
-      orbitControlsEarthRingLerpTarget = 1
       orbitControlsEarthRingLerpSpeed = 1/256
       orbitControls.maxPolarAngle = Math.PI
       orbitControlsNewMaxPolarAngle = Math.PI
@@ -1832,40 +1987,41 @@ function autoAdjustOrbitControlsCenter() {
         planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(mesh))
       })
       const pointOnEarthsSurface = planetIntersects[0].point
-      previousTargetPoint.copy(orbitControlsTargetPoint.clone())
-      previousUpVector.copy(orbitControlsTargetUpVector.clone())
-      // ToDo: Need to find the nearest point on the ring to the orbitControlsSurfaceMarker and set orbitControlsTargetPoint to that
-      // Convert pointOnEarthsSurface into tetheredRingRefCoordSys
-      const localPoint = tetheredRingRefCoordSys.worldToLocal(pointOnEarthsSurface.clone()).normalize()
-      // Then compute it's theata value
-      const originalTheta = Math.atan2(localPoint.z, localPoint.x)
-      // Round theta to align it with the position of an elevator cable
-      const roundedTheta = Math.round(originalTheta/(Math.PI*2)*dParamWithUnits['numElevatorCables'].value) / dParamWithUnits['numElevatorCables'].value * Math.PI*2
-      // Then find a point on the ring with the same theta value
-      const transitTube_r = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
-      const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
-      localPoint.set(transitTube_r*Math.cos(roundedTheta), transitTube_y, transitTube_r*Math.sin(roundedTheta))
-      // Convert that point back into planetCoordSys
-      const worldPoint = tetheredRingRefCoordSys.localToWorld(localPoint.clone())
-      //orbitControlsCenterMarker.position.copy(worldPoint.clone())
-      orbitControlsTargetPoint.copy(worldPoint.clone())
-      orbitControlsTargetUpVector = planetCoordSys.worldToLocal(worldPoint.clone()).normalize()
-      orbitControlsEarthRingLerpFactor = 0
-      orbitControlsEarthRingLerpTarget = 1
-      orbitControlsEarthRingLerpSpeed = 1/256
-      orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
-      orbitControls.rotateSpeed = 0.9
-      //orbitControlsSurfaceMarker.visible = false
-      toRingAlreadyTriggered = true
+      // Second criteria is that we're sufficiently close to the point that the user wants to zoom into, even if they are zooming in at an oblique angle.
+      const distanceToPointOnEarthsSurface = pointOnEarthsSurface.clone().sub(camera.position).length()
+      if (distanceToPointOnEarthsSurface<innerTransitionDistance) {
+        //previousTargetPoint.copy(orbitControlsTargetPoint.clone())
+        //previousUpVector.copy(orbitControlsTargetUpVector.clone())
+        previousTargetPoint.copy(orbitControls.target.clone())
+        previousUpVector.copy(orbitControls.upDirection.clone())
+        // ToDo: Need to find the nearest point on the ring to the orbitControlsSurfaceMarker and set orbitControlsTargetPoint to that
+        // Convert pointOnEarthsSurface into tetheredRingRefCoordSys
+        const localPoint = tetheredRingRefCoordSys.worldToLocal(pointOnEarthsSurface.clone()).normalize()
+        // Then compute it's theata value
+        const originalTheta = Math.atan2(localPoint.z, localPoint.x)
+        // Round theta to align it with the position of an elevator cable
+        const numGoodSpots = Math.min(dParamWithUnits['numTransitVehicles'].value, dParamWithUnits['numElevatorCables'].value)
+        const roundedTheta = Math.round(originalTheta/(Math.PI*2)*numGoodSpots) / numGoodSpots * Math.PI*2
+        // Then find a point on the ring with the same theta value
+        const transitTube_r = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+        const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+        localPoint.set(transitTube_r*Math.cos(roundedTheta), transitTube_y, transitTube_r*Math.sin(roundedTheta))
+        // Convert that point back into planetCoordSys
+        const worldPoint = tetheredRingRefCoordSys.localToWorld(localPoint.clone())
+        //orbitControlsCenterMarker.position.copy(worldPoint.clone())
+        orbitControlsTargetPoint.copy(worldPoint.clone())
+        orbitControlsTargetUpVector = planetCoordSys.worldToLocal(worldPoint.clone()).normalize()
+        orbitControlsEarthRingLerpFactor = 0
+        orbitControlsEarthRingLerpSpeed = 1/256
+        orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
+        orbitControls.rotateSpeed = 0.9
+        //orbitControlsSurfaceMarker.visible = false
+        toRingAlreadyTriggered = true
+      }
     }
     toPlanetAlreadyTriggered = false // Reset trigger      
   }
 }
-
-addEventListener('mousemove', (event) => {
-  mouse.x = 2 * (event.clientX / simContainer.offsetWidth) - 1
-  mouse.y = 1 - 2 * (event.clientY / simContainer.offsetHeight)
-})
 
 if (enableKMLFileFeature) {
   // This code creates the button that downloads a .kml file which can be displayed using
