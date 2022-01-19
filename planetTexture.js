@@ -77,10 +77,15 @@ export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPla
         view.setResolution(0.18);
     });
 
-    orbitControls.addEventListener("end", () => {
-        console.log("Test");
-        getBounds(planetMesh, camera, radiusOfPlanet);
-    })
+    if (partial) {
+        orbitControls.addEventListener("end", () => {
+            console.log("Test");
+            const bounds = getBounds(planetMesh, camera, radiusOfPlanet);
+            console.log(bounds)
+            osm.setExtent(bounds);
+            map.getView().fit(bounds, map.getSize());
+        })
+    }
 
     return;
 };
