@@ -517,20 +517,18 @@ const grayMaterial = new THREE.MeshBasicMaterial({ color: 0x3f3f4f })
 const whiteMaterial = new THREE.MeshBasicMaterial({ color: 0x5f5f5f })
 const greenMaterial = new THREE.MeshLambertMaterial({ color: 0x005f00 })
 const metalicMaterial = new THREE.MeshLambertMaterial({ color: 0x878681, transparent: false })
-const transparentMaterial1 = new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.35 })
-const transparentMaterial2 = new THREE.MeshLambertMaterial({ color: 0xffff80, transparent: true, opacity: 0.35 })
+const transparentMaterial1 = new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.35, depthWrite: false, })
+const transparentMaterial2 = new THREE.MeshLambertMaterial({ color: 0xffff80, transparent: true, opacity: 0.35, depthWrite: false, })
 var tetherMaterial = new THREE.LineBasicMaterial({
   vertexColors: THREE.VertexColors,
   color: 0x4897f8,     // This line doesn't seem to work
   transparent: true,
-  depthWrite: false,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
 var cableMaterial = new THREE.LineBasicMaterial({
   vertexColors: THREE.VertexColors,
   //color: 0x4897f8,
   transparent: true,
-  depthWrite: false,
   opacity: dParamWithUnits['cableVisibility'].value
 })
 
