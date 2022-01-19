@@ -12,7 +12,7 @@ export const kmlFileHeader = `<?xml version="1.0" encoding="UTF-8"?>
         <color>01000000</color>
       </PolyStyle>
     </Style>
-`
+`;
 export const kmlMainRingPlacemarkHeader = `    <Placemark>
       <name>MainRing</name>
       <description>Main Ring</description>
@@ -22,7 +22,7 @@ export const kmlMainRingPlacemarkHeader = `    <Placemark>
         <tessellate>0</tessellate>
         <altitudeMode>absolute</altitudeMode>
         <coordinates>
-`
+`;
 
 export const kmlTetherPlacemarkHeader = `    <Placemark>
       <name>Tether</name>
@@ -33,13 +33,13 @@ export const kmlTetherPlacemarkHeader = `    <Placemark>
         <tessellate>0</tessellate>
         <altitudeMode>absolute</altitudeMode>
         <coordinates>
-`
+`;
 
 export const kmlPlacemarkFooter = `        </coordinates>
       </LinearRing>
     </Placemark>
-`
+`;
 
 export const kmlFileFooter = `  </Document>
 </kml>
-`
+`;

@@ -1,7 +1,5 @@
-import vitePluginString from 'vite-plugin-string'
+import vitePluginString from "vite-plugin-string";
 
 export default {
-  plugins: [
-    vitePluginString()
-  ]
-}
+  plugins: [vitePluginString()],
+};
