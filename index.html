@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Tethered Ring</title>
     <link href="tailwind.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.4.3/build/ol.js"></script>
     <style>
       body {
         margin: 0;
@@ -59,6 +60,13 @@
         <a download="info.txt" id="downloadlink" style="display: none">Download</a>
         <button id="createSpecs">Download specs file</button>
         <a download="info.txt" id="downloadlink" style="display: none">Download</a>
+         <!-- Invisible Stuff -->
+        <div id="container">
+          <div id="map" style="position: fixed; visibility:hidden; width: 1000px; height:500px;"></div>
+          </div>
+          <div id="container-lod1">
+          <div id="map-lod1" style="position: fixed; visibility:hidden; width: 500px; height:500px;"></div>
+          </div>
       </div>
     </div>
   </body>

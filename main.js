@@ -17,17 +17,19 @@ import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/web
 // import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
 // import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 
-import Stats from '../three.js/examples/jsm/libs/stats.module.js'
+import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 //import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
 import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 import { OBJLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/OBJLoader.js';
-import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
 
 //import * as dat from 'dat.gui'
 import * as tram from './tram.js'
 import * as launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
+
+import { makePlanetTexture } from './planetTexture.js'
 
 const enableVR = false
 const enableKMLFileFeature = true
@@ -321,6 +323,7 @@ planetCoordSys.position.z = 0
 
 let eightTextureMode = false
 let TextureMode24x12 = false
+let TextureModeOpenLayers = true;
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
   planetCoordSys.rotation.x = Math.PI * -4 / 16
@@ -370,6 +373,34 @@ if (TextureMode24x12) {
       planetMeshes.push(planetMesh)
     }
   }
+}
+else if (TextureModeOpenLayers) {
+
+
+
+  const planetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+    new THREE.ShaderMaterial({
+      vertexShader: document.getElementById('vertexShader').textContent,
+      fragmentShader: document.getElementById('fragmentShader').textContent,
+      uniforms: {
+        planetTexture: {
+          value: undefined,
+        }
+      },
+
+    })
+  )
+  makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
+    planetMesh.material.uniforms.planetTexture.value = planetTexture;
+    planetMesh.material.uniforms.planetTexture.needsUpdate = true;
+  });
+
+
+  planetMesh.rotation.y = -Math.PI / 2  // This is needed to have the planet's texture align with the planet's Longintitude system
+  planetMeshes.push(planetMesh)
+
+
 }
 else if (eightTextureMode) {
   let letter
@@ -763,8 +794,8 @@ function constructTransitVehicles() {
   const η = dParamWithUnits['transitSystemEfficiencyAtCruisingSpeed'].value
   specs['transitVehiclePowerConsumptionWhenCruising'] = {value: F * V / η, units: "W"}
 
-  const loader = new FBXLoader()
-  loader.load('models/TransitCar.fbx', addTransitVehicles,
+  const loader = new GLTFLoader()
+  loader.load('models/TransitCar.glb', addTransitVehicles,
     // called when loading is in progresses
     function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% transit car loaded' );
@@ -775,10 +806,10 @@ function constructTransitVehicles() {
     }
   )
   
-  function addTransitVehicles(object) {
+  function addTransitVehicles({ scene }) {
     // Add Transit Vehicles
-
-    object.scale.set(.034, .034, .034)
+    
+    const object = scene.children[0]
     //object.visible = false
     for (let a = 0, i = 0; i<dParamWithUnits['numTransitVehicles'].value; a+=Math.PI*2/dParamWithUnits['numTransitVehicles'].value, i++) {
       for (let i = 0; i<trackOffsetsList.length; i++) {
