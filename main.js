@@ -17,7 +17,7 @@ import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/web
 // import atmosphereVertexShader from './shaders/atmosphereVertex.glsl'
 // import atmosphereFragmentShader from './shaders/atmosphereFragment.glsl'
 
-import Stats from '../three.js/examples/jsm/libs/stats.module.js'
+import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 //import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
 import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
@@ -90,7 +90,7 @@ const guidParamWithUnits = {
   tetherPointBxDeltaPercent: {value:40, units: "%", autoMap: true, min: 0, max: 50, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherMaterialDensity: {value:1790, units: "kg*m-3", autoMap: true, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderEngineering},        // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
   tetherMaterialTensileStrength: {value:7000, units: "MPa", autoMap: true, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderEngineering},   // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
-  tetherMaterialCost: {value:21.5, units: "USD/kg", autoMap: true, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},           // Note: Probably not accurate for Toray1100GC
+  tetherMaterialCost: {value:22, units: "USD/kg", autoMap: true, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},           // Note: Probably not accurate for Toray1100GC
   tetherEngineeringFactor: {value:2, units: "", autoMap: true, min: 0.1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
   
   // Engineering Parameters - Elevators
@@ -138,7 +138,7 @@ const guidParamWithUnits = {
   showLaunchTubes: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitVehicles: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  animateElevators: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  animateElevators: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderRendering},
   cableVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustCableOpacity, folder: folderRendering},
   tetherVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
@@ -950,11 +950,11 @@ function constructElevatorCables() {
 
 function constructElevatorCars() {
 
-  const loader = new OBJLoader()
-  //const loader = new FBXLoader()//
+  //const loader = new OBJLoader()
+  const loader = new FBXLoader()//
   loader.load(
-    'models/ElevatorPod.obj',
-    //'models/TransitCar.fbx',
+    //'models/ElevatorPod.obj',
+    'models/Elevator.fbx',
     addCars,
     // called when loading is in progresses
     function ( xhr ) {
@@ -967,7 +967,12 @@ function constructElevatorCars() {
   )
   
   function addCars(object) {
-
+    console.log(object)
+    object.children.forEach(function(child) {
+      console.log(child.name)
+      child.geometry.computeBoundingSphere()
+    })
+    console.log(object)
     // Add elevator Cars
     // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
     const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorUpperTerminusOutwardOffset'].value
@@ -976,7 +981,7 @@ function constructElevatorCars() {
 
     //const elevatorCarMesh = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 10, 16), metalicMaterial)
     const elevatorCarMesh = object
-    elevatorCarMesh.scale.set(0.25, 0.25, 0.25)
+    //elevatorCarMesh.scale.set(0.01, 0.01, 0.01)
       
     for (let a = 0, i = 0; i<dParamWithUnits['numElevatorCars'].value; a+=Math.PI*2/dParamWithUnits['numElevatorCars'].value, i++) {
       const elevatorCarPosition = new THREE.Vector3(
@@ -1418,6 +1423,56 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
   // End Launch Trajectory Line
 }
 
+calculateAdditionalSpecs()
+function calculateAdditionalSpecs() {
+  // Calculate equivalent space elevator mass and cost
+  let T
+  for (let f = 0; f<1; f++) {
+    T = dParamWithUnits['tetherMaterialTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
+    T *= 2**f
+    const hoursInSiderealDay = 23.9344696
+  	const ClimberEmptyMass = 1000 //kg
+    const ClimberPayloadMass = 19000 //kg
+    const ClimberFuelMass = 100 //kg
+    const ClimberInitialAltitude = 0 // m
+    const ClimberMaxAccelleration = 9.8 // m/s2
+    const ClimberTotalMass = ClimberEmptyMass + ClimberPayloadMass + ClimberFuelMass
+    const GravityForce = (gravitationalConstant * ClimberTotalMass * massOfPlanet) / (radiusOfPlanet + ClimberInitialAltitude)**2
+    const CentripetalForce = -ClimberTotalMass * (2 * Math.PI * (radiusOfPlanet + ClimberInitialAltitude) / (hoursInSiderealDay * 3600))**2 / (radiusOfPlanet + ClimberInitialAltitude)
+    const LowerTerminusAnchoringForce = 10000 // N
+    const TotalLoadForce = GravityForce + CentripetalForce + ClimberMaxAccelleration * ClimberTotalMass + LowerTerminusAnchoringForce
+    const A_s = TotalLoadForce / (T*1000000)
+    const ρ = dParamWithUnits['tetherMaterialDensity'].value
+    const R = radiusOfPlanet
+    const R_g = R+35786000 //m
+    const R_a = R_g * 2
+    const g = 9.8  // m/s2
+    const step = 1
+    let r
+    let A
+    let V
+    V = 0
+    let A_prev = A_s
+    console.log(A_s, T)
+    for (r = R+step; r<R_a; r+=step) {
+      A = A_s * Math.exp(ρ*g*R**2/T*(1/R + R**2/2/R_g**3 - 1/r - r**2/2/R_g**3))
+      V += (A_prev + A)/2 * step
+      A_prev = A
+    }
+    const M = V * ρ
+    const spaceElevatorCost = M * dParamWithUnits['tetherMaterialCost'].value
+    console.log("Difference: "+M/1118123379.2339551)
+    console.log(f, V, M, spaceElevatorCost, spaceElevatorCost / (ClimberPayloadMass/g))
+
+    if (f==1) {
+      specs['spaceElevatorTetherVolumeWithSameMaterials'] = {value: V, units: "m3"}
+      specs['spaceElevatorTetherMassWithSameMaterials'] = {value: M, units: "kg"}
+      specs['spaceElevatorTetherCostWithSameMaterials'] = {value: spaceElevatorCost, units: "USD"}
+      specs['spaceElevatorTetherCostPerKgOfLoadWithSameMaterials'] = {value: spaceElevatorCost / (ClimberPayloadMass/g), units: "USD"}
+    }
+  }
+}
+
 function updateRing() {
   
   // Deletion Section
@@ -1503,7 +1558,7 @@ function updateRing() {
   }
   else {
     mainRingMeshes.forEach((mesh, i) => {
-      mesh.position.y = crv.yc + (i-((dParamWithUnits['numMainRings'].value-1)/2))*dParamWithUnits['mainRingSpacing'].value
+      mesh.position.y = crv.yc +   (i-((dParamWithUnits['numMainRings'].value-1)/2))*dParamWithUnits['mainRingSpacing'].value
     })
   }
 
@@ -1541,6 +1596,8 @@ function updateRing() {
   }
   console.log("Updating Tethers")
   constructTethers()
+
+  calculateAdditionalSpecs()
 
   if (genSpecsFile) {
     console.log("Generating Specs File")
