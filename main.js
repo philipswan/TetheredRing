@@ -313,8 +313,8 @@ orbitControls.enableDamping = true
 //orbitControls.enablePan = true
 
 const AxisEquatorThickness = radiusOfPlanet * 0.004
-const planetWidthSegments = 512
-const planetHeightSegments = 128
+const planetWidthSegments = 768
+const planetHeightSegments = 192
 
 const planetCoordSys = new THREE.Group()
 
@@ -333,7 +333,7 @@ if (enableVR) {
 }
 else {
   eightTextureMode = false
-  TextureMode24x12 = false
+  TextureMode24x12 = true
 }
 
 scene.add(planetCoordSys)
@@ -355,7 +355,7 @@ if (TextureMode24x12) {
       }
       console.log(filename)
       const planetMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h),
+        new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h),
         new THREE.ShaderMaterial({
           //vertexShader: vertexShader,
           //fragmentShader: fragmentShader,
