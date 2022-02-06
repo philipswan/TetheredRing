@@ -2,7 +2,6 @@ import {
 	BufferAttribute,
 	BufferGeometry,
 	Quaternion,
-	Raycaster,
 	Vector3
 } from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 
@@ -27,16 +26,16 @@ export class mainRingTubeGeometry extends BufferGeometry {
 		const prevQuaternion = new Quaternion();
 		prevQuaternion.setFromAxisAngle( up, Math.PI / 2 );
 
-        // The reference point is used to help make sure that all of the positional vectors are small numbers. This reduces jitters due to insufficient precision of floats
+    // The reference point is used to help make sure that all of the positional vectors are small numbers. This reduces jitters due to insufficient precision of floats
 
-        const point = new Vector3()
+    const point = new Vector3()
 		const prevPoint = new Vector3()
 		prevPoint.copy( curve.getPointAt( start ) ).sub(referencePoint)
 
 		const PI2 = Math.PI * 2;
 
-        // Define the tube's cross section
-        const tube = []
+    // Define the tube's cross section
+    const tube = []
 		let sides = 16
 		for ( let i = 0; i < sides; i++ ) {
 			const angle = ( i / sides ) * PI2;
@@ -46,7 +45,7 @@ export class mainRingTubeGeometry extends BufferGeometry {
 		const vector = new Vector3();
 		const normal = new Vector3();
 
-        const vector1 = new Vector3();
+    const vector1 = new Vector3();
 		const vector2 = new Vector3();
 		const vector3 = new Vector3();
 		const vector4 = new Vector3();
@@ -84,14 +83,13 @@ export class mainRingTubeGeometry extends BufferGeometry {
 
 			point.copy( curve.getPointAt( start + (end-start) * i / divisions ) )
 
-			//up.set( 0, 1, 0 );
-            up.copy(point).normalize()
-            point.sub(referencePoint)
+      up.copy(point).normalize()
+      point.sub(referencePoint)
 
-            forward.subVectors( point, prevPoint ).normalize();
+      forward.subVectors( point, prevPoint ).normalize();
 			right.crossVectors( up, forward ).normalize();
             
-        	extrudeTubeShape(tube, offset.set( 0, mainRingOffset, 0 ), color1 );
+      extrudeTubeShape(tube, offset.set( 0, mainRingOffset, 0 ), color1 );
 			prevPoint.copy( point );
 		}
 
@@ -124,16 +122,16 @@ export class transitTubeGeometry extends BufferGeometry {
 		const prevQuaternion = new Quaternion();
 		prevQuaternion.setFromAxisAngle( up, Math.PI / 2 );
 
-        // The reference point is used to help make sure that all of the positional vectors are small numbers. This reduces jitters due to insufficient precision of floats
+    // The reference point is used to help make sure that all of the positional vectors are small numbers. This reduces jitters due to insufficient precision of floats
 
-        const point = new Vector3()
+    const point = new Vector3()
 		const prevPoint = new Vector3()
 		prevPoint.copy( curve.getPointAt( start ) ).sub(referencePoint)
 
 		const PI2 = Math.PI * 2;
 
-        // Define the tube's cross section
-        const tube = []
+    // Define the tube's cross section
+    const tube = []
 		let sides = 16
 		for ( let i = 0; i < sides; i++ ) {
 			const angle = ( i / sides ) * PI2;
@@ -143,7 +141,7 @@ export class transitTubeGeometry extends BufferGeometry {
 		const vector = new Vector3();
 		const normal = new Vector3();
 
-        const vector1 = new Vector3();
+    const vector1 = new Vector3();
 		const vector2 = new Vector3();
 		const vector3 = new Vector3();
 		const vector4 = new Vector3();
@@ -216,14 +214,13 @@ export class transitTubeGeometry extends BufferGeometry {
 
 			point.copy( curve.getPointAt( start + (end-start) * i / divisions ) )
 
-			//up.set( 0, 1, 0 );
-            up.copy(point).normalize()
-            point.sub(referencePoint)
+      up.copy(point).normalize()
+      point.sub(referencePoint)
 
-            forward.subVectors( point, prevPoint ).normalize();
+      forward.subVectors( point, prevPoint ).normalize();
 			right.crossVectors( up, forward ).normalize();
             
-        	extrudeTubeShape(tube, offset.set( outwardOffset, upwardOffset, 0 ), color1 );
+      extrudeTubeShape(tube, offset.set( outwardOffset, upwardOffset, 0 ), color1 );
 			prevPoint.copy( point );
 		}
 
@@ -258,17 +255,17 @@ export class transitTrackGeometry extends BufferGeometry {
 
         // The reference point is used to help make sure that all of the positional vectors are small numbers. This reduces jitters due to insufficient precision of floats
 
-        const point = new Vector3()
+    const point = new Vector3()
 		const prevPoint = new Vector3()
 		prevPoint.copy( curve.getPointAt( start ) ).sub(referencePoint)
 
 		const PI2 = Math.PI * 2;
 
-        // Define the track's cross section
-        const track = []
+    // Define the track's cross section
+    const track = []
 		let sides = 4
-        const sign1 = [-1, 1, 1, -1]
-        const sign2 = [-1, -1, 1, 1]
+    const sign1 = [-1, 1, 1, -1]
+    const sign2 = [-1, -1, 1, 1]
 		for ( let i = 0; i < sides; i++ ) {
 			track.push( new Vector3( trackHalfWidth * sign1[i], trackHalfHeight * sign2[i], 0 ) )
 		}
@@ -276,7 +273,7 @@ export class transitTrackGeometry extends BufferGeometry {
 		const vector = new Vector3();
 		const normal = new Vector3();
 
-        const vector1 = new Vector3();
+    const vector1 = new Vector3();
 		const vector2 = new Vector3();
 		const vector3 = new Vector3();
 		const vector4 = new Vector3();
@@ -314,14 +311,13 @@ export class transitTrackGeometry extends BufferGeometry {
 
 			point.copy( curve.getPointAt( start + (end-start) * i / divisions ) )
 
-			//up.set( 0, 1, 0 );
-            up.copy(point).normalize()
-            point.sub(referencePoint)
+      up.copy(point).normalize()
+      point.sub(referencePoint)
 
-            forward.subVectors( point, prevPoint ).normalize();
+      forward.subVectors( point, prevPoint ).normalize();
 			right.crossVectors( up, forward ).normalize();
             
-        	extrudeTrackShape(track, offset.set( outwardOffset, upwardOffset, 0 ), color1 );
+      extrudeTrackShape(track, offset.set( outwardOffset, upwardOffset, 0 ), color1 );
 			prevPoint.copy( point );
 		}
 
