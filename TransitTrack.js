@@ -3,8 +3,8 @@ import {
 	BufferGeometry,
 	Quaternion,
 	Vector3
-} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
-
+} from '../three.js/build/three.module.js';
+//} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 export class mainRingTubeGeometry extends BufferGeometry {
 
 	constructor( curve, start, end, referencePoint, divisions, mainRingOffset, tubeRadius ) {

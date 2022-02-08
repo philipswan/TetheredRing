@@ -1,4 +1,5 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
+import * as THREE from '../three.js/build/three.module.js';
+//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 
 export const makePlanetTexture = (planetMesh, orbitControls, camera, radiusOfPlanet, partial, callback) => {
     const osm = new ol.layer.Tile({

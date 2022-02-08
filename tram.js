@@ -202,6 +202,113 @@ export function getElevatorCarAltitude(dParamWithUnits, crv, ecv, t) {
 
 }
 
+class accellerationProfile {
+  constructor() {
+    this.accellerationProfile = []
+  }
+
+  addElement(elementType, elementValue, duration) {
+    // elementType must be "D", "V", or "A"
+    // elementValue must be m, m/s, or m/s2
+    // duration is a value in seconds
+    this.accellerationProfile.push(new accellerationElement(elementType, elementValue, duration))
+  }
+
+  getTotalTime() {
+    let totalTime = 0
+    for (let i = 0; i<this.accellerationProfile.length; i++) {
+      totalTime += this.accellerationProfile[i].t
+    }
+    return totalTime
+  }
+
+  getDVAAtTime(t) {
+    let d = 0
+    let v = 0
+    let a = 0
+    let tStep
+    let tPrev = 0
+  
+    for (let i = 0; i<this.accellerationProfile.length; i++) {
+      tStep = Math.min(t - tPrev, this.accellerationProfile[i].t)
+      if (this.accellerationProfile[i].isDVOrA=="D") {
+        a = 0
+        v = 0
+        d = this.accellerationProfile[i].valueDVOrA
+      }
+      else {
+        if (this.accellerationProfile[i].isDVOrA=="V") {
+          a = 0
+          v = this.accellerationProfile[i].valueDVOrA
+          d += v * tStep
+        }
+        else {
+          if (this.accellerationProfile[i].isDVOrA=="A") {
+            a = this.accellerationProfile[i].valueDVOrA
+            d += v * tStep + 0.5 * a * tStep**2
+            v += a * tStep
+          }
+          else {
+            // ToDo - we could add another term, jerk, for easing the accelleration
+            consiole.assert("isDVOrA was not D, V, or A")
+          }
+        }
+      }
+      if (tStep<this.accellerationProfile[i].t) break
+      tPrev += this.accellerationProfile[i].t
+    }
+    return [d, v, a]
+  }
+
+  getDistanceTraveledAtTime(t) {
+    let d, v, a
+    [d, v, a] = this.getDVAAtTime(t)
+    return d
+  }
+}
+
+export class vehicleReferenceFrameTrackPositionCalculator {
+  constructor(dParamWithUnits, mainRingCurve, crv) {
+    this.accProfile = new accellerationProfile()
+    const accellerationTime = dParamWithUnits['transitVehicleCruisingSpeed'].value / dParamWithUnits['transitVehicleMaxAcceleration'].value
+    this.accProfile.addElement("V", dParamWithUnits['transitVehicleCruisingSpeed'].value, dParamWithUnits['transitVehicleMergeTime'].value)
+    this.accProfile.addElement("A", -dParamWithUnits['transitVehicleMaxAcceleration'].value, accellerationTime)
+    this.accProfile.addElement("V", 0, dParamWithUnits['transitVehicleStopDuration'].value)
+    this.accProfile.addElement("A", dParamWithUnits['transitVehicleMaxAcceleration'].value, accellerationTime)
+    this.accProfile.addElement("V", dParamWithUnits['transitVehicleCruisingSpeed'].value, dParamWithUnits['transitVehicleMergeTime'].value)
+    this.cycleTime = this.accProfile.getTotalTime()
+    this.cycleDistance = this.accProfile.getDistanceTraveledAtTime(this.cycleTime)
+
+    // Calculate the lenngth of the transit track (future-proofed method used here does not assume that the cirve is a near-perfect circle)
+    let l = 0
+    let P
+    let prevP = null
+    const transitVehicleRelativePosition_r = offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+    const transitVehicleRelativePosition_y = offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
+    for (let i = 0; i<=8192; i++) {
+      const trackPosition = i/8192
+      const P = mainRingCurve.getPointAt(trackPosition)
+      // ToDo - need to add the track's upward and outward offsets from the mainRing's curve
+      P.x += transitVehicleRelativePosition_r * Math.cos(trackPosition)
+      P.y += transitVehicleRelativePosition_y
+      P.z += transitVehicleRelativePosition_r * Math.sin(trackPosition)
+
+      if (prevP) {
+        l += prevP.distanceTo(P)
+      }
+      prevP = P
+    }
+    this.transitTubeCircumference = l
+  }
+
+  calcTrackPosition(t) {
+    const tAtCycleStart = Math.floor(t/this.cycleTime)
+    const tWithinCycle = t % this.cycleTime
+    const trackPosition = ( (tAtCycleStart * this.cycleDistance + this.accProfile.getDistanceTraveledAtTime(tWithinCycle)) / this.transitTubeCircumference ) % 1
+    return trackPosition
+  }
+}
+
 export class transitVehicleVariables {
   constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv) {
     this.gravitationalConstant = gravitationalConstant
