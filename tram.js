@@ -149,7 +149,7 @@ export function getElevatorCarAltitude(dParamWithUnits, crv, ecv, t) {
   const tt = t % cycleTime
 
   const accellerationProfile = []
-  accellerationProfile.push(new accellerationElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value, ecv.waitTime))
+  accellerationProfile.push(new accellerationElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value, ecv.waitTime))
   accellerationProfile.push(new accellerationElement("A", -ecv.maxAccelleration, ecv.accellerationTime))
   accellerationProfile.push(new accellerationElement("V", -ecv.maxSpeed, ecv.steadySpeedTime))
   accellerationProfile.push(new accellerationElement("A", ecv.maxAccelleration, ecv.accellerationTime))

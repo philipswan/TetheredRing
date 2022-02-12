@@ -1,19 +1,16 @@
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+// import * as THREE from '../three.js'
+// import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
+// import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
+// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
+// import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+// import Stats from '../three.js/examples/jsm/libs/stats.module.js'
 
-import * as THREE from '../three.js'
-import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
-import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
-import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
-import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
-import Stats from '../three.js/examples/jsm/libs/stats.module.js'
-
-//import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
-//import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
-//import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
-//import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
-//import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
-//import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
+import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
+import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
+import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 import { transitVehicleSystem } from './TransitSystems.js'
@@ -93,36 +90,50 @@ const guidParamWithUnits = {
   tetherPointBxDeltaPercent: {value:40, units: "%", autoMap: true, min: 0, max: 50, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherEngineeringFactor: {value:2, units: "", autoMap: true, min: 0.1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
 
-  // Engineering Parameters - Elevators
-  numElevatorCables: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numElevatorCars: {value: 45, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  additionalUpperElevatorCable: {value: 10, units: 'm', autoMap: true, min: 0, max: 50, updateFunction: adjustRingDesign, folder: folderEngineering},
-  elevatorCableOutwardOffset: {value: -20, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
-  terminusOutwardOffset: {value: -6.5, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
-  terminusUpwardOffset: {value: -4, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
-
   // Engineering Parameters - Transit System
-  transitTubeUpwardOffset: {value:-100, units: "m", autoMap: true, min: -1000, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numTransitTrackLevels: {value:2, units: "", autoMap: true, min: 1, max: 3, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTubeOutwardOffset: {value: -10, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTubeInteriorPressure: {value: 10, units: 'Pa', autoMap: true, min: .1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTubeInteriorGasMolecularWeight: {value: 29, units: 'kg/kgmole', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTubeInteriorTemperature: {value: 20, units: 'C', autoMap: true, min: 0, max: 40, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitTrackCost: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: adjustRingDesign, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
-  // This is really "aveNumTransitVehiclesPerTrack" at the moment...
+  transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeUpwardOffset: {value: -100, units: "m", autoMap: true, min: -101, max: -99, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeOutwardOffset: {value: -10, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackOuterOffset: {value: 2.2875, units: "m", autoMap: true, min: 1.5, max: 2.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackUpperOffset1: {value: 4.7875, units: "m", autoMap: true, min: 2.5, max: 3.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackUpperOffset2: {value: -0.025, units: "m", autoMap: true, min: -1.0, max: -0.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // ToDo - Need 4 sliders for adjusting the track vertical and horizontal spacing and offsets
+  terminusOutwardOffset: {value: -9.75, units: 'm', autoMap: true, min: -10, max: -5, updateFunction: updateTransitsystem, folder: folderEngineering},
+  terminusUpwardOffset: {value: -3.8, units: 'm', autoMap: true, min: -5, max: -3, updateFunction: updateTransitsystem, folder: folderEngineering},
+  
+  transitVehicleUpwardOffset: {value: 1.1, units: 'm', autoMap: true, min: -1, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleCruisingSpeed: {value: 1100, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleMaxAcceleration: {value: 10, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleMergeTime: {value: 1, units: 's', autoMap: true, min: 1, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleStopDuration: {value: 3, units: 's', autoMap: true, min: 1, max: 300, updateFunction: updateTransitsystem, folder: folderEngineering},
+
+  // ToDo: There are no calculations implemented yet that use the following parameters
+  transitVehicleLength: {value: 20, units: 'm', autoMap: true, min: 1, max: 100, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleRadius: {value: 2, units: 'm', autoMap: true, min: 1, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeInteriorPressure: {value: 10, units: 'Pa', autoMap: true, min: .1, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeInteriorGasMolecularWeight: {value: 29, units: 'kg/kgmole', autoMap: true, min: 1, max: 100, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeInteriorTemperature: {value: 20, units: 'C', autoMap: true, min: 0, max: 40, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitSystemEfficiencyAtCruisingSpeed: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleCoefficientOfDrag: {value: 0.25, units: '', autoMap: true, min: .1, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackCost: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: updateTransitsystem, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
+
+  // ToDo: these parameters are not properly updated yet
   numVirtualTransitVehicles: {value: 40000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numTransitVehicleModels: {value: 700, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  //transitVehicleLength: {value: 20, units: 'm', autoMap: true, min: 1, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitVehicleRadius: {value: 2, units: 'm', autoMap: true, min: 1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitVehicleCruisingSpeed: {value: 1100, units: 'm/s', autoMap: true, min: 100, max: 2000, updateFunction: updateTransitVehicleSpeed, folder: folderEngineering},
-  transitVehicleMaxAcceleration: {value: 10, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitVehicleSpeed, folder: folderEngineering},
-  transitVehicleMergeTime: {value: 1, units: 's', autoMap: true, min: 1, max: 30, updateFunction: updateTransitVehicleSpeed, folder: folderEngineering},
-  transitVehicleStopDuration: {value: 3, units: 's', autoMap: true, min: 1, max: 300, updateFunction: updateTransitVehicleSpeed, folder: folderEngineering},
-  transitSystemEfficiencyAtCruisingSpeed: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitVehicleCoefficientOfDrag: {value: 0.25, units: '', autoMap: true, min: .1, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numVirtualTerminuses: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numTerminusModels: {value:10, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+
+  // Engineering Parameters - Elevators
+  numElevatorCables: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numElevatorCars: {value: 45, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  additionalUpperElevatorCable: {value: 10, units: 'm', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCableOutwardOffset: {value: -24, units: 'm', autoMap: true, min: -30, max: -10, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCableForwardOffset: {value: -62.5, units: 'm', autoMap: true, min: -70, max: -50, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCarUpwardOffset: {value: 0.3, units: 'm', autoMap: true, min: -10, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
+
+  // Habitats
+  numVirtualHabitats: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numHabitatModels: {value:10, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Launch System
   launchTubeUpwardOffset: {value:100, units: "m", autoMap: true, min: -1000, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -159,14 +170,14 @@ const guidParamWithUnits = {
   showMainRings: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTethers: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showElevatorCables: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showElevatorCars: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showLaunchOrbit: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showLaunchTubes: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitVehicles: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showTerminuses: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  animateElevatorCars: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  showTerminuses: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderRendering},
   cableVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustCableOpacity, folder: folderRendering},
   tetherVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
@@ -284,9 +295,22 @@ function updatedParam() {   // Read as "update_dParam"
 
 updatedParam()
 
-function updateTransitVehicleSpeed() {
+function updateTransitsystem() {
   updatedParam()
-  transitVehicles.update(dParamWithUnits, trackOffsetsList, crv)
+  const dx = dParamWithUnits['transitTrackOuterOffset'].value
+  const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
+  const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
+  trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
+  transitVehicles.update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet)
+
+  // transitSystemMeshes.forEach(mesh => {
+  //   mesh.geometry.dispose()
+  //   mesh.material.dispose()
+  //   tetheredRingRefCoordSys.remove(mesh)
+  // })
+  // transitSystemMeshes.splice(0, transitSystemMeshes.length)
+  // constructTransitSystem()
+  elevatorAltitude = (crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value) + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value
 }
 
 function adjustRingDesign() {
@@ -820,7 +844,10 @@ function constructMainRings() {
 }
 
 const transitSystemMeshes = []
-const trackOffsetsList = [[-0.33, 0.45], [0.33, 0.45], [-0.33, -0.12], [0.33, -0.12]]
+const dx = dParamWithUnits['transitTrackOuterOffset'].value
+const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
+const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
+let trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
 
 constructTransitSystem()
 function constructTransitSystem() {
@@ -836,8 +863,8 @@ function constructTransitSystem() {
     const referencePoint = new THREE.Vector3()
     let outwardOffset = [], upwardOffset = []
     for (let i = 0; i<trackOffsetsList.length; i++) {
-      outwardOffset[i] = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0] * dParamWithUnits['transitTubeTubeRadius'].value 
-      upwardOffset[i] = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1] * dParamWithUnits['transitTubeTubeRadius'].value
+      outwardOffset[i] = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0]
+      upwardOffset[i] = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1]
     }
     for (let j = 0; j<numWedges; j++) {
       start = j / numWedges
@@ -932,8 +959,9 @@ function constructElevatorCables() {
     const elevatorCableUpperElevatorTerminus_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
     const elevatorCableLowerAttachPnt_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
     const elevatorCableUpperAttachPnt_y = crv.yc + tram.offset_y(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-    const elevatorCableUpperElevatorTerminus_y = crv.yc + tram.offset_y(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
     const elevatorCableLowerAttachPnt_y = crv.yc + tram.offset_y(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+    const elevatorCableLowerAttachPnt_da = dParamWithUnits['elevatorCableForwardOffset'].value / (2 * Math.PI * elevatorCableUpperAttachPnt_r)
+
     //const elevatorCableTubeRadius = 1000.01
     //const elevatorCableTubularSegments = 8 
 
@@ -948,7 +976,6 @@ function constructElevatorCables() {
     // tetheredRingLatCoordSys.updateMatrixWorld(true)
     // tetheredRingRefCoordSys.updateMatrixWorld(true)
 
-    const n = dParamWithUnits['numElevatorCables'].value
     const wedgeReferencePoints = Array(numWedges)
     for (let wedgeIndex = 0; wedgeIndex<numWedges; wedgeIndex++) {
       wedgeReferencePoints[wedgeIndex] = new THREE.Vector3()
@@ -956,7 +983,8 @@ function constructElevatorCables() {
       mainRingCurve.getPointAt( (wedgeIndex+0.5) / numWedges )
     }
     const pointSets = Array(numWedges).fill().map(entry => [])  // declare an array of empty arrays for storing points
-    for (let a = 0, i = 0; i<n; a+=Math.PI*2/n, i++) {
+    const n = dParamWithUnits['numElevatorCables'].value
+    for (let a = elevatorCableLowerAttachPnt_da, i = 0; i<n; a += 2*Math.PI/n, i++) {
       const wedgeIndex = Math.floor(i * numWedges / n)
 
       const elevatorCableUpperAttachPnt = new THREE.Vector3(
@@ -988,7 +1016,7 @@ function constructElevatorCables() {
   }
 }
 
-let elevatorAltitude = (crv.currentMainRingAltitude+dParamWithUnits['transitTubeUpwardOffset'].value) - 20
+let elevatorAltitude = (crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value) + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value
 const elevatorCarMeshes = []
 constructElevatorCars()
 function constructElevatorCars() {
@@ -1017,12 +1045,14 @@ function constructElevatorCars() {
       const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
       const elevatorCarPosition_r = crv.mainRingRadius + tram.offset_r(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
       const elevatorCarPosition_y = crv.yc + tram.offset_y(cableOutwardOffset, elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+      const elevatorCarPosition_da = dParamWithUnits['elevatorCableForwardOffset'].value / (2 * Math.PI * elevatorCarPosition_r)
 
       //const elevatorCarMesh = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 10, 16), metalicMaterial)
       const elevatorCarMesh = object
       //elevatorCarMesh.scale.set(0.01, 0.01, 0.01)
-        
-      for (let a = 0, i = 0; i<dParamWithUnits['numElevatorCars'].value; a+=Math.PI*2/dParamWithUnits['numElevatorCars'].value, i++) {
+
+      const n = dParamWithUnits['numElevatorCars'].value
+      for (let a = elevatorCarPosition_da, i = 0; i<n; a += 2*Math.PI/n, i++) {
         const elevatorCarPosition = new THREE.Vector3(
           elevatorCarPosition_r * Math.cos(a),
           elevatorCarPosition_y,
@@ -1582,7 +1612,7 @@ function onKeyDown( event ) {
         orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
         orbitControlsEarthRingLerpFactor = 0
         orbitControlsEarthRingLerpSpeed = 1/32
-        orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
+        orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
       }
       break;
     case 81: /*Q*/
@@ -1618,7 +1648,7 @@ function onKeyDown( event ) {
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
       orbitControls.maxPolarAngle = Math.PI/2 + .1
-      orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
+      orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
       orbitControls.target.set(-3763210.8232434946, 4673319.5670904, -2255256.723306473)
       orbitControls.upDirection.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
       orbitControls.object.position.set(-3764246.447379286, 4672428.630481427, -2255483.089866906)
@@ -1793,7 +1823,7 @@ function autoAdjustOrbitControlsCenter() {
         orbitControlsTargetUpVector = planetCoordSys.worldToLocal(worldPoint.clone()).normalize()
         orbitControlsEarthRingLerpFactor = 0
         orbitControlsEarthRingLerpSpeed = 1/256
-        orbitControlsNewMaxPolarAngle = Math.PI/2 + .1
+        orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
         orbitControls.rotateSpeed = 0.9
         //orbitControlsSurfaceMarker.visible = false
         toRingAlreadyTriggered = true

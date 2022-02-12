@@ -1,8 +1,9 @@
+// import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
+// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
+
 import * as tram from './tram.js'
-import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-//import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
-//import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 
 class referenceFrame {
   constructor(numWedges, v, direction, trackIndex) {
@@ -15,7 +16,7 @@ class referenceFrame {
     this.prevStartWedgeIndex = -1
     this.prevFinishWedgeIndex = -1
     // In each frame-of-reference, create an array of wedges. In each wedge, create an empty array for storing virtual transit vehicles
-    const makePlaceHolderEntry = () => ({'virtualTransitVehicles': [], 'virtualTerminuses': [] })
+    const makePlaceHolderEntry = () => ({'virtualTransitVehicles': [], 'virtualTerminuses': [], 'virtualHabitats': []})
     this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
     // Debug
     //this.prevActionFlags = new Array(this.numWedges).fill(0)
@@ -40,6 +41,12 @@ class virtualVehicle {
   }
 }
 class virtualTerminus {
+  constructor(positionInFrameOfReference, v) {
+    this.p = positionInFrameOfReference
+  }
+}
+
+class virtualHabitat {
   constructor(positionInFrameOfReference, v) {
     this.p = positionInFrameOfReference
   }
@@ -105,22 +112,43 @@ export class transitVehicleSystem {
     })
 
     // Place terminuses...
+    // const nt = dParamWithUnits['numVirtualTerminuses'].value
+    // let step3 = 1.0 / nt
+    // const staticFrame = [this.refFrames[4]]
+    // staticFrame.forEach(refFrame => {
+    //   for (let positionInFrameOfReference = 0, i = 0; i < nt; positionInFrameOfReference += step3, i++) {
+    //     const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+    //     refFrame.wedges[wedgeIndex]['virtualTerminuses'].push(new virtualTerminus(positionInFrameOfReference))
+    //   }
+    // })
+    
+    // Place terminuses...
     const nt = dParamWithUnits['numVirtualTerminuses'].value
-    let step3 = 1.0 / nt
+    const nh = dParamWithUnits['numVirtualHabitats'].value
+    const totalFacilities = nt + nh
+    let step3 = 1.0 / totalFacilities
+    let prevFloorS = -1
     const staticFrame = [this.refFrames[4]]
     staticFrame.forEach(refFrame => {
-      for (let positionInFrameOfReference = 0, i = 0; i < nt; positionInFrameOfReference += step3, i++) {
+      for (let positionInFrameOfReference = 0, i = 0, s = 0; i < totalFacilities; positionInFrameOfReference += step3, i++, s += nt/totalFacilities) {
         const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-        refFrame.wedges[wedgeIndex]['virtualTerminuses'].push(new virtualTerminus(positionInFrameOfReference))
+        const currFloorS = Math.floor(s)
+        if (currFloorS != prevFloorS) {
+          refFrame.wedges[wedgeIndex]['virtualTerminuses'].push(new virtualTerminus(positionInFrameOfReference))
+        }
+        else {
+          refFrame.wedges[wedgeIndex]['virtualHabitats'].push(new virtualHabitat(positionInFrameOfReference))
+        }
+        prevFloorS = currFloorS
       }
     })
-    
-  
+      
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, n) {
       return function( {scene} ) {
         const object = scene.children[0]
         object.visible = false
-        //object.scale.set(6, 6, .3)
+        const sf = 0.0254 * 1.25
+        object.scale.set(sf, sf, sf)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
           myScene.add(tempModel)
@@ -132,7 +160,8 @@ export class transitVehicleSystem {
     function prepareACallbackFunctionForFBXLoader(myScene, myList, n) {
       return function( object ) {
         object.visible = false
-        //object.scale.set(6, 6, .3)
+        const sf = 1.25
+        object.scale.set(sf, sf, sf)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
           myScene.add(tempModel)
@@ -171,8 +200,8 @@ export class transitVehicleSystem {
     this.refFrames[0].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
     this.refFrames[1].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
     for (let trackIndex = 0; trackIndex<trackOffsetsList.length; trackIndex++) {
-      const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[trackIndex][0] * dParamWithUnits['transitTubeTubeRadius'].value
-      const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[trackIndex][1] * dParamWithUnits['transitTubeTubeRadius'].value - dParamWithUnits['transitVehicleRadius'].value - 0.35  // Last is half of the track height
+      const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[trackIndex][0]
+      const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['terminusUpwardOffset'].value + trackOffsetsList[trackIndex][1] + dParamWithUnits['transitVehicleUpwardOffset'].value  // Last is half of the track height
       this.transitVehicleRelativePosition_r[trackIndex] = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
       this.transitVehicleRelativePosition_y[trackIndex]  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     }
