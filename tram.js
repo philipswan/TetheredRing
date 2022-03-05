@@ -1,3 +1,6 @@
+import * as THREE from '../three.js'
+import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+
 // Tethered Ring Arcitectural Model (TRAM)
 
 // Useful functions
@@ -46,7 +49,6 @@ export class cateneryVector {
     this.s = s            // Distance along the catenery from the anchor point (Point B)
     this.θ = θ
     this.T = T
-    this.crossSectionalArea = crossSectionalArea   // The cross-sectional area of a cable of constant stress, following this catenary curve
   }
 }
 
@@ -73,6 +75,28 @@ export class Vector3 {
     this.y = y
     this.z = z            // altitude in meters
   }
+
+}
+
+export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys) {
+  const controlPoints = []
+
+  const e = dParamWithUnits['ringEccentricity'].value
+
+  const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
+  const lengthOfSiderealDay = 86160 // s
+  const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)
+
+  for (let a = 0, i = 0; i<dParamWithUnits['numControlPoints'].value; a+=Math.PI*2/dParamWithUnits['numControlPoints'].value, i++) {
+    const angleInRingCoordSys = Math.acos(crv.mainRingRadius / (radiusOfPlanet+crv.currentMainRingAltitude)) * Math.sqrt((e*Math.cos(a))**2 + (1/e*Math.sin(a))**2)
+    const rInRingCoordSys = (radiusOfPlanet+crv.currentMainRingAltitude) * Math.cos(angleInRingCoordSys)
+    const positionInRingCoordSys = new Vector3()
+    positionInRingCoordSys.y = (radiusOfPlanet+crv.currentMainRingAltitude) * Math.sin(angleInRingCoordSys)
+    positionInRingCoordSys.x = rInRingCoordSys * Math.cos(a)
+    positionInRingCoordSys.z = rInRingCoordSys * Math.sin(a)
+    controlPoints.push(new Vector3(positionInRingCoordSys.x, positionInRingCoordSys.y, positionInRingCoordSys.z))
+  }
+  return controlPoints
 }
 
 export class commonRingVariables {
@@ -144,64 +168,6 @@ export class accellerationElement {
   }
 }
 
-export function getElevatorCarAltitude(dParamWithUnits, crv, ecv, t) {
-  const cycleTime = (ecv.totalTravelTime + ecv.waitTime) * 2
-  const tt = t % cycleTime
-
-  const accellerationProfile = []
-  accellerationProfile.push(new accellerationElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value, ecv.waitTime))
-  accellerationProfile.push(new accellerationElement("A", -ecv.maxAccelleration, ecv.accellerationTime))
-  accellerationProfile.push(new accellerationElement("V", -ecv.maxSpeed, ecv.steadySpeedTime))
-  accellerationProfile.push(new accellerationElement("A", ecv.maxAccelleration, ecv.accellerationTime))
-  accellerationProfile.push(new accellerationElement("D", 0, ecv.waitTime))
-  accellerationProfile.push(new accellerationElement("A", ecv.maxAccelleration, ecv.accellerationTime))
-  accellerationProfile.push(new accellerationElement("V", ecv.maxSpeed, ecv.steadySpeedTime))
-  accellerationProfile.push(new accellerationElement("A", -ecv.maxAccelleration, ecv.accellerationTime))
-
-  let totalT
-  let d = 0
-  let v = 0
-  let a = 0
-  let tStep
-  let tPrev = 0
-
-  totalT = 0
-  for (let i = 0; i<accellerationProfile.length; i++) {
-    totalT += accellerationProfile[i].t
-  }
-  t = t % totalT  // This is done to make the elevators repeat their movement profile ad infinitum 
-
-  for (let i = 0; i<accellerationProfile.length; i++) {
-    tStep = Math.min(t - tPrev, accellerationProfile[i].t)
-    if (accellerationProfile[i].isDVOrA=="D") {
-      a = 0
-      v = 0
-      d = accellerationProfile[i].valueDVOrA
-    }
-    else {
-      if (accellerationProfile[i].isDVOrA=="V") {
-        a = 0
-        v = accellerationProfile[i].valueDVOrA
-        d += v * tStep
-      }
-      else {
-        if (accellerationProfile[i].isDVOrA=="A") {
-          a = accellerationProfile[i].valueDVOrA
-          d += v * tStep + 0.5 * a * tStep**2
-          v += a * tStep
-        }
-        else {
-          consiole.assert("isDVOrA was not D, V, or A")
-        }
-      }
-    }
-    if (tStep<accellerationProfile[i].t) break
-    tPrev += accellerationProfile[i].t
-  }
-  return d
-
-}
-
 class accellerationProfile {
   constructor() {
     this.accellerationProfile = []
@@ -267,6 +233,27 @@ class accellerationProfile {
   }
 }
 
+export class elevatorPositionCalculator {
+  constructor(dParamWithUnits, crv, ecv) {
+    this.accProfile = new accellerationProfile()
+    this.accProfile.addElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value, ecv.waitTime)
+    this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
+    this.accProfile.addElement("V", -ecv.maxSpeed, ecv.steadySpeedTime)
+    this.accProfile.addElement("A", ecv.maxAccelleration, ecv.accellerationTime)
+    this.accProfile.addElement("D", 0, ecv.waitTime)
+    this.accProfile.addElement("A", ecv.maxAccelleration, ecv.accellerationTime)
+    this.accProfile.addElement("V", ecv.maxSpeed, ecv.steadySpeedTime)
+    this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
+    this.cycleTime = (ecv.totalTravelTime + ecv.waitTime) * 2  
+  }
+
+  calculateElevatorPosition(t) {
+    const tWithinCycle = t % this.cycleTime
+    const elevatorPosition = this.accProfile.getDistanceTraveledAtTime(tWithinCycle)
+    return elevatorPosition
+  }
+}
+
 export class vehicleReferenceFrameTrackPositionCalculator {
   constructor(dParamWithUnits, mainRingCurve, crv) {
     this.accProfile = new accellerationProfile()
@@ -279,7 +266,7 @@ export class vehicleReferenceFrameTrackPositionCalculator {
     this.cycleTime = this.accProfile.getTotalTime()
     this.cycleDistance = this.accProfile.getDistanceTraveledAtTime(this.cycleTime)
 
-    // Calculate the lenngth of the transit track (future-proofed method used here does not assume that the cirve is a near-perfect circle)
+    // Calculate the lenngth of the transit track (future-proofed method used here does not assume that the curve is a near-perfect circle)
     let l = 0
     let P
     let prevP = null

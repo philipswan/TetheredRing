@@ -20,6 +20,7 @@ class referenceFrame {
     // In each frame-of-reference, create an array of wedges. In each wedge, create an empty array for storing virtual transit vehicles
     const makePlaceHolderEntry = () => ({'virtualTransitVehicles': [], 'virtualTerminuses': [], 'virtualHabitats': [], 'virtualElevatorCars': []})
     this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
+
     // Debug
     //this.prevActionFlags = new Array(this.numWedges).fill(0)
 
@@ -79,6 +80,7 @@ export class transitSystem {
     this.unallocatedHabitatModels = []
     this.numWedges = 1024
     this.actionFlags = new Array(this.numWedges).fill(0)
+    this.assignModelList = []
 
     // Debug - ToDo clean this up when it's no longer needed
 
@@ -143,10 +145,13 @@ export class transitSystem {
       }
     })
       
-    function prepareACallbackFunctionForGLTFLoader(myScene, myList, scale_Factor, n) {
+    function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n) {
       return function( {scene} ) {
         const object = scene.children[0]
         object.visible = false
+        object.name = objName
+        object.traverse(child => {child.name = objName+'_'+child.name})
+        object.children.forEach(child => child.freeze())
         object.scale.set(scale_Factor, scale_Factor, scale_Factor)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
@@ -156,9 +161,12 @@ export class transitSystem {
       } 
     }
 
-    function prepareACallbackFunctionForFBXLoader(myScene, myList, scaleFactor, n) {
+    function prepareACallbackFunctionForFBXLoader(myScene, myList, objName, scaleFactor, n) {
       return function( object ) {
         object.visible = false
+        object.name = objName
+        object.traverse(child => {child.name = objName+'_'+child.name})
+        object.children.forEach(child => child.freeze())
         object.scale.set(scaleFactor, scaleFactor, scaleFactor)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
@@ -168,10 +176,10 @@ export class transitSystem {
       } 
     }
 
-    const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 0.0254 * 1.25, dParamWithUnits['numTransitVehicleModels'].value)
-    const addTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTerminusModels, 1.25, dParamWithUnits['numTerminusModels'].value)
-    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels, 1.04, dParamWithUnits['numElevatorCarModels'].value)
-    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 3, dParamWithUnits['numHabitatModels'].value)
+    const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['numTransitVehicleModels'].value)
+    const addTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTerminusModels, 'terminus', 1.25, dParamWithUnits['numTerminusModels'].value)
+    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['numElevatorCarModels'].value)
+    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 3, dParamWithUnits['numHabitatModels'].value)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
     }
@@ -190,6 +198,7 @@ export class transitSystem {
 
     // This calculator computes the position of the collector lane reference frames as a function of time
     this.refFrameCalculator = new tram.vehicleReferenceFrameTrackPositionCalculator(dParamWithUnits, mainRingCurve, crv)
+    this.elevatorPosCalc = new tram.elevatorPositionCalculator(dParamWithUnits, crv, ecv)
 
     this.transitVehicleRelativePosition_r = []
     this.transitVehicleRelativePosition_y = []
@@ -291,7 +300,6 @@ export class transitSystem {
     let terminusShortageCount
     let elevatorCarShortageCount
     let habitatShortageCount
-    const assignModelList = []
     const removeModelList = []
 
     // First we determine which wedges in each of the reference frames are entering and leaving the proximity of the camera
@@ -327,7 +335,7 @@ export class transitSystem {
         for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
           if (this.actionFlags[wedgeIndex]==1) {
               // Wedge wasn't visible before and it became visible, assign it the assignModel list
-              assignModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
+              this.assignModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
           }
           if (wedgeIndex == refFrame.finishWedgeIndex) break
         }
@@ -402,61 +410,129 @@ export class transitSystem {
       })
     })
 
-    // Assign models to virtualVehicles that have just entered the region near the camera
-    let ranOutOfVehicleModels = 0
-    let ranOutOfTerminusModels = 0
-    let ranOutOfElevatorCarModels = 0
-    let ranOutOfHabitatModels = 0
+    // Calcuate some constants that we will use later... 
+    const r2 = this.terminusRelativePosition_r
+    const y2 = this.terminusRelativePosition_y
+    // All elevators are will be at the same height for now...
+    const elevatorAltitude = this.elevatorPosCalc.calculateElevatorPosition(this.animateElevatorCars * timeSinceStart)
 
-    assignModelList.forEach(entry => {
+    const elevatorCarPosition_dr = tram.offset_r(this.cableOutwardOffset, elevatorAltitude-this.crv.currentMainRingAltitude, this.crv.currentEquivalentLatitude)
+    const elevatorCarPosition_dy = tram.offset_y(this.cableOutwardOffset, elevatorAltitude-this.crv.currentMainRingAltitude, this.crv.currentEquivalentLatitude)
+    const elevatorCarPosition_da = this.elevatorCableForwardOffset / (2 * Math.PI * this.crv.mainRingRadius)
+
+    const angle = 2 * Math.PI * 0
+    const elevatorCarRotZ = this.crv.currentEquivalentLatitude - Math.PI/2
+
+    const r4 = this.habitatRelativePosition_r
+    const y4 = this.habitatRelativePosition_y
+
+    // Assign models to virtualVehicles that have just entered the region near the camera
+    for (let index = this.assignModelList.length-1; index>0; index--) {
+      const entry = this.assignModelList[index]
+      let ranOutOfVehicleModels = 0
+      let ranOutOfTerminusModels = 0
+      let ranOutOfElevatorCarModels = 0
+      let ranOutOfHabitatModels = 0
       entry['refFrame'].wedges[entry['wedgeIndex']].virtualTransitVehicles.forEach(object => {
-        if (this.unallocatedTransitVehicleModels.length>0) {
-          object.model = this.unallocatedTransitVehicleModels.pop()
-          object.model.visible = true
-        }
-        else {
-          ranOutOfVehicleModels++
+        if (!object.model) {
+          if (this.unallocatedTransitVehicleModels.length>0) {
+            object.model = this.unallocatedTransitVehicleModels.pop()
+            const om = object.model
+            om.visible = true
+          }
+          else {
+            ranOutOfVehicleModels++
+          }
         }
       })
-      entry['refFrame'].wedges[entry['wedgeIndex']].virtualTerminuses.forEach(virtualTerminus => {
-        if (this.unallocatedTerminusModels.length>0) {
-          virtualTerminus.model = this.unallocatedTerminusModels.pop()
-          virtualTerminus.model.visible = true
-        }
-        else {
-          ranOutOfTerminusModels++
+      entry['refFrame'].wedges[entry['wedgeIndex']].virtualTerminuses.forEach(object => {
+        if (!object.model) {
+          if (this.unallocatedTerminusModels.length>0) {
+            object.model = this.unallocatedTerminusModels.pop()
+            const om = object.model
+            om.visible = true
+            // Update the position and rotation of the model that is assigned to the object
+            const modelsTrackPosition = (object.p + entry['refFrame'].p) %1 
+            if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
+              console.log("error!!!")
+            }
+            else {
+              const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
+              const angle = 2 * Math.PI * modelsTrackPosition
+              om.position.set(
+                pointOnRingCurve.x + r2 * Math.cos(angle),
+                pointOnRingCurve.y + y2,
+                pointOnRingCurve.z + r2 * Math.sin(angle) )
+              om.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
+              om.rotateZ(-Math.PI/2)
+              om.rotateY(-Math.PI/2)
+              om.matrixValid = false
+              om.freeze()
+            }
+          }
+          else {
+            ranOutOfTerminusModels++
+          }
         }
       })
       entry['refFrame'].wedges[entry['wedgeIndex']].virtualElevatorCars.forEach(object => {
-        if (this.unallocatedElevatorCarModels.length>0) {
-          object.model = this.unallocatedElevatorCarModels.pop()
-          object.model.visible = true
-        }
-        else {
-          ranOutOfElevatorCarModels++
+        if (!object.model) {
+          if (this.unallocatedElevatorCarModels.length>0) {
+            object.model = this.unallocatedElevatorCarModels.pop()
+            const om = object.model
+            om.visible = true
+          }
+          else {
+            ranOutOfElevatorCarModels++
+          }
         }
       })
       entry['refFrame'].wedges[entry['wedgeIndex']].virtualHabitats.forEach(object => {
-        if (this.unallocatedHabitatModels.length>0) {
-          object.model = this.unallocatedHabitatModels.pop()
-          object.model.visible = true
-        }
-        else {
-          ranOutOfHabitatModels++
+        if (!object.model) {
+          if (this.unallocatedHabitatModels.length>0) {
+            object.model = this.unallocatedHabitatModels.pop()
+            const om = object.model
+            om.visible = true
+            // Update the position and rotation of the model that is assigned to the virtualHabitat
+            const modelsTrackPosition = (object.p + entry['refFrame'].p) %1 
+            if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
+              console.log("error!!!")
+            }
+            else {
+              const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
+              const angle = 2 * Math.PI * modelsTrackPosition
+              om.position.set(
+                pointOnRingCurve.x + r4 * Math.cos(angle),
+                pointOnRingCurve.y + y4,
+                pointOnRingCurve.z + r4 * Math.sin(angle) )
+              om.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
+              om.rotateZ(-Math.PI/2)
+              om.rotateY(Math.PI/2)
+              om.matrixValid = false
+              om.freeze()
+            }  
+          }
+          else {
+            ranOutOfHabitatModels++
+          }
         }
       })
-    })
-    if (ranOutOfVehicleModels>0) {
-      console.log('ranOutOfVehicleModels ' + ranOutOfVehicleModels)
-    }
-    if (ranOutOfTerminusModels>0) {
-      console.log('ranOutOfTerminusModels ' + ranOutOfTerminusModels)
-    }
-    if (ranOutOfElevatorCarModels>0) {
-      console.log('ranOutOfElevatorCarModels ' + ranOutOfElevatorCarModels)
-    }
-    if (ranOutOfHabitatModels>0) {
-      console.log('ranOutOfHabitatModels ' + ranOutOfHabitatModels)
+      if (ranOutOfVehicleModels>0) {
+        console.log('ranOutOfVehicleModels ' + ranOutOfVehicleModels)
+      }
+      if (ranOutOfTerminusModels>0) {
+        console.log('ranOutOfTerminusModels ' + ranOutOfTerminusModels)
+      }
+      if (ranOutOfElevatorCarModels>0) {
+        console.log('ranOutOfElevatorCarModels ' + ranOutOfElevatorCarModels)
+      }
+      if (ranOutOfHabitatModels>0) {
+        console.log('ranOutOfHabitatModels ' + ranOutOfHabitatModels)
+      }
+      if ((ranOutOfVehicleModels==0) && (ranOutOfTerminusModels==0) && (ranOutOfElevatorCarModels==0) && (ranOutOfHabitatModels==0)) {
+        // Success!! We can remove this entry from the list now
+        this.assignModelList.splice(index, 1)
+      }
     }
 
     // Now adjust the models position and rotation in all of the active wedges
@@ -465,38 +541,20 @@ export class transitSystem {
     elevatorCarShortageCount = 0
     habitatShortageCount = 0
 
-    // All elevators are will be at the same height for now...
-    const elevatorAltitude = tram.getElevatorCarAltitude(dParamWithUnits, this.crv, this.ecv, this.animateElevatorCars * timeSinceStart)
+    // Hack
+    let terminusModels = 0
 
     this.refFrames.forEach(refFrame => {
+      const trackIndex = refFrame.trackIndex
+      const r1 = this.transitVehicleRelativePosition_r[trackIndex]
+      const y1 = this.transitVehicleRelativePosition_y[trackIndex]
       if (refFrame.startWedgeIndex!=-1) {
-        const trackIndex = refFrame.trackIndex
-        const r1 = this.transitVehicleRelativePosition_r[trackIndex]
-        const y1 = this.transitVehicleRelativePosition_y[trackIndex]
-        const r2 = this.terminusRelativePosition_r
-        const y2 = this.terminusRelativePosition_y
-
-        const elevatorCarPosition_dr = tram.offset_r(this.cableOutwardOffset, elevatorAltitude-this.crv.currentMainRingAltitude, this.crv.currentEquivalentLatitude)
-        const elevatorCarPosition_dy = tram.offset_y(this.cableOutwardOffset, elevatorAltitude-this.crv.currentMainRingAltitude, this.crv.currentEquivalentLatitude)
-        const elevatorCarPosition_da = this.elevatorCableForwardOffset / (2 * Math.PI * this.crv.mainRingRadius)
-
-        const tempPointOnRingCurve = mainRingCurve.getPoint(0)
-        const angle = 2 * Math.PI * 0
-        // console.log('elevatorCarPosition_da new', 
-        //   elevatorCarPosition_da, 
-        //   this.crv.mainRingRadius+elevatorCarPosition_dr, 
-        //   tempPointOnRingCurve.x,
-        //   tempPointOnRingCurve.x + elevatorCarPosition_dr * Math.cos(angle))
-        const elevatorCarRotZ = this.crv.currentEquivalentLatitude - Math.PI/2
-
-        const r4 = this.habitatRelativePosition_r
-        const y4 = this.habitatRelativePosition_y
-
         for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
-          refFrame.wedges[wedgeIndex].virtualTransitVehicles.forEach(virtualTransitVehicle => {
-            if (virtualTransitVehicle.model) {
+          refFrame.wedges[wedgeIndex].virtualTransitVehicles.forEach(object => {
+            const om = object.model
+            if (om) {
               // Update the position and rotation of the model that is assigned to the virtualTransitVehicle
-              const modelsTrackPosition = (virtualTransitVehicle.p + refFrame.p) %1 
+              const modelsTrackPosition = (object.p + refFrame.p) %1 
               
               if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
                 console.log("error!!!")
@@ -504,12 +562,13 @@ export class transitSystem {
               else {
                 const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
                 const angle = 2 * Math.PI * modelsTrackPosition
-                virtualTransitVehicle.model.position.set(
+                om.position.set(
                   pointOnRingCurve.x + r1 * Math.cos(angle),
                   pointOnRingCurve.y + y1,
                   pointOnRingCurve.z + r1 * Math.sin(angle) )
-                virtualTransitVehicle.model.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
-                virtualTransitVehicle.model.rotateZ(-Math.PI/2)
+                om.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
+                om.rotateZ(-Math.PI/2)
+                om.matrixValid = false
               }
             }
             else {
@@ -517,35 +576,12 @@ export class transitSystem {
               transitVehicleShortageCount++
             }
           })
-          refFrame.wedges[wedgeIndex].virtualTerminuses.forEach(virtualTerminus => {
-            if (virtualTerminus.model) {
-              // Update the position and rotation of the model that is assigned to the virtualTerminus
-              const modelsTrackPosition = (virtualTerminus.p + refFrame.p) %1 
-              if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-                console.log("error!!!")
-              }
-              else {
-                const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
-                const angle = 2 * Math.PI * modelsTrackPosition
-                virtualTerminus.model.position.set(
-                  pointOnRingCurve.x + r2 * Math.cos(angle),
-                  pointOnRingCurve.y + y2,
-                  pointOnRingCurve.z + r2 * Math.sin(angle) )
-                  virtualTerminus.model.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
-                  virtualTerminus.model.rotateZ(-Math.PI/2)
-                  virtualTerminus.model.rotateY(-Math.PI/2)
-                }
-            }
-            else {
-              // If we find ourselves here, then this means that there were not enough models in the pool to assign on to every virtual vehicle that needs one
-              terminusShortageCount++
-            }
-          })
-          refFrame.wedges[wedgeIndex].virtualElevatorCars.forEach(virtualElevatorCar => {
-            if (virtualElevatorCar.model) {
+          refFrame.wedges[wedgeIndex].virtualElevatorCars.forEach(object => {
+            const om = object.model
+            if (om) {
               // Update the position and rotation of the model that is assigned to the virtualElevatorCar
-              const modelsTrackPosition = (virtualElevatorCar.p + refFrame.p + elevatorCarPosition_da/(2*Math.PI)) %1 
-              //const modelsTrackPosition = (virtualElevatorCar.p + refFrame.p) %1 
+              const modelsTrackPosition = (object.p + refFrame.p + elevatorCarPosition_da/(2*Math.PI)) %1 
+              //const modelsTrackPosition = (object.p + refFrame.p) %1 
               if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
                 console.log("error!!!")
               }
@@ -556,40 +592,17 @@ export class transitSystem {
                   this.crv.mainRingRadius * Math.cos(angle),
                   this.crv.yc,
                   this.crv.mainRingRadius * Math.sin(angle))
-                virtualElevatorCar.model.position.set(
+                om.position.set(
                   pointOnRingCurve.x + elevatorCarPosition_dr * Math.cos(angle),
                   pointOnRingCurve.y + elevatorCarPosition_dy,
                   pointOnRingCurve.z + elevatorCarPosition_dr * Math.sin(angle) )
-                  virtualElevatorCar.model.rotation.set(0, -angle, elevatorCarRotZ)
-                }
+                om.rotation.set(0, -angle, elevatorCarRotZ)
+                om.matrixValid = false
+              }
             }
             else {
               // If we find ourselves here, then this means that there were not enough models in the pool to assign on to every virtual vehicle that needs one
               elevatorCarShortageCount++
-            }
-          })
-          refFrame.wedges[wedgeIndex].virtualHabitats.forEach(virtualHabitat => {
-            if (virtualHabitat.model) {
-              // Update the position and rotation of the model that is assigned to the virtualHabitat
-              const modelsTrackPosition = (virtualHabitat.p + refFrame.p) %1 
-              if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-                console.log("error!!!")
-              }
-              else {
-                const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
-                const angle = 2 * Math.PI * modelsTrackPosition
-                virtualHabitat.model.position.set(
-                  pointOnRingCurve.x + r4 * Math.cos(angle),
-                  pointOnRingCurve.y + y4,
-                  pointOnRingCurve.z + r4 * Math.sin(angle) )
-                  virtualHabitat.model.rotation.set(0, -angle, this.crv.currentEquivalentLatitude)
-                  virtualHabitat.model.rotateZ(-Math.PI/2)
-                  virtualHabitat.model.rotateY(Math.PI/2)
-                }
-            }
-            else {
-              // If we find ourselves here, then this means that there were not enough models in the pool to assign on to every virtual vehicle that needs one
-              habitatShortageCount++
             }
           })
 
@@ -599,6 +612,7 @@ export class transitSystem {
     })
 
     // Debug stuff...
+    // console.log(terminusModels)
     // if (transitVehicleShortageCount>0) {
     //   console.log('transitVehicleShortageCount was ' + transitVehicleShortageCount)
     // }

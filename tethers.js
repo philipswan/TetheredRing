@@ -8,7 +8,7 @@ import * as tram from './tram.js'
 
 class TetherGeometry extends BufferGeometry {
 
-	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile) {
+	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecsFile) {
 		super();
 
         const tetherPoints = []
@@ -27,22 +27,24 @@ class TetherGeometry extends BufferGeometry {
           const final_r = radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value
           console.log(final_r)
       
-          const m = dParamWithUnits['massPerMeterOfRing'].value
-          const fExertedByGravityOnRing = gravitationalConstant * massOfPlanet * m / (final_r**2)
+          const totalMassPerMeterOfRing = dParamWithUnits['totalMassPerMeterOfRing'].value
+          // Note: The following formula is an approximation that assumes a non-rotating and perfectly spherical planet. It will need to be improved later.
+          const fExertedByGravityOnRing = gravitationalConstant * massOfPlanet * totalMassPerMeterOfRing / (final_r**2)
           
-          // The following vectors are cylindricl coordinates
-          const fG = new tram.forceVector() // Vector representing the force of gravity at a point on the tether in ring-centered cylindrical coordinates
-          const fT = new tram.forceVector() // Vector representing the tensile force exerted at a point on the tether in ring-centered cylindrical coordinates
-          const fI = new tram.forceVector() // Vector representing the force of gravity at a point on the tether in ring-centered cylindrical coordinates
+          // The following three vectors are for a unit length section of the ring and are specified in a ring-centered cylindrical coordinates
+          const fG = new tram.forceVector() // Vector representing the force of gravity
+          const fT = new tram.forceVector() // Vector representing the tensile  force
+          const fI = new tram.forceVector() // Vector representing the inertial force
       
           fG.ρ = -fExertedByGravityOnRing * Math.cos(dParamWithUnits['equivalentLatitude'].value)
           fG.φ = 0
           fG.z = -fExertedByGravityOnRing * Math.sin(dParamWithUnits['equivalentLatitude'].value)
           fT.z = -fG.z                     // Eq 6
       
+          // const factor = dParamWithUnits['tetherMaterialTensileStrength'].prefixfactor
           const tetherStress = dParamWithUnits['tetherMaterialTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
-          const aveForceOfGravity = gravitationalConstant * massOfPlanet * 1 / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)
-          const c = tetherStress / dParamWithUnits['tetherMaterialDensity'].value / aveForceOfGravity  // We're using the average force of gravity here as an engineering approximation (Eq 17)
+          const accelerationOfGravity = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
+          const c = tetherStress / dParamWithUnits['tetherMaterialDensity'].value / accelerationOfGravity
           
           // Initially we will assume that PointB is at x=0 on the catenary. This is done just so that we can calculate a temporary "PointP.x", 
           // and then set PointB.x as a percentage of this temporarty PointP.x. 
@@ -58,7 +60,14 @@ class TetherGeometry extends BufferGeometry {
           const currentTetherLength = []
           const numTetherSegments = (2 ** (dParamWithUnits['numForkLevels'].value+1)) - 1       // Starting from anchor, after each fork the distance to the next fork (or attacment point) is halved
           const numTetherPoints = numTetherSegments + 1                // Because, for example, it takes 5 points to speify 4 segments
-      
+          const Nappt = [[], []]
+          const F = [[], []]
+          const Acs = [[], []]
+          const L = []
+          const V = []
+          const M = []
+          const I = []
+    
           specs['tetherSpacing'] = {value: 2 * crv.mainRingRadius * Math.PI / dParamWithUnits['numTethers'].value, units: "m"}
       
           finalCatenaryTypes.forEach((catenaryType, j) => {
@@ -82,35 +91,148 @@ class TetherGeometry extends BufferGeometry {
             pointB.T = pointA.T / Math.cos(pointB.θ)             // Eq 17, Note: pointA.T is also referred to as 'T0'
             finalTetherLength[j] = pointP.s - pointB.s          
       
-            const points = [pointB, pointP]
-            const label = ['B', 'P']
-            points.forEach((point, k) => {
-              point.crossSectionalArea = point.T/tetherStress * Math.cosh(point.s/c)        // Eq 14
-              // These are simplifed rough calculations. They will help to reveal errors in more precice calculations performed later.
-              // There's a cosine effect that will increase stress on the tethers in proportion to their ω angle
-              specs['numAnchorPoints_'+label[k]+j] = {value: 2**(k*dParamWithUnits['numForkLevels'].value), units: ""}
-              specs['tetherCrossSectionalArea_'+label[k]+j] = {value: point.crossSectionalArea * specs['tetherSpacing'].value / specs['numAnchorPoints_'+label[k]+j].value, units: "m2"}
-              specs['tetherDiameter_'+label[k]+j] = {value: 2 * Math.sqrt(specs['tetherCrossSectionalArea_'+label[k]+j].value / 2 / Math.PI), units: "m"}  // because: d = 2*r = 2*sqrt(a/2/pi)
-              specs['tetherForce_'+label[k]+j] = {value: specs['tetherCrossSectionalArea_'+label[k]+j].value * tetherStress, units: "N"}
-            })
-            specs['tetherLength_Rough'+j] = {value: pointP.s - pointB.s, units: "m"}       // Note: Does not account for forks
-            specs['tetherVolume_Rough'+j] = {
-              value: specs['tetherLength_Rough'+j].value * (
-                (specs['tetherCrossSectionalArea_'+label[0]+j].value * specs['numAnchorPoints_'+label[0]+j].value) +
-                (specs['tetherCrossSectionalArea_'+label[1]+j].value * specs['numAnchorPoints_'+label[1]+j].value)
-                ) / 2,
-              units: "m3"}
-            specs['tetherMass_Rough'+j] = {value: specs['tetherVolume_Rough'+j].value * dParamWithUnits['tetherMaterialDensity'].value, units: "kg"}
+            if (genSpecsFile) {
+              const CatenaryEndpoints = [pointB, pointP]
+              const label = ['B', 'P']
+              CatenaryEndpoints.forEach((point, k) => {
+                // These are simplifed rough calculations. They will help to reveal errors in more precice calculations performed later.
+                // There's a cosine effect that will increase stress on the tethers in proportion to their ω angle
+                Nappt[j][k] = 2**(k*dParamWithUnits['numForkLevels'].value)
+                specs['numAttachmentPointsPerTether_'+label[k]+j] = {value: Nappt[j][k], units: ""}
+                specs['tetherAngleAtAttachmentPoint_'+label[k]+j] = {value: point.θ, units: "radians"}
+                F[j][k] = point.T * specs['tetherSpacing'].value / Nappt[j][k]
+                specs['tetherTensileForceAtAttachmentPoint_'+label[k]+j] = {value: F[j][k], units: "N"}
+                Acs[j][k] = F[j][k] / tetherStress
+                specs['tetherCrossSectionalAreaAtAttachmentPoint_'+label[k]+j] = {value: Acs[j][k], units: "m2"}
+                specs['tetherDiameter_'+label[k]+j] = {value: 2 * Math.sqrt(Acs[j][k] / 2 / Math.PI), units: "m"}  // because: d = 2*r = 2*sqrt(a/2/pi)
+                specs['tetherForce_'+label[k]+j] = {value: Acs[j][k] * tetherStress, units: "N"}
+              })
+              L[j] = pointP.s - pointB.s       // Note: Does not account for length increase due to forks - assumes closely-spaced tethers
+              specs['tetherLength'+j] = {value: L[j], units: "m"}
+              V[j] = L[j] * ((Acs[j][0] * Nappt[j][0]) + (Acs[j][1] * Nappt[j][1])) / 2      // Note: Rough calculation that does not account for forks
+              specs['tetherVolume'+j] = {value: V[j], units: "m3"}
+              M[j] = V[j] * dParamWithUnits['tetherMaterialDensity'].value
+              specs['tetherMass'+j] = {value: M[j], units: "kg"}
+              I[j] = fI.ρ
+            }
           })
-          specs['tetherMaterialTotalMass_Rough'] = {value: (specs['tetherMass_Rough'+0].value + specs['tetherMass_Rough'+1].value) / 2 * dParamWithUnits['numTethers'].value, units: "kg"}
-          specs['tetherEqCO2TotalMass_Rough'] = {value: specs['tetherMaterialTotalMass_Rough'].value * 44/12, units: "kg"}
-          specs['tetherCost_Rough'] = {value: specs['tetherMaterialTotalMass_Rough'].value * dParamWithUnits['tetherMaterialCost'].value / 1000000000, units: "Billion USD"}
-      
+          if (genSpecsFile) {
+            // A lot of these calculation are really more about the moving ring than the tethers. Probably should move them elsewhere
+            specs['tetherMaterialTotalMass'] = {value: (M[0] + M[1]) / 2 * dParamWithUnits['numTethers'].value, units: "kg"}
+            specs['tetherEqCO2TotalMass'] = {value: specs['tetherMaterialTotalMass'].value * 44/12, units: "kg"}
+            const oneBillion = 1000000000
+            const tetherMaterialTotalCost = specs['tetherMaterialTotalMass'].value * dParamWithUnits['tetherMaterialCost'].value / oneBillion
+            specs['tetherMaterialTotalCost'] = {value: tetherMaterialTotalCost, units: "Billion USD"}
+            //specs['tenileAverageForceDirection'] = {value: (Theta[0][1] + Theta[1][1])/2, units: "radians"}
+            // Calculate the required inertial force
+            const inertialForcePerMeter =  (I[0] + I[1]) / 2
+            specs['inertialForcePerMeter'] = {value: inertialForcePerMeter, units: "N"}
+            // F = mv2/r
+            const ringCircumference = 2 * Math.PI * crv.mainRingRadius
+            const movingRingsRotationalPeriod = 0.5 * 3600 // s
+            specs['movingRingsRotationalPeriod'] = {value: movingRingsRotationalPeriod, units: "s"}
+            const movingRingSpeed = ringCircumference / movingRingsRotationalPeriod  // Moving ring complete two circuirs per hour
+            specs['movingRingSpeed'] = {value: movingRingSpeed, units: "m/s"}
+            const movingRingsMassPerMeter = inertialForcePerMeter * crv.mainRingRadius / movingRingSpeed**2  // Note this mass is shared by the number of rings 
+            specs['movingRingsMassPerMeter'] = {value: movingRingsMassPerMeter, units: "kg"}
+            const movingRingsMassFlowRate = movingRingsMassPerMeter * movingRingSpeed
+            specs['movingRingsMassFlowRate'] = {value: movingRingsMassFlowRate, units: "kg/s"}
+            const movingRingsTotalMass = movingRingsMassPerMeter * ringCircumference
+            specs['movingRingsTotalMass'] = {value: movingRingsTotalMass, units: "kg"}
+            const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingSpeed**2
+            specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
+            const costOfEnergy = dParamWithUnits['costOfEnergy'].value
+            const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * costOfEnergy / oneBillion
+            specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
+            const movingRingsMassPortion = movingRingsMassPerMeter / totalMassPerMeterOfRing
+            specs['movingRingsMassPortion'] = {value: movingRingsMassPortion, units: ""}
+
+            // Calculate the force if gravity acting on the moving ring...
+            const fM = new tram.forceVector() // Vector representing the steady state magnetic levitation force aplied to the moving ring
+            fM.z = fG.z * movingRingsMassPortion
+            fM.ρ = fG.ρ * movingRingsMassPortion + fI.ρ
+            fM.φ = 0   // No poloidal accellerations during steady state operation
+            specs['magneticForceZComponent'] = {value: fM.z, units: "N"}
+            specs['magneticForceRhoComponent'] = {value: fM.ρ, units: "N"}
+
+            const magneticForceMagnitude = Math.sqrt(fM.z**2 + fM.ρ**2)
+            specs['magneticForceMagnitude'] = {value: magneticForceMagnitude, units: "N"}
+
+            const statorMassPerUnitOfLoad = dParamWithUnits['statorMassPerUnitOfLoad'].value  // the value is the stationary ring mass per unit of static load that it must support
+            const stationaryRingsMassPerMeter = magneticForceMagnitude * statorMassPerUnitOfLoad
+            specs['stationaryRingsMassPerMeter'] = {value: stationaryRingsMassPerMeter, units: "kg"}
+            const stationaryRingsMassPortion = stationaryRingsMassPerMeter / totalMassPerMeterOfRing
+            specs['stationaryRingsMassPortion'] = {value: stationaryRingsMassPortion, units: ""}
+
+            const loadMassPerMeter = totalMassPerMeterOfRing - movingRingsMassPerMeter - stationaryRingsMassPerMeter
+            specs['loadMassPerMeter'] = {value: loadMassPerMeter, units: "kg"}
+            const loadMassPortion = loadMassPerMeter / totalMassPerMeterOfRing
+            specs['loadMassPortion'] = {value: loadMassPortion, units: ""}
+
+            // Calculate the current needed to generate the required magnetic forces, assuming here that we do not use permenant magnets for this
+            const u_0 = dParamWithUnits['permeabilityOfFreeSpace'].value
+            const u_r = dParamWithUnits['relativePermeabilityOfCore'].value
+            const l_Fe = dParamWithUnits['ringMaglevFieldLoopLength'].value   // This is the length of the part of the portion of the magnetic field that travels through the core material in meters
+            const s = dParamWithUnits['ringMaglevAirGap'].value
+            const coreLength = dParamWithUnits['ringMaglevCoreCrossSectionLength'].value
+            const coreWidth = dParamWithUnits['ringMaglevCoreCrossSectionWidth'].value
+            const A = coreLength * coreWidth
+            const n = dParamWithUnits['ringMaglevNumLoops'].value
+            const f = magneticForceMagnitude * coreLength
+            const alpha = 0
+            // f = u_0 * (n*i / (l_Fe/u_r + 2*s))**2 * A * cos(alpha)
+            // Rearrange to calculate the current...
+            const currentPerElectromagnet = (l_Fe/u_r + 2*s) / n * Math.sqrt(f / (u_0 * A * Math.cos(alpha)))
+            const currentPerMeterOfRing = currentPerElectromagnet / coreLength
+            specs['currentPerMeterOfRing'] = {value: currentPerMeterOfRing, units: "A"}
+            const wireRadius = dParamWithUnits['wireRadius'].value
+            const wireLength = n * (2 * (coreLength+2*wireRadius) + 2 * (coreWidth+2*wireRadius))
+            let resistivityOfCoilConductor = dParamWithUnits['coilConductorMaterialResistivity'].value
+            let densityOfCoilConductor = dParamWithUnits['coilConductorMaterialDensity'].value
+            let costOfConductor = dParamWithUnits['coilConductorMaterialCost'].value
+
+            const wireCrossSectionalArea = Math.PI * wireRadius**2
+            const coilResistance = resistivityOfCoilConductor * wireLength / wireCrossSectionalArea
+            specs['coilResistance'] = {value: coilResistance, units: "Ohms"}
+            const coilPower = currentPerElectromagnet**2 * coilResistance
+            specs['coilPower'] = {value: coilPower, units: "Watts"}
+            const coilPowerPerMeterOfRing = coilPower / coreLength
+            specs['coilPowerPerMeterOfRing'] = {value: coilPowerPerMeterOfRing, units: "Watts"}
+            const totalCoilPower = coilPowerPerMeterOfRing * 2 * Math.PI * crv.mainRingRadius
+            specs['totalCoilPower'] = {value: totalCoilPower, units: "Watts"}
+            const totalCoilPowerPerYear = totalCoilPower * 365 * 24 * 3600
+            specs['totalCoilPowerPerYear'] = {value: totalCoilPowerPerYear, units: "Joules"}
+            const totalCoilPowerCostPerYear = totalCoilPowerPerYear * costOfEnergy / oneBillion
+            specs['totalCoilPowerCostPerYear'] = {value: totalCoilPowerCostPerYear, units: "Billion USD"}
+            const coilVolume = wireLength * Math.PI * wireRadius**2
+            const coilMass = coilVolume * densityOfCoilConductor
+            const coilMassPerMeterOfRing = coilMass / coreLength
+            specs['coilMassPerMeterOfRing'] = {value: coilMassPerMeterOfRing, units: "kg"}
+            const totalCoilMaterialCost = coilMassPerMeterOfRing * 2 * Math.PI * crv.mainRingRadius * costOfConductor / oneBillion
+            specs['totalCoilMaterialCost'] = {value: totalCoilMaterialCost, units: "Billion USD"}
+            const portionOfCoreOnStationaryRing = dParamWithUnits['portionOfCoreOnStationaryRing'].value
+            const coreVolume = coreLength * coreWidth * l_Fe * portionOfCoreOnStationaryRing
+            const coreMass = coreVolume * dParamWithUnits['coreMaterialDensityIron'].value
+            const coreMassPerMeterOfRing = coreMass / coreLength
+            specs['coreMassPerMeterOfRing'] = {value: coreMassPerMeterOfRing, units: "kg"}
+            const totalCoreMaterialCost = coreMassPerMeterOfRing * 2 * Math.PI * crv.mainRingRadius * dParamWithUnits['coreMaterialCostIron'].value / oneBillion
+            specs['totalCoreMaterialCost'] = {value: totalCoreMaterialCost, units: "Billion USD"}
+
+            let sumOfAllCapitalCosts = 0
+            sumOfAllCapitalCosts += tetherMaterialTotalCost
+            sumOfAllCapitalCosts += movingRingsTotalKineticEnergyCost
+            sumOfAllCapitalCosts += totalCoilMaterialCost
+            sumOfAllCapitalCosts += totalCoreMaterialCost
+            specs['sumOfAllCapitalCosts'] = {value: sumOfAllCapitalCosts, units: "Billion USD"}
+            const capitalCostPerMeter = sumOfAllCapitalCosts / ringCircumference * oneBillion
+            specs['capitalCostPerMeter'] = {value: capitalCostPerMeter, units: "USD"}
+          }
+
           // At this point the final length of the tethers (measured along the catenary) is known, but the tethers current shape is still
           // a function of its state of deployment.
           // The next steps involve calculating the catenary for the current state of deployment, and then mapping the tether design onto that catenary. 
-      
-          const r = Math.sqrt(crv.yc*crv.yc + crv.mainRingRadius*crv.mainRingRadius)
+
+          const r = Math.sqrt(crv.yc**2 + crv.mainRingRadius**2)
       
           tempPointP.y = r - radiusOfPlanet
           tempPointP.x = c * Math.acos(Math.exp(-tempPointP.y/c))      // Eq 11
