@@ -148,7 +148,7 @@ export class elevatorCarVariables {
     this.batterySpecificEnergy = 265 // Wh/kg
     this.driveSystemEfficiency = 0.8
     this.batteryMassPerKg = this.energyRequirementPerKg / (this.batterySpecificEnergy * 3600 * this.driveSystemEfficiency)
-    this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value    // May need to subtract the altitude of the terestrial terminus
+    this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value + this.dParamWithUnits['ringTerminusUpwardOffset'].value + this.dParamWithUnits['elevatorCarUpwardOffset'].value    // May need to subtract the altitude of the terestrial terminus
     this.maxAccelleration = 2 // m/s2
     this.maxSpeed = 200 // m/s
     this.accellerationTime = this.maxSpeed / this.maxAccelleration
@@ -236,7 +236,7 @@ class accellerationProfile {
 export class elevatorPositionCalculator {
   constructor(dParamWithUnits, crv, ecv) {
     this.accProfile = new accellerationProfile()
-    this.accProfile.addElement("D", crv.currentMainRingAltitude + dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['terminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value, ecv.waitTime)
+    this.accProfile.addElement("D", crv.currentMainRingAltitude, ecv.waitTime)
     this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
     this.accProfile.addElement("V", -ecv.maxSpeed, ecv.steadySpeedTime)
     this.accProfile.addElement("A", ecv.maxAccelleration, ecv.accellerationTime)
@@ -390,4 +390,92 @@ export function lla2xyz(lat, lon, alt) {
 
   return new Vector3(x, y, z)
 
+}
+
+export function habitatDesign(dParamWithUnits, livableFloorspace, numFloors, floorToCeilingSpacing, floorThickness) {
+  // Assums that within the habitat's "bubble", there is a "roof level" and "basement level" that are not included in the livable floorspace.
+  // Roof can be used for plants, and as a garden. Basement can be used for equipment and storage.
+  // Floorspace is only included when it extends from floor to ceiling, so some floorspace near the bubble wall may not qualify.  
+  let h = []
+
+  // Create an array containing the heights of all the floors and ceilings (that is, the vertical coordinate for the top and bottom of each partion)
+  for (let i = 0; i<=numFloors; i++) {
+    const j = numFloors / 2 - Math.floor(i/2)
+    const k = (numFloors+1) / 2 - Math.floor((i+1)/2)
+    h[i] = j * floorToCeilingSpacing + k * floorThickness
+    h[numFloors*2 + 1 - i] = -h[i]
+  }
+
+  // The following code should work for 1 to 4 floors inclusive...
+  // livableFloorspace = (2 * (habitatInnerRadius**2 - h[1]**2) + 2 * (habitatInnerRadius**2 - h[3]**2)) * Math.PI 
+  // livableFloorspace = (2 * habitatInnerRadius**2 + 2 * habitatInnerRadius**2 - 2 * h[1]**2 - 1 * h[3]**2) * Math.PI 
+  // livableFloorspace = (numFloors * habitatInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2) * Math.PI 
+  // livableFloorspace / Math.PI = numFloors * habitatInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2 
+  // (livableFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) = numFloors * habitatInnerRadius**2 
+  // (livableFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) / numFloors = habitatInnerRadius**2 
+  const n1 = Math.floor(numFloors / 2)
+  const n2 = numFloors - n1
+  const habitatInnerRadius = Math.sqrt((livableFloorspace / Math.PI + n1 * h[1]**2 + n2 * h[3]**2) / numFloors )
+  
+  const habitatDesignParameters = {
+    'numFloors': numFloors,
+    'floorToCeilingSpacing': floorToCeilingSpacing,
+    'floorThickness': floorThickness,
+    'habitatInnerRadius': habitatInnerRadius,
+    'heightArray': h,
+  }
+  return habitatDesignParameters
+}
+
+export function generateHabitatMeshes(dParamWithUnits) {
+  const livableFloorspace = 325  // m2
+  const numFloors = 2
+  const floorToCeilingSpacing = 3.1 // m
+  const floorThickness = 0.2 // m
+  const habitatDesignParameters = habitatDesign(dParamWithUnits, livableFloorspace, numFloors, floorToCeilingSpacing, floorThickness)
+  //console.log(habitatDesignParameters)
+
+  const habitatMeshes = new THREE.Group()
+  // Add a sphere
+  const bubbleGeometry = new THREE.SphereGeometry(habitatDesignParameters['habitatInnerRadius'], 64, 32)
+  const bubbleMaterial = new THREE.MeshPhongMaterial({
+    //roughness: 1,
+    //metalness: 0,
+    // blending: THREE.CustomBlending,
+    // blendEquation: THREE.AddEquation, //default
+    // blendSrc: THREE.SrcAlphaFactor, //default
+    // blendDst: THREE.OneMinusSrcAlphaFactor, //default
+    //blendSrcAlpha: 0.1,
+    color: 0x302070,
+    transparent: true,
+    opacity: 0.5
+  })
+  const tempBubbleMesh = new THREE.Mesh(bubbleGeometry, bubbleMaterial)
+  tempBubbleMesh.name = "bubble"
+  tempBubbleMesh.position.set(dParamWithUnits['habitatOutwardOffset'].value, dParamWithUnits['habitatUpwardOffset'].value, dParamWithUnits['habitatForwardOffset'].value)
+  habitatMeshes.add(tempBubbleMesh)
+  tempBubbleMesh.updateMatrixWorld()
+
+  // Add tapered cylinders for each floor
+  const floorMaterial = new THREE.MeshLambertMaterial({color: 0x878681, transparent: false})
+
+  const ir = habitatDesignParameters['habitatInnerRadius']
+  const h = habitatDesignParameters['heightArray']
+  //console.log(h, ir, h.length)
+  let floorSpace = 0
+  for (let i = 0; i<h.length; i+=2) {
+    const r0 = Math.sqrt(ir**2 - h[i+0]**2)
+    const r1 = Math.sqrt(ir**2 - h[i+1]**2)
+    //console.log(r0, r1)
+    const floorGeometry = new THREE.CylinderGeometry(r0, r1, floorThickness, 32, 1)
+    const tempFloorMesh = new THREE.Mesh(floorGeometry, floorMaterial)
+    tempFloorMesh.position.set(dParamWithUnits['habitatOutwardOffset'].value, dParamWithUnits['habitatUpwardOffset'].value + (h[i+0] + h[i+1]) / 2, dParamWithUnits['habitatForwardOffset'].value)
+    tempFloorMesh.name = 'floor' + (h.length/2 - i/2)
+    tempFloorMesh.userData = {'upwardOffset': (h[i+0] + h[i+1]) / 2}
+    habitatMeshes.add(tempFloorMesh)
+    tempFloorMesh.updateMatrixWorld()
+    if (i>0) floorSpace += Math.PI * r0**2
+  }
+  //console.log(floorSpace)
+  return habitatMeshes
 }

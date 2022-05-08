@@ -8,7 +8,7 @@ import * as tram from './tram.js'
 
 class TetherGeometry extends BufferGeometry {
 
-	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecsFile) {
+	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs) {
 		super();
 
     const tetherPoints = []
@@ -17,7 +17,8 @@ class TetherGeometry extends BufferGeometry {
     const mrr = 10000 //crv.mainRingRadius
     const finalCatenaryTypes = [[], []]                          // Shape of the catenary after the ring is raised to full height - used to "design" the thethers.
     const currentCatenaryTypes = [[], []]                        // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
-    
+    const verbose = false
+
     tetherMath()       // Regenerate the strips of points that define a forking tether
     // Tethered Ring Math
     function tetherMath() {
@@ -31,7 +32,7 @@ class TetherGeometry extends BufferGeometry {
       const totalMassPerMeterOfRing = dParamWithUnits['totalMassPerMeterOfRing'].value
       // Note: The following formula is an approximation that assumes a non-rotating and perfectly spherical planet. It will need to be improved later.
       const forceExertedByGravityOnRing = gravitationalConstant * massOfPlanet * totalMassPerMeterOfRing / (final_r**2)
-      if (genSpecsFile) {
+      if (genSpecs) {
         specs['forceExertedByGravityOnRing'] = {value: forceExertedByGravityOnRing, units: "N/m"}
       }
       // The following three vectors are for a unit length section of the ring and are specified in a ring-centered cylindrical coordinates
@@ -50,7 +51,7 @@ class TetherGeometry extends BufferGeometry {
       const accelerationOfGravityAtRing = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
       const accelerationOfGravityApproximation = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
       const howMuchLessThingsWeighAtRing = accelerationOfGravityAtRing / accelerationOfGravityAtSeaLevel
-      if (genSpecsFile) {
+      if (genSpecs) {
         //specs['accelerationOfGravityApproximation'] = {value: accelerationOfGravityApproximation, units: "m/s2"}
         specs['accelerationOfGravityAtRing'] = {value: accelerationOfGravityAtRing, units: "m/s2"}
         specs['howMuchLessThingsWeighAtRing'] = {value: howMuchLessThingsWeighAtRing, units: ""}
@@ -76,9 +77,9 @@ class TetherGeometry extends BufferGeometry {
       const V = []
       const M = []
       const I = []
-
-      if (genSpecsFile) {
-        specs['tetherSpacing'] = {value: 2 * crv.mainRingRadius * Math.PI / dParamWithUnits['numTethers'].value, units: "m"}
+      const tetherSpacing = 2 * crv.mainRingRadius * Math.PI / dParamWithUnits['numTethers'].value
+      if (genSpecs) {
+        specs['tetherSpacing'] = {value: tetherSpacing, units: "m"}
       }
   
       finalCatenaryTypes.forEach((catenaryType, j) => {
@@ -102,7 +103,7 @@ class TetherGeometry extends BufferGeometry {
         pointB.T = pointA.T / Math.cos(pointB.θ)             // Eq 17, Note: pointA.T is also referred to as 'T0'
         finalTetherLength[j] = pointP.s - pointB.s          
   
-        if (genSpecsFile) {
+        if (genSpecs) {
           const CatenaryEndpoints = [pointB, pointP]
           const label = ['B', 'P']
           CatenaryEndpoints.forEach((point, k) => {
@@ -111,7 +112,8 @@ class TetherGeometry extends BufferGeometry {
             Nappt[j][k] = 2**(k*dParamWithUnits['numForkLevels'].value)
             specs['numAttachmentPointsPerTether_'+label[k]+j] = {value: Nappt[j][k], units: ""}
             specs['tetherAngleAtAttachmentPoint_'+label[k]+j] = {value: point.θ, units: "radians"}
-            F[j][k] = point.T * specs['tetherSpacing'].value / Nappt[j][k]
+            specs['tetherTensileForcePerMeterOfRingAtAttachmentPoint_'+label[k]+j] = {value: point.T, units: "N"}
+            F[j][k] = point.T * tetherSpacing / Nappt[j][k]
             specs['tetherTensileForceAtAttachmentPoint_'+label[k]+j] = {value: F[j][k], units: "N"}
             Acs[j][k] = F[j][k] / tetherStress
             specs['tetherCrossSectionalAreaAtAttachmentPoint_'+label[k]+j] = {value: Acs[j][k], units: "m2"}
@@ -127,7 +129,7 @@ class TetherGeometry extends BufferGeometry {
           I[j] = fI.ρ
         }
       })
-      if (genSpecsFile) {
+      if (genSpecs) {
         let stationaryRingBillOfMaterials = []
         let movingRingBillOfMaterials = []
 
@@ -164,17 +166,17 @@ class TetherGeometry extends BufferGeometry {
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
         const movingRingsKineticEnergyPerMeterOfRing = movingRingsTotalKineticEnergy / (crv.mainRingRadius * 2 * Math.PI)
         specs['movingRingsKineticEnergyPerMeterOfRing'] = {value: movingRingsKineticEnergyPerMeterOfRing, units: "J"}
-        const costOfEnergy = dParamWithUnits['costOfEnergy'].value
-        const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * costOfEnergy / oneBillion
+        const wholesaleCostOfEnergy = dParamWithUnits['wholesaleCostOfEnergy'].value
+        const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * wholesaleCostOfEnergy / oneBillion
         specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
         const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / (crv.mainRingRadius * 2 * Math.PI)
         specs['movingRingsKineticEnergyCostPerMeterOfRing'] = {value: movingRingsKineticEnergyCostPerMeterOfRing, units: "USD"}
         const movingRingsMassPortion = movingRingsMassPerMeter / totalMassPerMeterOfRing
         specs['movingRingsMassPortion'] = {value: movingRingsMassPortion, units: ""}
 
-        // Calculate the force if gravity acting on the moving ring...
+        // Calculate the force of gravity acting on the moving ring...
         const fM = new tram.forceVector() // Vector representing the steady state magnetic levitation force aplied to the moving ring
-        fM.z = fG.z * movingRingsMassPortion
+        fM.z = fG.z * movingRingsMassPortion  // Note: fI.z is zero
         fM.ρ = fG.ρ * movingRingsMassPortion + fI.ρ
         fM.φ = 0   // No poloidal accellerations during steady state operation
         specs['magneticForceZComponent'] = {value: fM.z, units: "N"}
@@ -182,6 +184,14 @@ class TetherGeometry extends BufferGeometry {
 
         const magneticForcePerMeter = Math.sqrt(fM.z**2 + fM.ρ**2)
         specs['magneticForcePerMeter'] = {value: magneticForcePerMeter, units: "N"}
+
+        // Check...
+        // const fM2 = new tram.forceVector() // Vector representing the steady state magnetic levitation force aplied to the moving ring
+        // fM2.z = fG.z * (1-movingRingsMassPortion) + fT.z
+        // fM2.ρ = fG.ρ * (1-movingRingsMassPortion) + fT.ρ
+        // const magneticForcePerMeter2 = Math.sqrt(fM2.z**2 + fM2.ρ**2)
+        // if (verbose) console.log(magneticForcePerMeter)
+        // if (verbose) console.log(magneticForcePerMeter2)
 
         const statorMassPerUnitOfLoad = dParamWithUnits['statorMassPerUnitOfLoad'].value  // the value is the stationary ring mass per unit of static load that it must support
         const stationaryRingsMassPerMeter = magneticForcePerMeter * statorMassPerUnitOfLoad
@@ -223,7 +233,7 @@ class TetherGeometry extends BufferGeometry {
         specs['totalCoilPower'] = {value: totalCoilPower, units: "Watts"}
         const totalCoilPowerPerYear = totalCoilPower * 365 * 24 * 3600
         specs['totalCoilPowerPerYear'] = {value: totalCoilPowerPerYear, units: "Joules"}
-        const totalCoilPowerCostPerYear = totalCoilPowerPerYear * costOfEnergy / oneBillion
+        const totalCoilPowerCostPerYear = totalCoilPowerPerYear * wholesaleCostOfEnergy / oneBillion
         specs['totalCoilPowerCostPerYear'] = {value: totalCoilPowerCostPerYear, units: "Billion USD"}
         const coilVolume = wireLength * Math.PI * wireRadius**2
         const coilMass = coilVolume * densityOfCoilConductor
@@ -243,53 +253,63 @@ class TetherGeometry extends BufferGeometry {
         specs['ringMaglevCoreMassPerMeter'] = {value: ringMaglevCoreMassPerMeter, units: "kg"}
         const totalCoreMaterialCost = ringMaglevCoreMassPerMeter * 2 * Math.PI * crv.mainRingRadius * dParamWithUnits['coreMaterialCostIron'].value / oneBillion
         specs['totalCoreMaterialCost'] = {value: totalCoreMaterialCost, units: "Billion USD"}
-        stationaryRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * portionOfCoreOnStationaryRing, units: 'kg', costPerMeter: totalCoreMaterialCost * portionOfCoreOnStationaryRing})
-        stationaryRingBillOfMaterials.push({name: 'secondaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * portionOfCoreOnStationaryRing, units: 'kg', costPerMeter: totalCoreMaterialCost * portionOfCoreOnStationaryRing})
-        stationaryRingBillOfMaterials.push({name: 'primaryMagnetCoils', massPerMeter: coilMassPerMeterOfRing, units: 'kg', costPerMeter: totalCoilMaterialCost})
-        stationaryRingBillOfMaterials.push({name: 'secondaryMagnetCoils', massPerMeter: coilMassPerMeterOfRing, units: 'kg', costPerMeter: totalCoilMaterialCost})
-        stationaryRingBillOfMaterials.push({name: 'tubeWalls', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'tubeAirfoil', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'electronics', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'thermalManagement', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'vacuumPumps', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'mechanicalIsolation', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        stationaryRingBillOfMaterials.push({name: 'aeronaticStabilizers', massPerMeter: 1, units: 'kg', costPerMeter: 0})
-        movingRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerMeter: totalCoreMaterialCost * (1 - portionOfCoreOnStationaryRing)})
-        // ToDo - Assuming here that secodary magnet cores total same mass as primary but need more accurate calculation...
-        movingRingBillOfMaterials.push({name: 'secondaryMagnetCore', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerMeter: totalCoreMaterialCost * (1 - portionOfCoreOnStationaryRing)})
-        movingRingBillOfMaterials.push({name: 'primaryMagnetPermanentMagnets', massPerMeter: 1, units: 'kg', costPerMeter: 0})  // TBD
-        let remainingMass = movingRingsMassPerMeter
+        stationaryRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * portionOfCoreOnStationaryRing, units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
+        stationaryRingBillOfMaterials.push({name: 'secondaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * portionOfCoreOnStationaryRing, units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
+        stationaryRingBillOfMaterials.push({name: 'primaryMagnetCoils', massPerMeter: coilMassPerMeterOfRing, units: 'kg', costPerkg: costOfConductor})
+        stationaryRingBillOfMaterials.push({name: 'secondaryMagnetCoils', massPerMeter: coilMassPerMeterOfRing, units: 'kg', costPerkg: costOfConductor})
+        stationaryRingBillOfMaterials.push({name: 'tubeWalls', massPerMeter: 1, units: 'kg', costPerkg: .50})
+        stationaryRingBillOfMaterials.push({name: 'tubeAirfoil', massPerMeter: 1, units: 'kg', costPerkg: .50})
+        stationaryRingBillOfMaterials.push({name: 'electronics', massPerMeter: 1, units: 'kg', costPerkg: 10})
+        stationaryRingBillOfMaterials.push({name: 'thermalManagement', massPerMeter: 1, units: 'kg', costPerkg: 1})
+        stationaryRingBillOfMaterials.push({name: 'vacuumPumps', massPerMeter: 1, units: 'kg', costPerkg: 1})
+        stationaryRingBillOfMaterials.push({name: 'mechanicalIsolation', massPerMeter: 1, units: 'kg', costPerkg: 1})
+        stationaryRingBillOfMaterials.push({name: 'aeronaticStabilizers', massPerMeter: 1, units: 'kg', costPerkg: 10})
+        
+        movingRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
+        // ToDo - Assuming here that secondary magnet cores total same mass as primary but need more accurate calculation...
+        movingRingBillOfMaterials.push({name: 'secondaryMagnetCore', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
+        movingRingBillOfMaterials.push({name: 'primaryMagnetPermanentMagnets', massPerMeter: 1, units: 'kg', costPerkg: 10})  // TBD
+        let movingRingComponentsMass = 0
         movingRingBillOfMaterials.forEach(material => {
-          remainingMass -= material['massPerMeter']
+          movingRingComponentsMass += material['massPerMeter']
         })
+        let remainingMass = movingRingsMassPerMeter - movingRingComponentsMass
         const bulkMaterialCost = dParamWithUnits['bulkMaterialCost'].value
-        movingRingBillOfMaterials.push({name: 'bulkMaterial', massPerMeter: remainingMass, units: 'kg', costPerMeter: remainingMass * bulkMaterialCost})
+        movingRingBillOfMaterials.push({name: 'bulkMaterial', massPerMeter: remainingMass, units: 'kg', costPerkg: bulkMaterialCost})
         // ToDo - Should add a check here to make sure that the remaining mass is not too small, or less than zero
 
         let stationaryRingsMassPerMeter2 = 0
+        let stationaryRingsCostPerMeter2 = 0
         stationaryRingBillOfMaterials.forEach(material => {
           stationaryRingsMassPerMeter2 += material['massPerMeter']
+          material['costPerMeter'] = material['massPerMeter'] * material['costPerkg']
+          stationaryRingsCostPerMeter2 += material['costPerMeter']
         })
         let movingRingsMassPerMeter2 = 0
+        let movingRingsCostPerMeter2 = 0
         movingRingBillOfMaterials.forEach(material => {
           movingRingsMassPerMeter2 += material['massPerMeter']
+          material['costPerMeter'] = material['massPerMeter'] * material['costPerkg']
+          movingRingsCostPerMeter2 += material['costPerMeter']
         })
-
+        
         const tetheredRingMassPerMeterOfRingUnloaded = stationaryRingsMassPerMeter2 + movingRingsMassPerMeter2 + tetherMaterialMassPerMeterOfRing
         specs['tetheredRingMassPerMeterOfRingUnloaded'] = {value: tetheredRingMassPerMeterOfRingUnloaded, units: 'kg'}
-        console.log('stationaryRingsMassPerMeter2', stationaryRingsMassPerMeter2)
-        console.log('movingRingsMassPerMeter2', movingRingsMassPerMeter2)
-        console.log('tetherMaterialMassPerMeterOfRing', tetherMaterialMassPerMeterOfRing)
-        console.log('tetheredRingMassPerMeterOfRingUnloaded', tetheredRingMassPerMeterOfRingUnloaded)
+        if (verbose) console.log('stationaryRingsMassPerMeter2', stationaryRingsMassPerMeter2)
+        if (verbose) console.log('movingRingsMassPerMeter2', movingRingsMassPerMeter2)
+        if (verbose) console.log('tetherMaterialMassPerMeterOfRing', tetherMaterialMassPerMeterOfRing)
+        if (verbose) console.log('tetheredRingMassPerMeterOfRingUnloaded', tetheredRingMassPerMeterOfRingUnloaded)
         const tetheredRingTotalMassUnloaded = tetheredRingMassPerMeterOfRingUnloaded * 2 * Math.PI * crv.mainRingRadius
         specs['tetheredRingTotalMassUnloaded'] = {value: tetheredRingTotalMassUnloaded, units: 'kg'}
-        console.log('tetheredRingTotalMassUnloaded', tetheredRingTotalMassUnloaded)
-        //console.log('currentPerMeterOfRing', currentPerMeterOfRing)
+        if (verbose) console.log('tetheredRingTotalMassUnloaded', tetheredRingTotalMassUnloaded)
+        //if (verbose) console.log('currentPerMeterOfRing', currentPerMeterOfRing)
 
-        const loadMassPerMeter = totalMassPerMeterOfRing - movingRingsMassPerMeter - stationaryRingsMassPerMeter
+        const loadMassPerMeter = totalMassPerMeterOfRing - movingRingsMassPerMeter2 - stationaryRingsMassPerMeter2
         specs['loadMassPerMeter'] = {value: loadMassPerMeter, units: "kg"}
+        if (verbose) console.log('loadMassPerMeter', loadMassPerMeter)
         const loadMassPortion = loadMassPerMeter / totalMassPerMeterOfRing
         specs['loadMassPortion'] = {value: loadMassPortion, units: ""}
+        if (verbose) console.log('loadMassPortion', loadMassPortion)
 
         let sumOfAllCapitalCosts = 0
         sumOfAllCapitalCosts += tetherMaterialTotalCost
@@ -303,8 +323,42 @@ class TetherGeometry extends BufferGeometry {
         specs['capitalCostPerMeter'] = {value: capitalCostPerMeter, units: "USD"}
         const capitalCostPerKgSupported = capitalCostPerMeter / Math.max(0.00001, loadMassPerMeter)
         specs['capitalCostPerKgSupported'] = {value: capitalCostPerKgSupported, units: "USD/kg"}
-        console.log('Stationary Ring BOM', stationaryRingBillOfMaterials)
-        console.log('Moving Ring BOM', movingRingBillOfMaterials)
+        if (verbose) console.log('capitalCostPerKgSupported', capitalCostPerKgSupported)
+
+        const energyStorageCost = sumOfAllCapitalCosts*1000000000 / movingRingsTotalKineticEnergy
+        specs['energyStorageCost'] = {value: energyStorageCost, units: "USD/J"}
+        const energyStorageCostPerKWh = energyStorageCost * 3600000
+        specs['energyStorageCostPerKWh'] = {value: energyStorageCostPerKWh, units: "USD/KWh"}
+
+        if (verbose) console.log('Stationary Ring BOM', stationaryRingBillOfMaterials)
+        if (verbose) console.log('Moving Ring BOM', movingRingBillOfMaterials)
+
+        const transitSystemMassPerMeter = dParamWithUnits['transitSystemMassPerMeter'].value
+        const transitSystemCostPerMeter = transitSystemMassPerMeter * capitalCostPerKgSupported + dParamWithUnits['transitSystemMaterialsCostPerMeter'].value
+        specs['transitSystemCostPerMeter'] = {value: transitSystemCostPerMeter, units: "USD/m"}
+
+        const maglevComponentMassOverForceRatio = (movingRingComponentsMass + stationaryRingsMassPerMeter2) / magneticForcePerMeter
+        specs['maglevComponentMassOverForceRatio'] = {value: maglevComponentMassOverForceRatio, units: "kg/N"}
+        console.log('maglevComponentMassOverForceRatio', maglevComponentMassOverForceRatio)
+
+        const c_4	= -3.957854E-19
+        const c_3	= 6.657616E-14
+        const c_2	= -3.47217E-09
+        const c_1	= -8.61651E-05
+        const c_0	= 2.16977E-01
+        const a = dParamWithUnits['ringFinalAltitude'].value
+        const airDensityAtRingAltitude = Math.exp((c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0))
+        specs['airDensityAtRingAltitude'] = {value: airDensityAtRingAltitude, units: "kg/m3"}
+        console.log('airDensityAtRingAltitude', airDensityAtRingAltitude)
+        const Cd = 1.28 // Coefficient of drag for a flat plate.
+        const windSpeed = 28 // m/s
+        const area = 1 // m2
+        const forcePerSquareMeter = 0.5 * Cd * airDensityAtRingAltitude * windSpeed**2 * area 
+        specs['forcePerSquareMeter'] = {value: forcePerSquareMeter, units: "N"}
+        console.log('forcePerSquareMeter', forcePerSquareMeter)
+        const propulsivePowerPerSquareMeter = 0.5 * Cd * airDensityAtRingAltitude * windSpeed**3 * area   // This is the power it takes to propel the plate through an airstream. 
+        specs['propulsivePowerPerSquareMeter'] = {value: propulsivePowerPerSquareMeter, units: "W"}
+        console.log('propulsivePowerPerSquareMeter', propulsivePowerPerSquareMeter)
       }
 
       // At this point the final length of the tethers (measured along the catenary) is known, but the tethers current shape is still
