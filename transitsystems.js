@@ -253,9 +253,10 @@ class virtualHabitat {
       om.rotateY(-Math.PI/2)
       om.matrixValid = false
       om.children[0].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
-      om.children[1].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[1].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
+      om.children[1].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
       om.children[2].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[2].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
       om.children[3].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[3].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
+      om.children[4].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[4].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
       om.updateMatrixWorld()
       om.freeze()
     }
@@ -403,7 +404,7 @@ export class transitSystem {
   // are retured to the pool. Virtual vehicles will also respond to timer events. These events will cause them to 
   // occassionally hop between two frames of reference.
 
-  constructor(scene, dParamWithUnits, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve) {
+  constructor(scene, dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve) {
 
     this.scene = scene
     this.unallocatedTransitVehicleModels = []
@@ -507,7 +508,7 @@ export class transitSystem {
           }
         }
         if (objName == 'habitat') {
-          const tempHabitat = tram.generateHabitatMeshes(dParamWithUnits)
+          const tempHabitat = tram.generateHabitatMeshes(dParamWithUnits, specs, genSpecs)
           for (let i = 5; i<=8; i++) {
             tempHabitat.add(object.children[i].clone())
           }
@@ -518,7 +519,6 @@ export class transitSystem {
             tempHabitat.add(object.children[i].clone())
           }
           object = tempHabitat
-          console.log(object)
         }
         object.updateMatrixWorld()
         object.visible = false
@@ -586,7 +586,7 @@ export class transitSystem {
     this.update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
   }
 
-  update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve) {
+  update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve) {
     this.refFrames[0].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
     this.refFrames[1].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
 
@@ -605,6 +605,11 @@ export class transitSystem {
 
     this.radiusOfPlanet = radiusOfPlanet
 
+    if (genSpecs) {
+      // Call the function just to populate the specs structure. This doesn't update the model yet, unfortunately.
+      // ToDo: Update the habitat models if its design parameters change
+      tram.generateHabitatMeshes(dParamWithUnits, specs, genSpecs)
+    }
   }
 
   animate(timeSinceStart, tetheredRingRefCoordSys, cameraPosition, mainRingCurve, dParamWithUnits) {

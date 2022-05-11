@@ -341,13 +341,8 @@ class TetherGeometry extends BufferGeometry {
         specs['maglevComponentMassOverForceRatio'] = {value: maglevComponentMassOverForceRatio, units: "kg/N"}
         console.log('maglevComponentMassOverForceRatio', maglevComponentMassOverForceRatio)
 
-        const c_4	= -3.957854E-19
-        const c_3	= 6.657616E-14
-        const c_2	= -3.47217E-09
-        const c_1	= -8.61651E-05
-        const c_0	= 2.16977E-01
         const a = dParamWithUnits['ringFinalAltitude'].value
-        const airDensityAtRingAltitude = Math.exp((c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0))
+        const airDensityAtRingAltitude = tram.airDensityAtRingAltitude(a)
         specs['airDensityAtRingAltitude'] = {value: airDensityAtRingAltitude, units: "kg/m3"}
         console.log('airDensityAtRingAltitude', airDensityAtRingAltitude)
         const Cd = 1.28 // Coefficient of drag for a flat plate.

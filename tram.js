@@ -1,4 +1,5 @@
 import * as THREE from '../three.js'
+import * as tram from './tram.js'
 import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
 
 // Tethered Ring Arcitectural Model (TRAM)
@@ -76,6 +77,22 @@ export class Vector3 {
     this.z = z            // altitude in meters
   }
 
+}
+
+export function airDensityAtRingAltitude(a) {
+  const c_4	= -3.957854E-19
+  const c_3	= 6.657616E-14
+  const c_2	= -3.47217E-09
+  const c_1	= -8.61651E-05
+  const c_0	= 2.16977E-01
+  const airDensityAtRingAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
+  return airDensityAtRingAltitude
+}
+
+export function solveQuadratic(a, b, c) {
+    var result1 = (-1 * b + Math.sqrt(Math.pow(b, 2) - (4 * a * c))) / (2 * a)
+    var result2 = (-1 * b - Math.sqrt(Math.pow(b, 2) - (4 * a * c))) / (2 * a)
+    return [result1, result2]
 }
 
 export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys) {
@@ -392,8 +409,8 @@ export function lla2xyz(lat, lon, alt) {
 
 }
 
-export function habitatDesign(dParamWithUnits, livableFloorspace, numFloors, floorToCeilingSpacing, floorThickness) {
-  // Assums that within the habitat's "bubble", there is a "roof level" and "basement level" that are not included in the livable floorspace.
+export function habitatDesign(dParamWithUnits, specs, genSpecs, habitatFloorspace, numFloors, floorToCeilingSpacing, floorThickness) {
+  // Assums that within the habitat's "bubble", there is a "roof level" and "basement level" that are not included in the habitat floorspace.
   // Roof can be used for plants, and as a garden. Basement can be used for equipment and storage.
   // Floorspace is only included when it extends from floor to ceiling, so some floorspace near the bubble wall may not qualify.  
   let h = []
@@ -407,38 +424,98 @@ export function habitatDesign(dParamWithUnits, livableFloorspace, numFloors, flo
   }
 
   // The following code should work for 1 to 4 floors inclusive...
-  // livableFloorspace = (2 * (habitatInnerRadius**2 - h[1]**2) + 2 * (habitatInnerRadius**2 - h[3]**2)) * Math.PI 
-  // livableFloorspace = (2 * habitatInnerRadius**2 + 2 * habitatInnerRadius**2 - 2 * h[1]**2 - 1 * h[3]**2) * Math.PI 
-  // livableFloorspace = (numFloors * habitatInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2) * Math.PI 
-  // livableFloorspace / Math.PI = numFloors * habitatInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2 
-  // (livableFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) = numFloors * habitatInnerRadius**2 
-  // (livableFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) / numFloors = habitatInnerRadius**2 
+  // habitatFloorspace = (2 * (habitatBubbleInnerRadius**2 - h[1]**2) + 2 * (habitatBubbleInnerRadius**2 - h[3]**2)) * Math.PI 
+  // habitatFloorspace = (2 * habitatBubbleInnerRadius**2 + 2 * habitatBubbleInnerRadius**2 - 2 * h[1]**2 - 1 * h[3]**2) * Math.PI 
+  // habitatFloorspace = (numFloors * habitatBubbleInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2) * Math.PI 
+  // habitatFloorspace / Math.PI = numFloors * habitatBubbleInnerRadius**2 - 2 * h[1]**2 - 2 * h[3]**2 
+  // (habitatFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) = numFloors * habitatBubbleInnerRadius**2 
+  // (habitatFloorspace / Math.PI + 2 * h[1]**2 + 2 * h[3]**2) / numFloors = habitatBubbleInnerRadius**2 
   const n1 = Math.floor(numFloors / 2)
   const n2 = numFloors - n1
-  const habitatInnerRadius = Math.sqrt((livableFloorspace / Math.PI + n1 * h[1]**2 + n2 * h[3]**2) / numFloors )
-  
+  const habitatBubbleInnerRadius = Math.sqrt((habitatFloorspace / Math.PI + n1 * h[1]**2 + n2 * h[3]**2) / numFloors )
+
+  if (genSpecs) {
+    const habitatBubbleInteriorVolume = 4 / 3 * Math.PI * habitatBubbleInnerRadius**3
+    const habitatBubbleMaterialTensileStrength = dParamWithUnits['habitatBubbleMaterialTensileStrength'].value * 1000000
+    const habitatBubbleMaterialDensity = dParamWithUnits['habitatBubbleMaterialDensity'].value
+    const habitatBubbleMaterialEngineeringFactor = dParamWithUnits['habitatBubbleMaterialEngineeringFactor'].value
+    const habitatBubbleMaterialCost = dParamWithUnits['habitatBubbleMaterialCost'].value
+    const altitude = dParamWithUnits['ringFinalAltitude'].value
+    const airDensityAtRingAltitude = tram.airDensityAtRingAltitude(altitude)
+    const idealGasConstant = dParamWithUnits['idealGasConstant'].value
+    const temperatureAtAltitue = 272  // K
+    const airPressureAtRingAltitude = idealGasConstant * airDensityAtRingAltitude * temperatureAtAltitue
+    const habitatAirPressure = dParamWithUnits['habitatAirPressure'].value
+    const habitatAirPressureDifference = habitatAirPressure - airPressureAtRingAltitude
+    const habitatAirPressureStress = habitatAirPressureDifference * Math.PI * habitatBubbleInnerRadius**2
+    // Math.PI * ((habitatBubbleInnerRadius+habitatBubbleThickness)**2 - habitatBubbleInnerRadius**2) * habitatBubbleMaterialTensileStrength / habitatBubbleMaterialEngineeringFactor = Math.PI * (habitatAirPressure * habitatBubbleInnerRadius**2 - airPressureAtRingAltitude * (habitatBubbleInnerRadius+habitatBubbleThickness)**2)
+    // ((habitatBubbleInnerRadius+habitatBubbleThickness)**2 - habitatBubbleInnerRadius**2) * habitatBubbleMaterialTensileStrength / habitatBubbleMaterialEngineeringFactor = (habitatAirPressure * habitatBubbleInnerRadius**2 - airPressureAtRingAltitude * (habitatBubbleInnerRadius+habitatBubbleThickness)**2)
+    // ((ir+t)**2 - ir**2) * TS / EF = Pinside * ir**2 - Poutside * (ir+t)**2
+    // (ir**2 + 2*ir*t + t**2 - ir**2) * TS / EF = Pinside * ir**2 - Poutside * (ir**2 + 2*ir*t + t**2)
+    // (2*ir*t + t**2) * TS / EF                 = Pinside * ir**2 - Poutside*ir**2 - 2*Poutside*ir*t - Poutside*t**2
+    // 0 = (Pinside - Poutside) * ir**2 + (-2*ir*TS/EF - 2*Poutside*ir)*t + (-TS/EF - Poutside)*t**2
+    // c = (Pinside - Poutside) * ir**2
+    // b = -2*ir*TS/EF - 2*Poutside*ir
+    // a = -TS/EF - Poutside
+    const a = -habitatBubbleMaterialTensileStrength/habitatBubbleMaterialEngineeringFactor - airPressureAtRingAltitude
+    const b = -2*habitatBubbleInnerRadius*habitatBubbleMaterialTensileStrength/habitatBubbleMaterialEngineeringFactor - 2*airPressureAtRingAltitude*habitatBubbleInnerRadius
+    const c = (habitatAirPressure - airPressureAtRingAltitude) * habitatBubbleInnerRadius**2
+    const result = tram.solveQuadratic(a, b, c)
+    const habitatBubbleThickness = Math.max(result[0], result[1])
+    const habitatBubbleWallVolume = Math.PI * 4 / 3 * ((habitatBubbleInnerRadius + habitatBubbleThickness)**3 - habitatBubbleInnerRadius**3)
+    const habitatBubbleMass = habitatBubbleWallVolume * habitatBubbleMaterialDensity
+    const habitatBubbleCost = habitatBubbleMass * habitatBubbleMaterialCost
+    let capitalCostPerKgSupported
+    if (capitalCostPerKgSupported in specs) {
+      capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
+    }
+    else {
+      console.log("Error: Value not yet calculated. Assuming 100.")
+      capitalCostPerKgSupported = 100
+    }
+    const habitatBubbleCostWithLiftCost = habitatBubbleCost + capitalCostPerKgSupported * habitatBubbleMass
+    const habitatBubbleCostPerSquareMeter = habitatBubbleCostWithLiftCost / habitatFloorspace
+
+    // Used for checking math...
+    const habitatBubbleMaterialTensileStress = habitatAirPressureStress / (Math.PI * 2 * habitatBubbleInnerRadius * habitatBubbleThickness) 
+
+    specs['habitatBubbleInnerRadius'] = {value: habitatBubbleInnerRadius, units: "m"}
+    specs['habitatBubbleThickness'] = {value: habitatBubbleThickness, units: "m"}
+    specs['habitatFloorspace'] = {value: habitatFloorspace, units: "m2"}
+    specs['habitatBubbleInteriorVolume'] = {value: habitatBubbleInteriorVolume, units: "m3"}
+    specs['habitatAirPressureDifference'] = {value: habitatAirPressureDifference, units: "m"}
+    specs['habitatBubbleMaterialEngineeringFactor'] = {value: habitatBubbleMaterialEngineeringFactor, units: "m"}
+    specs['habitatBubbleMaterialTensileStress'] = {value: habitatBubbleMaterialTensileStress, units: "m"}
+    specs['airPressureAtRingAltitude'] = {value: airPressureAtRingAltitude, units: "m"}
+    specs['habitatAirPressure'] = {value: habitatAirPressure, units: "m"}
+    specs['habitatBubbleMass'] = {value: habitatBubbleMass, units: "m"}
+    specs['habitatBubbleCost'] = {value: habitatBubbleCost, units: "m"}
+    specs['habitatBubbleCostWithLiftCost'] = {value: habitatBubbleCostWithLiftCost, units: "m"}
+    specs['habitatBubbleCostPerSquareMeter'] = {value: habitatBubbleCostPerSquareMeter, units: "m"}
+  }
+
   const habitatDesignParameters = {
     'numFloors': numFloors,
     'floorToCeilingSpacing': floorToCeilingSpacing,
     'floorThickness': floorThickness,
-    'habitatInnerRadius': habitatInnerRadius,
+    'habitatBubbleInnerRadius': habitatBubbleInnerRadius,
     'heightArray': h,
   }
   return habitatDesignParameters
 }
 
-export function generateHabitatMeshes(dParamWithUnits) {
-  const livableFloorspace = 325  // m2
+export function generateHabitatMeshes(dParamWithUnits, specs, genSpecs) {
+  const habitatFloorspace = 325  // m2
   const numFloors = 2
-  const floorToCeilingSpacing = 3.1 // m
+  const floorToCeilingSpacing = 3.15 // m
   const floorThickness = 0.2 // m
-  const habitatDesignParameters = habitatDesign(dParamWithUnits, livableFloorspace, numFloors, floorToCeilingSpacing, floorThickness)
+  const habitatDesignParameters = habitatDesign(dParamWithUnits, specs, genSpecs, habitatFloorspace, numFloors, floorToCeilingSpacing, floorThickness)
   //console.log(habitatDesignParameters)
 
   const habitatMeshes = new THREE.Group()
   // Add a sphere
-  const bubbleGeometry = new THREE.SphereGeometry(habitatDesignParameters['habitatInnerRadius'], 64, 32)
-  const bubbleMaterial = new THREE.MeshPhongMaterial({
+  const habitatBubbleGeometry = new THREE.SphereGeometry(habitatDesignParameters['habitatBubbleInnerRadius'], 64, 32)
+  const habitatBubbleMaterial = new THREE.MeshPhongMaterial({
     //roughness: 1,
     //metalness: 0,
     // blending: THREE.CustomBlending,
@@ -450,16 +527,23 @@ export function generateHabitatMeshes(dParamWithUnits) {
     transparent: true,
     opacity: 0.5
   })
-  const tempBubbleMesh = new THREE.Mesh(bubbleGeometry, bubbleMaterial)
-  tempBubbleMesh.name = "bubble"
+  const tempBubbleMesh = new THREE.Mesh(habitatBubbleGeometry, habitatBubbleMaterial)
+  tempBubbleMesh.name = "habitatBubble"
   tempBubbleMesh.position.set(dParamWithUnits['habitatOutwardOffset'].value, dParamWithUnits['habitatUpwardOffset'].value, dParamWithUnits['habitatForwardOffset'].value)
   habitatMeshes.add(tempBubbleMesh)
-  tempBubbleMesh.updateMatrixWorld()
+
+  const stairwellGeometry = new THREE.CylinderGeometry(1, 1, 1.2 * habitatDesignParameters['habitatBubbleInnerRadius'], 32, 1, true, 0, Math.PI * 1.8)
+  const stairwellMaterial = new THREE.MeshLambertMaterial({color: 0xc0c0c0, transparent: false})
+  stairwellMaterial.side = THREE.DoubleSide
+  const tempStairwellMesh = new THREE.Mesh(stairwellGeometry, stairwellMaterial)
+  tempStairwellMesh.rotation.y = Math.PI * 1.1
+  tempStairwellMesh.name = "stairwell"
+  tempStairwellMesh.position.set(dParamWithUnits['habitatOutwardOffset'].value, dParamWithUnits['habitatUpwardOffset'].value, dParamWithUnits['habitatForwardOffset'].value)
+  habitatMeshes.add(tempStairwellMesh)
 
   // Add tapered cylinders for each floor
   const floorMaterial = new THREE.MeshLambertMaterial({color: 0x878681, transparent: false})
-
-  const ir = habitatDesignParameters['habitatInnerRadius']
+  const ir = habitatDesignParameters['habitatBubbleInnerRadius']
   const h = habitatDesignParameters['heightArray']
   //console.log(h, ir, h.length)
   let floorSpace = 0
@@ -473,9 +557,9 @@ export function generateHabitatMeshes(dParamWithUnits) {
     tempFloorMesh.name = 'floor' + (h.length/2 - i/2)
     tempFloorMesh.userData = {'upwardOffset': (h[i+0] + h[i+1]) / 2}
     habitatMeshes.add(tempFloorMesh)
-    tempFloorMesh.updateMatrixWorld()
     if (i>0) floorSpace += Math.PI * r0**2
   }
   //console.log(floorSpace)
   return habitatMeshes
 }
+

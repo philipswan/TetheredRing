@@ -37,7 +37,6 @@ let majorRedesign = true // False enables work in progress...
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
 const gravitationalConstant = 0.0000000000667408
-const idealGasConstant = 8314.5 // Joules/kgmole-K
 let massOfPlanet = 5.97E+24   // kg   using mass of Earth for now
 let radiusOfPlanet = 6378100 // m   using radius of Earth for now
 const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
@@ -162,6 +161,18 @@ const guidParamWithUnits = {
   habitatUpwardOffset: {value: 3.66, units: 'm', autoMap: true, min: -10, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
   habitatOutwardOffset: {value: 14.32, units: 'm', autoMap: true, min: 0, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   habitatForwardOffset: {value: 4.16, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
+  //habitatBubbleMaterialTensileStress: {value: 7000000, units: 'Pa', autoMap: true, min: 0, max: 100000000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  //habitatBubbleMaterialDensity: {value: 2500, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // Carbon Fiber
+  // habitatBubbleMaterialTensileStress: {value: 7000000000, units: 'Pa', autoMap: true, min: 0, max: 100000000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // habitatBubbleMaterialDensity: {value: 1790, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // Alon (Aluminium oxynitride)  Warner, Charles & Hartnett, Thomas & Fisher, Donald & Sunne, Wayne. (2005). Characterization of ALON (TM) optical ceramic. Proceedings of SPIE - The International Society for Optical Engineering. 5786. 10.1117/12.607596. 
+  habitatBubbleMaterialTensileStrength: {value: 700, units: 'MPa', autoMap: true, min: 0, max: 100000000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  habitatBubbleMaterialDensity: {value: 3700, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  habitatBubbleMaterialEngineeringFactor: {value: 2, units: '', autoMap: true, min: 0, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
+  habitatBubbleMaterialCost: {value: 35, units: 'USD/kg', autoMap: true, min: 0, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},   // This is a swag - 5X the glass values from here https://exportv.ru/price-index/laminated-glass
+  habitatAirPressure: {value: 100000, units: 'Pa', autoMap: true, min: 0, max: 110000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  idealGasConstant: {value: 8.3145, units: 'Joules/mole/K', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Engineering Parameters - Launch System
   launchTubeUpwardOffset: {value:100, units: "m", autoMap: true, min: -1000, max: 0, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -390,7 +401,7 @@ function updateTransitsystem() {
   const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
   const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
   trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
-  transitSystemObject.update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
 }
 
 function adjustRingDesign() {
@@ -944,6 +955,34 @@ function constructMainRingCurve() {
 const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve)
 function mainRingCurveObjectUpdate() {updatedParam(); mainRingCurveObject.update(dParamWithUnits, mainRingCurve)}
 
+// Tethers
+const tethers = []
+constructTethers()
+function constructTethers() {
+  if (dParamWithUnits['showTethers'].value) {
+    if (verbose) console.log("Constructing Tethers")
+    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs)
+    const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
+    if (fastTetherRender) {
+      const n = dParamWithUnits['numTethers'].value
+      const k = 2 * Math.PI * 2 / n
+      for (let i=0; i<n/2; i++) {     // Really should be currentCatenaryTypes.length, but that value is hidden from us here
+        const θ = i * k
+        const referencePoint = new THREE.Vector3().setFromSphericalCoords(radiusOfPlanet + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), θ)
+        tempTetherMesh.position.copy(referencePoint)
+        tempTetherMesh.rotation.y = θ
+        tempTetherMesh.matrixValid = false
+        tethers[i] = tempTetherMesh.clone()
+        tetheredRingRefCoordSys.add(tethers[i])
+      }
+    }
+    else {
+      tethers[0] = tempTetherMesh.clone()
+      tetheredRingRefCoordSys.add(tethers[0])
+    }
+  }
+}
+
 const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
 function gravityForceArrowsUpdate() {
   updatedParam()
@@ -1042,7 +1081,7 @@ function constructMainRingAndTransitSystem() {
   }
 }
 
-const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve)
+const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve)
 
 const launchTubeMeshes = []
 function constructLaunchTube() {
@@ -1150,34 +1189,6 @@ function constructElevatorCables() {
       elevatorCableMeshes.push(elevatorCableMesh)
     }
     elevatorCableMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
-  }
-}
-
-// Tethers
-const tethers = []
-constructTethers()
-function constructTethers() {
-  if (dParamWithUnits['showTethers'].value) {
-    if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs)
-    const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
-    if (fastTetherRender) {
-      const n = dParamWithUnits['numTethers'].value
-      const k = 2 * Math.PI * 2 / n
-      for (let i=0; i<n/2; i++) {     // Really should be currentCatenaryTypes.length, but that value is hidden from us here
-        const θ = i * k
-        const referencePoint = new THREE.Vector3().setFromSphericalCoords(radiusOfPlanet + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), θ)
-        tempTetherMesh.position.copy(referencePoint)
-        tempTetherMesh.rotation.y = θ
-        tempTetherMesh.matrixValid = false
-        tethers[i] = tempTetherMesh.clone()
-        tetheredRingRefCoordSys.add(tethers[i])
-      }
-    }
-    else {
-      tethers[0] = tempTetherMesh.clone()
-      tetheredRingRefCoordSys.add(tethers[0])
-    }
   }
 }
 
@@ -1405,7 +1416,7 @@ function updateRing() {
     }
   }
   mainRingCurveObject.update(dParamWithUnits, mainRingCurve)
-  transitSystemObject.update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
   if (verbose) console.log('transitSystemObject.update ' + clock.getElapsedTime())
 
   if (dParamWithUnits['showLaunchTubes'].value) {
