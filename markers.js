@@ -1,5 +1,8 @@
-import * as THREE from '../three.js'
-import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
+
+//import * as THREE from '../three.js'
+//import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
 
 export class earthAxisObject {
   constructor(planetCoordSys, dParamWithUnits, radiusOfPlanet) {
@@ -185,13 +188,13 @@ export class gyroscopicForceArrowsObject {
 
 
 export class gravityForceArrowsObject {
-  constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
+  constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation) {
     this.gravityForceArrowMeshes = []
     this.planetCoordSys = planetCoordSys
-    this.update(dParamWithUnits, mainRingCurve, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
+    this.update(dParamWithUnits, mainRingCurve, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
   }
 
-  update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
+  update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
 
     this.gravityForceArrowMeshes.forEach(mesh => {
       mesh.geometry.dispose()
@@ -204,10 +207,17 @@ export class gravityForceArrowsObject {
       const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
       const lengthOfSiderealDay = 86160 // s
       const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)    
+      const gravityForce = -969.697173598352 / 1000
+      const inertialForce = 2084.97493384359 / 1000
+      const tensileForce = 1141.43021591156 / 1000
+      console.log(ctv.gravityForceAtRing[0]['ρ'], ctv.gravityForceAtRing[0]['z'], Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2), gravityForce)
+      console.log(ctv.gravityForceAtRing[1]['ρ'], ctv.gravityForceAtRing[1]['z'], Math.sqrt(ctv.gravityForceAtRing[1]['ρ']**2+ctv.gravityForceAtRing[1]['z']**2), gravityForce)
+      console.log(ctv.tensileForceAtRing[0]['ρ'], ctv.tensileForceAtRing[0]['z'], Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2), tensileForce)
+      console.log(ctv.tensileForceAtRing[1]['ρ'], ctv.tensileForceAtRing[1]['z'], Math.sqrt(ctv.tensileForceAtRing[1]['ρ']**2+ctv.tensileForceAtRing[1]['z']**2), tensileForce)
+      console.log(ctv.inertialForceAtRing[0]['ρ'], ctv.inertialForceAtRing[0]['z'], Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2), inertialForce)
+      console.log(ctv.inertialForceAtRing[1]['ρ'], ctv.inertialForceAtRing[1]['z'], Math.sqrt(ctv.inertialForceAtRing[1]['ρ']**2+ctv.inertialForceAtRing[1]['z']**2), inertialForce)
+  
       for (let i = 0; i<mainRingCurveControlPoints.length; i+=8) {
-        const gravityForce = -969.697173598352 / 1000
-        const inertialForce = 2084.97493384359 / 1000
-        const tensileForce = 1141.43021591156 / 1000
 
         const positionInRingCoordSys = mainRingCurveControlPoints[i]
         const positionInPlanetCoordSys = new THREE.Vector3()

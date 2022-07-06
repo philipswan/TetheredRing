@@ -1,9 +1,10 @@
-import * as THREE from '../three.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 
-import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-// import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
-// import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
+// import * as THREE from '../three.js'
+// import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
+// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
 
 import * as tram from './tram.js'
 
@@ -23,7 +24,7 @@ class referenceFrame {
       'virtualRingTerminuses': [],
       'virtualHabitats': [],
       'virtualElevatorCars': [],
-      'virtualTransitTubes': [],
+      //'virtualTransitTubes': [],
       'virtualElevatorCables': [],
     })
     this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
@@ -135,7 +136,7 @@ class virtualRingTerminus {
       om.rotateZ(-Math.PI/2)
       om.rotateY(-Math.PI/2)
       om.matrixValid = false
-      om.freeze()
+      if (this.perfOptimizedThreeJS) om.freeze()
     }
   }
 }
@@ -189,7 +190,7 @@ class virtualElevatorCar {
       om.rotation.set(0, -angle, virtualElevatorCar.elevatorCarRotZ)
       //om.rotateY(-Math.PI)
       om.matrixValid = false
-      om.freeze()
+      if (this.perfOptimizedThreeJS) om.freeze()
     }
   }
 
@@ -258,7 +259,7 @@ class virtualHabitat {
       om.children[3].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[3].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
       om.children[4].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[4].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
       om.updateMatrixWorld()
-      om.freeze()
+      if (this.perfOptimizedThreeJS) om.freeze()
     }
   }
 
@@ -278,7 +279,7 @@ class virtualHabitat {
   //     om.rotateZ(-Math.PI/2)
   //     om.rotateY(Math.PI/2)
   //     om.matrixValid = false
-  //     om.freeze()
+  //     if (this.perfOptimizedThreeJS) om.freeze()
   //   }
   // }
 }
@@ -323,7 +324,7 @@ class virtualTransitTube {
         pointOnRingCurve.z + virtualTransitTube.habitatRelativePosition_r * Math.sin(angle) + -11 * Math.cos(angle) )
       om.rotation.set(0, -angle, virtualTransitTube.elevatorCarRotZ)
       om.matrixValid = false
-      om.freeze()
+      if (this.perfOptimizedThreeJS) om.freeze()
     }
   }
 }
@@ -386,7 +387,7 @@ class virtualElevatorCable {
       om.visible = virtualElevatorCable.isVisible
       om.updateMatrix()
       om.matrixValid = false
-      om.freeze()
+      if (this.perfOptimizedThreeJS) om.freeze()
 
       //console.log('New Cable ', om, modelsTrackPosition, angle, pointOnRingCurve, virtualElevatorCable.elevatorCableLowerAttachPnt_dr, virtualElevatorCable.elevatorCableLowerAttachPnt_dy, elevatorCableLowerAttachPnt)
 
@@ -415,7 +416,8 @@ export class transitSystem {
     this.unallocatedElevatorCableModels = []
     this.numWedges = 1024
     this.actionFlags = new Array(this.numWedges).fill(0)
-
+    this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
+    
     // Debug - ToDo clean this up when it's no longer needed
 
     // Creates a pool of transit vehicle models. Some these will be assigned to "virtual vehicles" that are within range of the camera.
@@ -476,20 +478,20 @@ export class transitSystem {
         else {
           refFrame.wedges[wedgeIndex]['virtualRingTerminuses'].push(new virtualRingTerminus(positionInFrameOfReference, this.unallocatedRingTerminusModels))
           refFrame.wedges[wedgeIndex]['virtualElevatorCars'].push(new virtualElevatorCar(positionInFrameOfReference, this.unallocatedElevatorCarModels))
-          refFrame.wedges[wedgeIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
+          //refFrame.wedges[wedgeIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
         }
-        refFrame.wedges[wedgeIndex]['virtualTransitTubes'].push(new virtualTransitTube(positionInFrameOfReference, this.unallocatedTransitTubeModels))
+        //refFrame.wedges[wedgeIndex]['virtualTransitTubes'].push(new virtualTransitTube(positionInFrameOfReference, this.unallocatedTransitTubeModels))
         prevFloorS = currFloorS
       }
     })
       
-    function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n) {
+    function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, perfOptimizedThreeJS) {
       return function( {scene} ) {
         const object = scene.children[0]
         object.visible = false
         object.name = objName
         object.traverse(child => {child.name = objName+'_'+child.name})
-        object.children.forEach(child => child.freeze())
+        if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
         object.scale.set(scale_Factor, scale_Factor, scale_Factor)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
@@ -499,7 +501,7 @@ export class transitSystem {
       } 
     }
 
-    function prepareACallbackFunctionForFBXLoader(myScene, myList, objName, scaleFactor, n) {
+    function prepareACallbackFunctionForFBXLoader(myScene, myList, objName, scaleFactor, n, perfOptimizedThreeJS) {
       return function( object ) {
         if (objName == 'ringTerminus') {
           // Delete the tube and tracks from the model
@@ -524,7 +526,7 @@ export class transitSystem {
         object.visible = false
         object.name = objName
         object.traverse(child => {child.name = objName+'_'+child.name})
-        object.children.forEach(child => child.freeze())
+        if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
         object.scale.set(scaleFactor, scaleFactor, scaleFactor)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
@@ -534,11 +536,11 @@ export class transitSystem {
       }
     }
 
-    const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['numTransitVehicleModels'].value)
-    const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['numRingTerminusModels'].value)
-    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['numElevatorCarModels'].value)
-    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['numHabitatModels'].value)
-    const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', .03, dParamWithUnits['numTransitTubeModels'].value)
+    const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['numTransitVehicleModels'].value, this.perfOptimizedThreeJS)
+    const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['numRingTerminusModels'].value, this.perfOptimizedThreeJS)
+    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['numElevatorCarModels'].value, this.perfOptimizedThreeJS)
+    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['numHabitatModels'].value, this.perfOptimizedThreeJS)
+    //const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', 1.03, dParamWithUnits['numTransitTubeModels'].value, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
     }
@@ -557,7 +559,7 @@ export class transitSystem {
     fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
     fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )
     fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
-    fbxloader.load('models/Elevator.fbx', addTransitTubes, progressFunction, errorFunction )
+    //fbxloader.load('models/Elevator.fbx', addTransitTubes, progressFunction, errorFunction )
 
     const pointSet = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]
     const cableMaterial = new THREE.LineBasicMaterial({
@@ -583,7 +585,7 @@ export class transitSystem {
     this.transitVehicleRelativePosition_y = []
     this.ringTerminusRelativePosition_r = 0
     this.ringTerminusRelativePosition_y = 0
-    this.update(dParamWithUnits, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+    this.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
   }
 
   update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve) {
@@ -594,12 +596,12 @@ export class transitSystem {
     virtualRingTerminus.update(dParamWithUnits, crv, mainRingCurve)
     virtualElevatorCar.update(dParamWithUnits, crv, mainRingCurve)
     virtualHabitat.update(dParamWithUnits, crv, mainRingCurve)
-    virtualTransitTube.update(dParamWithUnits, crv, mainRingCurve)
+    //virtualTransitTube.update(dParamWithUnits, crv, mainRingCurve)
     virtualElevatorCable.update(dParamWithUnits, crv, mainRingCurve)
 
-    this.showTransitVehicles = dParamWithUnits['showTransitVehicles'].value
     this.animateTransitVehicles = dParamWithUnits['animateTransitVehicles'].value ? 1 : 0    
     this.animateElevatorCars = dParamWithUnits['animateElevatorCars'].value ? 1 : 0
+    this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
 
     this.crv = crv
 
@@ -702,7 +704,7 @@ export class transitSystem {
         refFrame.startWedgeIndex = -1
         refFrame.finishWedgeIndex = -1
       }
-
+  
       if (refFrame.startWedgeIndex!=-1) {
         for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
           this.actionFlags[wedgeIndex] |= 1
@@ -915,7 +917,7 @@ export class transitSystem {
     virtualRingTerminus.hasChanged = false
     virtualHabitat.hasChanged = false
     virtualElevatorCar.hasChanged = false
-    virtualTransitTube.hasChanged = false
+    //virtualTransitTube.hasChanged = false
     virtualElevatorCable.hasChanged = false
 
     // Debug stuff...

@@ -1,16 +1,17 @@
-import * as THREE from '../three.js'
-import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
-import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
-import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
-import Stats from '../three.js/examples/jsm/libs/stats.module.js'
-
-// import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-// import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
-// import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
-// import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
-// import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+import { GUI } from 'https://cdn.skypack.dev/three@0.138.1/examples/jsm/libs/lil-gui.module.min.js'
+import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
+//import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
+//import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
+//import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 // import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
+
+// import * as THREE from '../three.js'
+// import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
+// import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
+// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
+// import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+// import Stats from '../three.js/examples/jsm/libs/stats.module.js'
 
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 import { transitSystem } from './TransitSystems.js'
@@ -43,12 +44,28 @@ const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact sha
 const lengthOfSiderealDay = 86164.0905 // seconds    using value for Earth for now
 
 const gui = new GUI()
+gui.width = 1000
+gui.close()
 const folderGeography = gui.addFolder('Location (V6)').close()
 const folderEngineering = gui.addFolder('Engineering').close()
 const folderMaterials = gui.addFolder('Materials').close()
 const folderEconomics = gui.addFolder('Economics').close()
-// Hack
-const folderRendering = gui.addFolder('Rendering')  //.close()
+const folderRendering = gui.addFolder('Rendering').close()
+const folderTextOutput = gui.addFolder('TextOutput').close()
+
+const guiTextOutput = document.createElement( 'div' )
+guiTextOutput.classList.add( 'gui-stats' )
+guiTextOutput.innerHTML = [
+  '(Press \'s\' to update)',
+  '<i>Total Tethered Ring Cost</i>: ' + 0,
+  '<i>Total Tethered Ring Cost Per Kg Supported</i>: ' + 0,
+  '<i>Total Stored Energy in TWh</i>: ' + 0,
+  '<i>Moving Ring Speed</i>: ' + 0
+].join( '<br/>' )
+//folderTextOutput.open()
+//console.log(folderTextOutput, folderTextOutput.$children, guiTextOutput)
+folderTextOutput.$children.appendChild( guiTextOutput );
+//folderTextOutput.__ul.appendChild( guiTextOutput );
 
 const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perfectly circular ring can be and still fits within the Pacific Ocean
 
@@ -86,6 +103,8 @@ const guidParamWithUnits = {
   // Engineering Parameters - Ring
   ringFinalAltitude: {value: 32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringAmountRaisedFactor: {value: 1, units: "", autoMap: true, min: 0, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering},
+  //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
+  movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numControlPoints: {value: 256, units: '', autoMap: true, min: 4, max: 1024, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -239,7 +258,7 @@ const guidParamWithUnits = {
   tetherVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, updateFunction: updateCamerFieldOfView, folder: folderRendering},
-  perfOptimizedThreeJS: {value: false, units: '', autoMap: false, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
+  perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
 }
 
 function updatePerfOptimzation() {
@@ -273,7 +292,6 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
 })
 
 // Add sliders for each entry in guidParamWithUnits to the gui...
-gui.width = 500
 
 // Constants controlled by pull-pown lists
 const tetherMaterials = {
@@ -456,11 +474,11 @@ let simContainer = document.querySelector('#simContainer')
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
 //scene.matrixAutoUpdate = false
-scene.autoUpdate = false
+scene.autoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-scene.background = new THREE.Color( 0xffffff )
+//scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -491,7 +509,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  //alpha: true,
+  alpha: true,
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas')
 })
@@ -521,7 +539,7 @@ const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
 sunLight.name = 'sunlight'
 sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
 sunLight.matrixValid = false
-sunLight.freeze()
+if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
 
 const ambientLight = new THREE.AmbientLight(0x4f4f4f, 1)
@@ -616,7 +634,7 @@ if (TextureMode24x12) {
       planetMesh.name = 'planet'
       planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
       planetMesh.matrixValid = false
-      planetMesh.freeze()
+      if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
       planetMeshes.push(planetMesh)
     }
   }
@@ -642,7 +660,7 @@ else if (TextureModeOpenLayers) {
   planetMesh.name = 'planet'
   planetMesh.rotation.y = -Math.PI / 2  // This is needed to have the planet's texture align with the planet's Longintitude system
   planetMesh.matrixValid = false
-  planetMesh.freeze()
+  if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
   planetMeshes.push(planetMesh)
 
 
@@ -677,7 +695,7 @@ else if (eightTextureMode) {
         planetMesh.name = 'planet'
         planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
         planetMesh.matrixValid = false
-        planetMesh.freeze()
+        if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
         planetMeshes.push(planetMesh)
       }
     }
@@ -718,7 +736,7 @@ else if (useShaders) {
   planetMesh.name = 'planet'
   planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
   planetMesh.matrixValid = false
-  planetMesh.freeze()
+  if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
   planetMeshes.push(planetMesh)
 }
 else {
@@ -746,7 +764,7 @@ else {
   planetMesh.name = 'planet'
   planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
   planetMesh.matrixValid = false
-  planetMesh.freeze()
+  if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
   planetMeshes.push(planetMesh)  
 }
 //planetMesh.castShadow = true
@@ -806,13 +824,14 @@ atmosphereMesh.scale.set(1.1, 1.1 * (1.0 - 1.0/WGS84FlattenningFactor), 1.1)
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
 const whiteMaterial = new THREE.MeshBasicMaterial({color: 0x5f5f5f})
 const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
-const metalicMaterial = new THREE.MeshLambertMaterial({color: 0x878681, transparent: false})
+const metalicMaterial = new THREE.MeshBasicMaterial({color: 0x878681, transparent: false})
 const transparentMaterial1 = new THREE.MeshPhongMaterial( {vertexColors: true, transparent: true, opacity: 0.55})
 const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0.35})
 
 var tetherMaterial = new THREE.LineBasicMaterial({
   //vertexColors: THREE.VertexColors,
   color: 0x4897f8,     // This line doesn't seem to work
+  //color: 0x000000,     // This line doesn't seem to work
   transparent: true,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
@@ -903,10 +922,11 @@ for ( let i = 0; i < 10000;) {
 starGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( starVertices, 3 ) )
 const stars = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
 stars.name = 'stars'
-planetCoordSys.add(stars)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
+//planetCoordSys.add(stars)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
 // Generate the main ring
 let crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+let ctv = new tram.commonTetherVariables()
 let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 
@@ -961,7 +981,7 @@ constructTethers()
 function constructTethers() {
   if (dParamWithUnits['showTethers'].value) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs)
+    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     if (fastTetherRender) {
       const n = dParamWithUnits['numTethers'].value
@@ -983,13 +1003,13 @@ function constructTethers() {
   }
 }
 
-const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation)
 function gravityForceArrowsUpdate() {
   updatedParam()
   showTensileForceArrows = true
   showGravityForceArrows = true
   showInertialForceArrows = true
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
 }
 
 const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
@@ -1042,7 +1062,7 @@ function constructMainRingAndTransitSystem() {
       mainRingMesh.name = 'mainRing'
       mainRingMesh.position.copy(referencePoint)
       mainRingMesh.matrixValid = false
-      mainRingMesh.freeze()
+      if (guidParam['perfOptimizedThreeJS']) mainRingMesh.freeze()
       mainRingMeshes.push( mainRingMesh )
     }
     mainRingMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
@@ -1057,7 +1077,7 @@ function constructMainRingAndTransitSystem() {
       transitTubeMesh.name = 'transitTube'
       transitTubeMesh.position.copy(referencePoint)
       transitTubeMesh.matrixValid = false
-      transitTubeMesh.freeze()
+      if (guidParam['perfOptimizedThreeJS']) transitTubeMesh.freeze()
       transitSystemMeshes.push( transitTubeMesh )
     }
 
@@ -1073,7 +1093,7 @@ function constructMainRingAndTransitSystem() {
         transitTrackMesh.name = 'transitTrack'
         transitTrackMesh.position.copy(referencePoint)
         transitTrackMesh.matrixValid = false
-        transitTrackMesh.freeze()
+        if (guidParam['perfOptimizedThreeJS']) transitTrackMesh.freeze()
         transitSystemMeshes.push( transitTrackMesh )
       }
     }
@@ -1431,7 +1451,19 @@ function updateRing() {
   constructTethers()
   if (verbose) console.log('constructTethers ' + clock.getElapsedTime())
 
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+
   //calculateAdditionalSpecs()
+
+  if (genSpecs) {
+    guiTextOutput.innerHTML = [
+      '(Press \'s\' to update)',
+      '<i>Total Tethered Ring Cost</i>: ' + specs['sumOfAllCapitalCosts'].value.toFixed(2) + ' ' + specs['sumOfAllCapitalCosts'].units,
+      '<i>Total Tethered Ring Cost Per Kg Supported</i>: ' + specs['capitalCostPerKgSupported'].value.toFixed(2) + ' ' + specs['capitalCostPerKgSupported'].units,
+      '<i>Total Stored Energy in TWh</i>: ' + specs['movingRingsTotalKineticEnergyTWh'].value.toFixed(2) + ' ' + specs['movingRingsTotalKineticEnergyTWh'].units,
+      '<i>Moving Ring Speed</i>: ' + specs['movingRingSpeed'].value.toFixed(2) + ' ' + specs['movingRingSpeed'].units
+    ].join( '<br/>' )
+  }
 
   if (genSpecsFile) {
     //if (verbose) console.log("Generating Specs File")
@@ -1750,26 +1782,26 @@ function onKeyDown( event ) {
     case 84: /*T*/
       // Toggle Display of the Tensile Force Arrows
       showTensileForceArrows = !showTensileForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break;
     case 71: /*G*/
       // Toggle Display of the Tensile Force Arrows
       showGravityForceArrows = !showGravityForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break;
     case 73: /*I*/
       // Toggle Display of the Tensile Force Arrows
       showInertialForceArrows = !showInertialForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break;
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
-      console.log(orbitControls.target)
-      console.log(orbitControls.upDirection)
-      console.log(orbitControls.object.position)
+      // console.log(orbitControls.target)
+      // console.log(orbitControls.upDirection)
+      // console.log(orbitControls.object.position)
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
       orbitControls.target.set(-3728610.1855452466, 4702746.348736887, -2251622.0625982946)

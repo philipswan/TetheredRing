@@ -12,12 +12,19 @@
         margin: 0;
       }
     </style>
+      <!-- #c { -->
+      <!--   width: 100vw;-->
+      <!-- height: 100vh;-->
+      <!--   display: block;-->
+      <!--   background: url(textures/bruno.jpg) no-repeat center center;-->
+      <!--   background-size: cover;-->
+      <!-- }   -->
   </head>
   <body>
-      <!-- <input id="scrubber" type="range" value="0" style="width: 300px"> -->
-      <div class="flex h-screen bg-black">
+    <!-- <input id="scrubber" type="range" value="0" style="width: 300px"> -->
+    <div class="flex h-screen bg-black">
       <div id="simContainer" class="w-full">
-        <canvas></canvas>
+        <canvas id="c"></canvas>
         <script id="vertexShader" type="x-shader/x-vertex">
           varying vec2 vertexUV;
           varying vec3 vertexNormal;
@@ -84,7 +91,8 @@
             gl_FragColor.a = edge;
           }
         </script>
-        <script type="module" src="./main.js"></script>
+        <script type="module" src="./main.js">
+        </script>
         <button id="createkml">Download kml file</button>
         <a download="info.txt" id="downloadlink" style="display: none">Download</a>
         <button id="createSpecs">Download specs file</button>

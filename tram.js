@@ -1,6 +1,8 @@
-import * as THREE from '../three.js'
+
+import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//import * as THREE from '../three.js'
+
 import * as tram from './tram.js'
-import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
 
 // Tethered Ring Arcitectural Model (TRAM)
 
@@ -133,6 +135,14 @@ export class commonRingVariables {
     this.yc = lerp(this.y0, this.yf, this.ringAmountRaisedFactor**2)
     this.currentEquivalentLatitude = Math.atan2(this.yc, this.mainRingRadius)
     this.currentMainRingAltitude = Math.sqrt(this.yc**2 + this.mainRingRadius**2) - this.radiusOfPlanet
+  }
+}
+
+export class commonTetherVariables {
+  constructor() {
+    this.gravityForceAtRing = []
+    this.tensileForceAtRing = []
+    this.inertialForceAtRing = []
   }
 }
 

@@ -1,14 +1,14 @@
 import {
 	BufferGeometry,
 	Vector3
-} from '../three.js/build/three.module.js'
-//} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+//} from '../three.js/build/three.module.js'
 
 import * as tram from './tram.js'
 
 class TetherGeometry extends BufferGeometry {
 
-	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs) {
+	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs) {
 		super();
 
     const tetherPoints = []
@@ -101,8 +101,8 @@ class TetherGeometry extends BufferGeometry {
         pointP.T = Math.sqrt(fT.ρ**2 + fT.z**2)
         pointA.T = pointP.T * Math.cos(pointP.θ)             // Eq 17, Note: pointA.T is also referred to as 'T0'
         pointB.T = pointA.T / Math.cos(pointB.θ)             // Eq 17, Note: pointA.T is also referred to as 'T0'
-        finalTetherLength[j] = pointP.s - pointB.s          
-  
+        finalTetherLength[j] = pointP.s - pointB.s
+
         if (genSpecs) {
           const CatenaryEndpoints = [pointB, pointP]
           const label = ['B', 'P']
@@ -129,6 +129,7 @@ class TetherGeometry extends BufferGeometry {
           I[j] = fI.ρ
         }
       })
+
       if (genSpecs) {
         let stationaryRingBillOfMaterials = []
         let movingRingBillOfMaterials = []
@@ -138,9 +139,11 @@ class TetherGeometry extends BufferGeometry {
         specs['tetherMaterialTotalMass'] = {value: tetherMaterialTotalMass, units: "kg"}
         const tetherMaterialMassPerMeterOfRing = tetherMaterialTotalMass / (2 * Math.PI * crv.mainRingRadius)
         specs['tetherMaterialMassPerMeterOfRing'] = {value: tetherMaterialMassPerMeterOfRing, units: "kg"}
-        specs['tetherEqCO2TotalMass'] = {value: specs['tetherMaterialTotalMass'].value * 44/12, units: "kg"}
+        const tetherEqCO2TotalMass = tetherMaterialTotalMass * 44/12
+        specs['tetherEqCO2TotalMass'] = {value: tetherEqCO2TotalMass, units: "kg"}
         const oneBillion = 1000000000
-        const tetherMaterialTotalCost = specs['tetherMaterialTotalMass'].value * dParamWithUnits['tetherMaterialCost'].value / oneBillion
+        const tetherMaterialTotalCost = tetherMaterialTotalMass * dParamWithUnits['tetherMaterialCost'].value / oneBillion
+        console.log(tetherMaterialTotalMass, tetherMaterialTotalCost, tetherMaterialTotalCost/tetherMaterialTotalMass)
         specs['tetherMaterialTotalCost'] = {value: tetherMaterialTotalCost, units: "Billion USD"}
         //specs['tenileAverageForceDirection'] = {value: (Theta[0][1] + Theta[1][1])/2, units: "radians"}
         // Calculate the required inertial force
@@ -150,20 +153,27 @@ class TetherGeometry extends BufferGeometry {
         specs['mainRingRadius'] = {value: crv.mainRingRadius, units: "m"}
         const mainRingCircumference = 2 * Math.PI * crv.mainRingRadius
         specs['mainRingCircumference'] = {value: mainRingCircumference, units: "m"}
-        const movingRingsRotationalPeriod = 0.5 * 3600 // s
-        specs['movingRingsRotationalPeriod'] = {value: movingRingsRotationalPeriod, units: "s"}
-        const movingRingSpeed = mainRingCircumference / movingRingsRotationalPeriod  // Moving ring complete two circuirs per hour
-        specs['movingRingSpeed'] = {value: movingRingSpeed, units: "m/s"}
-        const movingRingMinutesPerRotation = 60 / movingRingsRotationalPeriod
-        specs['movingRingMinutesPerRotation'] = {value: movingRingMinutesPerRotation, units: "hours"}
-        const movingRingsMassPerMeter = inertialForcePerMeter * crv.mainRingRadius / movingRingSpeed**2  // Note this mass is shared by the number of rings 
+
+        const movingRingsMassPortion = dParamWithUnits['movingRingsMassPortion'].value
+        const movingRingsMassPerMeter = movingRingsMassPortion * totalMassPerMeterOfRing // Note this mass is shared by the number of rings 
         specs['movingRingsMassPerMeter'] = {value: movingRingsMassPerMeter, units: "kg"}
+        const movingRingSpeed = Math.sqrt(inertialForcePerMeter * crv.mainRingRadius / movingRingsMassPerMeter)
+        specs['movingRingSpeed'] = {value: movingRingSpeed, units: "m/s"}
+        const movingRingsRotationalPeriod = mainRingCircumference / movingRingSpeed
+        specs['movingRingsRotationalPeriod'] = {value: movingRingsRotationalPeriod, units: "s"}
+        const movingRingMinutesPerRotation = movingRingsRotationalPeriod / 60
+        specs['movingRingMinutesPerRotation'] = {value: movingRingMinutesPerRotation, units: "minutes"}
         const movingRingsMassFlowRate = movingRingsMassPerMeter * movingRingSpeed
         specs['movingRingsMassFlowRate'] = {value: movingRingsMassFlowRate, units: "kg/s"}
         const movingRingsTotalMass = movingRingsMassPerMeter * mainRingCircumference
         specs['movingRingsTotalMass'] = {value: movingRingsTotalMass, units: "kg"}
         const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingSpeed**2
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
+        const movingRingsTotalKineticEnergyEquivalentAntimatter = movingRingsTotalKineticEnergy / (180 * 1000000 * 1e9) // 180 MJ/microgram converted to J/kg
+        specs['movingRingsTotalKineticEnergyEquivalentAntimatter'] = {value: movingRingsTotalKineticEnergyEquivalentAntimatter, units: "kg"}
+        const movingRingsTotalKineticEnergyTWh = movingRingsTotalKineticEnergy / 3.6e+15
+        console.log(movingRingsTotalKineticEnergy, movingRingsTotalKineticEnergyTWh)
+        specs['movingRingsTotalKineticEnergyTWh'] = {value: movingRingsTotalKineticEnergyTWh, units: "TWh"}
         const movingRingsKineticEnergyPerMeterOfRing = movingRingsTotalKineticEnergy / (crv.mainRingRadius * 2 * Math.PI)
         specs['movingRingsKineticEnergyPerMeterOfRing'] = {value: movingRingsKineticEnergyPerMeterOfRing, units: "J"}
         const wholesaleCostOfEnergy = dParamWithUnits['wholesaleCostOfEnergy'].value
@@ -171,8 +181,6 @@ class TetherGeometry extends BufferGeometry {
         specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
         const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / (crv.mainRingRadius * 2 * Math.PI)
         specs['movingRingsKineticEnergyCostPerMeterOfRing'] = {value: movingRingsKineticEnergyCostPerMeterOfRing, units: "USD"}
-        const movingRingsMassPortion = movingRingsMassPerMeter / totalMassPerMeterOfRing
-        specs['movingRingsMassPortion'] = {value: movingRingsMassPortion, units: ""}
 
         // Calculate the force of gravity acting on the moving ring...
         const fM = new tram.forceVector() // Vector representing the steady state magnetic levitation force aplied to the moving ring
@@ -383,9 +391,20 @@ class TetherGeometry extends BufferGeometry {
         const ω_P = -(Math.PI/2 - crv.currentEquivalentLatitude)   // negative because angle increases in clockwise direction
         fT.ρ = fT.z / (Math.tan(pointP.θ+ω_P))         // Eq 20
         fI.ρ = -fG.ρ - fT.ρ                           // Eq 21
+        fI.z = 0
+        fI.φ = 0
+        fT.φ = 0
+        fG.φ = 0
   
         currentTetherLength[j] = pointP.s - pointB.s
         
+        ctv.gravityForceAtRing[j] = structuredClone(fG)
+        ctv.tensileForceAtRing[j] = structuredClone(fT)
+        ctv.inertialForceAtRing[j] = structuredClone(fI)
+        // console.log(ctv.gravityForceAtRing[j])
+        // console.log(ctv.tensileForceAtRing[j])
+        // console.log(ctv.inertialForceAtRing[j])
+
         for (let i = 0; i<=numTetherPoints-1; i++) {
           const sFraction = i / (numTetherPoints-1)
           const s = pointB.s + currentTetherLength[j] - finalTetherLength[j] * (1 - sFraction)
