@@ -33,7 +33,7 @@ Using the Model - Keyboard:
 'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
 'O' will mode the point that you orbit around back to the center of the Earth.
 'R' and 'L' will slowly raise and lower the ring.
-'U' and 'D' will increase and decrease teh altitude of the camera.
+'U' and 'D' will increase and decrease the altitude of the camera.
 'Z' and 'X' will slowly zoom in or out.
 'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
 'W' will instantly "warp" you over to a point much closer to the ring.

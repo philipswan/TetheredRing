@@ -1,8 +1,7 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
-
-//import * as THREE from '../three.js'
-//import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+import * as THREE from '../three.js'
+import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+// import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+// import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
 
 export class earthAxisObject {
   constructor(planetCoordSys, dParamWithUnits, radiusOfPlanet) {
@@ -112,10 +111,10 @@ export class gyroscopicForceArrowsObject {
   constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
     this.gyroscopicForceArrowMeshes = []
     this.planetCoordSys = planetCoordSys
-    this.update(dParamWithUnits, mainRingCurve, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+    this.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
   }
 
-  update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation) {
+  update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
     if (dParamWithUnits['showGyroscopicForceArrows'].value) {
       const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
       const lengthOfSiderealDay = 86160 // s
@@ -191,10 +190,10 @@ export class gravityForceArrowsObject {
   constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation) {
     this.gravityForceArrowMeshes = []
     this.planetCoordSys = planetCoordSys
-    this.update(dParamWithUnits, mainRingCurve, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
+    this.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
   }
 
-  update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
+  update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
 
     this.gravityForceArrowMeshes.forEach(mesh => {
       mesh.geometry.dispose()
@@ -217,9 +216,9 @@ export class gravityForceArrowsObject {
       console.log(ctv.inertialForceAtRing[0]['ρ'], ctv.inertialForceAtRing[0]['z'], Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2), inertialForce)
       console.log(ctv.inertialForceAtRing[1]['ρ'], ctv.inertialForceAtRing[1]['z'], Math.sqrt(ctv.inertialForceAtRing[1]['ρ']**2+ctv.inertialForceAtRing[1]['z']**2), inertialForce)
   
-      for (let i = 0; i<mainRingCurveControlPoints.length; i+=8) {
-
-        const positionInRingCoordSys = mainRingCurveControlPoints[i]
+      const n = dParamWithUnits['numForceArrows'].value
+      for (let i = 0; i<n; i++) {
+        const positionInRingCoordSys = mainRingCurve.getPoint(i / n)
         const positionInPlanetCoordSys = new THREE.Vector3()
         positionInPlanetCoordSys.copy(positionInRingCoordSys).applyQuaternion(ringToPlanetRotation)
         const upwardUnitVector = positionInPlanetCoordSys.clone().normalize()

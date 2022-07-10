@@ -1,12 +1,26 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import { GUI } from 'https://cdn.skypack.dev/three@0.138.1/examples/jsm/libs/lil-gui.module.min.js'
-import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
-//import { GUI } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/dat.gui.module'
+// Use when local
+import * as THREE from '../three.js'
+//import { GUI } from '../three.js/examples/jsm/libs/dat.gui.module'
+//import { CanvasCapture } from 'canvas-capture'
+//import CCapture from '../three.js/examples/jsm/libs/CCapture.all.min.js'
+//import CCapture from 'C:/Users/phils/Documents/repos/Three.js/three.js/examples/jsm/libs/ccapture.all.min.js'
+import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
+import { TWEEN } from '../three.js/examples/jsm/libs/tween.module.min'
+//import * as CCapture from '../three.js/examples/jsm/libs/CCapture.all.min.js'
+
+import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+
+// Use for website
+// import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+// import { GUI } from 'https://cdn.skypack.dev/three@0.138.1/examples/jsm/libs/lil-gui.module.min.js'
+// import { TWEEN } from 'https://cdn.skypack.dev/three@0.138.1/examples/jsm/libs/tween.module.min'
+// import * as BufferGeometryUtils from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
+
+// Not used
 //import { VRButton } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/webxr/VRButton.js'
 //import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 // import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 
-// import * as THREE from '../three.js'
 // import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
 // import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
 // import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
@@ -34,6 +48,7 @@ let genSpecs = false
 let genSpecsFile = false
 let fastTetherRender = true   // Fast render also uses the jitter reduction technique of creating a mesh with coordinates relative to a point near the ring, and then setting these mesh positions near the ring as well. However, this technique generates coordinates that are not useful for kml file generation.
 let majorRedesign = true // False enables work in progress...
+let capturer = null
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -235,17 +250,22 @@ const guidParamWithUnits = {
   
   // Rendering Parameters
   showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
+  showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
+  showStars: {value: true, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
   showEarthEquator: {value: false, units: '', autoMap: true, updateFunction: earthEquatorObjectUpdate, folder: folderRendering},
   showMainRingCurve: {value: false, units: '', autoMap: true, updateFunction: mainRingCurveObjectUpdate, folder: folderRendering},
   showGravityForceArrows: {value: false, units: '', autoMap: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showGyroscopicForceArrows: {value: false, units: '', autoMap: true, updateFunction: gyroscopicForceArrowsUpdate, folder: folderRendering},
-  forceArrowSize: {value: 500000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  forceArrowSize: {value: 50000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  numForceArrows: {value: 32, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showMainRings: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTethers: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showTransitTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showTransitVehicles: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showRingTerminuses: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showGroundTerminuses: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showElevatorCables: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -258,6 +278,8 @@ const guidParamWithUnits = {
   tetherVisibility: {value:0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, updateFunction: updateCamerFieldOfView, folder: folderRendering},
+  orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
+  orbitControlsRotateSpeed: {value: 1, units: '', autoMap: true, min: -10, max: 10, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
 }
 
@@ -433,6 +455,16 @@ function adjustEarthSurfaceVisibility() {
   })
 }
 
+function adjustEarthAtmosphereVisibility() {
+  updatedParam()
+  atmosphereMesh.visible = guidParamWithUnits['showEarthsAtmosphere'].value
+}
+
+function adjustStarsVisibility() {
+  updatedParam()
+  starsMesh.visible = guidParamWithUnits['showStars'].value
+}
+
 function adjustCableOpacity() {
   updatedParam()
   cableMaterial.opacity = dParamWithUnits['cableVisibility'].value
@@ -473,6 +505,16 @@ let simContainer = document.querySelector('#simContainer')
 
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
+const renderToBuffer = true // Hack - needs a GUI control still
+
+// Used for saving the rendered images to series of numbered files
+let bufferTexture
+if (renderToBuffer) {
+  const imageDumpWidth = 128
+  const imageDumpHeight = 72
+  bufferTexture = new THREE.WebGLRenderTarget( imageDumpWidth, imageDumpHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter});
+}
+
 //scene.matrixAutoUpdate = false
 scene.autoUpdate = true
 
@@ -498,6 +540,13 @@ function updateCamerFieldOfView() {
   camera.fov = dParamWithUnits['cameraFieldOfView'].value
 }
 
+function updateOrbitControlsRotateSpeed() {
+  updatedParam()
+  orbitControls.autoRotate = dParamWithUnits['orbitControlsAutoRotate'].value
+  orbitControls.autoRotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
+  console.log(orbitControls.autoRotateSpeed)
+}
+
 // Need to add these two lines to have the planet apper in VR
 if (enableVR) {
   cameraGroup.position.z = -1.005 * radiusOfPlanet
@@ -509,7 +558,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: true,
+  alpha: false,  // Make the background transparent
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas')
 })
@@ -830,8 +879,9 @@ const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, tra
 
 var tetherMaterial = new THREE.LineBasicMaterial({
   //vertexColors: THREE.VertexColors,
-  color: 0x4897f8,     // This line doesn't seem to work
-  //color: 0x000000,     // This line doesn't seem to work
+  //color: 0x4897f8,
+  //color: 0x000000,
+  color: 0xc0c0f0,
   transparent: true,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
@@ -920,9 +970,9 @@ for ( let i = 0; i < 10000;) {
   }
 }
 starGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( starVertices, 3 ) )
-const stars = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
-stars.name = 'stars'
-//planetCoordSys.add(stars)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
+const starsMesh = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
+starsMesh.name = 'stars'
+planetCoordSys.add(starsMesh)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
 // Generate the main ring
 let crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
@@ -1009,13 +1059,13 @@ function gravityForceArrowsUpdate() {
   showTensileForceArrows = true
   showGravityForceArrows = true
   showInertialForceArrows = true
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
 }
 
 const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
 function gyroscopicForceArrowsUpdate() {
   updatedParam()
-  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, radiusOfPlanet, ringToPlanetRotation)
+  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
 }
 
 const numWedges = 64   // Wedges are used to keep points within meshes from becoming too spread out, losing precision, and then starting to jitter
@@ -1507,6 +1557,10 @@ function renderFrame() {
   //simContainer = document.querySelector('#simContainer')
   //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
   //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
+  orbitControls.update()
+  TWEEN.update()
+  camera.up.copy(orbitControlsUpVector)
+  orbitControls.upDirection.copy(orbitControlsUpVector)
 
   if (orbitControlsEarthRingLerpFactor!=1) {
     //console.log("Lerping...")
@@ -1515,6 +1569,9 @@ function renderFrame() {
     orbitControls.enabled = false
     orbitControls.target.lerpVectors(previousTargetPoint, orbitControlsTargetPoint, orbitControlsEarthRingLerpFactor)
     const upVector = new THREE.Vector3()
+    upVector.lerpVectors(previousUpVector, orbitControlsTargetUpVector, orbitControlsEarthRingLerpFactor).normalize()
+    camera.up.copy(upVector)
+    orbitControls.upDirection.copy(upVector)
     upVector.lerpVectors(previousUpVector, orbitControlsTargetUpVector, orbitControlsEarthRingLerpFactor).normalize()
     camera.up.copy(upVector)
     orbitControls.upDirection.copy(upVector)
@@ -1537,9 +1594,9 @@ function renderFrame() {
     var offset = new THREE.Vector3
     offset.copy( orbitControls.object.position ).sub( orbitControls.target )
     if (animateZoomingIn) {
-      offset.multiplyScalar(0.995)
+      offset.multiplyScalar(0.9995)
     } else if (animateZoomingOut) {
-      offset.multiplyScalar(1.005)
+      offset.multiplyScalar(1.0005)
     }
     orbitControls.object.position.copy( orbitControls.target ).add( offset )
   }
@@ -1553,13 +1610,13 @@ function renderFrame() {
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
       v.value = guidParam[k]
     })
-  
+    const ringRaiseRateFactor = 0.05
     if (animateRingRaising) {
-      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.min(1, guidParamWithUnits['ringAmountRaisedFactor'].value+delta*1)
+      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.min(1, guidParamWithUnits['ringAmountRaisedFactor'].value+delta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==1) animateRingRaising = false
     }
     if (animateRingLowering) {
-      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.max(0, guidParamWithUnits['ringAmountRaisedFactor'].value-delta*3)
+      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.max(0, guidParamWithUnits['ringAmountRaisedFactor'].value-delta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==0) animateRingLowering = false
       //cameraGroup.position.z -= -0.0001 * radiusOfPlanet
       //console.log(cameraGroup.position.z/radiusOfPlanet)
@@ -1599,12 +1656,12 @@ function renderFrame() {
   if (weAreFar1 !== prevWeAreFar1) {
     if (weAreFar1) {
       // To improve rendering performance when zoomed out, make parts of the ring invisible
-      stars.visible = true
+      starsMesh.visible = true
       transitSystemMeshes.forEach(mesh => {mesh.visible = false})
       mainRingMeshes.forEach(mesh => {mesh.visible = false})
     }
     else {
-      stars.visible = false
+      starsMesh.visible = false
       transitSystemMeshes.forEach(mesh => {mesh.visible = true})
       mainRingMeshes.forEach(mesh => {mesh.visible = true})
     }
@@ -1633,7 +1690,14 @@ function renderFrame() {
     // Performance improved less automatic version
     scene.selectivelyUpdateMatrixWorld()
   }
-  renderer.render(scene, camera)
+
+  if (renderToBuffer) {
+    renderer.render(scene, camera, bufferTexture)
+  }
+  else {
+    renderer.render(scene, camera)
+  }
+  if (capturer) capturer.capture( renderer.domElement );
 
   if (console.userdata['capture']==1) {
     if (verbose) console.log(console.userdata)
@@ -1736,18 +1800,36 @@ function onKeyDown( event ) {
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
       if (planetIntersects.length>0 || transitTubeIntersects.length>0) {
-        previousTargetPoint.copy(orbitControls.target.clone())
-        previousUpVector.copy(orbitControls.upDirection.clone())
         orbitControlsTargetPoint.copy(targetPoint.clone())
-        orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
-        //console.log(orbitControlsTargetUpVector)
-        orbitControlsEarthRingLerpFactor = 0
-        orbitControlsEarthRingLerpSpeed = 1/32
-        orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
+        if (lockUpToRingAxis) {
+          orbitControlsTargetUpVector = new THREE.Vector3(0, 1, 0).applyQuaternion(ringToPlanetRotation)
+        }
+        else {
+          orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
+        }
+        new TWEEN.Tween(orbitControls.target)
+          .to(orbitControlsTargetPoint, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start()
+        console.log('Target', orbitControlsTargetUpVector, orbitControlsTargetUpVector.length())
+        new TWEEN.Tween(orbitControlsUpVector)
+          .to(orbitControlsTargetUpVector, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start()
+
+        // previousTargetPoint.copy(orbitControls.target.clone())
+        // previousUpVector.copy(orbitControls.upDirection.clone())
+        // orbitControlsTargetPoint.copy(targetPoint.clone())
+        // orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
+        // //console.log(orbitControlsTargetUpVector)
+        // orbitControlsEarthRingLerpFactor = 0
+        // orbitControlsEarthRingLerpSpeed = 1/32
+        // orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
       }
       break;
     case 81: /*Q*/
       orbitControls.autoRotate ^= true
+      orbitControls.rotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
       break;
     // case 82: /*R*/
     //   dParamWithUnits['ringCenterLongitude'].value -= 0.1
@@ -1782,20 +1864,23 @@ function onKeyDown( event ) {
     case 84: /*T*/
       // Toggle Display of the Tensile Force Arrows
       showTensileForceArrows = !showTensileForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break;
     case 71: /*G*/
       // Toggle Display of the Tensile Force Arrows
       showGravityForceArrows = !showGravityForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break;
     case 73: /*I*/
       // Toggle Display of the Tensile Force Arrows
       showInertialForceArrows = !showInertialForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      break;
+    case 86: /*V*/
+      lockUpToRingAxis = !lockUpToRingAxis
       break;
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
@@ -1860,25 +1945,26 @@ function onKeyDown( event ) {
       Object.entries(guidParamWithUnits).forEach(([k, v]) => {
         v.value = guidParam[k]
       })
-      orbitControls.upDirection.set(-0.5517139461741912, -0.33633743039380865, -0.7632095744374486)
-      guidParamWithUnits['ringFinalAltitude'].value = 200000  // m
-      guidParamWithUnits['equivalentLatitude'].value = Math.acos(targetRadius/(radiusOfPlanet + guidParamWithUnits['ringFinalAltitude'].value)) * 180 / Math.PI
-      guidParamWithUnits['ringAmountRaisedFactor'].value = 0
+      //orbitControls.upDirection.set(-0.5517139461741912, -0.33633743039380865, -0.7632095744374486)
+      //guidParamWithUnits['ringFinalAltitude'].value = 200000  // m
+      //guidParamWithUnits['equivalentLatitude'].value = Math.acos(targetRadius/(radiusOfPlanet + guidParamWithUnits['ringFinalAltitude'].value)) * 180 / Math.PI
+      guidParamWithUnits['ringAmountRaisedFactor'].value = 0.01
       guidParamWithUnits['numMainRings'].value = 1
-      guidParamWithUnits['numTethers'].value = 180
-      guidParamWithUnits['numForkLevels'].value = 0
-      guidParamWithUnits['tetherSpanOverlapFactor'].value = 1
-      guidParamWithUnits['tetherPointBxAvePercent'].value = 0.8
-      guidParamWithUnits['tetherPointBxDeltaPercent'].value = 0
-      guidParamWithUnits['tetherEngineeringFactor'].value = 0.5
-      guidParamWithUnits['numElevatorCables'].value = 180
+      //guidParamWithUnits['numTethers'].value = 180
+      //guidParamWithUnits['numForkLevels'].value = 0
+      //guidParamWithUnits['tetherSpanOverlapFactor'].value = 1
+      //guidParamWithUnits['tetherPointBxAvePercent'].value = 0.8
+      //guidParamWithUnits['tetherPointBxDeltaPercent'].value = 0
+      //guidParamWithUnits['tetherEngineeringFactor'].value = 0.5
+      //guidParamWithUnits['numElevatorCables'].value = 180
       guidParamWithUnits['moveRing'].value = 0
-      guidParamWithUnits['cableVisibility'].value = 0.1
-      guidParamWithUnits['tetherVisibility'].value = 1
-      guidParamWithUnits['showMainRingCurve'].value = true
+      // guidParamWithUnits['cableVisibility'].value = 0.1
+      guidParamWithUnits['tetherVisibility'].value = 0.4
+      guidParamWithUnits['showMainRingCurve'].value = false
       guidParamWithUnits['showMainRings'].value = false
-      guidParamWithUnits['showTethers'].value = false
+      guidParamWithUnits['showTethers'].value = true
       guidParamWithUnits['showTransitSystem'].value = false
+      guidParamWithUnits['showTransitTube'].value = false
       guidParamWithUnits['showTransitVehicles'].value = false
       guidParamWithUnits['showRingTerminuses'].value = false
       guidParamWithUnits['showElevatorCables'].value = false
@@ -1962,6 +2048,8 @@ function recomputeNearFarClippingPlanes() {
 }
 
 let previousUpVector = new THREE.Vector3(0, 1, 0)
+let orbitControlsUpVector = new THREE.Vector3(0, 1, 0)
+let lockUpToRingAxis = false
 let orbitControlsTargetUpVector = new THREE.Vector3(0, 1, 0)
 let previousTargetPoint = new THREE.Vector3(0, 0, 0)
 let orbitControlsTargetPoint = new THREE.Vector3(0, 0, 0)
@@ -2124,3 +2212,40 @@ if (enableSpecsFileFeature) {
   }, false)
 }
 
+// Synchronized Frame Capture
+var sCB = document.getElementById( 'start-capturing-button' ),
+dVB = document.getElementById( 'download-video-button' ),
+progress = document.getElementById( 'progress' );
+
+sCB.addEventListener( 'click', function( e ) {
+
+  var framerate = document.querySelector('input[name="framerate"]:checked').value;
+
+  capturer = new CCapture( {
+    verbose: false,
+    display: true,
+    framerate: framerate,
+    motionBlurFrames: ( 960 / framerate ) * ( document.querySelector('input[name="motion-blur"]').checked ? 1 : 0 ),
+    quality: 99,
+    format: document.querySelector('input[name="encoder"]:checked').value,
+    workersPath: './ccapture_workers/',
+    timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
+    frameLimit: 0,
+    autoSaveTime: 0,
+    onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
+  } );
+
+  capturer.start();
+  this.style.display = 'none';
+  dVB.style.display = 'block';
+  e.preventDefault();
+}, false );
+
+dVB.addEventListener( 'click', function( e ) {
+  capturer.stop();
+  this.style.display = 'none';
+  //this.setAttribute( 'href',  );
+  console.log(capturer, 'Saving...')
+  capturer.save();
+  sCB.style.display = 'block';
+}, false );

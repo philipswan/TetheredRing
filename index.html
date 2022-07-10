@@ -6,19 +6,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Tethered Ring</title>
     <link href="tailwind.css" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="buttons.css" type="text/css" media="screen" title="no title" charset="utf-8">
+    <link href='https://fonts.googleapis.com/css?family=Roboto+Condensed:400,700' rel='stylesheet' type='text/css'>
     <!-- <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.4.3/build/ol.js"></script>  -->
     <style>
       body {
         margin: 0;
       }
+      #c {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        /*background: url(textures/SeaFloor.png) no-repeat center center;*/
+        background-size: cover;
+      }
     </style>
-      <!-- #c { -->
-      <!--   width: 100vw;-->
-      <!-- height: 100vh;-->
-      <!--   display: block;-->
-      <!--   background: url(textures/bruno.jpg) no-repeat center center;-->
-      <!--   background-size: cover;-->
-      <!-- }   -->
+    <style type="text/css">
+      html {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #000;
+        color: #ffffff;
+        font-family: 'roboto condensed', sans-serif;
+        font-size: 13px;
+        line-height: 20px;
+        height: 100%;
+      }
+      a {
+        color: #fff;
+        text-decoration: none;
+        border-bottom: 1px dotted #fff;
+      }
+      a:hover {
+        border-bottom: 1px solid #fff
+      }
+      h1{
+        font-size: 20px;
+        margin: 0;
+      }
+      h2{
+        font-size: 16px;
+        margin: 0;
+      }
+      #preloader{
+        width: 306px;
+        height: 36px;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        margin-left: -153px;
+        margin-top: -18px;
+        background-color: rgba(255,255,255,0.8);
+        border-radius: 3px;
+        -webkit-transition: opacity 1s ease-out;
+        -moz-transition: opacity 1s ease-out;
+      }
+      #bar{
+        height: 30px;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        margin-left: -150px;
+        margin-top: -15px;
+        background-color: rgba(0,0,0,0.8);
+        border-radius: 3px;
+      }
+      #download-video-button{
+        display: none;
+      }
+      #progress{ position: absolute; left: 0; top: 0; z-index: 100; height: 10px; background-color: #b70000;}
+    </style>
   </head>
   <body>
     <!-- <input id="scrubber" type="range" value="0" style="width: 300px"> -->
@@ -91,13 +152,30 @@
             gl_FragColor.a = edge;
           }
         </script>
-        <script type="module" src="./main.js">
-        </script>
-        <button id="createkml">Download kml file</button>
-        <a download="info.txt" id="downloadlink" style="display: none">Download</a>
-        <button id="createSpecs">Download specs file</button>
-        <a download="info.txt" id="downloadlink" style="display: none">Download</a>
-         <!-- Invisible Stuff -->
+        <script type="text/javascript" src="./CCapture.all.min.js"></script>
+        <script type="module" src="./main.js"></script>
+        <div id="title">
+          <a class="button" href="#" id="createSpecs" >Download specs file</a>
+          <a class="button" href="#" id="createkml" >Download kml file</a>
+          <a class="button" href="#" id="start-capturing-button" >Start Capturing</a>
+          <a class="button" href="#" id="download-video-button" >Stop Capturing and Download</a>
+          <h1>Synchronous Frame Capture Options</h1>
+          <p><b>Framerate</b><br/>
+            <input type="radio" name="framerate" id="encode-10" value="10" > <label for="encode-10" >10FPS</label>
+            <input type="radio" name="framerate" id="encode-30" value="30" > <label for="encode-30" >30FPS</label>
+            <input type="radio" name="framerate" id="encode-60" value="60" > <label for="encode-60" >60FPS</label>
+            <input type="radio" name="framerate" id="encode-120" value="120" checked="checked" > <label for="encode-120" >120FPS</label></p>
+          <p><b>Format</b><br/>
+            <input type="radio" name="encoder" id="encode-webm" value="webm" > <label for="encode-webm" >WebM</label>
+            <input type="radio" name="encoder" id="encode-gif" value="gif" > <label for="encode-gif" >GIF</label>
+            <input type="radio" name="encoder" id="encode-png" value="png" checked="checked" > <label for="encode-png" >PNG</label>
+            <input type="radio" name="encoder" id="encode-jpg" value="jpg" > <label for="encode-jpg" >JPEG</label></p>
+            <input type="radio" name="encoder" id="encode-webm-mediarecorder" value="webm-mediarecorder" > <label for="encode-webm-mediarecorder" >WebM (MediaRecorder) <b>WIP</b></label>
+          <p><b>Other options</b><br/>
+            <input id="apply-motionblur" name="motion-blur" type="checkbox" /> <label for="apply-motionblur">Apply motion blur</label>
+          </p>
+        </div>
+        <!-- Invisible Stuff -->
         <div id="container">
           <div id="map" style="position: fixed; visibility:hidden; width: 1000px; height:500px;"></div>
           </div>
@@ -105,7 +183,15 @@
           <div id="map-lod1" style="position: fixed; visibility:hidden; width: 500px; height:500px;"></div>
           </div>
       </div>
+
+      <div id="progress"></div>
+
     </div>
+
+  
+    <!-- <script type="text/javascript" src="../../build/CCapture.all.min.js"></script> -->
+    <!-- <script type="module" src="./main.js"></script> -->
+  
   </body>
 </html>
 

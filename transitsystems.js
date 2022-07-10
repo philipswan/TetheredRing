@@ -1,10 +1,10 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
+import * as THREE from '../three.js'
+import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
 
-// import * as THREE from '../three.js'
-// import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
-// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
+//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
+// import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
+// import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 
 import * as tram from './tram.js'
 
@@ -57,6 +57,7 @@ class virtualVehicle {
   static transitVehicleRelativePosition_r = []
   static transitVehicleRelativePosition_y = []
   static currentEquivalentLatitude
+  static isVisible
   static isDynamic
   static hasChanged
 
@@ -69,6 +70,7 @@ class virtualVehicle {
       virtualVehicle.transitVehicleRelativePosition_y[trackIndex]  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     }
     virtualVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
+    virtualVehicle.isVisible = dParamWithUnits['showTransitVehicles'].value
     virtualVehicle.isDynamic =  true
     virtualVehicle.hasChanged = true
   }
@@ -90,6 +92,7 @@ class virtualVehicle {
         pointOnRingCurve.z + r1 * Math.sin(angle) )
       om.rotation.set(0, -angle, virtualVehicle.currentEquivalentLatitude)
       om.rotateZ(-Math.PI/2)
+      om.visible = virtualVehicle.isVisible
       om.matrixValid = false
     }
   }
@@ -106,6 +109,7 @@ class virtualRingTerminus {
   static ringTerminusRelativePosition_r
   static ringTerminusRelativePosition_y
   static currentEquivalentLatitude
+  static isVisible
   static isDynamic
   static hasChanged
 
@@ -116,6 +120,7 @@ class virtualRingTerminus {
     virtualRingTerminus.ringTerminusRelativePosition_r = tram.offset_r(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
     virtualRingTerminus.ringTerminusRelativePosition_y = tram.offset_y(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
     virtualRingTerminus.currentEquivalentLatitude = crv.currentEquivalentLatitude
+    virtualRingTerminus.isVisible = dParamWithUnits['showRingTerminuses'].value
     virtualRingTerminus.isDynamic =  false
     virtualRingTerminus.hasChanged = true
   }
@@ -135,6 +140,7 @@ class virtualRingTerminus {
       om.rotation.set(0, -angle, virtualRingTerminus.currentEquivalentLatitude)
       om.rotateZ(-Math.PI/2)
       om.rotateY(-Math.PI/2)
+      om.visible = virtualRingTerminus.isVisible
       om.matrixValid = false
       if (this.perfOptimizedThreeJS) om.freeze()
     }
@@ -155,6 +161,7 @@ class virtualElevatorCar {
   static elevatorCarPosition_dr
   static elevatorCarPosition_dy
   static currentEquivalentLatitude
+  static isVisible
   static isDynamic
   static hasChanged
 
@@ -165,6 +172,7 @@ class virtualElevatorCar {
     virtualElevatorCar.elevatorCarForwardOffset = dParamWithUnits['elevatorCableForwardOffset'].value
     virtualElevatorCar.currentEquivalentLatitude = crv.currentEquivalentLatitude
     virtualElevatorCar.elevatorCarRotZ = crv.currentEquivalentLatitude - Math.PI/2
+    virtualElevatorCar.isVisible = dParamWithUnits['showElevatorCars'].value
     virtualElevatorCar.isDynamic =  true
     virtualElevatorCar.hasChanged = true
   }
@@ -189,6 +197,7 @@ class virtualElevatorCar {
       //console.log('Car ' + virtualElevatorCar.elevatorCableForwardOffset)
       om.rotation.set(0, -angle, virtualElevatorCar.elevatorCarRotZ)
       //om.rotateY(-Math.PI)
+      om.visible = virtualElevatorCar.isVisible
       om.matrixValid = false
       if (this.perfOptimizedThreeJS) om.freeze()
     }
@@ -210,6 +219,7 @@ class virtualHabitat {
   static habitatUpwardOffset
   static habitatForwardOffset
   static currentEquivalentLatitude
+  static isVisible
   static isDynamic
   static hasChanged
 
@@ -223,6 +233,7 @@ class virtualHabitat {
     virtualHabitat.habitatRelativePosition_r = tram.offset_r(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
     virtualHabitat.habitatRelativePosition_y = tram.offset_y(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
     virtualHabitat.currentEquivalentLatitude = crv.currentEquivalentLatitude
+    virtualHabitat.isVisible = dParamWithUnits['showHabitats'].value
     virtualHabitat.isDynamic =  false
     virtualHabitat.hasChanged = true
   }
@@ -252,6 +263,7 @@ class virtualHabitat {
       om.rotation.set(0, -angle, virtualHabitat.currentEquivalentLatitude)
       om.rotateZ(-Math.PI/2)
       om.rotateY(-Math.PI/2)
+      om.visible = virtualHabitat.isVisible
       om.matrixValid = false
       om.children[0].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
       om.children[1].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
@@ -295,6 +307,7 @@ class virtualTransitTube {
   static habitatRelativePosition_y
   static currentEquivalentLatitude
   static elevatorCarRotZ
+  static isVisible
   static isDynamic
   static hasChanged
 
@@ -306,6 +319,7 @@ class virtualTransitTube {
     virtualTransitTube.habitatRelativePosition_y = tram.offset_y(cableOutwardOffset, habitatUpwardOffset, crv.currentEquivalentLatitude)
     virtualTransitTube.currentEquivalentLatitude = crv.currentEquivalentLatitude
     virtualTransitTube.elevatorCarRotZ = crv.currentEquivalentLatitude - Math.PI/2
+    virtualTransitTube.isVisible = dParamWithUnits['showTransitTube'].value
     virtualTransitTube.isDynamic =  false
     virtualTransitTube.hasChanged = true
   }
@@ -323,6 +337,7 @@ class virtualTransitTube {
         pointOnRingCurve.y + virtualTransitTube.habitatRelativePosition_y + -20,
         pointOnRingCurve.z + virtualTransitTube.habitatRelativePosition_r * Math.sin(angle) + -11 * Math.cos(angle) )
       om.rotation.set(0, -angle, virtualTransitTube.elevatorCarRotZ)
+      om.visible = virtualTransitTube.isVisible
       om.matrixValid = false
       if (this.perfOptimizedThreeJS) om.freeze()
     }
@@ -705,6 +720,7 @@ export class transitSystem {
         refFrame.finishWedgeIndex = -1
       }
   
+      // Set bit0 of actionFlags if wedge is currently visible
       if (refFrame.startWedgeIndex!=-1) {
         for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
           this.actionFlags[wedgeIndex] |= 1
@@ -712,6 +728,7 @@ export class transitSystem {
           if (wedgeIndex == refFrame.finishWedgeIndex) break
         }
       }
+      // Set bit1 of actionFlags if wedge was previously visible
       if (refFrame.prevStartWedgeIndex!=-1) {
         for (wedgeIndex = refFrame.prevStartWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
           this.actionFlags[wedgeIndex] |= 2
@@ -719,6 +736,7 @@ export class transitSystem {
           if (wedgeIndex == refFrame.prevFinishWedgeIndex) break
         }
       }
+
       if (refFrame===this.refFrames[4]) {
         let flags = ""
         for (let i = 340; i<380; i++) {
@@ -829,7 +847,7 @@ export class transitSystem {
             if (!object.model) {
               if (object.unallocatedModels.length>0) {
                 object.model = object.unallocatedModels.pop()
-                object.model.visible = true
+                object.model.visible = object.isVisible
               }
               else {
                 if (objectKey in ranOutOfModelsInfo) {

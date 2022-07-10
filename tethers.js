@@ -1,8 +1,8 @@
 import {
 	BufferGeometry,
 	Vector3
-} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-//} from '../three.js/build/three.module.js'
+} from '../three.js/build/three.module.js'
+//} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
 import * as tram from './tram.js'
 
@@ -167,6 +167,9 @@ class TetherGeometry extends BufferGeometry {
         specs['movingRingsMassFlowRate'] = {value: movingRingsMassFlowRate, units: "kg/s"}
         const movingRingsTotalMass = movingRingsMassPerMeter * mainRingCircumference
         specs['movingRingsTotalMass'] = {value: movingRingsTotalMass, units: "kg"}
+        const movingRingMaterialDensity = 3500 // kg/m3
+        const movingRingsDiameterIfMadeIntoSphere = Math.pow(movingRingsTotalMass/movingRingMaterialDensity*3/4/Math.PI, 1/3) * 2
+        specs['movingRingsDiameterIfMadeIntoSphere'] = {value: movingRingsDiameterIfMadeIntoSphere, units: "m"}
         const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingSpeed**2
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
         const movingRingsTotalKineticEnergyEquivalentAntimatter = movingRingsTotalKineticEnergy / (180 * 1000000 * 1e9) // 180 MJ/microgram converted to J/kg
