@@ -152,7 +152,11 @@
             gl_FragColor.a = edge;
           }
         </script>
+
+        <!-- The following statement is needed because the CCapture library seems to have not be written as an ES6-style module, so it can't be imported with an import statement -->
         <script type="text/javascript" src="./CCapture.all.min.js"></script>
+        <!-- <script type="text/javascript" src="./ccapture_workers/CCapture.js"></script> -->
+
         <script type="module" src="./main.js"></script>
         <div id="title">
           <a class="button" href="#" id="createSpecs" >Download specs file</a>

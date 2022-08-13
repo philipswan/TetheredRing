@@ -120,6 +120,7 @@ class TetherGeometry extends BufferGeometry {
             specs['tetherDiameter_'+label[k]+j] = {value: 2 * Math.sqrt(Acs[j][k] / 2 / Math.PI), units: "m"}  // because: d = 2*r = 2*sqrt(a/2/pi)
             specs['tetherForce_'+label[k]+j] = {value: Acs[j][k] * tetherStress, units: "N"}
           })
+          specs['NASAsCrawlerTransporterMass'] = {value: 2721000, units: "kg"}
           L[j] = pointP.s - pointB.s       // Note: Does not account for length increase due to forks - assumes closely-spaced tethers
           specs['tetherLength'+j] = {value: L[j], units: "m"}
           V[j] = L[j] * ((Acs[j][0] * Nappt[j][0]) + (Acs[j][1] * Nappt[j][1])) / 2      // Note: Rough calculation that does not account for forks

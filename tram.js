@@ -572,3 +572,18 @@ export function generateHabitatMeshes(dParamWithUnits, specs, genSpecs) {
   return habitatMeshes
 }
 
+export function makeOffsetCurve(outwardOffset, upwardOffset, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments) {
+  const tubePoints = []
+  // Create a curve to represent the path we want the tube to take
+  const dr = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
+  const dy = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
+  for (let i = -lengthSegments/2; i<=lengthSegments/2; i++) {
+    const modelsTrackPosition = (segmentNumber + i/lengthSegments)/totalSegments
+    const pointOnRingCurve = mainRingCurve.getPoint(modelsTrackPosition)
+    const angle = 2 * Math.PI * modelsTrackPosition
+    tubePoints.push( new THREE.Vector3(pointOnRingCurve.x + dr * Math.cos(angle), pointOnRingCurve.y + dy, pointOnRingCurve.z + dr * Math.sin(angle)) )
+  }
+  const refPoint = tubePoints[lengthSegments/2].clone()
+  tubePoints.forEach(point => {point.sub(refPoint)})
+  return new THREE.CatmullRomCurve3(tubePoints)
+}
