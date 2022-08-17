@@ -175,8 +175,8 @@ export class elevatorCarVariables {
     this.driveSystemEfficiency = 0.8
     this.batteryMassPerKg = this.energyRequirementPerKg / (this.batterySpecificEnergy * 3600 * this.driveSystemEfficiency)
     this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value + this.dParamWithUnits['ringTerminusUpwardOffset'].value + this.dParamWithUnits['elevatorCarUpwardOffset'].value    // May need to subtract the altitude of the terestrial terminus
-    this.maxAccelleration = 2 // m/s2
-    this.maxSpeed = 200 // m/s
+    this.maxAccelleration = this.dParamWithUnits['elevatorCarMaxAcceleration'].value
+    this.maxSpeed = this.dParamWithUnits['elevatorCarMaxSpeed'].value
     this.accellerationTime = this.maxSpeed / this.maxAccelleration
     this.accellerationDistance = Math.min(this.travelDistance/2, 0.5 * this.maxAccelleration * this.accellerationTime**2)
     this.accellerationTime = Math.sqrt(2 * this.accellerationDistance / this.maxAccelleration)
@@ -312,6 +312,7 @@ export class vehicleReferenceFrameTrackPositionCalculator {
       prevP = P
     }
     this.transitTubeCircumference = l
+    console.log("Main Ring Circumference", this.transitTubeCircumference, crv.mainRingRadius*2*Math.PI)
   }
 
   calcTrackPosition(t) {

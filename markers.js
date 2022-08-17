@@ -205,10 +205,11 @@ export class gravityForceArrowsObject {
     if (dParamWithUnits['showGravityForceArrows'].value) {
       const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
       const lengthOfSiderealDay = 86160 // s
-      const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)    
-      const gravityForce = -969.697173598352 / 1000
-      const inertialForce = 2084.97493384359 / 1000
-      const tensileForce = 1141.43021591156 / 1000
+      const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)
+      // Hack: Only using the first tether's forces for now. Need to merge forces from both tethers later.
+      const gravityForce = -Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2) / 1000
+      const inertialForce = Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2) / 1000
+      const tensileForce = Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2) / 1000
       console.log(ctv.gravityForceAtRing[0]['ρ'], ctv.gravityForceAtRing[0]['z'], Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2), gravityForce)
       console.log(ctv.gravityForceAtRing[1]['ρ'], ctv.gravityForceAtRing[1]['z'], Math.sqrt(ctv.gravityForceAtRing[1]['ρ']**2+ctv.gravityForceAtRing[1]['z']**2), gravityForce)
       console.log(ctv.tensileForceAtRing[0]['ρ'], ctv.tensileForceAtRing[0]['z'], Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2), tensileForce)

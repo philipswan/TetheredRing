@@ -406,7 +406,7 @@ class TetherGeometry extends BufferGeometry {
         ctv.tensileForceAtRing[j] = structuredClone(fT)
         ctv.inertialForceAtRing[j] = structuredClone(fI)
         // console.log(ctv.gravityForceAtRing[j])
-        // console.log(ctv.tensileForceAtRing[j])
+        console.log("ctv.tensileForceAtRing", j, ctv.tensileForceAtRing[j], fT)
         // console.log(ctv.inertialForceAtRing[j])
 
         for (let i = 0; i<=numTetherPoints-1; i++) {

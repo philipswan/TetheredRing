@@ -6,6 +6,7 @@ import * as THREE from '../three.js'
 //import CCapture from 'C:/Users/phils/Documents/repos/Three.js/three.js/examples/jsm/libs/ccapture.all.min.js'
 import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
 import { TWEEN } from '../three.js/examples/jsm/libs/tween.module.min'
+//import { TWEEN } from '../tween.js/dist/tween.esm.js'
 import { Water } from '../three.js/examples/jsm/objects/Water.js'
 //import * as CCapture from '../three.js/examples/jsm/libs/CCapture.all.min.js'
 
@@ -50,6 +51,12 @@ let genSpecsFile = false
 let fastTetherRender = true   // Fast render also uses the jitter reduction technique of creating a mesh with coordinates relative to a point near the ring, and then setting these mesh positions near the ring as well. However, this technique generates coordinates that are not useful for kml file generation.
 let majorRedesign = true // False enables work in progress...
 let capturer = null
+let animationState = 0
+const keyFrames = []
+let keyFrameDelay = 0
+let previousKeyFrame
+let followElevators = false
+let followTransitVehicles = false
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -111,14 +118,14 @@ const guidParamWithUnits = {
   buildLocationRingEccentricity: {value: 1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   finalLocationRingEccentricity: {value: 1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   // ToDo: moveRing needs to call adjustRingDesign when buildLocationRingEccentricity differs from finalLocationRingEccentricity
-  moveRing: {value: 1, units: "", autoMap: false, min: 0, max: 1, updateFunction: adjustRingLatLon, folder: folderGeography},
+  moveRing: {value: 1, units: "", autoMap: false, min: 0, max: 1, tweenable: true, updateFunction: adjustRingLatLon, folder: folderGeography},
 
   // Physical Constants
   permeabilityOfFreeSpace: {value: 4*Math.PI*1e-7, units: "N/A2", autoMap: true, min: 0, max: 0.0001, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Ring
   ringFinalAltitude: {value: 32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
-  ringAmountRaisedFactor: {value: 1, units: "", autoMap: true, min: 0, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering},
+  ringAmountRaisedFactor: {value: 1, units: "", autoMap: true, min: 0, max: 5, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
   movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numControlPoints: {value: 256, units: '', autoMap: true, min: 4, max: 1024, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -138,11 +145,11 @@ const guidParamWithUnits = {
 
   // Engineering Parameters - Tethers
   numTethers: {value: 1800, units: "", autoMap: true, min: 4, max: 7200, step: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 8, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
-  tetherSpanOverlapFactor: {value: 2, units: "%", autoMap: true, min: 0.5, max: 4, updateFunction: adjustRingDesign, folder: folderEngineering},
-  tetherPointBxAvePercent: {value: 50, units: "%", autoMap: true, min: 0, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
-  tetherPointBxDeltaPercent: {value: 40, units: "%", autoMap: true, min: 0, max: 50, updateFunction: adjustRingDesign, folder: folderEngineering},
-  tetherEngineeringFactor: {value: 2.0, units: "", autoMap: true, min: 0.1, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
+  tetherSpanOverlapFactor: {value: 2, units: "%", autoMap: true, min: 0.5, max: 4, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
+  tetherPointBxAvePercent: {value: 50, units: "%", autoMap: true, min: 0, max: 100, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
+  tetherPointBxDeltaPercent: {value: 40, units: "%", autoMap: true, min: 0, max: 50, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
+  tetherEngineeringFactor: {value: 2.0, units: "", autoMap: true, min: 0.1, max: 10, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Transit System
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -189,6 +196,8 @@ const guidParamWithUnits = {
   elevatorCableOutwardOffset: {value: -24, units: 'm', autoMap: true, min: -30, max: -10, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCableForwardOffset: {value: -11, units: 'm', autoMap: true, min: -100, max: 0, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCarUpwardOffset: {value: 0.32, units: 'm', autoMap: true, min: -10, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCarMaxSpeed: {value: 200, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCarMaxAcceleration: {value: 2, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Habitats
   numVirtualHabitats: {value:17100, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -269,8 +278,8 @@ const guidParamWithUnits = {
   showMainRingCurve: {value: false, units: '', autoMap: true, updateFunction: mainRingCurveObjectUpdate, folder: folderRendering},
   showGravityForceArrows: {value: false, units: '', autoMap: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showGyroscopicForceArrows: {value: false, units: '', autoMap: true, updateFunction: gyroscopicForceArrowsUpdate, folder: folderRendering},
-  forceArrowSize: {value: 50000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
-  numForceArrows: {value: 32, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  forceArrowSize: {value: 50000, units: '', autoMap: true, min: 0, max: 1000000, tweenable: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  numForceArrows: {value: 32, units: '', autoMap: true, min: 0, max: 1024, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showMainRings: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTethers: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
@@ -289,14 +298,19 @@ const guidParamWithUnits = {
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
-  cableVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustCableOpacity, folder: folderRendering},
-  tetherVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
+  cableVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustCableOpacity, folder: folderRendering},
+  tetherVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
-  cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, updateFunction: updateCamerFieldOfView, folder: folderRendering},
+  cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   orbitControlsRotateSpeed: {value: 1, units: '', autoMap: true, min: -10, max: 10, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   logZoomRate: {value: -2, units: '', autoMap: true, min: -5, max: -1, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
+  tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
+  //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
+  // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
+  // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
+
 }
 
 function updatePerfOptimzation() {
@@ -494,6 +508,7 @@ function adjustCableOpacity() {
 function adjustTetherOpacity() {
   updatedParam()
   tetherMaterial.opacity = dParamWithUnits['tetherVisibility'].value
+  console.log("Updating" + dParamWithUnits['tetherVisibility'].value)
 }
 
 function adjustLaunchTrajectoryOpacity() {
@@ -526,7 +541,7 @@ let simContainer = document.querySelector('#simContainer')
 
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
-const renderToBuffer = true // Hack - needs a GUI control still
+const renderToBuffer = false // Hack - needs a GUI control still
 
 // Used for saving the rendered images to series of numbered files
 let bufferTexture
@@ -541,7 +556,7 @@ scene.autoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0xffffff )
+scene.background = new THREE.Color( 0x001030 )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -578,7 +593,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: false,  // Make the background transparent
+  alpha: true,  // Make the background transparent
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas')
 })
@@ -621,17 +636,17 @@ const planetCoordSys = new THREE.Group()
 //planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
 
 let eightTextureMode = false
-let TextureMode24x12 = false
+let TextureMode24x12 = true
 let TextureModeOpenLayers = false
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
   planetCoordSys.rotation.x = Math.PI * -4 / 16
   planetCoordSys.matrixValid = false
-  eightTextureMode = true
+  eightTextureMode = false
 }
 else {
   eightTextureMode = false
-  TextureMode24x12 = false
+  TextureMode24x12 = true
 }
 const useShaders = true
 
@@ -819,20 +834,20 @@ else {
       //roughness: 1,
       //metalness: 0,
       //map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ),
-      map: new THREE.TextureLoader().load( './textures/venus1280x720.jpg' ),
-      //map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
+      //map: new THREE.TextureLoader().load( './textures/venus1280x720.jpg' ),
+      map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
       //map: new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
       //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
       //bumpScale: 1000000,
       //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
       //displacementScale: 20000,
-      blending: THREE.CustomBlending,
-      blendEquation: THREE.AddEquation, //default
-      blendSrc: THREE.SrcAlphaFactor, //default
-      blendDst: THREE.OneMinusSrcAlphaFactor, //default
-      blendSrcAlpha: dParamWithUnits['earthTextureOpacity'].value,
-      transparent: true,
-      opacity: dParamWithUnits['tetherVisibility'].value
+      // blending: THREE.CustomBlending,
+      // blendEquation: THREE.AddEquation, //default
+      // blendSrc: THREE.SrcAlphaFactor, //default
+      // blendDst: THREE.OneMinusSrcAlphaFactor, //default
+      // blendSrcAlpha: dParamWithUnits['earthTextureOpacity'].value,
+      // transparent: true,
+      opacity: dParamWithUnits['earthTextureOpacity'].value
     })
   )
   planetMesh.name = 'planet'
@@ -861,22 +876,22 @@ atmosphereMesh.name = 'atmosphere'
 atmosphereMesh.scale.set(1.1, 1.1 * (1.0 - 1.0/WGS84FlattenningFactor), 1.1)
 //atmosphereMesh.receiveShadow = true
 
-const water = new Water(
-  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
-  {
-    textureWidth: 512,
-    textureHeight: 512,
-    waterNormals: new THREE.TextureLoader().load( './textures/waternormals.jpg', function ( texture ) {
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    } ),
-    sunDirection: new THREE.Vector3(),
-    sunColor: 0xffffff,
-    waterColor: 0x001e0f,
-    distortionScale: 3.7,
-    fog: scene.fog !== undefined
-  }
-)
-scene.add(water)
+// const water = new Water(
+//   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
+//   {
+//     textureWidth: 512,
+//     textureHeight: 512,
+//     waterNormals: new THREE.TextureLoader().load( './textures/waternormals.jpg', function ( texture ) {
+//       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+//     } ),
+//     sunDirection: new THREE.Vector3(),
+//     sunColor: 0xffffff,
+//     waterColor: 0x001e0f,
+//     distortionScale: 3.7,
+//     fog: scene.fog !== undefined
+//   }
+// )
+// scene.add(water)
 
 // Experimental code
 // const plane = new THREE.mesh(new THREE.PlaneGeometry(2, 2, 512, 512), 
@@ -918,12 +933,14 @@ const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
 const metalicMaterial = new THREE.MeshBasicMaterial({color: 0x878681, transparent: false})
 const transparentMaterial1 = new THREE.MeshPhongMaterial( {vertexColors: true, transparent: true, opacity: 0.55})
 const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0.35})
+const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0})
 
 var tetherMaterial = new THREE.LineBasicMaterial({
   //vertexColors: THREE.VertexColors,
-  color: 0x4897f8,
-  //color: 0x808080,
-  //color: 0xc0c0f0,
+  //color: 0x4897f8,
+  //color: 0x000000,
+  //color: 0x080808,
+  color: 0xc0c0f0,
   transparent: true,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
@@ -1164,12 +1181,12 @@ function constructMainRingAndTransitSystem() {
       referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
 
       const tempTransitTubeGeometry = new transitTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, dParamWithUnits['transitTubeTubeRadius'].value)
-      const transitTubeMesh = new THREE.Mesh(tempTransitTubeGeometry, transparentMaterial1)
+      const transitTubeMesh = new THREE.Mesh(tempTransitTubeGeometry, transparentMaterial3)
       transitTubeMesh.name = 'transitTube'
       transitTubeMesh.position.copy(referencePoint)
       transitTubeMesh.matrixValid = false
       if (guidParam['perfOptimizedThreeJS']) transitTubeMesh.freeze()
-      transitSystemMeshes.push( transitTubeMesh )
+      //transitSystemMeshes.push( transitTubeMesh )
     }
 
     // Four tracks within outer tube
@@ -1398,7 +1415,6 @@ function calculateAdditionalSpecs() {
 
 function updateRing() {
   
-  clock.start()
   if (majorRedesign) {
     mainRingMeshes.forEach(mesh => {
       mesh.geometry.dispose()
@@ -1407,7 +1423,7 @@ function updateRing() {
     })
     mainRingMeshes.splice(0, mainRingMeshes.length)
   }
-  if (verbose) console.log('dispose mainRingMeshes ' + clock.getElapsedTime())
+  if (verbose) console.log('dispose mainRingMeshes ')
 
   if (dParamWithUnits['showTransitSystem'].value) {
     if (majorRedesign) {
@@ -1419,7 +1435,7 @@ function updateRing() {
       transitSystemMeshes.splice(0, transitSystemMeshes.length)
     }
   }
-  if (verbose) console.log('dispose transitSystemMeshes ' + clock.getElapsedTime())
+  if (verbose) console.log('dispose transitSystemMeshes ')
 
   if (dParamWithUnits['showElevatorCables'].value) {
     elevatorCableMeshes.forEach(mesh => {
@@ -1429,7 +1445,7 @@ function updateRing() {
     })
     elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
   }
-  if (verbose) console.log('dispose elevatorCableMeshes ' + clock.getElapsedTime())
+  if (verbose) console.log('dispose elevatorCableMeshes ')
 
   tethers.forEach(tether => {
     tether.geometry.dispose()
@@ -1438,7 +1454,7 @@ function updateRing() {
     tetheredRingRefCoordSys.remove(tether)
   })
   tethers.splice(0, tethers.length)
-  if (verbose) console.log('dispose tethers ' + clock.getElapsedTime())
+  if (verbose) console.log('dispose tethers ')
 
   // Update the parameters prior to reconsrructing the scene
   updatedParam()
@@ -1449,7 +1465,7 @@ function updateRing() {
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
  
   constructMainRingCurve()
-  if (verbose) console.log('constructMainRingCurve ' + clock.getElapsedTime())
+  if (verbose) console.log('constructMainRingCurve ')
 
   if (dParamWithUnits['showTransitSystem'].value) {
     if (majorRedesign) {
@@ -1473,16 +1489,15 @@ function updateRing() {
   }
   mainRingCurveObject.update(dParamWithUnits, mainRingCurve)
   transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
-  if (verbose) console.log('transitSystemObject.update ' + clock.getElapsedTime())
+  if (verbose) console.log('transitSystemObject.update ')
 
   constructElevatorCables()
-  if (verbose) console.log('constructElevatorCables ' + clock.getElapsedTime())
+  if (verbose) console.log('constructElevatorCables ')
   //if (verbose) console.log("Updating Tethers")
   constructTethers()
-  if (verbose) console.log('constructTethers ' + clock.getElapsedTime())
+  if (verbose) console.log('constructTethers ')
 
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
   //calculateAdditionalSpecs()
 
   if (genSpecs) {
@@ -1502,7 +1517,7 @@ function updateRing() {
       specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
     })
   }
-  if (verbose) console.log('done ' + clock.getElapsedTime())
+  if (verbose) console.log('done ')
 }
 
 const mouse = {
@@ -1532,18 +1547,9 @@ function animate() {
 
 // Hack
 console.userdata = {'capture': 0, 'matrixAutoUpdateData': {}, 'matrixWorldUpdateData': {}}
+const elevatorPosCalc = new tram.elevatorPositionCalculator(dParamWithUnits, crv, ecv)
 
 function renderFrame() {
-  //requestAnimationFrame(animate)
-  //simContainer = document.querySelector('#simContainer')
-  //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
-  //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
-  orbitControls.enabled = false
-  TWEEN.update()
-  camera.up.copy(orbitControlsUpVector.clone())
-  orbitControls.upDirection.copy(orbitControlsUpVector.clone())
-  orbitControls.enabled = true
-  orbitControls.update()
 
   if (orbitControlsEarthRingLerpFactor!=1) {
     //console.log("Lerping...")
@@ -1610,7 +1616,6 @@ function renderFrame() {
     for (var i in gui.__controllers) {
       gui.__controllers[i].updateDisplay()
     }
-
     updateTransitsystem()  
   
     majorRedesign = true
@@ -1618,15 +1623,15 @@ function renderFrame() {
     majorRedesign = true
   }
 
-  if (cameraSpeed!==0) {
-    camera.position.multiplyScalar(1+cameraSpeed)
-    camera.matrixValid = false
-    orbitControls.target.multiplyScalar(1+cameraSpeed)
-    if (camera.position.length()>=radiusOfPlanet + 100000) {
-      animateCameraGoingUp = false
-      cameraSpeed = 0
-    }
-  }
+  // if (cameraSpeed!==0) {
+  //   camera.position.multiplyScalar(1+cameraSpeed)
+  //   camera.matrixValid = false
+  //   orbitControls.target.multiplyScalar(1+cameraSpeed)
+  //   if (camera.position.length()>=radiusOfPlanet + 100000) {
+  //     animateCameraGoingUp = false
+  //     cameraSpeed = 0
+  //   }
+  // }
 
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
 
@@ -1673,7 +1678,30 @@ function renderFrame() {
   else {
     renderer.render(scene, camera)
   }
-  if (capturer) capturer.capture( renderer.domElement );
+  if (capturer) {
+    capturer.capture( renderer.domElement );
+    //capturer.capture( bufferTexture );  // Doesn't work because bufferTexture doesn't support the toBlob method
+  }
+
+  //requestAnimationFrame(animate)
+  //simContainer = document.querySelector('#simContainer')
+  //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
+  //renderer.setViewport( 0, 0, simContainer.offsetWidth, simContainer.offsetHeight )
+  orbitControls.enabled = false
+  TWEEN.update(timeSinceStart*1000)
+  if (followElevators) {
+    const elevatorDistanceFromEarthsCenter = elevatorPosCalc.calculateElevatorPosition(timeSinceStart)+radiusOfPlanet+dParamWithUnits['transitTubeUpwardOffset'].value
+    camera.position.normalize().multiplyScalar(elevatorDistanceFromEarthsCenter)
+    orbitControls.target.normalize().multiplyScalar(elevatorDistanceFromEarthsCenter)
+  }
+  if (followTransitVehicles) {
+    const axis = new THREE.Vector3(0,1,0).applyQuaternion(ringToPlanetRotation)
+    const angle = delta * dParamWithUnits['transitVehicleCruisingSpeed'].value / crv.mainRingRadius
+    camera.position.applyAxisAngle(axis, angle)
+    orbitControls.target.applyAxisAngle(axis, angle)
+  }
+  orbitControls.enabled = true
+  orbitControls.update()
 
   if (console.userdata['capture']==1) {
     if (verbose) console.log(console.userdata)
@@ -1801,11 +1829,23 @@ function onKeyDown( event ) {
         new TWEEN.Tween(orbitControls.target)
           .to(orbitControlsTargetPoint, 1000)
           .easing(TWEEN.Easing.Cubic.InOut)
-          .start()
-        new TWEEN.Tween(orbitControlsUpVector)
+          .start(timeSinceStart*1000)
+        new TWEEN.Tween(orbitControls.upDirection)
           .to(orbitControlsTargetUpVector, 1000)
           .easing(TWEEN.Easing.Cubic.InOut)
-          .start()
+          .start(timeSinceStart*1000)
+        new TWEEN.Tween(camera.up)
+          .to(orbitControlsTargetUpVector, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start(timeSinceStart*1000)
+          // new TWEEN.Tween(orbitControlsUpVector)
+          // .to(orbitControlsTargetUpVector, 1000)
+          // .easing(TWEEN.Easing.Cubic.InOut)
+          // .start(timeSinceStart*1000)
+
+          camera.up.copy(orbitControlsUpVector.clone())
+          orbitControls.upDirection.copy(orbitControlsUpVector.clone())
+        
 
         // previousTargetPoint.copy(orbitControls.target.clone())
         // previousUpVector.copy(orbitControls.upDirection.clone())
@@ -1846,20 +1886,9 @@ function onKeyDown( event ) {
     case 68: /*D*/
       cameraSpeed -= 0.00000001
       break;
-    case 66: /*B*/
-      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
-        v.value = guidParam[k]
-      })
-      guidParamWithUnits['transitVehicleCruisingSpeed'].value = 50  // m/s
-      guidParamWithUnits['launchVehicleCruisingSpeed'].value = 800  // m/s
-      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
-        guidParam[k] = v.value
-      })
-      updateTransitsystem()
-      break;
-    case 67: /*C*/
-      console.userdata['capture'] = 1
-      break;
+    // case 67: /*C*/
+    //   console.userdata['capture'] = 1
+    //   break;
     case 84: /*T*/
       // Toggle Display of the Tensile Force Arrows
       showTensileForceArrows = !showTensileForceArrows
@@ -1931,9 +1960,6 @@ function onKeyDown( event ) {
     case 90: /*Z*/
       animateZoomingIn = !animateZoomingIn
       animateZoomingOut = false
-      break;
-    case 69: /*E*/
-      recomputeNearFarClippingPlanes()
       break;
     case 83: /*S*/
       genSpecs = true
@@ -2053,10 +2079,127 @@ function onKeyDown( event ) {
       majorRedesign = true
   
       break;
+    case 65: /*A*/
+      // const recordEverything = (keyFrames.length == 0)
+      // if (!recordEverything) {
+      //   // Create a reference to the previous keyframe
+      //   previousKeyFrame = keyFrames[keyFrames.length - 1]
+      // }
+      // Flesh out the basic heirarchy of a keyframe
+      const keyFrame = {}
+      keyFrame['guidParamWithUnits'] = {}
+      keyFrame['orbitControls'] = {}
+      keyFrame['orbitControls']['object'] = {}
+      keyFrame['camera'] = {}
+      // Record the state of guidParamsWithUnits
+      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+        if (v.tweenable) {
+          //if (recordEverything || (v.value !== previousKeyFrame['guidParamWithUnits'][k].value)) {
+            keyFrame['guidParamWithUnits'][k] = {tween: true, param: 'guidParam', key: k, value: v.value, updateFunction: v.updateFunction}
+          //}
+        }
+      })
+      // Record the current state of the orbit controls and camera
+      keyFrame['orbitControls']['target'] = {tween: true, param: 'orbitControls.target', value: orbitControls.target.clone()}
+      keyFrame['orbitControls']['upDirection'] = {tween: true, param: 'orbitControls.upDirection', value: orbitControls.upDirection.clone()}       
+      keyFrame['orbitControls']['object']['position'] = {tween: true, param: 'orbitControls.object.position', value: orbitControls.object.position.clone()}
+      keyFrame['camera']['up'] = {tween: true, param: 'camera.up', value: camera.up.clone()}
+      keyFrames.push(keyFrame)
+      break;
+    case 69: /*E*/
+      followElevators = !followElevators
+      // // Erase all of the keyFrames to reset animation sequence
+      // // ToDo - This needs to be cleaned up
+      // keyFrames.forEach(keyFrame => {
+      //   keyFrame.traverse(c => {
+      //     c.splice(0, c.length)
+      //   })
+      // })
+      // keyFrames.splice(0, keyFrames.length)
+      break
+    case 67: /*C*/
+      followTransitVehicles = !followTransitVehicles
+      break
+    case 66: /*B*/
+      // Animation Sequence Playback
+      // Restore all parameters  to the initia state
+      keyFrameDelay = 0
+      let orbitControlsTargetTweeners = []
+      let orbitControlsUpDirectionTweeners = []
+      let orbitControlsObjectPositionTweeners = []
+      let cameraUpTweeners = []
+      keyFrames.forEach((keyFrame, index) => {
+        const firstKeyFrame = (index == 0)
+        if (!firstKeyFrame) {
+          // Create a reference to the previous keyframe
+          previousKeyFrame = keyFrames[index - 1]
+        }
+        // Traverse the keyFrame and restore the values of the tweenable parameters
+        const elements = {
+          guidParam: keyFrame['guidParamWithUnits'],
+          orbitControls_target: keyFrame['orbitControls']['target'],
+          orbitControls_upDirection: keyFrame['orbitControls']['upDirection'],
+          orbitControls_object_position: keyFrame['orbitControls']['object']['position'],
+          camera_up: keyFrame['camera']['up'] }
+        Object.entries(elements).forEach(([k, v]) => {
+          // Test Code: const element = {tween: true, param: 'guidParam', key: 'tetherVisibility', value: 1, updateFunction: adjustTetherOpacity}
+          switch (k) {
+            // case 'guidParam':
+            //   Object.entries(v).forEach(([k1,v1]) => {
+            //     if (firstKeyFrame || (v1.value !== previousKeyFrame['guidParamWithUnits'][k1].value)) {
+            //       const target = {}
+            //       target[k1] = v1.value
+            //       new TWEEN.Tween(guidParam).to(target, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut).onUpdate(v1.updateFunction).delay(keyFrameDelay).start(timeSinceStart*1000)
+            //       console.log(k1, v1.value)
+            //     }
+            //   })
+            //   break
+            case 'orbitControls_target':
+              if (firstKeyFrame) {
+                orbitControlsTargetTweeners.push(new TWEEN.Tween(orbitControls.target).to(v.value, 1000).easing(TWEEN.Easing.Cubic.InOut).start(timeSinceStart*1000))
+              }
+              else if (!orbitControls.target.equals(previousKeyFrame['orbitControls']['target'])) {
+                orbitControlsTargetTweeners.push(new TWEEN.Tween(orbitControls.target).to(v.value, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut))
+                const l = orbitControlsTargetTweeners.length
+                orbitControlsTargetTweeners[l - 2].chain(orbitControlsTargetTweeners[l - 1])
+              }
+              break
+            case 'orbitControls_upDirection':
+              if (firstKeyFrame) {
+                orbitControlsUpDirectionTweeners.push(new TWEEN.Tween(orbitControls.upDirection).to(v.value, 1000).easing(TWEEN.Easing.Cubic.InOut).start(timeSinceStart*1000))
+              }
+              else if (!orbitControls.upDirection.equals(previousKeyFrame['orbitControls']['upDirection'])) {
+                orbitControlsUpDirectionTweeners.push(new TWEEN.Tween(orbitControls.upDirection).to(v.value, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut))
+                const l = orbitControlsUpDirectionTweeners.length
+                orbitControlsUpDirectionTweeners[l - 2].chain(orbitControlsUpDirectionTweeners[l - 1])
+              }
+              break
+            case 'orbitControls_object_position':
+              if (firstKeyFrame) {
+                orbitControlsObjectPositionTweeners.push(new TWEEN.Tween(orbitControls.object.position).to(v.value, 1000).easing(TWEEN.Easing.Cubic.InOut).start(timeSinceStart*1000))
+              }
+              else if (!orbitControls.object.position.equals(previousKeyFrame['orbitControls']['object']['position'])) {
+                orbitControlsObjectPositionTweeners.push(new TWEEN.Tween(orbitControls.object.position).to(v.value, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut))
+                const l = orbitControlsObjectPositionTweeners.length
+                orbitControlsObjectPositionTweeners[l - 2].chain(orbitControlsObjectPositionTweeners[l - 1])
+              }
+              break
+            case 'camera_up':
+              if (firstKeyFrame) {
+                cameraUpTweeners.push(new TWEEN.Tween(camera.up).to(v.value, 1000).easing(TWEEN.Easing.Cubic.InOut).start(timeSinceStart*1000))
+              }
+              else if (!camera.up.equals(previousKeyFrame['camera']['up'])) {
+                cameraUpTweeners.push(new TWEEN.Tween(camera.up).to(v.value, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut))
+                const l = cameraUpTweeners.length
+                cameraUpTweeners[l - 2].chain(cameraUpTweeners[l - 1])
+              }
+              break
+          }
+        })
+        keyFrameDelay += guidParamWithUnits['tweeningDuration'].value*2
+      })
+      break
   }
-  // Object.entries(guidParamWithUnits).forEach(([k, v]) => {
-  //   guidParam[k] = v.value
-  // })
 }
 
 function orbitControlsEventHandler() {
@@ -2289,7 +2432,7 @@ sCB.addEventListener( 'click', function( e ) {
     format: document.querySelector('input[name="encoder"]:checked').value,
     workersPath: './ccapture_workers/',
     timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
-    frameLimit: 0,
+    frameLimit: 1200,
     autoSaveTime: 0,
     onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
   } );
