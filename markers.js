@@ -210,12 +210,12 @@ export class gravityForceArrowsObject {
       const gravityForce = -Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2) / 1000
       const inertialForce = Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2) / 1000
       const tensileForce = Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2) / 1000
-      console.log(ctv.gravityForceAtRing[0]['ρ'], ctv.gravityForceAtRing[0]['z'], Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2), gravityForce)
-      console.log(ctv.gravityForceAtRing[1]['ρ'], ctv.gravityForceAtRing[1]['z'], Math.sqrt(ctv.gravityForceAtRing[1]['ρ']**2+ctv.gravityForceAtRing[1]['z']**2), gravityForce)
-      console.log(ctv.tensileForceAtRing[0]['ρ'], ctv.tensileForceAtRing[0]['z'], Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2), tensileForce)
-      console.log(ctv.tensileForceAtRing[1]['ρ'], ctv.tensileForceAtRing[1]['z'], Math.sqrt(ctv.tensileForceAtRing[1]['ρ']**2+ctv.tensileForceAtRing[1]['z']**2), tensileForce)
-      console.log(ctv.inertialForceAtRing[0]['ρ'], ctv.inertialForceAtRing[0]['z'], Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2), inertialForce)
-      console.log(ctv.inertialForceAtRing[1]['ρ'], ctv.inertialForceAtRing[1]['z'], Math.sqrt(ctv.inertialForceAtRing[1]['ρ']**2+ctv.inertialForceAtRing[1]['z']**2), inertialForce)
+      // console.log(ctv.gravityForceAtRing[0]['ρ'], ctv.gravityForceAtRing[0]['z'], Math.sqrt(ctv.gravityForceAtRing[0]['ρ']**2+ctv.gravityForceAtRing[0]['z']**2), gravityForce)
+      // console.log(ctv.gravityForceAtRing[1]['ρ'], ctv.gravityForceAtRing[1]['z'], Math.sqrt(ctv.gravityForceAtRing[1]['ρ']**2+ctv.gravityForceAtRing[1]['z']**2), gravityForce)
+      // console.log(ctv.tensileForceAtRing[0]['ρ'], ctv.tensileForceAtRing[0]['z'], Math.sqrt(ctv.tensileForceAtRing[0]['ρ']**2+ctv.tensileForceAtRing[0]['z']**2), tensileForce)
+      // console.log(ctv.tensileForceAtRing[1]['ρ'], ctv.tensileForceAtRing[1]['z'], Math.sqrt(ctv.tensileForceAtRing[1]['ρ']**2+ctv.tensileForceAtRing[1]['z']**2), tensileForce)
+      // console.log(ctv.inertialForceAtRing[0]['ρ'], ctv.inertialForceAtRing[0]['z'], Math.sqrt(ctv.inertialForceAtRing[0]['ρ']**2+ctv.inertialForceAtRing[0]['z']**2), inertialForce)
+      // console.log(ctv.inertialForceAtRing[1]['ρ'], ctv.inertialForceAtRing[1]['z'], Math.sqrt(ctv.inertialForceAtRing[1]['ρ']**2+ctv.inertialForceAtRing[1]['z']**2), inertialForce)
   
       const n = dParamWithUnits['numForceArrows'].value
       for (let i = 0; i<n; i++) {

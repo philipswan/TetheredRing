@@ -173,18 +173,64 @@ class TetherGeometry extends BufferGeometry {
         specs['movingRingsDiameterIfMadeIntoSphere'] = {value: movingRingsDiameterIfMadeIntoSphere, units: "m"}
         const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingSpeed**2
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
-        const movingRingsTotalKineticEnergyEquivalentAntimatter = movingRingsTotalKineticEnergy / (180 * 1000000 * 1e9) // 180 MJ/microgram converted to J/kg
-        specs['movingRingsTotalKineticEnergyEquivalentAntimatter'] = {value: movingRingsTotalKineticEnergyEquivalentAntimatter, units: "kg"}
         const movingRingsTotalKineticEnergyTWh = movingRingsTotalKineticEnergy / 3.6e+15
         console.log(movingRingsTotalKineticEnergy, movingRingsTotalKineticEnergyTWh)
         specs['movingRingsTotalKineticEnergyTWh'] = {value: movingRingsTotalKineticEnergyTWh, units: "TWh"}
-        const movingRingsKineticEnergyPerMeterOfRing = movingRingsTotalKineticEnergy / (crv.mainRingRadius * 2 * Math.PI)
+        const movingRingsTotalKineticEnergyEquivalentAntimatter = movingRingsTotalKineticEnergy / (180 * 1000000 * 1e9) // 180 MJ/microgram converted to J/kg
+        specs['movingRingsTotalKineticEnergyEquivalentAntimatter'] = {value: movingRingsTotalKineticEnergyEquivalentAntimatter, units: "kg"}
+        const movingRingsTotalKineticEnergyEquivalentHuricaneHours = movingRingsTotalKineticEnergy / (5.2E19 / 24) // https://science.howstuffworks.com/environmental/energy/energy-hurricane-volcano-earthquake1.htm#:~:text=If%20we%20crunch%20the%20numbers,generating%20capacity%20on%20the%20planet!
+        specs['movingRingsTotalKineticEnergyEquivalentHuricaneHours'] = {value: movingRingsTotalKineticEnergyEquivalentHuricaneHours, units: "HuricaneHours"}
+        const movingRingsKineticEnergyPerMeterOfRing = movingRingsTotalKineticEnergy / mainRingCircumference
         specs['movingRingsKineticEnergyPerMeterOfRing'] = {value: movingRingsKineticEnergyPerMeterOfRing, units: "J"}
         const wholesaleCostOfEnergy = dParamWithUnits['wholesaleCostOfEnergy'].value
         const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * wholesaleCostOfEnergy / oneBillion
         specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
-        const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / (crv.mainRingRadius * 2 * Math.PI)
+        const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / mainRingCircumference
         specs['movingRingsKineticEnergyCostPerMeterOfRing'] = {value: movingRingsKineticEnergyCostPerMeterOfRing, units: "USD"}
+
+        // Power to accellerate the moving ring
+        const movingRingLinearMotorEfficiency = dParamWithUnits['movingRingLinearMotorEfficiency'].value
+        const solarPanelReferenceTemperature = dParamWithUnits['solarPanelReferenceTemperature'].value
+        const solarPanelAverageTemperature = dParamWithUnits['solarPanelAverageTemperature'].value  // ToDo: We need to compute this based on the ring's Altitude
+        const solarPanelTemperatureEfficiencyFactor = dParamWithUnits['solarPanelTemperatureEfficiencyFactor'].value
+        const solarPanelEfficiencyAtReferenceTemperature = dParamWithUnits['solarPanelEfficiencyAtReferenceTemperature'].value
+        const solarPanelEfficiency = solarPanelEfficiencyAtReferenceTemperature * (1 - solarPanelTemperatureEfficiencyFactor * (solarPanelAverageTemperature - solarPanelReferenceTemperature))
+        console.log('solarPanelEfficiency', solarPanelEfficiency)
+        const solarPanelMassPerMeterSquared = dParamWithUnits['solarPanelMassPerMeterSquared'].value
+        const solarPanelCostPerWatt = dParamWithUnits['solarPanelCostPerWatt'].value
+        const solarPanelMountMassPerMeterSquared = dParamWithUnits['solarPanelMountMassPerMeterSquared'].value
+        const solarPanelPeakSolarPowerPerMeterSquared = dParamWithUnits['solarPanelPeakSolarPowerPerMeterSquared'].value
+        const solarPowerAvailibilityFactor = dParamWithUnits['solarPowerAvailibilityFactor'].value
+        const solarPanelWidth = dParamWithUnits['solarPanelWidth'].value
+        const solarPanelsTotalSurfaceArea = solarPanelWidth * mainRingCircumference
+        const solarPanelsTotalMass = solarPanelsTotalSurfaceArea * (solarPanelMassPerMeterSquared * solarPanelMountMassPerMeterSquared)
+        specs['solarPanelTotalMass'] = {value: solarPanelsTotalMass, units: "kg"}
+        const solarPanelsTotalPowerOutput = solarPanelsTotalSurfaceArea * solarPanelPeakSolarPowerPerMeterSquared * solarPanelEfficiency * solarPowerAvailibilityFactor
+        specs['solarPanelsTotalPowerOutput'] = {value: solarPanelsTotalPowerOutput, units: "W"}
+        const solarPanelsTotalPowerOutputPerMeterOfRing = solarPanelsTotalPowerOutput / mainRingCircumference
+        specs['solarPanelsTotalPowerOutputPerMeterOfRing'] = {value: solarPanelsTotalPowerOutputPerMeterOfRing, units: "W"}
+        const solarPanelPowerTransmissionLossFactor = 0.99 // 1% loss
+        const windTurbinesTotalPowerOutput = 0  // ToDo
+        const windTurbinePowerTransmissionLossFactor = 0.9 // ToDo: This represents the portion of wind turbine genrated power received at the ring after transmission line and transformer losses are acconted for
+        const totalPowerToLinearMotors = solarPanelsTotalPowerOutput * solarPanelPowerTransmissionLossFactor + windTurbinesTotalPowerOutput * windTurbinePowerTransmissionLossFactor
+        specs['totalPowerToLinearMotors'] = {value: totalPowerToLinearMotors, units: "W"}
+        const timeToAccellerateMovingRings = movingRingsTotalKineticEnergy / (totalPowerToLinearMotors * movingRingLinearMotorEfficiency)
+        specs['timeToAccellerateMovingRings'] = {value: timeToAccellerateMovingRings, units: "s"}
+        const timeToAccellerateMovingRingsDays = timeToAccellerateMovingRings / (3600*24)
+        // This is misleading because the ring will be sped up using terrestrial power soures while it's under the surface of the ocean, and then allowed to float upwards.
+        // We only need to add power to increase it's altitude and speed while it's above the surface of the ocean, and to overcome losses.
+        specs['timeToAccellerateMovingRingsDays'] = {value: timeToAccellerateMovingRingsDays, units: "days"}
+        console.log('timeToAccellerateMovingRingsDays', timeToAccellerateMovingRingsDays)
+        const timeToAccellerateMovingRingsYears = timeToAccellerateMovingRingsDays / 365
+        specs['timeToAccellerateMovingRingsYears'] = {value: timeToAccellerateMovingRingsYears, units: "years"}
+        console.log('timeToAccellerateMovingRingsYears', timeToAccellerateMovingRingsYears)
+
+        const solarPanelMassPerMeterOfRing = solarPanelsTotalMass / mainRingCircumference
+        specs['solarPanelMassPerMeterOfRing'] = {value: solarPanelMassPerMeterOfRing, units: "kg/m"}
+        const ratedWattsPerKilogram = solarPanelEfficiencyAtReferenceTemperature * solarPanelPeakSolarPowerPerMeterSquared * solarPanelMassPerMeterSquared
+        specs['ratedWattsPerKilogram'] = {value: ratedWattsPerKilogram, units: "W/kg"}
+        const solarPanelsCostPerKg = solarPanelCostPerWatt / ratedWattsPerKilogram
+        specs['solarPanelsCostPerKg'] = {value: solarPanelsCostPerKg, units: "USD/kg"}
 
         // Calculate the force of gravity acting on the moving ring...
         const fM = new tram.forceVector() // Vector representing the steady state magnetic levitation force aplied to the moving ring
@@ -276,6 +322,7 @@ class TetherGeometry extends BufferGeometry {
         stationaryRingBillOfMaterials.push({name: 'vacuumPumps', massPerMeter: 1, units: 'kg', costPerkg: 1})
         stationaryRingBillOfMaterials.push({name: 'mechanicalIsolation', massPerMeter: 1, units: 'kg', costPerkg: 1})
         stationaryRingBillOfMaterials.push({name: 'aeronaticStabilizers', massPerMeter: 1, units: 'kg', costPerkg: 10})
+        stationaryRingBillOfMaterials.push({name: 'solarPanels', massPerMeter: solarPanelMassPerMeterOfRing, units: 'kg', costPerkg: solarPanelsCostPerKg})
         
         movingRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
         // ToDo - Assuming here that secondary magnet cores total same mass as primary but need more accurate calculation...
@@ -406,7 +453,7 @@ class TetherGeometry extends BufferGeometry {
         ctv.tensileForceAtRing[j] = structuredClone(fT)
         ctv.inertialForceAtRing[j] = structuredClone(fI)
         // console.log(ctv.gravityForceAtRing[j])
-        console.log("ctv.tensileForceAtRing", j, ctv.tensileForceAtRing[j], fT)
+        // console.log("ctv.tensileForceAtRing", j, ctv.tensileForceAtRing[j], fT)
         // console.log(ctv.inertialForceAtRing[j])
 
         for (let i = 0; i<=numTetherPoints-1; i++) {

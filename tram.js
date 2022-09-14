@@ -174,7 +174,7 @@ export class elevatorCarVariables {
     this.batterySpecificEnergy = 265 // Wh/kg
     this.driveSystemEfficiency = 0.8
     this.batteryMassPerKg = this.energyRequirementPerKg / (this.batterySpecificEnergy * 3600 * this.driveSystemEfficiency)
-    this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value + this.dParamWithUnits['ringTerminusUpwardOffset'].value + this.dParamWithUnits['elevatorCarUpwardOffset'].value    // May need to subtract the altitude of the terestrial terminus
+    this.travelDistance = this.crv.currentMainRingAltitude + this.dParamWithUnits['transitTubeUpwardOffset'].value + this.dParamWithUnits['ringTerminusUpwardOffset'].value + this.dParamWithUnits['elevatorCarUpwardOffset'].value - this.dParamWithUnits['groundTerminusUpwardOffset'].value   // May need to subtract the altitude of the terestrial terminus
     this.maxAccelleration = this.dParamWithUnits['elevatorCarMaxAcceleration'].value
     this.maxSpeed = this.dParamWithUnits['elevatorCarMaxSpeed'].value
     this.accellerationTime = this.maxSpeed / this.maxAccelleration
@@ -266,11 +266,12 @@ export class elevatorPositionCalculator {
     this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
     this.accProfile.addElement("V", -ecv.maxSpeed, ecv.steadySpeedTime)
     this.accProfile.addElement("A", ecv.maxAccelleration, ecv.accellerationTime)
-    this.accProfile.addElement("D", 0, ecv.waitTime)
+    this.accProfile.addElement("D", dParamWithUnits['groundTerminusUpwardOffset'].value, ecv.waitTime)
     this.accProfile.addElement("A", ecv.maxAccelleration, ecv.accellerationTime)
     this.accProfile.addElement("V", ecv.maxSpeed, ecv.steadySpeedTime)
     this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
     this.cycleTime = (ecv.totalTravelTime + ecv.waitTime) * 2  
+    console.log(ecv.totalTravelTime/60)
   }
 
   calculateElevatorPosition(t) {
@@ -312,7 +313,6 @@ export class vehicleReferenceFrameTrackPositionCalculator {
       prevP = P
     }
     this.transitTubeCircumference = l
-    console.log("Main Ring Circumference", this.transitTubeCircumference, crv.mainRingRadius*2*Math.PI)
   }
 
   calcTrackPosition(t) {

@@ -57,6 +57,7 @@ let keyFrameDelay = 0
 let previousKeyFrame
 let followElevators = false
 let followTransitVehicles = false
+let followLaunchVehicles = false
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -129,9 +130,6 @@ const guidParamWithUnits = {
   //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
   movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numControlPoints: {value: 256, units: '', autoMap: true, min: 4, max: 1024, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering},
-  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: adjustRingDesign, folder: folderEngineering},
   totalMassPerMeterOfRing: {value: 100, units: "kg", autoMap: true, min: 1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
   statorMassPerUnitOfLoad: {value: 0.02, units: "kg/N", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   relativePermeabilityOfCore: {value: 8000, units: "", autoMap: true, min: 0, max: 100000, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -144,12 +142,29 @@ const guidParamWithUnits = {
   portionOfCoreOnStationaryRing: {value: 0.7, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Tethers
-  numTethers: {value: 1800, units: "", autoMap: true, min: 4, max: 7200, step: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numTethers: {value: 3600, units: "", autoMap: true, min: 4, max: 7200, step: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
   numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
   tetherSpanOverlapFactor: {value: 2, units: "%", autoMap: true, min: 0.5, max: 4, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxAvePercent: {value: 50, units: "%", autoMap: true, min: 0, max: 100, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxDeltaPercent: {value: 40, units: "%", autoMap: true, min: 0, max: 50, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherEngineeringFactor: {value: 2.0, units: "", autoMap: true, min: 0.1, max: 10, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
+
+  // Engineering Parameters - Stationary Rings
+  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering}, // ToDo - Retire this parameter
+  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: adjustRingDesign, folder: folderEngineering},
+
+  numMainRings2: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  mainRingSpacing2: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
+  mainRingUpwardOffset: {value: 0, units: "m", autoMap: true, min: -100, max: 100, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  mainRingOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -10, max: 10, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  stationaryRingTubeRadius: {value: 0.5, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  movingRingTubeRadius: {value: 0.4, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // ToDo: These are really a function of numMainRings. Should calculate them rather than specifying them.
+  stationaryRingNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  movingRingNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  // numVirtualStationaryRings: This is computed from the sum of numVirtualRingTerminuses and numVirtualHabitats 
+  // numVirtualMovingRings: This is computed from the sum of numVirtualRingTerminuses and numVirtualHabitats 
 
   // Engineering Parameters - Transit System
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -162,6 +177,8 @@ const guidParamWithUnits = {
   // ToDo - Need 4 sliders for adjusting the track vertical and horizontal spacing and offsets
   ringTerminusOutwardOffset: {value: -9.75, units: 'm', autoMap: true, min: -10, max: -5, updateFunction: updateTransitsystem, folder: folderEngineering},
   ringTerminusUpwardOffset: {value: -3.8, units: 'm', autoMap: true, min: -5, max: -3, updateFunction: updateTransitsystem, folder: folderEngineering},
+  groundTerminusOutwardOffset: {value: -9.75, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
+  groundTerminusUpwardOffset: {value: 150, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
   
   transitVehicleUpwardOffset: {value: 1.1, units: 'm', autoMap: true, min: -1, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleCruisingSpeed: {value: 500, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -185,11 +202,13 @@ const guidParamWithUnits = {
   numVirtualTransitVehicles: {value: 40000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleNumModels: {value: 256, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   numVirtualRingTerminuses: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numVirtualGroundTerminuses: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   ringTerminusNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  groundTerminusNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Engineering Parameters - Elevators
   numElevatorCables: {value:900, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numElevatorCableModels: {value:24, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numElevatorCableModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numVirtualElevatorCars: {value: 1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCarNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   additionalUpperElevatorCable: {value: 20, units: 'm', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -224,7 +243,7 @@ const guidParamWithUnits = {
   launchTubeOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchTubeAcceleration: {value: 30, units: 'm', autoMap: true, min: 1, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchTubeExitVelocity: {value: 8000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeNumModels: {value:64, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   launchVehicleCoefficientOfDrag: {value: 1, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
   launchVehicleRadius: {value: 5, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -240,6 +259,19 @@ const guidParamWithUnits = {
   powerConductorConductivity: {value: 36900000, units: "Siemens*m-1", autoMap: true, min: 10000000, max: 100000000, updateFunction: adjustRingDesign, folder: folderEngineering}, // Value for Aliminum. One siemen is kg−1⋅m−2⋅s3⋅A2
   powerVoltageAcrossLoad: {value: 100000, units: "Volts", autoMap: true, min: 1, max: 10000000, updateFunction: adjustRingDesign, folder: folderEngineering},
   powerLostInConductorFactor: {value: 0.01, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+
+  movingRingLinearMotorEfficiency: {value: 0.9, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelReferenceTemperature: {value: 25, units: "C", autoMap: true, min: -100, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelAverageTemperature: {value: -40, units: "C", autoMap: true, min: -100, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelTemperatureEfficiencyFactor: {value: 0.0045, units: "C-1", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelTemperatureCoefficient: {value: -0.47, units: "%/C", autoMap: true, min: -1, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelEfficiencyAtReferenceTemperature: {value: 0.2, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelMassPerMeterSquared: {value: 0.28, units: "kg/m2", autoMap: true, min: 0, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelMountMassPerMeterSquared: {value: 0.1, units: "kg/m2", autoMap: true, min: 0, max: 100, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelCostPerWatt: {value: 2.5, units: "USD/W", autoMap: true, min: 0, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelPeakSolarPowerPerMeterSquared: {value: 1361, units: "W/m2", autoMap: true, min: 0, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPowerAvailibilityFactor: {value: 0.5, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarPanelWidth: {value: 10, units: "m", autoMap: true, min: 0, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Material Parameters - Tethers
   tetherMaterialDensityCarbonFiber: {value: 1790, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},        // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
@@ -268,12 +300,13 @@ const guidParamWithUnits = {
   wholesaleCostOfEnergy: {value: 0.02 / 3.6e6, units: "USD/J", autoMap: true, min: 0, max: 0.1, updateFunction: adjustRingDesign, folder: folderEconomics},
   
   // Rendering Parameters
-  parameterPresetNumber: {value: 1, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  parameterPresetNumber: {value: 0, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthOpacity, folder: folderRendering},
   showStars: {value: true, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
+  showBackgroundPatch: {value: false, units: '', autoMap: true, updateFunction: updateBackgroundPatch, folder: folderRendering},
   showEarthEquator: {value: false, units: '', autoMap: true, updateFunction: earthEquatorObjectUpdate, folder: folderRendering},
   showMainRingCurve: {value: false, units: '', autoMap: true, updateFunction: mainRingCurveObjectUpdate, folder: folderRendering},
   showGravityForceArrows: {value: false, units: '', autoMap: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
@@ -283,10 +316,14 @@ const guidParamWithUnits = {
   showMainRings: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTethers: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  showStationaryRing: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showMovingRing: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  // Note: The following parameter is not the actual speed of the movng rings, but a lower speed selected to make the moving rings motion more visible 
+  movingRingsSpeedForRendering: {value: 100, units: '', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderRendering},
   showTransitTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showTransitVehicles: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showRingTerminuses: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
-  showGroundTerminuses: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showGroundTerminuses: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showElevatorCables: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -295,11 +332,13 @@ const guidParamWithUnits = {
   showLaunchTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchVehiclePointLight: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  animateMovingRings: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
   cableVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustCableOpacity, folder: folderRendering},
-  tetherVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
+  tetherVisibility: {value:0.13, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
+  tetherColor: {value:0x000000, units: "", autoMap: true, min: 0, max: 0xffffff, tweenable: false, updateFunction: adjustTetherColor, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
@@ -307,6 +346,7 @@ const guidParamWithUnits = {
   logZoomRate: {value: -2, units: '', autoMap: true, min: -5, max: -1, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
+  pKeyAltitudeFactor: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updatedParam, folder: folderRendering},
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
   // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
@@ -471,7 +511,7 @@ function updateTransitsystem() {
   const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
   const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
   trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
-  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, timeSinceStart)
 }
 
 function adjustRingDesign() {
@@ -509,6 +549,12 @@ function adjustTetherOpacity() {
   updatedParam()
   tetherMaterial.opacity = dParamWithUnits['tetherVisibility'].value
   console.log("Updating" + dParamWithUnits['tetherVisibility'].value)
+}
+
+function adjustTetherColor() {
+  updatedParam()
+  tetherMaterial.color = dParamWithUnits['tetherColor'].value
+  console.log("Updating Color " + dParamWithUnits['tetherColor'].value)
 }
 
 function adjustLaunchTrajectoryOpacity() {
@@ -556,7 +602,7 @@ scene.autoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-scene.background = new THREE.Color( 0x001030 )
+//scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -593,7 +639,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: true,  // Make the background transparent
+  //alpha: true,  // Make the background transparent
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas')
 })
@@ -612,7 +658,7 @@ const orbitControls = new OrbitControls(camera, renderer.domElement)
 orbitControls.addEventListener('change', orbitControlsEventHandler)
 
 //orbitControls.autoRotate = true
-orbitControls.autoRotateSpeed = 0.1
+orbitControls.autoRotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
 orbitControls.enableDamping = true
 //orbitControls.dampingFactor *= 0.1 
 //orbitControls.enablePan = true
@@ -622,7 +668,7 @@ const planetHeightSegments = 192
 
 const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
 sunLight.name = 'sunlight'
-sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
+sunLight.position.set(0, -6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
 sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
@@ -857,6 +903,9 @@ else {
   planetMeshes.push(planetMesh)  
 }
 //planetMesh.castShadow = true
+planetMeshes.forEach(mesh => {
+  planetCoordSys.add(mesh)
+})
 
 const atmosphereMesh = new THREE.Mesh(
   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
@@ -875,6 +924,7 @@ atmosphereMesh.name = 'atmosphere'
 // ToDo: Scaling this sphere as opposed to setting its radius directly seems a bit hacky.
 atmosphereMesh.scale.set(1.1, 1.1 * (1.0 - 1.0/WGS84FlattenningFactor), 1.1)
 //atmosphereMesh.receiveShadow = true
+planetCoordSys.add(atmosphereMesh)
 
 // const water = new Water(
 //   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
@@ -937,10 +987,10 @@ const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, tra
 
 var tetherMaterial = new THREE.LineBasicMaterial({
   //vertexColors: THREE.VertexColors,
-  //color: 0x4897f8,
+  color: 0x4897f8,
   //color: 0x000000,
-  //color: 0x080808,
-  color: 0xc0c0f0,
+  //color: 0x808080,
+  //color: 0xc0c0f0,
   transparent: true,
   opacity: dParamWithUnits['tetherVisibility'].value
 })
@@ -960,10 +1010,6 @@ var cableMaterial = new THREE.LineBasicMaterial({
   opacity: dParamWithUnits['cableVisibility'].value
 })
 
-planetMeshes.forEach(mesh => {
-  planetCoordSys.add(mesh)
-})
-planetCoordSys.add(atmosphereMesh)
 
 const earthAxisObject = new markers.earthAxisObject(planetCoordSys, dParamWithUnits, radiusOfPlanet)
 function earthAxisObjectUpdate() {updatedParam(); earthAxisObject.update(dParamWithUnits, radiusOfPlanet)}
@@ -1038,6 +1084,50 @@ let crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFina
 let ctv = new tram.commonTetherVariables()
 let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
+
+// Add a patch of high res texture on the ground as a background for some downward looking shots 
+const backgroundPatchGeometry = new THREE.PlaneGeometry(100000, 100000)
+//const backgroundPatchGeometry = new THREE.SphereGeometry(100000, 32, 32)
+const backgroundPatchMaterial = new THREE.MeshBasicMaterial({
+  side: THREE.DoubleSide,
+  //map: new THREE.TextureLoader().load( './textures/ZionNationalPark.jpg' ),
+  //map: new THREE.TextureLoader().load( './textures/Mongolia.jpg' ),
+  map: new THREE.TextureLoader().load( './textures/myakka_oli_2022031_lrg.jpg' ),
+  //map: new THREE.TextureLoader().load( './textures/chinasolar_oli_2020264_lrg.jpg' ),
+  //map: new THREE.TextureLoader().load( './textures/AustraliaDesert.jpg' ),
+  //map: new THREE.TextureLoader().load( './textures/CrepuscularRays.jpg' ),
+})
+const backgroundPatchMesh = new THREE.Mesh(
+  backgroundPatchGeometry,
+  backgroundPatchMaterial
+  // new THREE.ShaderMaterial({
+  //   vertexShader: document.getElementById( 'vertexShader' ).textContent,
+  //   fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+  //   uniforms: {
+  //     planetTexture: {
+  //       value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+  //     }
+  //   }
+  // })
+)
+const patchAltitude = 50
+backgroundPatchMesh.position.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893).multiplyScalar((radiusOfPlanet+patchAltitude)/(radiusOfPlanet + crv.ringFinalAltitude))
+backgroundPatchMesh.lookAt(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+let backgroundPatchActive = false
+updateBackgroundPatch()
+
+function updateBackgroundPatch() {
+  updatedParam()
+  if (!backgroundPatchActive && dParamWithUnits['showBackgroundPatch'].value) {
+    planetCoordSys.add(backgroundPatchMesh)
+    backgroundPatchActive = true
+  }
+  else if (backgroundPatchActive && !dParamWithUnits['showBackgroundPatch'].value) {
+    planetCoordSys.remove(backgroundPatchMesh)
+    backgroundPatchActive = false
+  }
+  
+}
 
 let mainRingCurve
 let mainRingCurveControlPoints
@@ -1161,33 +1251,33 @@ function constructMainRingAndTransitSystem() {
       end = (j+1) / numWedges
       referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
 
-      for (let i = 0; i<dParamWithUnits['numMainRings'].value; i++) {
-        mainRingGeometries[i] = new mainRingTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, (i-mro) * dParamWithUnits['mainRingSpacing'].value, dParamWithUnits['mainRingTubeRadius'].value)
-      }
-      const mainRingMesh = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries( mainRingGeometries ), metalicMaterial)
-      mainRingMesh.name = 'mainRing'
-      mainRingMesh.position.copy(referencePoint)
-      mainRingMesh.matrixValid = false
-      if (guidParam['perfOptimizedThreeJS']) mainRingMesh.freeze()
-      mainRingMeshes.push( mainRingMesh )
+      // for (let i = 0; i<dParamWithUnits['numMainRings'].value; i++) {
+      //   mainRingGeometries[i] = new mainRingTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, (i-mro) * dParamWithUnits['mainRingSpacing'].value, dParamWithUnits['mainRingTubeRadius'].value-.25)
+      // }
+      // const mainRingMesh = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries( mainRingGeometries ), metalicMaterial)
+      // mainRingMesh.name = 'mainRing'
+      // mainRingMesh.position.copy(referencePoint)
+      // mainRingMesh.matrixValid = false
+      // if (guidParam['perfOptimizedThreeJS']) mainRingMesh.freeze()
+      // mainRingMeshes.push( mainRingMesh )
     }
-    mainRingMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
+    // mainRingMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
 
     // Construct the Transit Tube
     // Outer tube
-    for (let j = 0; j<numWedges; j++) {
-      start = j / numWedges
-      end = (j+1) / numWedges
-      referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
+    // for (let j = 0; j<numWedges; j++) {
+    //   start = j / numWedges
+    //   end = (j+1) / numWedges
+    //   referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
 
-      const tempTransitTubeGeometry = new transitTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, dParamWithUnits['transitTubeTubeRadius'].value)
-      const transitTubeMesh = new THREE.Mesh(tempTransitTubeGeometry, transparentMaterial3)
-      transitTubeMesh.name = 'transitTube'
-      transitTubeMesh.position.copy(referencePoint)
-      transitTubeMesh.matrixValid = false
-      if (guidParam['perfOptimizedThreeJS']) transitTubeMesh.freeze()
-      //transitSystemMeshes.push( transitTubeMesh )
-    }
+    //   const tempTransitTubeGeometry = new transitTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, dParamWithUnits['transitTubeTubeRadius'].value)
+    //   const transitTubeMesh = new THREE.Mesh(tempTransitTubeGeometry, transparentMaterial3)
+    //   transitTubeMesh.name = 'transitTube'
+    //   transitTubeMesh.position.copy(referencePoint)
+    //   transitTubeMesh.matrixValid = false
+    //   if (guidParam['perfOptimizedThreeJS']) transitTubeMesh.freeze()
+    //   transitSystemMeshes.push( transitTubeMesh )
+    // }
 
     // Four tracks within outer tube
     let outwardOffset = [], upwardOffset = []
@@ -1242,7 +1332,7 @@ function constructElevatorCables() {
     const pointSets = Array(numWedges).fill().map(entry => [])  // declare an array of empty arrays for storing points
     const n = dParamWithUnits['numElevatorCables'].value
     for (let a = elevatorCableLowerAttachPnt_da, i = 0; i<n; a += 2*Math.PI/n, i++) {
-      const mrcp = mainRingCurve.getPoint((a/2/Math.PI) % 1)
+      const mrcp = mainRingCurve.getPoint((a/2/Math.PI) % 1)  // mrcp is the main ring curve point
 
       const elevatorCableUpperAttachPnt = new THREE.Vector3(
         mrcp.x + elevatorCableUpperAttachPnt_dr * Math.cos(a),
@@ -1262,7 +1352,7 @@ function constructElevatorCables() {
       pointSets[wedgeIndex].push(elevatorCableLowerAttachPnt.sub(wedgeReferencePoint))
       // Now create an array of two points use that to make a LineSegment Geometry
       //tempGeometry.setAttribute("color", new THREE.Float32BufferAttribute(0x0000ff, 3) )
-          }
+    }
     for (let wedgeIndex = 0; wedgeIndex<numWedges; wedgeIndex++) {
       const pointSet = pointSets[wedgeIndex]
       const elevatorCableMesh =  new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pointSet), cableMaterial)
@@ -1488,7 +1578,7 @@ function updateRing() {
     }
   }
   mainRingCurveObject.update(dParamWithUnits, mainRingCurve)
-  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, [timeSinceStart])
   if (verbose) console.log('transitSystemObject.update ')
 
   constructElevatorCables()
@@ -1599,14 +1689,18 @@ function renderFrame() {
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
       v.value = guidParam[k]
     })
-    const ringRaiseRateFactor = 0.15
+    const ringRaiseRateFactor = 0.25
     if (animateRingRaising) {
       guidParamWithUnits['ringAmountRaisedFactor'].value = Math.min(1, guidParamWithUnits['ringAmountRaisedFactor'].value+delta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==1) animateRingRaising = false
+      // guidParamWithUnits['moveRing'].value = Math.min(1, guidParamWithUnits['moveRing'].value+delta*ringRaiseRateFactor)
+      // if (guidParamWithUnits['moveRing'].value==1) animateRingRaising = false
     }
     if (animateRingLowering) {
       guidParamWithUnits['ringAmountRaisedFactor'].value = Math.max(0, guidParamWithUnits['ringAmountRaisedFactor'].value-delta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==0) animateRingLowering = false
+      // guidParamWithUnits['moveRing'].value = Math.max(0, guidParamWithUnits['moveRing'].value-delta*ringRaiseRateFactor)
+      // if (guidParamWithUnits['moveRing'].value==0) animateRingLowering = false
       //cameraGroup.position.z -= -0.0001 * radiusOfPlanet
       //console.log(cameraGroup.position.z/radiusOfPlanet)
     }
@@ -1616,7 +1710,8 @@ function renderFrame() {
     for (var i in gui.__controllers) {
       gui.__controllers[i].updateDisplay()
     }
-    updateTransitsystem()  
+    //adjustRingLatLon()
+    updateTransitsystem()
   
     majorRedesign = true
     updateRing()
@@ -1696,7 +1791,15 @@ function renderFrame() {
   }
   if (followTransitVehicles) {
     const axis = new THREE.Vector3(0,1,0).applyQuaternion(ringToPlanetRotation)
-    const angle = delta * dParamWithUnits['transitVehicleCruisingSpeed'].value / crv.mainRingRadius
+    const driftFactor = 0.99
+    const angle = driftFactor * delta * dParamWithUnits['transitVehicleCruisingSpeed'].value / crv.mainRingRadius
+    camera.position.applyAxisAngle(axis, angle)
+    orbitControls.target.applyAxisAngle(axis, angle)
+  }
+  if (followLaunchVehicles>0) {
+    const axis = new THREE.Vector3(0,1,0).applyQuaternion(ringToPlanetRotation)
+    const driftFactor = 1 + (followLaunchVehicles-2)*0.02 + Math.sin(timeSinceStart*0.3)*0.01  + Math.sin(timeSinceStart*1)*0.003
+    const angle = driftFactor * delta * dParamWithUnits['launchVehicleCruisingSpeed'].value / crv.mainRingRadius
     camera.position.applyAxisAngle(axis, angle)
     orbitControls.target.applyAxisAngle(axis, angle)
   }
@@ -1804,20 +1907,25 @@ function onKeyDown( event ) {
       })
       let transitTubeIntersects = []
       if (dParamWithUnits['showTransitSystem'].value) {
-        transitSystemMeshes.forEach(mesh => {
-          transitTubeIntersects.push.apply(transitTubeIntersects, raycaster.intersectObject(mesh))
+        tetheredRingRefCoordSys.children.forEach(mesh => {
+          if (mesh.name.length>0) {
+            console.log(mesh.name)
+          }
+          if (mesh.name==='transitTube') {
+            transitTubeIntersects.push.apply(transitTubeIntersects, raycaster.intersectObject(mesh))
+          }
         })
       }
       if (transitTubeIntersects.length>0) {
         intersectionPoint = transitTubeIntersects[0].point
         targetPoint = intersectionPoint
         extraDistanceForCamera = 100
-        orbitControls.rotateSpeed = 0.2
+        orbitControls.rotateSpeed = 0.9
       }
       else if (planetIntersects.length>0) { // Note: would probably be advisable to assert here that there is only one intersection point.
         intersectionPoint = planetIntersects[0].point
         // Because we want to orbit around a point at the altitude of the ring...
-        targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
+        targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + (dParamWithUnits['pKeyAltitudeFactor'].value * crv.currentMainRingAltitude))/radiusOfPlanet)
         extraDistanceForCamera = 10000
         orbitControls.rotateSpeed = 0.9
         // Uncomment this line if you want to print lat, lon, and alt to console
@@ -1894,28 +2002,28 @@ function onKeyDown( event ) {
       showTensileForceArrows = !showTensileForceArrows
       gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      break;
+      break
     case 71: /*G*/
       // Toggle Display of the Tensile Force Arrows
       showGravityForceArrows = !showGravityForceArrows
       gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      break;
+      break
     case 73: /*I*/
       // Toggle Display of the Tensile Force Arrows
       showInertialForceArrows = !showInertialForceArrows
       gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      break;
+      break
     case 86: /*V*/
       lockUpToRingAxis = !lockUpToRingAxis
-      break;
+      break
+    case 89: /*Y*/
+      backgroundPatchMesh.lookAt(camera.position)
+      break
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
-      console.log(orbitControls.target)
-      console.log(orbitControls.upDirection)
-      console.log(orbitControls.object.position)
-      console.log(camera.up)
+      console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
 
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
@@ -1927,10 +2035,28 @@ function onKeyDown( event ) {
       // camera.up.set(-0.5816870725007586, 0.7336570090212697, -0.3512656299717662)
 
       // Near Launch Tube Exit  
-      orbitControls.target.set(-959403.9186715716, -4131275.008171093, -4806261.304458168)
-      orbitControls.upDirection.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
-      orbitControls.object.position.set(-963233.9251227962, -4135157.2251201035, -4802567.211628173)
-      camera.up.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
+      // orbitControls.target.set(-959403.9186715716, -4131275.008171093, -4806261.304458168)
+      // orbitControls.upDirection.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
+      // orbitControls.object.position.set(-963233.9251227962, -4135157.2251201035, -4802567.211628173)
+      // camera.up.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
+
+      // Near Launch Tube Exit  
+      // orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
+      // orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+      // orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
+      // camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+
+      // Near Launch Tube Entrance
+      // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
+      // orbitControls.upDirection.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
+      // orbitControls.object.position.set(1647910.788732048, -3683797.352299046, -4980117.875703896)
+      // camera.up.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
+
+      // Over Russia
+      orbitControls.target.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893)
+      orbitControls.upDirection.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+      orbitControls.object.position.set(2658928.67289732, 5083188.169494178, -2860038.5902062203)
+      camera.up.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
 
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       setOrbitControlsTargetUpVector()
@@ -1986,6 +2112,7 @@ function onKeyDown( event ) {
       }
       break;
     case 70: /*F*/
+      // This is a utility function that conveniently loads presets for someone who is actively editing the code.
       console.log('Applying Illustration Settings')
       Object.entries(guidParamWithUnits).forEach(([k, v]) => {
         v.value = guidParam[k]
@@ -1995,33 +2122,40 @@ function onKeyDown( event ) {
           //orbitControls.upDirection.set(-0.5517139461741912, -0.33633743039380865, -0.7632095744374486)
           //guidParamWithUnits['ringFinalAltitude'].value = 200000  // m
           //guidParamWithUnits['equivalentLatitude'].value = Math.acos(targetRadius/(radiusOfPlanet + guidParamWithUnits['ringFinalAltitude'].value)) * 180 / Math.PI
-          guidParamWithUnits['ringAmountRaisedFactor'].value = 0.01
-          guidParamWithUnits['numMainRings'].value = 1
-          //guidParamWithUnits['numTethers'].value = 180
-          //guidParamWithUnits['numForkLevels'].value = 0
+          //guidParamWithUnits['ringAmountRaisedFactor'].value = 0.01
+          //guidParamWithUnits['numMainRings'].value = 1
+          guidParamWithUnits['numTethers'].value = 3600
+          guidParamWithUnits['numForkLevels'].value = 10
           //guidParamWithUnits['tetherSpanOverlapFactor'].value = 1
           //guidParamWithUnits['tetherPointBxAvePercent'].value = 0.8
           //guidParamWithUnits['tetherPointBxDeltaPercent'].value = 0
           //guidParamWithUnits['tetherEngineeringFactor'].value = 0.5
           //guidParamWithUnits['numElevatorCables'].value = 180
-          guidParamWithUnits['moveRing'].value = 0
-          // guidParamWithUnits['cableVisibility'].value = 0.1
-          guidParamWithUnits['tetherVisibility'].value = 0.4
-          guidParamWithUnits['showMainRingCurve'].value = false
-          guidParamWithUnits['showMainRings'].value = false
-          guidParamWithUnits['showTethers'].value = true
-          guidParamWithUnits['showTransitSystem'].value = false
-          guidParamWithUnits['showTransitTube'].value = false
-          guidParamWithUnits['showTransitVehicles'].value = false
-          guidParamWithUnits['showRingTerminuses'].value = false
-          guidParamWithUnits['showElevatorCables'].value = false
-          guidParamWithUnits['showElevatorCars'].value = false
-          guidParamWithUnits['showHabitats'].value = false
-          guidParamWithUnits['showLaunchOrbit'].value = false
-          guidParamWithUnits['showLaunchTrajectory'].value = false
+          //guidParamWithUnits['moveRing'].value = 0
+          
+          guidParamWithUnits['showEarthsSurface'].value = false
+          guidParamWithUnits['showEarthsAtmosphere'].value = false
+          //guidParamWithUnits['showMainRingCurve'].value = false
+          //guidParamWithUnits['showMainRings'].value = true
+          //guidParamWithUnits['showTethers'].value = true
+          //guidParamWithUnits['showTransitSystem'].value = false
+          //guidParamWithUnits['showTransitTube'].value = false
+          //guidParamWithUnits['showTransitVehicles'].value = false
+          //guidParamWithUnits['showRingTerminuses'].value = false
+          guidParamWithUnits['showGroundTerminuses'].value = true
+          //guidParamWithUnits['showElevatorCables'].value = false
+          //guidParamWithUnits['showElevatorCars'].value = false
+          //guidParamWithUnits['showHabitats'].value = false
+          //guidParamWithUnits['showLaunchOrbit'].value = false
+          //guidParamWithUnits['showLaunchTrajectory'].value = false
           guidParamWithUnits['showLaunchTube'].value = false
           guidParamWithUnits['showLaunchVehicles'].value = false
-          break;
+          //guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+          guidParamWithUnits['cableVisibility'].value = 0.4
+          guidParamWithUnits['tetherVisibility'].value = 0.4
+
+          //guidParamWithUnits['pKeyAltitudeFactor'].value = 0
+          break
         case 1:
           //orbitControls.upDirection.set(-0.5517139461741912, -0.33633743039380865, -0.7632095744374486)
           guidParamWithUnits['ringFinalAltitude'].value = 100000  // m
@@ -2046,6 +2180,7 @@ function onKeyDown( event ) {
           guidParamWithUnits['showTransitTube'].value = false
           guidParamWithUnits['showTransitVehicles'].value = false
           guidParamWithUnits['showRingTerminuses'].value = false
+          guidParamWithUnits['showGroundTerminuses'].value = false
           guidParamWithUnits['showElevatorCables'].value = false
           guidParamWithUnits['showElevatorCars'].value = false
           guidParamWithUnits['showHabitats'].value = false
@@ -2056,11 +2191,8 @@ function onKeyDown( event ) {
           guidParamWithUnits['animateTransitVehicles'].value = false
           guidParamWithUnits['animateElevatorCars'].value = false
           guidParamWithUnits['animateLaunchVehicles'].value = false
-          break;
+          break
       }
-      // adjustRingDesign()
-      // adjustCableOpacity()
-      // adjustTetherOpacity()
       Object.entries(guidParamWithUnits).forEach(([k, v]) => {
         guidParam[k] = v.value
       })
@@ -2072,6 +2204,11 @@ function onKeyDown( event ) {
         } 
       })
       
+      adjustEarthSurfaceVisibility()
+      adjustEarthAtmosphereVisibility()
+      adjustRingDesign()
+      adjustCableOpacity()
+      adjustTetherOpacity()
       updateTransitsystem()  
       adjustRingLatLon()
       majorRedesign = true
@@ -2094,9 +2231,7 @@ function onKeyDown( event ) {
       // Record the state of guidParamsWithUnits
       Object.entries(guidParamWithUnits).forEach(([k, v]) => {
         if (v.tweenable) {
-          //if (recordEverything || (v.value !== previousKeyFrame['guidParamWithUnits'][k].value)) {
             keyFrame['guidParamWithUnits'][k] = {tween: true, param: 'guidParam', key: k, value: v.value, updateFunction: v.updateFunction}
-          //}
         }
       })
       // Record the current state of the orbit controls and camera
@@ -2106,20 +2241,13 @@ function onKeyDown( event ) {
       keyFrame['camera']['up'] = {tween: true, param: 'camera.up', value: camera.up.clone()}
       keyFrames.push(keyFrame)
       break;
-    case 69: /*E*/
-      followElevators = !followElevators
-      // // Erase all of the keyFrames to reset animation sequence
-      // // ToDo - This needs to be cleaned up
-      // keyFrames.forEach(keyFrame => {
-      //   keyFrame.traverse(c => {
-      //     c.splice(0, c.length)
-      //   })
-      // })
-      // keyFrames.splice(0, keyFrames.length)
-      break
-    case 67: /*C*/
-      followTransitVehicles = !followTransitVehicles
-      break
+    case 75: /*K*/
+      // Erase the last keyFrame
+      if (keyFrames.length>0) {
+        const lastKeyframe = keyFrames.pop()
+        // ToDo: We could attempt to dispose of the objects in the last keyfram, but we'll let garbage cleanup deal with that for now
+      }
+      break;
     case 66: /*B*/
       // Animation Sequence Playback
       // Restore all parameters  to the initia state
@@ -2144,16 +2272,18 @@ function onKeyDown( event ) {
         Object.entries(elements).forEach(([k, v]) => {
           // Test Code: const element = {tween: true, param: 'guidParam', key: 'tetherVisibility', value: 1, updateFunction: adjustTetherOpacity}
           switch (k) {
-            // case 'guidParam':
-            //   Object.entries(v).forEach(([k1,v1]) => {
-            //     if (firstKeyFrame || (v1.value !== previousKeyFrame['guidParamWithUnits'][k1].value)) {
-            //       const target = {}
-            //       target[k1] = v1.value
-            //       new TWEEN.Tween(guidParam).to(target, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut).onUpdate(v1.updateFunction).delay(keyFrameDelay).start(timeSinceStart*1000)
-            //       console.log(k1, v1.value)
-            //     }
-            //   })
-            //   break
+            case 'guidParam':
+              // Object.entries(v).forEach(([k1,v1]) => {
+              //   if (firstKeyFrame) {
+              //     dParamWithUnitsTweeners.push(new TWEEN.Tween(guidParamWithUnits[k1]).to({value: v1.value}, keyFrameDelay).onUpdate(v1.updateFunction).start())
+              //   } || (v1.value !== previousKeyFrame['guidParamWithUnits'][k1].value)) {
+              //     const target = {}
+              //     target[k1] = v1.value
+              //     new TWEEN.Tween(guidParam).to(target, guidParamWithUnits['tweeningDuration'].value).easing(TWEEN.Easing.Cubic.InOut).onUpdate(v1.updateFunction).delay(keyFrameDelay).start(timeSinceStart*1000)
+              //     console.log(k1, v1.value)
+              //   }
+              // })
+              break
             case 'orbitControls_target':
               if (firstKeyFrame) {
                 orbitControlsTargetTweeners.push(new TWEEN.Tween(orbitControls.target).to(v.value, 1000).easing(TWEEN.Easing.Cubic.InOut).start(timeSinceStart*1000))
@@ -2198,6 +2328,15 @@ function onKeyDown( event ) {
         })
         keyFrameDelay += guidParamWithUnits['tweeningDuration'].value*2
       })
+      break
+    case 69: /*E*/
+      followElevators = !followElevators
+      break
+    case 67: /*C*/
+      followTransitVehicles = !followTransitVehicles
+      break
+    case 74: /*J*/
+      followLaunchVehicles = (followLaunchVehicles+3) % 4
       break
   }
 }
@@ -2428,12 +2567,12 @@ sCB.addEventListener( 'click', function( e ) {
     display: true,
     framerate: framerate,
     motionBlurFrames: ( 960 / framerate ) * ( document.querySelector('input[name="motion-blur"]').checked ? 1 : 0 ),
-    quality: 99,
+    quality: 100,
     format: document.querySelector('input[name="encoder"]:checked').value,
     workersPath: './ccapture_workers/',
     timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
     frameLimit: 1200,
-    autoSaveTime: 0,
+    autoSaveTime: 1,
     onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
   } );
 
