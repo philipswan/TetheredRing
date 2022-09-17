@@ -120,6 +120,7 @@ const guidParamWithUnits = {
   finalLocationRingEccentricity: {value: 1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   // ToDo: moveRing needs to call adjustRingDesign when buildLocationRingEccentricity differs from finalLocationRingEccentricity
   moveRing: {value: 1, units: "", autoMap: false, min: 0, max: 1, tweenable: true, updateFunction: adjustRingLatLon, folder: folderGeography},
+  locationPresetIndex: {value: 0, units: "", autoMap: true, min: 0, max: 6, tweenable: false, updateFunction: setRingLatLonWithPreset, folder: folderGeography},
 
   // Physical Constants
   permeabilityOfFreeSpace: {value: 4*Math.PI*1e-7, units: "N/A2", autoMap: true, min: 0, max: 0.0001, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -477,6 +478,7 @@ function updatedParam() {   // Read as "update_dParam"
   })
   // The following parameters are mapped "manually" from the gui to the model
   dParamWithUnits['equivalentLatitude'] = {value: guidParamWithUnits['equivalentLatitude'].value / 180 * Math.PI, units: "radians"}
+  console.log(dParamWithUnits['equivalentLatitude'].value *180/Math.PI)
   const alpha = guidParamWithUnits['moveRing'].value
   dParamWithUnits['ringCenterLongitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLongitude'].value, guidParamWithUnits['finalLocationRingCenterLongitude'].value, alpha)  / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
@@ -580,6 +582,80 @@ function adjustRingLatLon() {
   updatedParam()
   gimbalMath()
   //updateRing()
+}
+
+function setRingLatLonWithPreset() {
+  Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+    v.value = guidParam[k]
+  })
+  switch(guidParam['locationPresetIndex']) {
+    case 0:
+      // The most commonly depicted pacific ocean location. Crosses one small island in the pacific though. 
+      guidParamWithUnits['equivalentLatitude'].value = equivalentLatitudePreset
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 213.7
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 186.3
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -19.2
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = 14.2
+      break
+    case 1:
+      // Alternate final location with the increased diameter needed to reach both US and China's coastlines (note: too large to construct in the Pacific Ocean)
+      guidParamWithUnits['equivalentLatitude'].value = 30.8
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 213.7
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 182
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -19.2
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = 11
+      break
+    case 2:
+      // Alastair proposed a new ring construction location which is slightly bigger but does not cross any islands.
+      guidParamWithUnits['equivalentLatitude'].value = 34
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 137
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 137
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -66.5
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = -66.5
+      break
+    case 3:
+      // This is a build location that only crosses northern Russia and Iceland. It really maximizes the diameter of the tethered ring and thus minimizes the costs.
+      // Certainly, it could be an interesting option for Russia if they can negotiate the use of Antarctica for this would be willing to level some land in Siberia.
+      guidParamWithUnits['equivalentLatitude'].value = 8.1
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 249.2
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 249.2
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = 14.6
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = 14.6
+      break
+    case 4:
+      // This is a build location that only crosses the United States. Tricky to construct here because the Rocky Mountains would get in the way of the mass stream;
+      // however, probably easier to solve this problem than to create the concentrated turn-a-round needed for a partial orbital ring or a lofstrom loop.
+      guidParamWithUnits['equivalentLatitude'].value = 10
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 269.64
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 269.64
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -36.9
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = -36.9
+      break
+    case 5:
+      // This is a build location that only crosses Mexico. Tricky to construct here because mountains would get in the way of the mass-stream;
+      // however, probably easier to solve this problem than to create the concentrated turn-a-round needed for a partial orbital ring or a Lofstrom Loop.
+      guidParamWithUnits['equivalentLatitude'].value = 16
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 268
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 268
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -49
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = -49
+      break
+    case 6:
+      // This is a build location that only crosses Indonesia and Malaysia. Tricky to construct here because mountains would get in the way of the mass-stream;
+      // however, probably easier to solve this problem than to create the concentrated turn-a-round needed for a partial orbital ring or a Lofstrom Loop.
+      guidParamWithUnits['equivalentLatitude'].value = 16
+      guidParamWithUnits['buildLocationRingCenterLongitude'].value = 170
+      guidParamWithUnits['finalLocationRingCenterLongitude'].value = 170
+      guidParamWithUnits['buildLocationRingCenterLatitude'].value = -36.6
+      guidParamWithUnits['finalLocationRingCenterLatitude'].value = -36.6
+      break
+  }
+  Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+    guidParam[k] = v.value
+  })
+  updatedParam()
+  gimbalMath()
+  adjustRingDesign()
 }
 
 // Three.js Rendering Setup
