@@ -15,13 +15,22 @@ PS C:\Users\Username\Documents\repos\Three.js> git clone https://github.com/phil
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd TetheredRing
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init vite
 Answer 'yes' to 'Need to install the following packages:  create-vite'
+Accept the default project name 'vite-project'
+Select the Vanila framework
+Select the Javascript variant
+Ignore the instructions printed out on the screen after "Done"
 
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install -y          (There is a "high severity vulnerability" warning, but there was no fix available)
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm init -y
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd textures
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/textures/bluemarble_16384.png -outfile bluemarble_16384.png
-(Note: Downloading the bluemarble image  may take several minutes to complete.)
-PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd ..
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> mkdir 24x12\LR
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> mkdir 24x12\HR
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd 24x12\LR
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures\24x12\LR> foreach ($X in @(0..23)) {foreach ($Y in @(0..11)) {curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/24x12/LR/earth_LR_24x12_${X}x${Y}.jpg}}
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures\24x12\LR> cd ..\HR
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures\24x12\HR> foreach ($X in @(0..23)) {foreach ($Y in @(0..11)) {curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/24x12/HR/earth_HR_24x12_${X}x${Y}.jpg}}
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures\24x12\HR> cd ..\..\..
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
 ```
 6.	Open Chrome (other browsers are untested) and paste the following url into the browser: http://localhost:3000/
