@@ -1,7 +1,7 @@
-import * as THREE from '../three.js'
-import { GLTFLoader } from '../three.js/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 // import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'

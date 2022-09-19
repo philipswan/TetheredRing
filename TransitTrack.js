@@ -1,10 +1,10 @@
-import * as THREE from '../three.js'
+import * as THREE from 'three'
 import {
 	BufferAttribute,
 	BufferGeometry,
 	Quaternion,
 	Vector3
-} from '../three.js/build/three.module.js';
+} from 'three'
 
 //} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 

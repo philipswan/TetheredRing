@@ -1,5 +1,5 @@
-import * as THREE from '../three.js'
-import { mergeBufferGeometries } from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+import * as THREE from 'three'
+import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 // import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 // import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
 

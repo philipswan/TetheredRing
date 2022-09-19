@@ -1,16 +1,16 @@
 // Use when local
-import * as THREE from '../three.js'
-//import { GUI } from '../three.js/examples/jsm/libs/dat.gui.module'
+import * as THREE from 'three'
+//import { GUI } from 'three/examples/jsm/libs/dat.gui.module'
 //import { CanvasCapture } from 'canvas-capture'
-//import CCapture from '../three.js/examples/jsm/libs/CCapture.all.min.js'
+//import CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
 //import CCapture from 'C:/Users/phils/Documents/repos/Three.js/three.js/examples/jsm/libs/ccapture.all.min.js'
-import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
-import { TWEEN } from '../three.js/examples/jsm/libs/tween.module.min'
+import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js'
+import { TWEEN } from 'three/examples/jsm/libs/tween.module.min'
 //import { TWEEN } from '../tween.js/dist/tween.esm.js'
-import { Water } from '../three.js/examples/jsm/objects/Water.js'
-//import * as CCapture from '../three.js/examples/jsm/libs/CCapture.all.min.js'
+import { Water } from 'three/examples/jsm/objects/Water.js'
+//import * as CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
 
-import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 // Use for website
 // import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
@@ -23,11 +23,11 @@ import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeome
 //import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 // import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 
-// import { VRButton } from '../three.js/examples/jsm/webxr/VRButton.js'
-// import { GUI } from '../three.js/examples/jsm/libs/lil-gui.module.min.js'
-// import { FBXLoader } from '../three.js/examples/jsm/loaders/FBXLoader.js'
-// import * as BufferGeometryUtils from '../three.js/examples/jsm/utils/BufferGeometryUtils.js'
-// import Stats from '../three.js/examples/jsm/libs/stats.module.js'
+// import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
+// import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js'
+// import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+// import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+// import Stats from 'three/examples/jsm/libs/stats.module.js'
 
 import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 import { transitSystem } from './TransitSystems.js'

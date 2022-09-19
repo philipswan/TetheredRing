@@ -7,10 +7,10 @@ import {
 	Vector3,
 	Shape,
 	ShapeUtils
-} from '../three.js/build/three.module.js';
+} from 'three';
 //} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 
-import * as Curves from '../three.js/build/three.module.js';
+import * as Curves from 'three';
 //import * as Curves from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js';
 
 //import { BufferGeometry } from '../core/BufferGeometry.js';
