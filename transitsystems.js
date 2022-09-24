@@ -4,8 +4,8 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-// import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
-// import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
+//import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
+//import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 
 import * as tram from './tram.js'
 
@@ -976,7 +976,7 @@ export class transitSystem {
     //launchVehicleMesh.rotateX(-Math.PI/2)
     addLaunchVehicles(launchVehicleMesh)
 
-    const fbxloader = new FBXLoader()//
+    const fbxloader = new FBXLoader()
     fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
     fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
     fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
@@ -1052,7 +1052,7 @@ export class transitSystem {
 
     const pointSet = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]
     const cableMaterial = new THREE.LineBasicMaterial({
-      vertexColors: THREE.VertexColors,
+      vertexColors: false,
       //color: 0x4897f8,
       transparent: true,
       opacity: dParamWithUnits['cableVisibility'].value
