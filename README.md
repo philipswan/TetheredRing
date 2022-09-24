@@ -15,11 +15,14 @@ PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm install
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> npm run dev
 ```
 5.	Open Chrome (note: other browsers may work too but just are untested) and paste the url provided by the "npm run dev" command into the browser (note: this url is probably "http://localhost:3000/").
-6.	You should immediately see a sphere with a ring on it appear. You should be able to interact with it. If you press the "W" key, this should jump you up close to a transit terminus on the ring. However, at this point the earth is missing its texture.
+6.	You should immediately see a sphere with a ring on it appear. You should be able to interact with it. If you press the "W" key, this should jump you up close to a transit terminus on the ring. However, at this point the earth, and other objects, are missing its texture.
 7. To fix this (on Windows), enter the following commands...
 ```
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing> cd textures
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> wget https://www.project-atlantis.com/wp-content/threejs-simulation/textures/bluemarble_16384.png -outfile bluemarble_16384.png
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/moon.jpg
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/movingRingTexture.jpg
+PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/myakka_oli_2022031_lrg.jpg
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> mkdir 24x12\LR
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> mkdir 24x12\HR
 PS C:\Users\Username\Documents\repos\Three.js\TetheredRing\textures> cd 24x12\LR
