@@ -830,7 +830,7 @@ export class transitSystem {
         prevFloorS = currFloorS
       }
     })
-      
+
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, perfOptimizedThreeJS) {
       return function( {scene} ) {
         const object = scene.children[0]
@@ -900,14 +900,16 @@ export class transitSystem {
 
     const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
+    //const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
+    const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
+    //const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
+    const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
     const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.perfOptimizedThreeJS)
     const addStationaryRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
     const addMovingRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
     const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
     const addLaunchTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchTubeModels, 'launchTube', 1, dParamWithUnits['launchTubeNumModels'].value, this.perfOptimizedThreeJS)
-    //const addLaunchVehicles = prepareACallbackFunctionForGLTLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  0.0254 * 3.25, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
+    //const addLaunchVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  0.0254 * 3.25, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  1, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
@@ -976,11 +978,13 @@ export class transitSystem {
     //launchVehicleMesh.rotateX(-Math.PI/2)
     addLaunchVehicles(launchVehicleMesh)
 
-    const fbxloader = new FBXLoader()//
-    fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
-    fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
-    fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
-    fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
+    const fbxloader = new FBXLoader()
+    // fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
+    //fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
+    gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
+    // fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
+    //fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
+    gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
 
     // Manually create the stationary rings
     function getStationaryRingSegmentCurve() {

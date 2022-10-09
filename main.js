@@ -163,9 +163,12 @@ const guidParamWithUnits = {
   movingRingTubeRadius: {value: 0.4, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   // ToDo: These are really a function of numMainRings. Should calculate them rather than specifying them.
   stationaryRingNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+
+  // Engineering Parameters - Moving Rings
   movingRingNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   // numVirtualStationaryRings: This is computed from the sum of numVirtualRingTerminuses and numVirtualHabitats 
   // numVirtualMovingRings: This is computed from the sum of numVirtualRingTerminuses and numVirtualHabitats 
+  movingRingsAverageDensity: {value: 8000, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Engineering Parameters - Transit System
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -304,7 +307,8 @@ const guidParamWithUnits = {
   parameterPresetNumber: {value: 0, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
-  earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthOpacity, folder: folderRendering},
+  earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
+  showMoon: {value: true, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: true, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
   showBackgroundPatch: {value: false, units: '', autoMap: true, updateFunction: updateBackgroundPatch, folder: folderRendering},
@@ -312,8 +316,8 @@ const guidParamWithUnits = {
   showMainRingCurve: {value: false, units: '', autoMap: true, updateFunction: mainRingCurveObjectUpdate, folder: folderRendering},
   showGravityForceArrows: {value: false, units: '', autoMap: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showGyroscopicForceArrows: {value: false, units: '', autoMap: true, updateFunction: gyroscopicForceArrowsUpdate, folder: folderRendering},
-  forceArrowSize: {value: 50000, units: '', autoMap: true, min: 0, max: 1000000, tweenable: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
-  numForceArrows: {value: 32, units: '', autoMap: true, min: 0, max: 1024, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  forceArrowSize: {value: 50000, units: '', autoMap: true, min: 0, max: 5000000, tweenable: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
+  numForceArrows: {value: 32, units: '', autoMap: true, min: 0, max: 1024, step: 1, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
   showMainRings: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTethers: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showTransitSystem: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
@@ -341,7 +345,7 @@ const guidParamWithUnits = {
   tetherVisibility: {value:0.13, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
   tetherColor: {value:0x000000, units: "", autoMap: true, min: 0, max: 0xffffff, tweenable: false, updateFunction: adjustTetherColor, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
-  cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 5, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
+  cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   orbitControlsRotateSpeed: {value: 1, units: '', autoMap: true, min: -10, max: 10, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   logZoomRate: {value: -2, units: '', autoMap: true, min: -5, max: -1, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
@@ -532,7 +536,7 @@ function adjustEarthAtmosphereVisibility() {
   atmosphereMesh.visible = guidParamWithUnits['showEarthsAtmosphere'].value
 }
 
-function adjustEarthOpacity() {
+function adjustEarthTextureOpacity() {
   updatedParam()
   planetMeshes.forEach(mesh => {mesh.material.opacity = guidParamWithUnits['earthTextureOpacity'].value})
 }
@@ -678,7 +682,7 @@ scene.autoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0xffffff )
+scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -770,7 +774,7 @@ else {
   eightTextureMode = false
   TextureMode24x12 = true
 }
-const useShaders = true
+const useShaders = false
 
 scene.add(planetCoordSys)
 
@@ -1672,7 +1676,7 @@ function updateRing() {
       '<i>Total Tethered Ring Cost</i>: ' + specs['sumOfAllCapitalCosts'].value.toFixed(2) + ' ' + specs['sumOfAllCapitalCosts'].units,
       '<i>Total Tethered Ring Cost Per Kg Supported</i>: ' + specs['capitalCostPerKgSupported'].value.toFixed(2) + ' ' + specs['capitalCostPerKgSupported'].units,
       '<i>Total Stored Energy in TWh</i>: ' + specs['movingRingsTotalKineticEnergyTWh'].value.toFixed(2) + ' ' + specs['movingRingsTotalKineticEnergyTWh'].units,
-      '<i>Moving Ring Speed</i>: ' + specs['movingRingSpeed'].value.toFixed(2) + ' ' + specs['movingRingSpeed'].units
+      '<i>Moving Ring\'s Speed</i>: ' + specs['movingRingsSpeed'].value.toFixed(2) + ' ' + specs['movingRingsSpeed'].units
     ].join( '<br/>' )
   }
 

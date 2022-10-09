@@ -158,20 +158,31 @@ class TetherGeometry extends BufferGeometry {
         const movingRingsMassPortion = dParamWithUnits['movingRingsMassPortion'].value
         const movingRingsMassPerMeter = movingRingsMassPortion * totalMassPerMeterOfRing // Note this mass is shared by the number of rings 
         specs['movingRingsMassPerMeter'] = {value: movingRingsMassPerMeter, units: "kg"}
-        const movingRingSpeed = Math.sqrt(inertialForcePerMeter * crv.mainRingRadius / movingRingsMassPerMeter)
-        specs['movingRingSpeed'] = {value: movingRingSpeed, units: "m/s"}
-        const movingRingsRotationalPeriod = mainRingCircumference / movingRingSpeed
+        const movingRingsAverageDensity = dParamWithUnits['movingRingsAverageDensity'].value
+        const movingRingsVolumePerMeter = movingRingsMassPerMeter / movingRingsAverageDensity // Note this volume is shared by the number of rings 
+        specs['movingRingsVolumePerMeter'] = {value: movingRingsVolumePerMeter, units: "m3"}
+        const oneMeter = 1
+        const numMainRings = dParamWithUnits['numMainRings'].value
+        const movingRingsRadius = Math.sqrt(movingRingsVolumePerMeter / numMainRings / oneMeter / Math.PI)
+        specs['movingRingsRadius'] = {value: movingRingsRadius, units: "m"}
+        // We probably should have separate parameters for ringMaglevAirGap and the d value for air friction's' evacuated volume calculations
+        const evacuatedVolumePerMeter = 2 * Math.PI * movingRingsRadius * dParamWithUnits['ringMaglevAirGap'].value
+        specs['evacuatedVolumePerMeter'] = {value: evacuatedVolumePerMeter, units: "m3"}
+
+        const movingRingsSpeed = Math.sqrt(inertialForcePerMeter * crv.mainRingRadius / movingRingsMassPerMeter)
+        specs['movingRingsSpeed'] = {value: movingRingsSpeed, units: "m/s"}
+        const movingRingsRotationalPeriod = mainRingCircumference / movingRingsSpeed
         specs['movingRingsRotationalPeriod'] = {value: movingRingsRotationalPeriod, units: "s"}
         const movingRingMinutesPerRotation = movingRingsRotationalPeriod / 60
         specs['movingRingMinutesPerRotation'] = {value: movingRingMinutesPerRotation, units: "minutes"}
-        const movingRingsMassFlowRate = movingRingsMassPerMeter * movingRingSpeed
+        const movingRingsMassFlowRate = movingRingsMassPerMeter * movingRingsSpeed
         specs['movingRingsMassFlowRate'] = {value: movingRingsMassFlowRate, units: "kg/s"}
         const movingRingsTotalMass = movingRingsMassPerMeter * mainRingCircumference
         specs['movingRingsTotalMass'] = {value: movingRingsTotalMass, units: "kg"}
         const movingRingMaterialDensity = 3500 // kg/m3
         const movingRingsDiameterIfMadeIntoSphere = Math.pow(movingRingsTotalMass/movingRingMaterialDensity*3/4/Math.PI, 1/3) * 2
         specs['movingRingsDiameterIfMadeIntoSphere'] = {value: movingRingsDiameterIfMadeIntoSphere, units: "m"}
-        const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingSpeed**2
+        const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingsSpeed**2
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
         const movingRingsTotalKineticEnergyTWh = movingRingsTotalKineticEnergy / 3.6e+15
         console.log(movingRingsTotalKineticEnergy, movingRingsTotalKineticEnergyTWh)
@@ -324,6 +335,33 @@ class TetherGeometry extends BufferGeometry {
         stationaryRingBillOfMaterials.push({name: 'aeronaticStabilizers', massPerMeter: 1, units: 'kg', costPerkg: 10})
         stationaryRingBillOfMaterials.push({name: 'solarPanels', massPerMeter: solarPanelMassPerMeterOfRing, units: 'kg', costPerkg: solarPanelsCostPerKg})
         
+        // Operating Costs - Air friction
+        const massOfGasMolucule = 4.65e-26 // kg for N2 
+        const boltzmannConstant = 1.38e-23 // J/˚K
+        const absoluteTemperatureInsideStationaryRing = 273.3 // ˚K
+        const wallToWallDistance = 0.001
+        const rootMeanSquareSpeedOfGasMolecule = Math.sqrt(3 * boltzmannConstant * absoluteTemperatureInsideStationaryRing / massOfGasMolucule)
+        const wallToWallSpeedOfGasMolecule = rootMeanSquareSpeedOfGasMolecule / 3
+        specs['rootMeanSquareSpeedOfGasMolecule'] = {value: rootMeanSquareSpeedOfGasMolecule, units: "m/s"}
+
+        const roundTripTimeOfGasMolecule = 2 * wallToWallDistance / wallToWallSpeedOfGasMolecule
+        specs['roundTripTimeOfGasMolecule'] = {value: roundTripTimeOfGasMolecule, units: "s"}
+        const kineticEnergyTransferredToGasMolecule = 1/2 * massOfGasMolucule * movingRingsSpeed**2
+        specs['kineticEnergyTransferredToGasMolecule'] = {value: kineticEnergyTransferredToGasMolecule, units: "Joules"}
+        const PowerLossPerMolecule = kineticEnergyTransferredToGasMolecule / roundTripTimeOfGasMolecule
+        specs['PowerLossPerMolecule'] = {value: PowerLossPerMolecule, units: "Watts"}
+        // Note: Confusing, but PerMeterOfRing" refers to all 'numMainRings' rings as opposed to an individual ring
+        const volumeOfVacuumPerMeterOfRing = Math.PI * ((movingRingsRadius+wallToWallDistance)**2 - movingRingsRadius**2) * oneMeter * numMainRings
+        specs['volumeOfVacuumPerMeterOfRing'] = {value: volumeOfVacuumPerMeterOfRing, units: "m^3/m"}
+        const numMoleculesInVacuumPerUnitOfPressure = volumeOfVacuumPerMeterOfRing / boltzmannConstant / absoluteTemperatureInsideStationaryRing 
+        specs['numMoleculesInVacuumPerUnitOfPressure'] = {value: numMoleculesInVacuumPerUnitOfPressure, units: "molecules/m/Pa"}
+        const powerLossPerMeterOfRingPerUnitOfPressure = PowerLossPerMolecule * numMoleculesInVacuumPerUnitOfPressure
+        specs['powerLossPerMeterOfRingPerUnitOfPressure'] = {value: powerLossPerMeterOfRingPerUnitOfPressure, units: "Watts/m/Pa"}
+        const vaccumeLevelForLIGOInTorr = 1e-9 // same as 10**-9
+        const vaccumeLevelForLIGOInPa = vaccumeLevelForLIGOInTorr * 133.322
+        const powerLossPerMeterOfRingAtLIGOVacuumLevel = powerLossPerMeterOfRingPerUnitOfPressure * vaccumeLevelForLIGOInPa
+        specs['powerLossPerMeterOfRingAtLIGOVacuumLevel'] = {value: powerLossPerMeterOfRingAtLIGOVacuumLevel, units: "Watts/m"}
+
         movingRingBillOfMaterials.push({name: 'primaryMagnetCores', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
         // ToDo - Assuming here that secondary magnet cores total same mass as primary but need more accurate calculation...
         movingRingBillOfMaterials.push({name: 'secondaryMagnetCore', massPerMeter: ringMaglevCoreMassPerMeter * (1 - portionOfCoreOnStationaryRing), units: 'kg', costPerkg: dParamWithUnits['coreMaterialCostIron'].value})
