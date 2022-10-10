@@ -271,7 +271,7 @@ export class elevatorPositionCalculator {
     this.accProfile.addElement("V", ecv.maxSpeed, ecv.steadySpeedTime)
     this.accProfile.addElement("A", -ecv.maxAccelleration, ecv.accellerationTime)
     this.cycleTime = (ecv.totalTravelTime + ecv.waitTime) * 2  
-    console.log(ecv.totalTravelTime/60)
+    //console.log(ecv.totalTravelTime/60)
   }
 
   calculateElevatorPosition(t) {

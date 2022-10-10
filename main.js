@@ -360,10 +360,10 @@ const guidParamWithUnits = {
 
 function updatePerfOptimzation() {
   if (guidParam['perfOptimizedThreeJS']) {
-    scene.autoUpdate = false
+    scene.matrixWorldAutoUpdate = false
   }
   else {
-    scene.autoUpdate = true
+    scene.matrixWorldAutoUpdate = true
   }
 }
 
@@ -482,7 +482,6 @@ function updatedParam() {   // Read as "update_dParam"
   })
   // The following parameters are mapped "manually" from the gui to the model
   dParamWithUnits['equivalentLatitude'] = {value: guidParamWithUnits['equivalentLatitude'].value / 180 * Math.PI, units: "radians"}
-  console.log(dParamWithUnits['equivalentLatitude'].value *180/Math.PI)
   const alpha = guidParamWithUnits['moveRing'].value
   dParamWithUnits['ringCenterLongitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLongitude'].value, guidParamWithUnits['finalLocationRingCenterLongitude'].value, alpha)  / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
@@ -539,6 +538,11 @@ function adjustEarthAtmosphereVisibility() {
 function adjustEarthTextureOpacity() {
   updatedParam()
   planetMeshes.forEach(mesh => {mesh.material.opacity = guidParamWithUnits['earthTextureOpacity'].value})
+}
+
+function adjustMoonsVisibility() {
+  updatedParam()
+  moonMesh.visible = guidParamWithUnits['showMoon'].value
 }
 
 function adjustStarsVisibility() {
@@ -678,7 +682,7 @@ if (renderToBuffer) {
 }
 
 //scene.matrixAutoUpdate = false
-scene.autoUpdate = true
+scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
@@ -1057,16 +1061,29 @@ planetCoordSys.add(atmosphereMesh)
 //earthMesh.position = 
 //scene.add(earth2Mesh)
 
+const moonTexture = new THREE.TextureLoader().load("./textures/moon.jpg")
+const moonMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(radiusOfPlanet * 0.27, 64, 32),
+  new THREE.MeshStandardMaterial({
+    map: moonTexture,
+  })
+)
+const moonOrbitDistance = 384467000 // m
+moonMesh.position.set(moonOrbitDistance, 0, 0)
+moonMesh.rotation.set(0, 0, 0)
+moonMesh.visible = dParamWithUnits['showMoon'].value
+scene.add(moonMesh)
+
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
 const whiteMaterial = new THREE.MeshBasicMaterial({color: 0x5f5f5f})
 const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
 const metalicMaterial = new THREE.MeshBasicMaterial({color: 0x878681, transparent: false})
-const transparentMaterial1 = new THREE.MeshPhongMaterial( {vertexColors: true, transparent: true, opacity: 0.55})
+const transparentMaterial1 = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.55})
 const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0.35})
 const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0})
 
 var tetherMaterial = new THREE.LineBasicMaterial({
-  //vertexColors: THREE.VertexColors,
+  vertexColors: false,
   color: 0x4897f8,
   //color: 0x000000,
   //color: 0x808080,
@@ -1084,7 +1101,7 @@ var tetherMaterial = new THREE.LineBasicMaterial({
 // } )
 
 var cableMaterial = new THREE.LineBasicMaterial({
-  vertexColors: THREE.VertexColors,
+  vertexColors: false,
   //color: 0x4897f8,
   transparent: true,
   opacity: dParamWithUnits['cableVisibility'].value
@@ -1519,7 +1536,7 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
   launchTrajectoryGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( launchTrajectoryColors, 3 ) );
 
   var launchTrajectoryMaterial = new THREE.LineBasicMaterial({
-    vertexColors: THREE.VertexColors,
+    vertexColors: true,
     transparent: true,
     opacity: dParamWithUnits['launchTrajectoryVisibility'].value
   })
@@ -1842,7 +1859,7 @@ function renderFrame() {
     console.userdata['matrixWorldUpdateData'] = {}
   }
 
-  if (!scene.autoUpdate) {
+  if (!scene.matrixWorldAutoUpdate) {
     // Performance improved less automatic version
     scene.selectivelyUpdateMatrixWorld()
   }
@@ -1953,7 +1970,6 @@ function setOrbitControlsTargetUpVector() {
     planetCoordSys.updateWorldMatrix(true)
     tetheredRingRefCoordSys.updateMatrixWorld(true)
     orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
-    console.log("Setting target up vector", orbitControlsTargetUpVector)
   }
 }
 
@@ -2432,7 +2448,7 @@ function orbitControlsEventHandler() {
 
 function recomputeNearFarClippingPlanes() {
   // Calculate the distance to the nearest object - for this we will use the sphere encompassing the Earth and it's stratosphere
-  // Multiply that by the cosine of thecamera's fulstrum angle
+  // Multiply that by the cosine of the camera's fulstrum angle
   // Note: Assumes the planet is centered on the origin!!!
   camera.near = Math.max(10, camera.position.length() - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
@@ -2459,8 +2475,8 @@ function recomputeNearFarClippingPlanes() {
 
   // Hack
   if (enableVR) {
-    camera.near = 0.0001 * radiusOfPlanet
-    camera.far = 1 * radiusOfPlanet
+    camera.near = 0.00001 * radiusOfPlanet
+    camera.far = 100 * radiusOfPlanet
   }
   //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)
   camera.updateProjectionMatrix()
