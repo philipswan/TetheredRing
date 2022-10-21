@@ -8,7 +8,7 @@ export class launcher {
         // Possible User defined (e.g. if user changes the planet)
         this.const_g = 9.8;
         this.const_M = 5.9722E+24;
-        this.mu = this.const_G * this.const_M / 1e9;
+        this.mu = this.const_G * this.const_M;
         this.R_Earth = 6371000;
 
         // User defined parameters

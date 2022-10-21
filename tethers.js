@@ -144,7 +144,7 @@ class TetherGeometry extends BufferGeometry {
         specs['tetherEqCO2TotalMass'] = {value: tetherEqCO2TotalMass, units: "kg"}
         const oneBillion = 1000000000
         const tetherMaterialTotalCost = tetherMaterialTotalMass * dParamWithUnits['tetherMaterialCost'].value / oneBillion
-        console.log(tetherMaterialTotalMass, tetherMaterialTotalCost, tetherMaterialTotalCost/tetherMaterialTotalMass)
+        //console.log(tetherMaterialTotalMass, tetherMaterialTotalCost, tetherMaterialTotalCost/tetherMaterialTotalMass)
         specs['tetherMaterialTotalCost'] = {value: tetherMaterialTotalCost, units: "Billion USD"}
         //specs['tenileAverageForceDirection'] = {value: (Theta[0][1] + Theta[1][1])/2, units: "radians"}
         // Calculate the required inertial force
@@ -185,7 +185,7 @@ class TetherGeometry extends BufferGeometry {
         const movingRingsTotalKineticEnergy = 0.5 * movingRingsTotalMass * movingRingsSpeed**2
         specs['movingRingsTotalKineticEnergy'] = {value: movingRingsTotalKineticEnergy, units: "J"}
         const movingRingsTotalKineticEnergyTWh = movingRingsTotalKineticEnergy / 3.6e+15
-        console.log(movingRingsTotalKineticEnergy, movingRingsTotalKineticEnergyTWh)
+        //console.log(movingRingsTotalKineticEnergy, movingRingsTotalKineticEnergyTWh)
         specs['movingRingsTotalKineticEnergyTWh'] = {value: movingRingsTotalKineticEnergyTWh, units: "TWh"}
         const movingRingsTotalKineticEnergyEquivalentAntimatter = movingRingsTotalKineticEnergy / (180 * 1000000 * 1e9) // 180 MJ/microgram converted to J/kg
         specs['movingRingsTotalKineticEnergyEquivalentAntimatter'] = {value: movingRingsTotalKineticEnergyEquivalentAntimatter, units: "kg"}
@@ -193,8 +193,8 @@ class TetherGeometry extends BufferGeometry {
         specs['movingRingsTotalKineticEnergyEquivalentHuricaneHours'] = {value: movingRingsTotalKineticEnergyEquivalentHuricaneHours, units: "HuricaneHours"}
         const movingRingsKineticEnergyPerMeterOfRing = movingRingsTotalKineticEnergy / mainRingCircumference
         specs['movingRingsKineticEnergyPerMeterOfRing'] = {value: movingRingsKineticEnergyPerMeterOfRing, units: "J"}
-        const wholesaleCostOfEnergy = dParamWithUnits['wholesaleCostOfEnergy'].value
-        const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * wholesaleCostOfEnergy / oneBillion
+        const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
+        const movingRingsTotalKineticEnergyCost = movingRingsTotalKineticEnergy * wholesaleCostOfElectricity / oneBillion
         specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
         const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / mainRingCircumference
         specs['movingRingsKineticEnergyCostPerMeterOfRing'] = {value: movingRingsKineticEnergyCostPerMeterOfRing, units: "USD"}
@@ -206,7 +206,7 @@ class TetherGeometry extends BufferGeometry {
         const solarPanelTemperatureEfficiencyFactor = dParamWithUnits['solarPanelTemperatureEfficiencyFactor'].value
         const solarPanelEfficiencyAtReferenceTemperature = dParamWithUnits['solarPanelEfficiencyAtReferenceTemperature'].value
         const solarPanelEfficiency = solarPanelEfficiencyAtReferenceTemperature * (1 - solarPanelTemperatureEfficiencyFactor * (solarPanelAverageTemperature - solarPanelReferenceTemperature))
-        console.log('solarPanelEfficiency', solarPanelEfficiency)
+        //console.log('solarPanelEfficiency', solarPanelEfficiency)
         const solarPanelMassPerMeterSquared = dParamWithUnits['solarPanelMassPerMeterSquared'].value
         const solarPanelCostPerWatt = dParamWithUnits['solarPanelCostPerWatt'].value
         const solarPanelMountMassPerMeterSquared = dParamWithUnits['solarPanelMountMassPerMeterSquared'].value
@@ -231,10 +231,10 @@ class TetherGeometry extends BufferGeometry {
         // This is misleading because the ring will be sped up using terrestrial power soures while it's under the surface of the ocean, and then allowed to float upwards.
         // We only need to add power to increase it's altitude and speed while it's above the surface of the ocean, and to overcome losses.
         specs['timeToAccellerateMovingRingsDays'] = {value: timeToAccellerateMovingRingsDays, units: "days"}
-        console.log('timeToAccellerateMovingRingsDays', timeToAccellerateMovingRingsDays)
+        //console.log('timeToAccellerateMovingRingsDays', timeToAccellerateMovingRingsDays)
         const timeToAccellerateMovingRingsYears = timeToAccellerateMovingRingsDays / 365
         specs['timeToAccellerateMovingRingsYears'] = {value: timeToAccellerateMovingRingsYears, units: "years"}
-        console.log('timeToAccellerateMovingRingsYears', timeToAccellerateMovingRingsYears)
+        //console.log('timeToAccellerateMovingRingsYears', timeToAccellerateMovingRingsYears)
 
         const solarPanelMassPerMeterOfRing = solarPanelsTotalMass / mainRingCircumference
         specs['solarPanelMassPerMeterOfRing'] = {value: solarPanelMassPerMeterOfRing, units: "kg/m"}
@@ -302,7 +302,7 @@ class TetherGeometry extends BufferGeometry {
         specs['totalCoilPower'] = {value: totalCoilPower, units: "Watts"}
         const totalCoilPowerPerYear = totalCoilPower * 365 * 24 * 3600
         specs['totalCoilPowerPerYear'] = {value: totalCoilPowerPerYear, units: "Joules"}
-        const totalCoilPowerCostPerYear = totalCoilPowerPerYear * wholesaleCostOfEnergy / oneBillion
+        const totalCoilPowerCostPerYear = totalCoilPowerPerYear * wholesaleCostOfElectricity / oneBillion
         specs['totalCoilPowerCostPerYear'] = {value: totalCoilPowerCostPerYear, units: "Billion USD"}
         const coilVolume = wireLength * Math.PI * wireRadius**2
         const coilMass = coilVolume * densityOfCoilConductor
@@ -430,27 +430,28 @@ class TetherGeometry extends BufferGeometry {
         if (verbose) console.log('Stationary Ring BOM', stationaryRingBillOfMaterials)
         if (verbose) console.log('Moving Ring BOM', movingRingBillOfMaterials)
 
-        const transitSystemMassPerMeter = dParamWithUnits['transitSystemMassPerMeter'].value
-        const transitSystemCostPerMeter = transitSystemMassPerMeter * capitalCostPerKgSupported + dParamWithUnits['transitSystemMaterialsCostPerMeter'].value
-        specs['transitSystemCostPerMeter'] = {value: transitSystemCostPerMeter, units: "USD/m"}
+        // const transitSystemMassPerMeter = dParamWithUnits['transitSystemMassPerMeter'].value
+        // const transitSystemCostPerMeter = transitSystemMassPerMeter * capitalCostPerKgSupported + dParamWithUnits['transitSystemMaterialsCostPerMeter'].value
+        // specs['transitSystemCostPerMeter'] = {value: transitSystemCostPerMeter, units: "USD/m"}
 
         const maglevComponentMassOverForceRatio = (movingRingComponentsMass + stationaryRingsMassPerMeter2) / magneticForcePerMeter
         specs['maglevComponentMassOverForceRatio'] = {value: maglevComponentMassOverForceRatio, units: "kg/N"}
-        console.log('maglevComponentMassOverForceRatio', maglevComponentMassOverForceRatio)
+        //console.log('maglevComponentMassOverForceRatio', maglevComponentMassOverForceRatio)
 
+        // Solar Panel Station Keeping Costs
         const a = dParamWithUnits['ringFinalAltitude'].value
-        const airDensityAtRingAltitude = tram.airDensityAtRingAltitude(a)
-        specs['airDensityAtRingAltitude'] = {value: airDensityAtRingAltitude, units: "kg/m3"}
-        console.log('airDensityAtRingAltitude', airDensityAtRingAltitude)
+        const airDensityAtAltitude = tram.airDensityAtAltitude(a)
+        specs['airDensityAtAltitude'] = {value: airDensityAtAltitude, units: "kg/m3"}
+        //console.log('airDensityAtAltitude', airDensityAtAltitude)
         const Cd = 1.28 // Coefficient of drag for a flat plate.
         const windSpeed = 28 // m/s
         const area = 1 // m2
-        const forcePerSquareMeter = 0.5 * Cd * airDensityAtRingAltitude * windSpeed**2 * area 
-        specs['forcePerSquareMeter'] = {value: forcePerSquareMeter, units: "N"}
-        console.log('forcePerSquareMeter', forcePerSquareMeter)
-        const propulsivePowerPerSquareMeter = 0.5 * Cd * airDensityAtRingAltitude * windSpeed**3 * area   // This is the power it takes to propel the plate through an airstream. 
-        specs['propulsivePowerPerSquareMeter'] = {value: propulsivePowerPerSquareMeter, units: "W"}
-        console.log('propulsivePowerPerSquareMeter', propulsivePowerPerSquareMeter)
+        const forceAppliedByWind = 0.5 * Cd * airDensityAtAltitude * windSpeed**2 * area 
+        specs['forceAppliedByWind'] = {value: forceAppliedByWind, units: "N"}
+        //console.log('forceAppliedByWind', forceAppliedByWind)
+        const propulsivePowerRequired = 0.5 * Cd * airDensityAtAltitude * windSpeed**3 * area   // This is the power it takes to propel the plate through an airstream. 
+        specs['propulsivePowerRequired'] = {value: propulsivePowerRequired, units: "W"}
+        //console.log('propulsivePowerRequired', propulsivePowerRequired)
       }
 
       // At this point the final length of the tethers (measured along the catenary) is known, but the tethers current shape is still

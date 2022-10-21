@@ -35,7 +35,7 @@ import { TetherGeometry } from './tethers.js'
 import { OrbitControls } from './OrbitControlsModified.js'
 
 import * as tram from './tram.js'
-import * as launcher from './launcher.js'
+import * as Launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
 
@@ -172,6 +172,7 @@ const guidParamWithUnits = {
 
   // Engineering Parameters - Transit System
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeTubeWallThickness: {value: 0.001, units: 'm', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeUpwardOffset: {value: -100, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeOutwardOffset: {value: -15, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -181,6 +182,8 @@ const guidParamWithUnits = {
   // ToDo - Need 4 sliders for adjusting the track vertical and horizontal spacing and offsets
   ringTerminusOutwardOffset: {value: -9.75, units: 'm', autoMap: true, min: -10, max: -5, updateFunction: updateTransitsystem, folder: folderEngineering},
   ringTerminusUpwardOffset: {value: -3.8, units: 'm', autoMap: true, min: -5, max: -3, updateFunction: updateTransitsystem, folder: folderEngineering},
+  ringTerminusCost: {value: 10000000, units: 'USD', autoMap: true, min: 0, max: 10000000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  groundTerminusCost: {value: 20000000, units: 'USD', autoMap: true, min: 0, max: 10000000, updateFunction: updateTransitsystem, folder: folderEngineering},
   groundTerminusOutwardOffset: {value: -9.75, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
   groundTerminusUpwardOffset: {value: 150, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
   
@@ -199,8 +202,10 @@ const guidParamWithUnits = {
   transitTubeInteriorTemperature: {value: 20, units: 'C', autoMap: true, min: 0, max: 40, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitSystemEfficiencyAtCruisingSpeed: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleCoefficientOfDrag: {value: 0.25, units: '', autoMap: true, min: .1, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
-  transitSystemMassPerMeter: {value:200, units: "kg", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  transitSystemMaterialsCostPerMeter: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: updateTransitsystem, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
+  //transitSystemMassPerMeter: {value:200, units: "kg", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  //transitSystemMaterialsCostPerMeter: {value:18000, units: "USD/m", autoMap: true, min: 1, max: 30000, updateFunction: updateTransitsystem, folder: folderEngineering},  // https://youtu.be/PeYIo91DlWo?t=490
+  transitTubeTubeWallMaterialDensity: {value: 930, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTubeTubeWallMaterialCost: {value: 0.75, units: "USD/kg", autoMap: true, min: 0.01, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},  // https://www.theplasticsexchange.com//Research/WeeklyReview.aspx
 
   // ToDo: these parameters are not properly updated yet
   numVirtualTransitVehicles: {value: 40000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -211,8 +216,9 @@ const guidParamWithUnits = {
   groundTerminusNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Engineering Parameters - Elevators
-  numElevatorCables: {value:900, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numElevatorCables: {value:1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numElevatorCableModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  elevatorCableCost: {value: 1000000, units: 'USD', autoMap: true, min: 0, max: 10000000, updateFunction: adjustRingDesign, folder: folderEngineering},    // ToDo: Need a better estimate for the cost of an elevator cable and its drive system
   numVirtualElevatorCars: {value: 1800, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCarNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   additionalUpperElevatorCable: {value: 20, units: 'm', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -221,6 +227,7 @@ const guidParamWithUnits = {
   elevatorCarUpwardOffset: {value: 0.32, units: 'm', autoMap: true, min: -10, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCarMaxSpeed: {value: 200, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
   elevatorCarMaxAcceleration: {value: 2, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
+  elevatorCarCost: {value: 1000000, units: 'USD', autoMap: true, min: 0, max: 10000000, updateFunction: updateTransitsystem, folder: folderEngineering},  // ToDo: Need a better estimate for the cost of an elevator car
 
   // Habitats
   numVirtualHabitats: {value:17100, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -242,20 +249,55 @@ const guidParamWithUnits = {
   idealGasConstant: {value: 8.3145, units: 'Joules/mole/K', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Engineering Parameters - Launch System
-  launchTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeAcceleration: {value: 30, units: 'm', autoMap: true, min: 1, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeExitVelocity: {value: 8000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateTransitsystem, folder: folderEngineering},
-  launchTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherTubeRadius: {value: 4, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherAcceleration: {value: 30, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherExitVelocity: {value: 15000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 200000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherExitAngleInDegees: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 90, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
-  launchVehicleCoefficientOfDrag: {value: 1, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
-  launchVehicleRadius: {value: 5, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
+  launchVehicleRadius: {value: 3, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchVehicleBodyLength: {value: 50, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchVehicleNoseConeLength: {value: 80, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchVehicleCruisingSpeed: {value: 8000, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateTransitsystem, folder: folderEngineering},
   numVirtualLaunchVehicles: {value: 4000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  liquidHydrogenCostPerKg: {value: 3.65, units: 'USD/kg', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  liquidHeliumCostPerKg: {value: 50, units: 'USD/kg', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  liquidOxygenCostPerKg: {value: 0.155, units: 'USD/kg', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   launchVehicleNumModels: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+
+  launcherFlywheelRadius: {value: 0.08, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherScrewRadius: {value: 0.09, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherScrewToothRadius: {value: 0.10, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherScrewRotationRate: {value: 350, units: 's-1', autoMap: true, min: 1, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehicleEmptyMass: {value: 2000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehiclePropellantMass: {value: 3500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehiclePayloadMass: {value: 4500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehiclePropellantMassFlowRate: {value: 40, units: 'kg/s', autoMap: true, min: 0.1, max: 100000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launchVehicleAMBAverageMagneticFluxDensity: {value: 3.58, units: 'T', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherFlywheelMassPerMeter: {value: 102, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherUnderwaterTubeJacketThickness: {value: 0.002, units: 'm', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherBracketsMassPerMeter: {value: 40, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherRailsMassPerMeter: {value: 100, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherScrewsMassPerMeter: {value: 100, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherTorqueConvertorsMassPerMeter: {value: 100, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherMotorMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherMotorCost: {value: 2000, units: 'USD', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherMotorsPerMeter: {value: 0.02, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherVacuumPumpMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering}, 
+  launcherVacuumPumpCost: {value: 2000, units: 'USD', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherVacuumPumpsPerMeter: {value: 0.02, units: '', autoMap: true, min: 0, max: 100, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherSuspendedTubeMassPerMeter: {value: 100, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherEfficiency: {value: 0.8, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherUnderwaterTubeInnerRadius: {value: 4, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherUnderwaterTubeOuterRadius: {value: 4.5, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherFactoryCost: {value: 2e9, units: "USD", autoMap: true, min: 0, max: 1e10, updateFunction: adjustRingDesign, folder: folderEconomics},
+
 
   // Engineering Parameters - Power
   powerRequirement: {value: 1000, units: "W/m", autoMap: true, min: 1, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},   // This is the power that is consumed by the rings maglev systems and all equipment supported by the ring, per meter length of the ring.
@@ -299,10 +341,15 @@ const guidParamWithUnits = {
   coreMaterialDensityIron: {value: 7874, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
   coreMaterialCostIron: {value: 0.090, units: "USD/kg", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
   bulkMaterialCost: {value: 0.090, units: "USD/kg", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  densityOfConcrete: {value: 2400, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  costOfConcrete: {value: 0.022425547, units: "USD/kg", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  costOfSteel: {value: 0.7, units: "USD/kg", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  costOfAluminum: {value: 2.3, units: "USD/kg", autoMap: true, min: 0, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
 
   // Economics Parameters
-  wholesaleCostOfEnergy: {value: 0.02 / 3.6e6, units: "USD/J", autoMap: true, min: 0, max: 0.1, updateFunction: adjustRingDesign, folder: folderEconomics},
-  
+  wholesaleCostOfElectricity: {value: 0.05 / 3.6e6, units: "USD/J", autoMap: true, min: 0, max: 0.1, updateFunction: adjustRingDesign, folder: folderEconomics},
+  jetFuelCostPerGallon: {value: 5.29 , units: "USD/Gallon", autoMap: true, min: 0, max: 0.1, updateFunction: adjustRingDesign, folder: folderEconomics},
+
   // Rendering Parameters
   parameterPresetNumber: {value: 0, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
@@ -486,8 +533,8 @@ function updatedParam() {   // Read as "update_dParam"
   dParamWithUnits['ringCenterLongitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLongitude'].value, guidParamWithUnits['finalLocationRingCenterLongitude'].value, alpha)  / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringEccentricity'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingEccentricity'].value, guidParamWithUnits['finalLocationRingEccentricity'].value, alpha), units: ""}
-  dParamWithUnits['launchTubeLength'] = {value: dParamWithUnits['launchTubeExitVelocity'].value**2 /2 / dParamWithUnits['launchTubeAcceleration'].value, units: "m"}
-  dParamWithUnits['launchTubeAccelerationTime'] = {value: dParamWithUnits['launchTubeExitVelocity'].value / dParamWithUnits['launchTubeAcceleration'].value, units: "s"}
+  dParamWithUnits['launcherLength'] = {value: dParamWithUnits['launcherExitVelocity'].value**2 /2 / dParamWithUnits['launcherAcceleration'].value, units: "m"}
+  dParamWithUnits['launcherAccelerationTime'] = {value: dParamWithUnits['launcherExitVelocity'].value / dParamWithUnits['launcherAcceleration'].value, units: "s"}
   updateTetherMaterial()
   updateCoilConductorMaterial()
 
@@ -686,7 +733,7 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-scene.background = new THREE.Color( 0xffffff )
+//scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -776,9 +823,9 @@ if (enableVR) {
 }
 else {
   eightTextureMode = false
-  TextureMode24x12 = true
+  TextureMode24x12 = false
 }
-const useShaders = false
+const useShaders = true
 
 scene.add(planetCoordSys)
 
@@ -963,9 +1010,9 @@ else {
     new THREE.MeshPhongMaterial({
       //roughness: 1,
       //metalness: 0,
-      //map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ),
+      map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ),
       //map: new THREE.TextureLoader().load( './textures/venus1280x720.jpg' ),
-      map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
+      //map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
       //map: new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
       //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
       //bumpScale: 1000000,
@@ -1462,10 +1509,10 @@ function constructElevatorCables() {
   }
 }
 
+// Launch Trajectory Line
+const launcher = new Launcher.launcher()
 if (dParamWithUnits['showLaunchTrajectory'].value) {
-  // Launch Trajectory Line
-  const l = new launcher.launcher()
-  const angleFromNorthPole = (Math.PI/2 - dParamWithUnits['ringCenterLatitude'].value + (Math.PI/2 - crv.currentEquivalentLatitude))
+    const angleFromNorthPole = (Math.PI/2 - dParamWithUnits['ringCenterLatitude'].value + (Math.PI/2 - crv.currentEquivalentLatitude))
   const launcherExitPosition = new THREE.Vector3().setFromSphericalCoords(
     radiusOfPlanet + crv.currentMainRingAltitude,
     angleFromNorthPole,
@@ -1485,7 +1532,7 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
   //const displacement = new THREE.Vector3(0, 0, 0)
   //let distanceTraveledInsideTube = 0
   //let distanceTraveledOutsideTube = 0
-  //let angularDistance = (distanceTraveledInsideTube-dParamWithUnits['launchTubeLength'].value)/crv.mainRingRadius
+  //let angularDistance = (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius
   //let prevVehiclePostion = new THREE.Vector3(crv.mainRingRadius * Math.sin(angularDistance), crv.yf, crv.mainRingRadius * Math.cos(angularDistance))
 
   let t = 0
@@ -1498,10 +1545,10 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
   const launchTrajectoryPoints = []
   const launchTrajectoryColors = []
 
-  for (t=1; t<3*dParamWithUnits['launchTubeAccelerationTime'].value; t++) {
-    // distanceTraveledInsideTube = 0.5 * dParamWithUnits['launchTubeAcceleration'].value * t**2
-    // distanceTraveledOutsideTube = Math.max(0, dParamWithUnits['launchTubeExitVelocity'].value * (t - dParamWithUnits['launchTubeAccelerationTime'].value))
-    // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParamWithUnits['launchTubeLength'].value)/crv.mainRingRadius)
+  for (t=1; t<3*dParamWithUnits['launcherAccelerationTime'].value; t++) {
+    // distanceTraveledInsideTube = 0.5 * dParamWithUnits['launcherAcceleration'].value * t**2
+    // distanceTraveledOutsideTube = Math.max(0, dParamWithUnits['launcherExitVelocity'].value * (t - dParamWithUnits['launcherAccelerationTime'].value))
+    // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius)
     // currVehiclePostion = new THREE.Vector3(
     //   crv.mainRingRadius * Math.sin(angularDistance) + distanceTraveledOutsideTube,
     //   crv.yf,
@@ -1683,6 +1730,9 @@ function updateRing() {
   //if (verbose) console.log("Updating Tethers")
   constructTethers()
   if (verbose) console.log('constructTethers ')
+
+  tram.updateLauncherSpecs(dParamWithUnits, crv, launcher, specs)
+  tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)
 
   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
   //calculateAdditionalSpecs()

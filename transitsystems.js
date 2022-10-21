@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+// import { FBXLoader } from './node_modules/three/examples/jsm/loaders/FBXLoader.js'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-
+// C:\Users\phils\Documents\repos\Three.js\TetheredRing\node_modules\three\examples\jsm\loaders
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 //import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/GLTFLoader.js'
 //import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
@@ -330,26 +331,6 @@ class virtualHabitat {
       if (this.perfOptimizedThreeJS) om.freeze()
     }
   }
-
-  // placeAndOrientModel(om, refFrame) {
-  //   const modelsTrackPosition = (this.p + refFrame.p) % 1 
-  //   if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-  //     console.log("error!!!")
-  //   }
-  //   else {
-  //     const pointOnRingCurve = virtualHabitat.mainRingCurve.getPoint(modelsTrackPosition)
-  //     const angle = 2 * Math.PI * modelsTrackPosition
-  //     om.position.set(
-  //       pointOnRingCurve.x + virtualHabitat.habitatRelativePosition_r * Math.cos(angle) + virtualHabitat.habitatForwardOffset * -Math.sin(angle),
-  //       pointOnRingCurve.y + virtualHabitat.habitatRelativePosition_y,
-  //       pointOnRingCurve.z + virtualHabitat.habitatRelativePosition_r * Math.sin(angle) + virtualHabitat.habitatForwardOffset * Math.cos(angle) )
-  //     om.rotation.set(0, -angle, virtualHabitat.currentEquivalentLatitude)
-  //     om.rotateZ(-Math.PI/2)
-  //     om.rotateY(Math.PI/2)
-  //     om.matrixValid = false
-  //     if (this.perfOptimizedThreeJS) om.freeze()
-  //   }
-  // }
 }
 
 class virtualStationaryRing {
@@ -361,8 +342,6 @@ class virtualStationaryRing {
 
   // The following properties are common to all virtual habitats...
   static mainRingCurve
-  static habitatRelativePosition_r
-  static habitatRelativePosition_y
   static currentEquivalentLatitude
   static stationaryRingRotZ
   static isVisible
@@ -412,8 +391,6 @@ class virtualMovingRing {
 
   // The following properties are common to all virtual habitats...
   static mainRingCurve
-  static habitatRelativePosition_r
-  static habitatRelativePosition_y
   static currentEquivalentLatitude
   static movingRingRotZ
   static isVisible
@@ -462,10 +439,8 @@ class virtualTransitTube {
     this.unallocatedModels = unallocatedModelsArray
   }
 
-  // The following properties are common to all virtual habitats...
+  // The following properties are common to all tube sections...
   static mainRingCurve
-  static habitatRelativePosition_r
-  static habitatRelativePosition_y
   static currentEquivalentLatitude
   static transitTubeRotZ
   static isVisible
@@ -513,22 +488,20 @@ class virtualLaunchTube {
 
   // The following properties are common to all virtual habitats...
   static mainRingCurve
-  static habitatRelativePosition_r
-  static habitatRelativePosition_y
   static currentEquivalentLatitude
-  static launchTubeRotZ
+  static launcherRotZ
   static isVisible
   static isDynamic
   static hasChanged
 
   static update(dParamWithUnits, crv, mainRingCurve) {
     virtualLaunchTube.mainRingCurve = mainRingCurve 
-    const launchTubeOutwardOffset = dParamWithUnits['launchTubeOutwardOffset'].value
-    const launchTubeUpwardOffset = dParamWithUnits['launchTubeUpwardOffset'].value
-    virtualLaunchTube.launchTubeRelativePosition_r = tram.offset_r(launchTubeOutwardOffset, launchTubeUpwardOffset, crv.currentEquivalentLatitude)
-    virtualLaunchTube.launchTubeRelativePosition_y = tram.offset_y(launchTubeOutwardOffset, launchTubeUpwardOffset, crv.currentEquivalentLatitude)
+    const launcherOutwardOffset = dParamWithUnits['launcherOutwardOffset'].value
+    const launcherUpwardOffset = dParamWithUnits['launcherUpwardOffset'].value
+    virtualLaunchTube.launcherRelativePosition_r = tram.offset_r(launcherOutwardOffset, launcherUpwardOffset, crv.currentEquivalentLatitude)
+    virtualLaunchTube.launcherRelativePosition_y = tram.offset_y(launcherOutwardOffset, launcherUpwardOffset, crv.currentEquivalentLatitude)
     virtualLaunchTube.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualLaunchTube.launchTubeRotZ = crv.currentEquivalentLatitude - Math.PI/2
+    virtualLaunchTube.launcherRotZ = crv.currentEquivalentLatitude - Math.PI/2
     virtualLaunchTube.isVisible = dParamWithUnits['showLaunchTube'].value
     virtualLaunchTube.isDynamic =  false
     virtualLaunchTube.hasChanged = true
@@ -543,10 +516,10 @@ class virtualLaunchTube {
       const pointOnRingCurve = virtualLaunchTube.mainRingCurve.getPoint(modelsTrackPosition)
       const angle = 2 * Math.PI * modelsTrackPosition
       om.position.set(
-        pointOnRingCurve.x + virtualLaunchTube.launchTubeRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualLaunchTube.launchTubeRelativePosition_y,
-        pointOnRingCurve.z + virtualLaunchTube.launchTubeRelativePosition_r * Math.sin(angle))
-      om.rotation.set(0, -angle, virtualLaunchTube.launchTubeRotZ)
+        pointOnRingCurve.x + virtualLaunchTube.launcherRelativePosition_r * Math.cos(angle),
+        pointOnRingCurve.y + virtualLaunchTube.launcherRelativePosition_y,
+        pointOnRingCurve.z + virtualLaunchTube.launcherRelativePosition_r * Math.sin(angle))
+      om.rotation.set(0, -angle, virtualLaunchTube.launcherRotZ)
       om.visible = virtualLaunchTube.isVisible
       om.matrixValid = false
       if (this.perfOptimizedThreeJS) om.freeze()
@@ -556,7 +529,7 @@ class virtualLaunchTube {
 
 class virtualLaunchVehicle {
   constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    // The virtual vehicle has a position around the ring, a launchTubeLevel, and an innerOuterTrackFactor
+    // The virtual vehicle has a position around the ring
     // A 0 indicates the lower level, and a 1 indicates the upper level
     // A 0 indicates the inner track and a 1 indicates the outer track. Values between 0 and 1 indicate that the vehicle is changing tracks.
     // Distance around the track is a value from 0 to 2*PI
@@ -582,8 +555,8 @@ class virtualLaunchVehicle {
 
   static update(dParamWithUnits, crv, mainRingCurve, ringSouthernMostPosition) {
     virtualLaunchVehicle.mainRingCurve = mainRingCurve
-    const outwardOffset = dParamWithUnits['launchTubeOutwardOffset'].value
-    const upwardOffset = dParamWithUnits['launchTubeUpwardOffset'].value
+    const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
+    const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
     virtualLaunchVehicle.launchVehicleRelativePosition_r = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     virtualLaunchVehicle.launchVehicleRelativePosition_y  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
@@ -716,7 +689,7 @@ export class transitSystem {
     this.numWedges = 1024
     this.actionFlags = new Array(this.numWedges).fill(0)
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
-    const launchTubeLength = 1000000 // Hack, this should be computed properly based on input parameters
+    const launcherLength = dParamWithUnits['launcherLength']
     this.ringSouthernMostPosition = 3/4 // Hack
     
     // Debug - ToDo clean this up when it's no longer needed
@@ -824,7 +797,7 @@ export class transitSystem {
           refFrame.wedges[wedgeIndex]['virtualStationaryRings'].push(new virtualStationaryRing(positionInFrameOfReference, j, this.unallocatedStationaryRingModels))
         }
         refFrame.wedges[wedgeIndex]['virtualTransitTubes'].push(new virtualTransitTube(positionInFrameOfReference, this.unallocatedTransitTubeModels))
-        if ((i>=totalFacilities*this.ringSouthernMostPosition) && (i<totalFacilities*(this.ringSouthernMostPosition+launchTubeLength/(crv.mainRingRadius*2*Math.PI)))) {
+        if ((i>=totalFacilities*this.ringSouthernMostPosition) && (i<totalFacilities*(this.ringSouthernMostPosition+launcherLength/(crv.mainRingRadius*2*Math.PI)))) {
           refFrame.wedges[wedgeIndex]['virtualLaunchTubes'].push(new virtualLaunchTube(positionInFrameOfReference, this.unallocatedLaunchTubeModels))
         }
         prevFloorS = currFloorS
@@ -900,15 +873,15 @@ export class transitSystem {
 
     const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    //const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    //const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
-    const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
+    const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
+    //const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
+    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
+    //const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
     const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.perfOptimizedThreeJS)
     const addStationaryRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
     const addMovingRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
     const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
-    const addLaunchTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchTubeModels, 'launchTube', 1, dParamWithUnits['launchTubeNumModels'].value, this.perfOptimizedThreeJS)
+    const addLaunchTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchTubeModels, 'launcherTube', 1, dParamWithUnits['launcherTubeNumModels'].value, this.perfOptimizedThreeJS)
     //const addLaunchVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  0.0254 * 3.25, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  1, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
@@ -933,7 +906,7 @@ export class transitSystem {
       const lengthSegments = 4
       const segmentNumber = 0
       const totalSegments = totalFacilities
-      return tram.makeOffsetCurve(dParamWithUnits['launchTubeOutwardOffset'].value, dParamWithUnits['launchTubeUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
+      return tram.makeOffsetCurve(dParamWithUnits['launcherOutwardOffset'].value, dParamWithUnits['launcherUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
     lengthSegments = 2
@@ -979,12 +952,12 @@ export class transitSystem {
     addLaunchVehicles(launchVehicleMesh)
 
     const fbxloader = new FBXLoader()
-    // fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
-    //fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
-    gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
-    // fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
-    //fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
-    gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
+    fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
+    fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
+    //gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
+    fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
+    fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
+    //gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
 
     // Manually create the stationary rings
     function getStationaryRingSegmentCurve() {
@@ -1042,11 +1015,11 @@ export class transitSystem {
       const lengthSegments = 4
       const segmentNumber = 0
       const totalSegments = totalFacilities
-      return tram.makeOffsetCurve(dParamWithUnits['launchTubeOutwardOffset'].value, dParamWithUnits['launchTubeUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
+      return tram.makeOffsetCurve(dParamWithUnits['launcherOutwardOffset'].value, dParamWithUnits['launcherUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
     lengthSegments = 4
-    radius = dParamWithUnits['launchTubeTubeRadius'].value
+    radius = dParamWithUnits['launcherTubeRadius'].value
     radialSegments = 32
     const launchTubeGeometry = new THREE.TubeGeometry(getLaunchTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
     const launchTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
