@@ -80,14 +80,14 @@ export class Vector3 {
 
 }
 
-export function airDensityAtRingAltitude(a) {
+export function airDensityAtAltitude(a) {
   const c_4	= -3.957854E-19
   const c_3	= 6.657616E-14
   const c_2	= -3.47217E-09
   const c_1	= -8.61651E-05
   const c_0	= 2.16977E-01
-  const airDensityAtRingAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
-  return airDensityAtRingAltitude
+  const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
+  return airDensityAtAltitude
 }
 
 export function solveQuadratic(a, b, c) {
@@ -451,10 +451,10 @@ export function habitatDesign(dParamWithUnits, specs, genSpecs, habitatFloorspac
     const habitatBubbleMaterialEngineeringFactor = dParamWithUnits['habitatBubbleMaterialEngineeringFactor'].value
     const habitatBubbleMaterialCost = dParamWithUnits['habitatBubbleMaterialCost'].value
     const altitude = dParamWithUnits['ringFinalAltitude'].value
-    const airDensityAtRingAltitude = tram.airDensityAtRingAltitude(altitude)
+    const airDensityAtAltitude = tram.airDensityAtAltitude(altitude)
     const idealGasConstant = dParamWithUnits['idealGasConstant'].value
     const temperatureAtAltitue = 272  // K
-    const airPressureAtRingAltitude = idealGasConstant * airDensityAtRingAltitude * temperatureAtAltitue
+    const airPressureAtRingAltitude = idealGasConstant * airDensityAtAltitude * temperatureAtAltitue
     const habitatAirPressure = dParamWithUnits['habitatAirPressure'].value
     const habitatAirPressureDifference = habitatAirPressure - airPressureAtRingAltitude
     const habitatAirPressureStress = habitatAirPressureDifference * Math.PI * habitatBubbleInnerRadius**2
@@ -588,3 +588,551 @@ export function makeOffsetCurve(outwardOffset, upwardOffset, crv, lengthSegments
   tubePoints.forEach(point => {point.sub(refPoint)})
   return new THREE.CatmullRomCurve3(tubePoints)
 }
+
+export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
+
+  // Launcher Design Length
+  const launcherAcceleration = dParamWithUnits['launcherAcceleration'].value
+  const launcherExitVelocity = dParamWithUnits['launcherExitVelocity'].value
+  console.log('launcherExitVelocity', launcherExitVelocity)
+  const launcherLength = launcherExitVelocity**2/(2*launcherAcceleration) // m
+  const launcherAccellerationTime = launcherExitVelocity / launcherAcceleration
+  const launcherScrewRadius = dParamWithUnits['launcherScrewRadius'].value // m
+  const launcherScrewToothRadius = dParamWithUnits['launcherScrewToothRadius'].value // m
+  const launcherScrewRotationRate = dParamWithUnits['launcherScrewRotationRate'].value // rad/s
+  const launcherScrewToothCircumference = 2 * Math.PI * launcherScrewToothRadius
+  const launcherScrewToothSpeed = launcherScrewToothCircumference * launcherScrewRotationRate
+  console.log('launcherScrewToothSpeed', launcherScrewToothSpeed)
+  specs['launcherScrewToothSpeed'] = {value: launcherScrewToothSpeed, units: "m/s"}
+  // The GE-90 has a fan diameter of 3124 mm and a rotational speed of 3475 RPM. Their circumferential velocity is d·π·57.917 = 568 m/s
+  const GE90TurboFanDiameter = 3.124 // m
+  const GE90TurboFanRotationRate = 3475 // RPM
+  const GE90TurboFanCircumferentialVelocity = GE90TurboFanDiameter * Math.PI * GE90TurboFanRotationRate / 60
+  console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
+  specs['GE90TurboFanCircumferentialVelocity'] = {value: GE90TurboFanCircumferentialVelocity, units: "m/s"}
+  
+  const launcherScrewThreadPitchAtExit = launcherExitVelocity / launcherScrewToothSpeed
+  console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
+  const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value // m
+  const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value // m
+
+  // Launcher Propellant Mass Calculation
+  const vehicleCrossSectionalArea = Math.PI * launchVehicleRadius*2
+  const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle witha very pointy nose.
+  const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value // m/s
+  const launcherExitAltitude = dParamWithUnits['launcherExitAltitude'].value // m
+  const launcherExitAngleInDegees = dParamWithUnits['launcherExitAngleInDegees'].value * 180 / Math.PI
+  const launcherExitAngleInRadians = launcherExitAngleInDegees * Math.PI / 180
+  const R0_x = 0
+  const R0_y = (crv.radiusOfPlanet + launcherExitAltitude)
+  const V0_x = launcherExitVelocity * Math.cos(launcherExitAngleInRadians)
+  const V0_y = launcherExitVelocity * Math.sin(launcherExitAngleInRadians)
+  const tStep = 0.125
+
+  let propellantConsumed = 0 
+  let lastvehiclePositionVector = new THREE.Vector2(R0_x, R0_y)
+  let launcherSuspendedTubeLength = 0
+  for (let t = 0; t < 100; t += tStep) {
+    // Determine the altitude and velocity of the vehicle. 't' in this case represents the time relative to the initial conditions, R0_x, R0_y, V0_x, V0_y
+    const RV = launcher.RV_from_R0V0andt(R0_x, R0_y, V0_x, V0_y, t)
+
+    const vehiclePositionVector = new THREE.Vector2(RV.R.x, RV.R.y)
+    const vehicleAltitude = vehiclePositionVector.length() - crv.radiusOfPlanet
+    const vehicleDownrangeDistance = Math.atan2(vehiclePositionVector.x, vehiclePositionVector.y) * crv.radiusOfPlanet
+    const vehicleVelocityVector = new THREE.Vector2(RV.V.x, RV.V.y)
+    const vehicleUpwardAngleInDegrees = (Math.atan2(vehiclePositionVector.x, vehiclePositionVector.y) - (Math.atan2(vehicleVelocityVector.x, vehicleVelocityVector.y) - Math.PI/2)  ) * 180 / Math.PI
+    const vehicleSpeed = vehicleVelocityVector.length()
+    const airDensityAtCurrentAltitude = (vehicleAltitude > crv.currentMainRingAltitude) ? tram.airDensityAtAltitude(vehicleAltitude) : 0   // Probably should use a more accurate value for pressure of the vacuum inside the launch tube
+    const launchVehicleAerodynamicDragForce = 0.5 * launchVehicleCoefficientOfDrag * airDensityAtCurrentAltitude * vehicleSpeed**2 * vehicleCrossSectionalArea
+    const launchVehicleRocketFuelFlowRate = launchVehicleAerodynamicDragForce / launchVehicleRocketExhaustVelocity
+    const thrustRS25 = 2279000  // N
+    propellantConsumed += launchVehicleRocketFuelFlowRate * tStep
+    if (vehicleAltitude <= crv.currentMainRingAltitude) {
+      launcherSuspendedTubeLength += vehiclePositionVector.clone().sub(lastvehiclePositionVector).length()
+      lastvehiclePositionVector.copy(vehiclePositionVector)     
+    }
+    if ((t%1==0) || ((vehicleAltitude>31000) && (vehicleAltitude<33000))) {
+      //console.log(Math.atan2(vehicleVelocityVector.x, vehicleVelocityVector.y) - Math.PI/2, Math.atan2(vehiclePositionVector.x, vehiclePositionVector.y))
+      //console.log(t, Math.round(vehicleAltitude/10)/100, Math.round(vehicleDownrangeDistance/1000)/100, vehicleUpwardAngleInDegrees, Math.round(vehicleSpeed/10)/100, Math.round(launchVehicleAerodynamicDragForce/1000)/100, Math.round(propellantConsumed)/100)
+    }
+  }
+  specs['launcherSuspendedTubeLength'] = {value: launcherSuspendedTubeLength, units: "m"} 
+  // End Launcher Propellant Mass Calculation
+
+  const launchVehicleEmptyMass = dParamWithUnits['launchVehicleEmptyMass'].value // kg
+  const launchVehiclePropellantMass = dParamWithUnits['launchVehiclePropellantMass'].value // kg
+  const launchVehiclePayloadMass = dParamWithUnits['launchVehiclePayloadMass'].value // kg
+  const launchVehicleNonPayloadMass = dParamWithUnits['launchVehicleNonPayloadMass'].value // kg
+
+  const launchVehicleTotalMass = launchVehicleEmptyMass + launchVehiclePropellantMass + launchVehiclePayloadMass // kg
+  specs['launchVehicleTotalMass'] = {value: launchVehicleTotalMass, units: 'kg'}
+  // Because most of the vehicle is needed to land at the destination, or because it is made from materials that we would need to ship anyway, we are classifying most of its mass as "mission payload", except for a small amount called "launchVehicleNonPayloadMass".
+  // Propellant that is consumed during accent through the Earth's the atmosphere is not clasified as payload mass, but propelants reserved for maneuvering to and landing at the destination is.
+  const launchVehicleClassifiedAsPayloadMass = (launchVehicleEmptyMass - launchVehicleNonPayloadMass) + (launchVehiclePropellantMass - propellantConsumed) + launchVehiclePayloadMass  // kg 
+  specs['launchVehicleClassifiedAsPayloadMass'] = {value: launchVehicleClassifiedAsPayloadMass, units: 'kg'}
+
+  // Per kg Propelant Costs
+  // Fuel cost per kg calculation
+  const liquidHydrogenCostPerKg = dParamWithUnits['liquidHydrogenCostPerKg'].value
+  const liquidHeliumCostPerKg = dParamWithUnits['liquidHeliumCostPerKg'].value
+  const liquidOxygenCostPerKg = dParamWithUnits['liquidOxygenCostPerKg'].value
+  const massOfOneGallonOfLiquidHydrogen = 0.2679 // kg / Gallon http://www.uigi.com/h2_conv.html#:~:text=0.5906-,0.2679,-113.4
+  const massOfOneGallonOfLiquidOxygen = 4.322 // kg / Gallon  http://www.uigi.com/o2_conv.html#:~:text=9.527-,4.322,-115.1
+  const massOfHydrogen = 384071 * massOfOneGallonOfLiquidHydrogen
+  const massOfOxygen = 141750 * massOfOneGallonOfLiquidOxygen
+  const PropellantCostPerKgOfPropellant = (massOfHydrogen * liquidHydrogenCostPerKg + massOfOxygen * liquidOxygenCostPerKg) / (massOfHydrogen + massOfOxygen)
+  specs['PropellantCostPerKgOfPropellant'] = {value: PropellantCostPerKgOfPropellant, units: 'USD'}
+  const PropellantCostPerKgOfPayload = PropellantCostPerKgOfPropellant * propellantConsumed / launchVehicleClassifiedAsPayloadMass
+  specs['PropellantCostPerKgOfPayload'] = {value: PropellantCostPerKgOfPayload, units: 'USD'}
+  
+  //const launchVehiclePropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value // kg/s
+  const launchVehicleDriveForce = launchVehicleTotalMass * launcherAcceleration
+  console.log('launchVehicleDriveForce', launchVehicleDriveForce)
+  specs['launchVehicleDriveForce'] = {value: launchVehicleDriveForce, units: 'N'}
+  const numScrews = 2  // 2 counter-rotating screws per launch tube
+  const launchVehicleSidewaysForceAtExit = launchVehicleDriveForce * launcherScrewThreadPitchAtExit / numScrews
+  specs['launchVehicleSidewaysForceAtExit'] = {value: launchVehicleSidewaysForceAtExit, units: 'N'}
+  console.log('launchVehicleSidewaysForceAtExit', launchVehicleSidewaysForceAtExit)
+  const tensileStrengthOfCarbonFiberStrut = 3500000000 // Pa
+  const crossSectionalAreaOfCarbonFiberStrut = launchVehicleSidewaysForceAtExit / tensileStrengthOfCarbonFiberStrut
+  const diameterOfCarbonFiberStrut = 2 * Math.sqrt(crossSectionalAreaOfCarbonFiberStrut/Math.PI)
+  specs['diameterOfCarbonFiberStrut'] = {value: diameterOfCarbonFiberStrut, units: 'm'}
+  console.log('diameterOfCarbonFiberStrut', diameterOfCarbonFiberStrut)
+  const permeabilityOfFreeSpace = dParamWithUnits['permeabilityOfFreeSpace'].value // H/m
+  const launchVehicleAMBAverageMagneticFluxDensity = dParamWithUnits['launchVehicleAMBAverageMagneticFluxDensity'].value // T 
+  const launchVehicleAreaOfAirgap = launchVehicleSidewaysForceAtExit * permeabilityOfFreeSpace / launchVehicleAMBAverageMagneticFluxDensity**2
+  specs['launchVehicleAreaOfAirgap'] = {value: launchVehicleAreaOfAirgap, units: 'm^2'}
+  console.log('launchVehicleAreaOfAirgap', launchVehicleAreaOfAirgap)
+  // The flywheelDecelerationTime is the time that the vehicle's body is adjacent to the flywheel
+  const flywheelDecelerationTimeAtExit = launchVehicleBodyLength / launcherExitVelocity
+  const launcherFlywheelMassPerMeter = dParamWithUnits['launcherFlywheelMassPerMeter'].value // kg/m
+  const launcherFlywheelRadius = dParamWithUnits['launcherFlywheelRadius'].value // m  (This is the distance to the center of the rim, probably would be better to use moments of inertia here...)
+  const flywheelDecelerationRateAtExit = launchVehicleSidewaysForceAtExit * launcherScrewToothRadius / launcherFlywheelRadius / (launcherFlywheelMassPerMeter * launchVehicleBodyLength)  // m/s^2
+  const flywheelInitialRelativeRimSpeed = flywheelDecelerationRateAtExit * flywheelDecelerationTimeAtExit
+  specs['flywheelInitialRelativeRimSpeed'] = {value: flywheelInitialRelativeRimSpeed, units: 'm/s'}
+  console.log('flywheelInitialRelativeRimSpeed', flywheelInitialRelativeRimSpeed)
+
+  // Eddy Current Power Losses
+  const peakMagneticField = launchVehicleAMBAverageMagneticFluxDensity * 2
+  const thicknessOfSheet = 0.0001  // m
+  const frequencyOfField = launcherExitVelocity / launchVehicleBodyLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
+  const constantK = 1
+  const materialResistivity = 4.6e-7  // Ohm*m, for Grain-oriented electrical steel rom https://www.thoughtco.com/table-of-electrical-resistivity-conductivity-608499
+  const materialDensity = 7650  // kg/m3
+  const launcherEddyCurrentPowerLossesPerKg = 2 * (Math.PI * peakMagneticField * thicknessOfSheet * frequencyOfField)**2 / (6 * constantK * materialResistivity * materialDensity)
+  specs['launcherEddyCurrentPowerLossesPerKg'] = {value: launcherEddyCurrentPowerLossesPerKg, units: 'W'}
+  console.log('launcherEddyCurrentPowerLossesPerKg', launcherEddyCurrentPowerLossesPerKg)
+
+  // Per kg Energy Costs
+  const kineticEnergyPerKilogram = 0.5 * launcherExitVelocity**2
+  const launcherEfficiency = dParamWithUnits['launcherEfficiency'].value
+  const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
+  const launcherEnergyCostPerKilogram = kineticEnergyPerKilogram * launchVehicleTotalMass * wholesaleCostOfElectricity / launchVehicleClassifiedAsPayloadMass / launcherEfficiency
+  specs['launcherEnergyCostPerKilogram'] = {value: launcherEnergyCostPerKilogram, units: 'USD/kg'}
+  console.log('launcherEnergyCostPerKilogram', launcherEnergyCostPerKilogram)
+
+  // Per kg Total Costs
+  const launcherTotalCostPerKilogram = launcherEnergyCostPerKilogram + PropellantCostPerKgOfPayload
+  specs['launcherTotalCostPerKilogram'] = {value: launcherTotalCostPerKilogram, units: 'USD/kg'}
+  console.log('launcherTotalCostPerKilogram', launcherTotalCostPerKilogram)
+
+  const costOfSteel = dParamWithUnits['costOfSteel'].value
+  const costOfConcrete = dParamWithUnits['costOfConcrete'].value
+  const costOfAluminum = dParamWithUnits['costOfAluminum'].value
+  //const costOfCarbonFiber = dParamWithUnits['costOfCarbonFiber'].value
+  const densityOfConcrete = dParamWithUnits['densityOfConcrete'].value
+
+  // Launcher's Mass Driver Mass
+  const launcherUnderwaterTubeInnerRadius = dParamWithUnits['launcherUnderwaterTubeInnerRadius'].value // m
+  const launcherUnderwaterTubeOuterRadius = dParamWithUnits['launcherUnderwaterTubeOuterRadius'].value // m
+  const launcherUnderwaterTubeJacketThickness = dParamWithUnits['launcherUnderwaterTubeJacketThickness'].value // m
+  const launcherUnderwaterTubeJacketMassPerMeter = Math.PI * launcherUnderwaterTubeOuterRadius * launcherUnderwaterTubeJacketThickness
+  const launcherBracketsMassPerMeter = dParamWithUnits['launcherBracketsMassPerMeter'].value // kg/m
+  const launcherRailsMassPerMeter = dParamWithUnits['launcherRailsMassPerMeter'].value // kg/m
+  const launcherScrewsMassPerMeter = dParamWithUnits['launcherScrewsMassPerMeter'].value // kg/m
+  const launcherTorqueConvertorsMassPerMeter = dParamWithUnits['launcherTorqueConvertorsMassPerMeter'].value // kg/m
+  const launcherSteelMassPerMeter = launcherUnderwaterTubeJacketMassPerMeter + launcherBracketsMassPerMeter + launcherRailsMassPerMeter + launcherScrewsMassPerMeter + launcherTorqueConvertorsMassPerMeter
+  const launcherSteelCost = launcherSteelMassPerMeter * costOfSteel * launcherLength
+  specs['launcherSteelCost'] = {value: launcherSteelCost/1e9, units: 'B USD'}
+  console.log('launcherSteelCost', launcherSteelCost/1e9, 'B USD')
+
+  // Motors
+  const launcherMotorMass = dParamWithUnits['launcherMotorMass'].value // kg/m
+  const launcherMotorCost = dParamWithUnits['launcherMotorCost'].value // kg/m
+  const launcherMotorsPerMeter = dParamWithUnits['launcherMotorsPerMeter'].value
+  const launcherMotorsCost = launcherMotorCost * launcherMotorsPerMeter * launcherLength
+  specs['launcherMotorsCost'] = {value: launcherMotorsCost/1e9, units: 'B USD'}
+  console.log('launcherMotorsCost', launcherMotorsCost/1e9, 'B USD')
+
+  // Vacuum Pumps
+  const launcherVacuumPumpMass = dParamWithUnits['launcherVacuumPumpMass'].value // kg/m
+  const launcherVacuumPumpCost = dParamWithUnits['launcherVacuumPumpCost'].value // kg/m
+  const launcherVacuumPumpsPerMeter = dParamWithUnits['launcherVacuumPumpsPerMeter'].value
+  const launcherVacuumPumpsCost = launcherVacuumPumpCost * launcherVacuumPumpsPerMeter * launcherLength
+  specs['launcherVacuumPumpsCost'] = {value: launcherVacuumPumpsCost/1e9, units: 'B USD'}
+  console.log('launcherVacuumPumpsCost', launcherVacuumPumpsCost/1e9, 'B USD')
+
+  // Underwater Concrete Tube
+  const launcherUnderwaterTubeVolume = Math.PI * (launcherUnderwaterTubeOuterRadius**2 - launcherUnderwaterTubeInnerRadius**2) * launcherLength
+  const launcherUnderwaterTubeMass = launcherUnderwaterTubeVolume * densityOfConcrete
+  const launcherUnderwaterTubeCost = launcherUnderwaterTubeMass * costOfConcrete
+  specs['launcherUnderwaterTubeCost'] = {value: launcherUnderwaterTubeCost/1e9, units: 'B USD'}
+  console.log('launcherUnderwaterTubeCost', launcherUnderwaterTubeCost/1e9, 'B USD')
+
+  // Suspended Evacuated Tube
+  const launcherSuspendedTubeMassPerMeter = dParamWithUnits['launcherSuspendedTubeMassPerMeter'].value // kg/m
+  const capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
+  console.log('capitalCostPerKgSupported', capitalCostPerKgSupported)
+  const launcherSuspendedTubeCost = launcherSuspendedTubeLength * launcherSuspendedTubeMassPerMeter * (costOfAluminum + capitalCostPerKgSupported)
+  specs['launcherSuspendedTubeCost'] = {value: launcherSuspendedTubeCost/1e9, units: 'B USD'}
+  console.log('launcherSuspendedTubeCost', launcherSuspendedTubeCost/1e9, 'B USD')
+
+  const launcherFactoryCost = dParamWithUnits['launcherFactoryCost'].value
+  specs['launcherFactoryCost'] = {value: launcherFactoryCost/1e9, units: 'B USD'}
+  console.log('launcherFactoryCost', launcherFactoryCost/1e9, 'B USD')
+
+  const launcherTotalCost = launcherSteelCost + launcherMotorsCost + launcherVacuumPumpsCost + launcherUnderwaterTubeCost + launcherSuspendedTubeCost + launcherFactoryCost
+  specs['launcherTotalCost'] = {value: launcherTotalCost/1e9, units: 'B USD'}
+  console.log('launcherTotalCost', launcherTotalCost/1e9, 'B USD')
+
+}
+
+export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
+  const metersPerKilometer = 1000
+  const ringCircumference = crv.mainRingRadius * 2 * Math.PI
+  const secondsPerYear = 3600 * 24 * 365
+  const amortizationPeriod = 20
+  //const secondsOfTimeOverAmortizationPeriod = secondsPerYear * amortizationPeriod
+  const absoluteTemperatureInsideTransitTube = 273.3 + 100 // ˚K  (We're assuming here that the transit vehicles heat up the hydrogen in the tube to around 100˚C - ToDo: This is a wild-assed-guess)
+  const absoluteTemperatureOutsideTransitTube = 273.3 - 40 // ˚K
+  const molarMassOfHydrogen = 0.002016 // kg/mol
+  const molarMassOfAir = 0.02897 // kg/mol
+  
+  const capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
+  const operatingCostPerKgUniformStaticMassSupported = 0 // ToDo: Need to calculate this!!  = specs['operatingCostPerKgUniformStaticMassSupported'].value
+  const operatingCostOfAeronaticThruster = 7.1e-7 //  USD/(N·s)
+  const transitTubeTubeRadius = dParamWithUnits['transitTubeTubeRadius'].value
+  const transitTubeTubeWallThickness = dParamWithUnits['transitTubeTubeWallThickness'].value
+  const transitTubeTubeWallMaterialDensity = dParamWithUnits['transitTubeTubeWallMaterialDensity'].value // Todo - Random guess for something like mylar
+  const transitTubeTubeSurfaceArea = 2 * Math.PI * transitTubeTubeRadius * ringCircumference
+  const transitTubeTubeInteriorVolumePerMeter = Math.PI * (transitTubeTubeRadius - transitTubeTubeWallThickness)**2
+  const transitTubeTubeInteriorVolume = transitTubeTubeInteriorVolumePerMeter * ringCircumference
+  const transitTubeTubeWallVolumePerMeter = Math.PI * (transitTubeTubeRadius**2 - (transitTubeTubeRadius - transitTubeTubeWallThickness)**2)
+  const transitTubeTubeWallVolume  = transitTubeTubeWallVolumePerMeter * ringCircumference
+  const transitTubeTubeWallMassPerMeter = transitTubeTubeWallVolumePerMeter * transitTubeTubeWallMaterialDensity
+  const transitTubeTubeWallMass = transitTubeTubeWallMassPerMeter * ringCircumference
+  const transitTubeTubeWallMaterialCost = dParamWithUnits['transitTubeTubeWallMaterialCost'].value // USD/kg  // Vinal Resin 
+
+  const transitTubeMassPerMeter = transitTubeTubeWallMassPerMeter + 0 // Add rails, stringers, etc. 
+  const pressure = 3546 // Pa
+  const idealGasConstant = 8.31446261815324 // m3⋅Pa⋅K−1⋅mol−1
+  const densityOfAir = pressure * molarMassOfAir / idealGasConstant / absoluteTemperatureOutsideTransitTube
+  const overPressureFactor = 1.02
+  const densityOfHydrogen = pressure * overPressureFactor * molarMassOfHydrogen / idealGasConstant / absoluteTemperatureInsideTransitTube
+
+  const buoyancyOfHydrogenInTubePerMeter = Math.PI * transitTubeTubeRadius**2 * (densityOfAir-densityOfHydrogen) // kg/m
+  console.log('buoyancyOfHydrogenInTubePerMeter', buoyancyOfHydrogenInTubePerMeter)
+  specs['buoyancyOfHydrogenInTubePerMeter'] = {value: buoyancyOfHydrogenInTubePerMeter, units: 'kg/m'}
+
+  const transitTerminusMassPerMeter = 30 // kg/m
+
+  console.log('transitTubeMassPerMeter', transitTubeMassPerMeter)
+  let transitSystemUniformStaticMass = (transitTubeMassPerMeter - buoyancyOfHydrogenInTubePerMeter + transitTerminusMassPerMeter) * ringCircumference
+  // Need to add the mass of the rails, brackets, and stringers...
+  // Still need to add the masses of the elevators and terminuses...
+  
+  // Capital cost of supportting tubes
+  // Operating cost of supportting tubes
+  // Capital cost of supporting the aeronautic stabilizers
+  // Operating cost of supporting the dynamic loads
+
+  // Availible passenger kilometers and revenue passenger kilometers per year calculation
+  const transitVehicleCruisingSpeed = dParamWithUnits['transitVehicleCruisingSpeed'].value
+  const transitVehicleRadius = dParamWithUnits['transitVehicleRadius'].value
+  const transitVehicleCrossSectionalArea = Math.PI * transitVehicleRadius**2
+  const transitVehicleCoefficientOfDrag = dParamWithUnits['transitVehicleCoefficientOfDrag'].value
+  const transitSystemEfficiencyAtCruisingSpeed = dParamWithUnits['transitSystemEfficiencyAtCruisingSpeed'].value
+
+  const numExpressTracks = 2
+  const minimumVehicleSpacing = 500 //m (just considering the express lanes)
+  const maximumPassengersPerVehicle = 8
+  const maxPassengersPerMeterOfRing = maximumPassengersPerVehicle * numExpressTracks / minimumVehicleSpacing
+  const totalVehiclesInExpressLanes = ringCircumference * numExpressTracks / minimumVehicleSpacing
+  // Need to account for the fact that the ring transit system doesn't take the most direct route
+  const indirectRouteFactor = Math.sqrt(2) / (Math.PI/2) // Assumes that the average trip is one quarter of the way around the ring
+  const availablePassengerKilometersPerYear = ringCircumference * indirectRouteFactor * maxPassengersPerMeterOfRing * transitVehicleCruisingSpeed * secondsPerYear / metersPerKilometer
+  // ToDo: Add the number of passenger kilometers contributed by the collector lanes
+  console.log('availablePassengerKilometersPerYear', availablePassengerKilometersPerYear/1e9, 'B')
+  specs['availablePassengerKilometersPerYear'] = {value: availablePassengerKilometersPerYear, units: 'km/year'}
+
+  const numPassengersInTransitSystem = ringCircumference * maxPassengersPerMeterOfRing
+  console.log('numPassengersInTransitSystem', numPassengersInTransitSystem/1e6, 'M people')
+  specs['numPassengersInTransitSystem'] = {value: numPassengersInTransitSystem, units: 'people'}
+  // ToDo: Need to figure out if the elevators can keep up with this many passengers
+  const totalAvailableMarket = 2e11 // revenue passenger km/year
+
+  const revenuePassengerKilometersPerYear = Math.min(availablePassengerKilometersPerYear * 0.25, totalAvailableMarket)
+
+  // ToDo: Check that this doesn't exeed the total availible market 
+
+  const gamma = 7/5 // = 1.400 for diatomic gases (https://en.wikipedia.org/wiki/Speed_of_sound)
+  const boltzmannConstant = 1.38e-23 // J/˚K
+  const massOfHydrogenMolecule = 3.32e-27 // kg
+  const speedOfSoundInTube = Math.sqrt(gamma * boltzmannConstant * absoluteTemperatureInsideTransitTube / massOfHydrogenMolecule)
+  console.log('speedOfSoundInTube', speedOfSoundInTube, 'm/s')
+  specs['speedOfSoundInTube'] = {value: speedOfSoundInTube, units: 'm/s'}
+  const speedOfSoundInTubeInKPH = speedOfSoundInTube * 3.6
+  console.log('speedOfSoundInTubeInKPH', speedOfSoundInTubeInKPH, 'm/s')
+  specs['speedOfSoundInTubeInKPH'] = {value: speedOfSoundInTubeInKPH, units: 'm/s'}
+
+  const lightGasDensity = densityOfHydrogen
+  const lightGasCostPerKg = dParamWithUnits['liquidHydrogenCostPerKg'].value
+  // const lightGasCostPerKg = dParamWithUnits['liquidHeliumCostPerKg'].value
+
+  const lightGasLeakageRate = 0 // ToDo: Need to calculate this!!
+  const ringTerminusCost = dParamWithUnits['ringTerminusCost'].value
+  const elevatorCableCost = dParamWithUnits['elevatorCableCost'].value
+  const elevatorCarCost = dParamWithUnits['elevatorCarCost'].value
+  const groundTerminusCost = dParamWithUnits['groundTerminusCost'].value
+  const numElevatorCables = dParamWithUnits['numElevatorCables'].value
+  const costOfRingTerminuses = ringTerminusCost * numElevatorCables
+  const costOfElevatorCables = elevatorCableCost * numElevatorCables
+  const costOfElevatorCars = elevatorCarCost * numElevatorCables
+  const costOfGroundTerminuses = groundTerminusCost * numElevatorCables
+
+  //const averageVehicleSpacing = 500 //m (just considering the express lanes)
+  //const averagePassengersPerVehicle = 16
+
+  // transitTubeTubeSurfaceArea
+  // transitTubeTubeInteriorVolume
+  // transitTubeWallVolume
+
+  let capitalCostOfTransitSystem = 0
+  capitalCostOfTransitSystem += capitalCostPerKgSupported * transitSystemUniformStaticMass
+  capitalCostOfTransitSystem += transitTubeTubeWallMass * transitTubeTubeWallMaterialCost
+  capitalCostOfTransitSystem += transitTubeTubeInteriorVolume * lightGasDensity * lightGasCostPerKg
+  capitalCostOfTransitSystem += costOfRingTerminuses
+  capitalCostOfTransitSystem += costOfElevatorCables
+  capitalCostOfTransitSystem += costOfElevatorCars
+  capitalCostOfTransitSystem += costOfGroundTerminuses
+  console.log('capitalCostOfTransitSystem', capitalCostOfTransitSystem/1e9, 'B USD')
+  specs['capitalCostOfTransitSystem'] = {value: capitalCostOfTransitSystem/1e9, units: 'B USD'}
+
+  const capitalCostPerKmOfTransitSystem = capitalCostOfTransitSystem / ringCircumference * metersPerKilometer
+  console.log('capitalCostPerKmOfTransitSystem', capitalCostPerKmOfTransitSystem, 'USD/km')
+  specs['capitalCostPerKmOfTransitSystem'] = {value: capitalCostPerKmOfTransitSystem, units: 'USD/km'}
+
+  let operatingCostOfTransitSystem = 0
+  operatingCostOfTransitSystem += operatingCostPerKgUniformStaticMassSupported * transitSystemUniformStaticMass   // cost of supporting the transit system
+  operatingCostOfTransitSystem += transitTubeTubeSurfaceArea * lightGasLeakageRate * lightGasCostPerKg   // cost of replacing leaked gas
+  console.log('operatingCostOfTransitSystem', operatingCostOfTransitSystem/1e9, 'B USD / year')
+  specs['operatingCostOfTransitSystem'] = {value: operatingCostOfTransitSystem/1e9, units: 'B USD / year'}
+
+  const capitalCostPerAvailibleSeatKilometer = capitalCostOfTransitSystem / (availablePassengerKilometersPerYear * amortizationPeriod)
+  console.log('capitalCostPerAvailibleSeatKilometer', capitalCostPerAvailibleSeatKilometer)
+  specs['capitalCostPerAvailibleSeatKilometer'] = {value: capitalCostPerAvailibleSeatKilometer, units: 'USD/km'}
+  const capitalCostPerRevenuePassengerKilometer = transitSystemUniformStaticMass * capitalCostPerKgSupported / (revenuePassengerKilometersPerYear * amortizationPeriod)
+  console.log('capitalCostPerRevenuePassengerKilometer', capitalCostPerRevenuePassengerKilometer)
+  specs['capitalCostPerRevenuePassengerKilometer'] = {value: capitalCostPerRevenuePassengerKilometer, units: 'USD/km'}
+
+  // This is a very rough estimate of the power the vehicle uses just to overcome aerodynamic drag. It doesn't include accellerating, regenerative braking, levitation, and the operating cost of dynamic loading on the ring yet.
+  const transitVehicleAerodynamicDragForce = 0.5 * transitVehicleCoefficientOfDrag * lightGasDensity * transitVehicleCruisingSpeed**2 * transitVehicleCrossSectionalArea
+  const transitVehicleDrivePower = transitVehicleAerodynamicDragForce * transitVehicleCruisingSpeed / transitSystemEfficiencyAtCruisingSpeed
+
+  // const operatingCostPerAvailibleSeatKilometer = 0 // TBD
+  // const costPerAvailibleSeatKilometer = capitalCostPerAvailibleSeatKilometer + operatingCostPerAvailibleSeatKilometer
+  // console.log('costPerAvailibleSeatKilometer', costPerAvailibleSeatKilometer)
+  // specs['costPerAvailibleSeatKilometer'] = {value: costPerAvailibleSeatKilometer, units: 'USD/m'}
+
+  // Cost per Available Seat Mile (CASK) calculation
+  // FS stands for "Full-Service", LC stands for "Low-Cost", TR stands for "Tethered Ring"
+  const CASK = []
+  CASK['SeatsPerVehicle'] = []
+  CASK['SeatsPerVehicle']['FS'] = {value: 156, units: 'seats/vehicle'}
+  CASK['SeatsPerVehicle']['LC'] = {value: 180, units: 'seats/vehicle'}
+  CASK['SeatsPerVehicle']['TR'] = {value: maximumPassengersPerVehicle, units: 'seats/vehicle'}
+  CASK['TripLength'] = []
+  CASK['TripLength']['FS'] = {value: 1280, units: 'seats/vehicle'}
+  CASK['TripLength']['LC'] = {value: 1280, units: 'seats/vehicle'}
+  CASK['TripLength']['TR'] = {value: 1280, units: 'seats/vehicle'}
+  CASK['LoadFactor'] = []
+  CASK['LoadFactor']['FS'] = {value: 0.65, units: 'seats/vehicle'}
+  CASK['LoadFactor']['LC'] = {value: 0.85, units: 'seats/vehicle'}
+  CASK['LoadFactor']['TR'] = {value: 0.5, units: 'seats/vehicle'}
+  CASK['VehicleCost'] = []
+  CASK['VehicleCost']['FS'] = {value: 340000, units: 'USD/month'}
+  CASK['VehicleCost']['LC'] = {value: 195000, units: 'USD/month'}
+  CASK['VehicleCost']['TR'] = {value: 50000, units: 'USD/month'}
+  CASK['CorridorCapitalCost'] = []
+  CASK['CorridorCapitalCost']['FS'] = {value: 0, units: 'USD/month'}
+  CASK['CorridorCapitalCost']['LC'] = {value: 0, units: 'USD/month'}
+  CASK['CorridorCapitalCost']['TR'] = {value: capitalCostOfTransitSystem, units: 'USD/month'}
+  CASK['CorridorOperatingCost'] = []   // Includes costs for powering and maintain the coridor, but not the cost of powering or maintaining the vehicles
+  CASK['CorridorOperatingCost']['FS'] = {value: 0, units: 'USD/month'}
+  CASK['CorridorOperatingCost']['LC'] = {value: 0, units: 'USD/month'}
+  CASK['CorridorOperatingCost']['TR'] = {value: operatingCostOfTransitSystem, units: 'USD/month'}
+  CASK['OperatingTime'] = []
+  CASK['OperatingTime']['FS'] = {value: 8, units: 'blockhours/day'}  // Need to figureout what the correct term is for the number of hours that the vehicle is actually carrying passengers (gate-to-gate time)
+  CASK['OperatingTime']['LC'] = {value: 12, units: 'blockhours/day'}
+  CASK['OperatingTime']['TR'] = {value: 23.5, units: 'blockhours/day'}  // formally esitmate or justify this
+  CASK['KilometersPerBlockHour'] = []
+  CASK['KilometersPerBlockHour']['FS'] = {value: 500, units: 'km/hour'}
+  CASK['KilometersPerBlockHour']['LC'] = {value: 500, units: 'km/hour'}
+  CASK['KilometersPerBlockHour']['TR'] = {value: 3500, units: 'km/hour'}
+  CASK['Fuel'] = []
+  CASK['Fuel']['FS'] = {value: 820, units: 'gallons/blockhour'}
+  CASK['Fuel']['LC'] = {value: 800, units: 'gallons/blockhour'}
+  CASK['Fuel']['TR'] = {value: 0, units: 'gallons/blockhour'}
+  CASK['Electricity'] = []
+  CASK['Electricity']['FS'] = {value: 0, units: 'J/blockhour'}
+  CASK['Electricity']['LC'] = {value: 0, units: 'J/blockhour'}
+  CASK['Electricity']['TR'] = {value: transitVehicleDrivePower * 3600, units: 'J/blockhour'}  // ToDo need to formally estimate this!!
+  CASK['CarbonOffset'] = []
+  CASK['CarbonOffset']['FS'] = {value: 82, units: 'J/blockhour'}  // ToDo: Need to estimate this based on the fuel used, etc.
+  CASK['CarbonOffset']['LC'] = {value: 80, units: 'J/blockhour'}
+  CASK['CarbonOffset']['TR'] = {value: 0, units: 'J/blockhour'} 
+  CASK['Maintenance'] = []
+  CASK['Maintenance']['FS'] = {value: 700, units: 'USD/blockhour'}
+  CASK['Maintenance']['LC'] = {value: 600, units: 'USD/blockhour'}
+  CASK['Maintenance']['TR'] = {value: 10, units: 'USD/blockhour'}  // ToDo need to formally estimate this!!
+  CASK['CockpitCrewSalary'] = []
+  CASK['CockpitCrewSalary']['FS'] = {value: 120000, units: 'USD/year'}
+  CASK['CockpitCrewSalary']['LC'] = {value: 100000, units: 'USD/year'}
+  CASK['CockpitCrewSalary']['TR'] = {value: 120000, units: 'USD/year'}  // N/A, No pilots
+  CASK['CockpitCrewNumber'] = []
+  CASK['CockpitCrewNumber']['FS'] = {value: 2, units: ''}
+  CASK['CockpitCrewNumber']['LC'] = {value: 2, units: ''}
+  CASK['CockpitCrewNumber']['TR'] = {value: 0, units: ''}
+  CASK['CockpitCrewBenefitLoad'] = []
+  CASK['CockpitCrewBenefitLoad']['FS'] = {value: 0.35, units: ''}
+  CASK['CockpitCrewBenefitLoad']['LC'] = {value: 0.25, units: ''}
+  CASK['CockpitCrewBenefitLoad']['TR'] = {value: 0.35, units: ''}
+  CASK['CockpitCrewAnnualTraining'] = []
+  CASK['CockpitCrewAnnualTraining']['FS'] = {value: 15000, units: 'USD/year'}
+  CASK['CockpitCrewAnnualTraining']['LC'] = {value: 15000, units: 'USD/year'}
+  CASK['CockpitCrewAnnualTraining']['TR'] = {value: 15000, units: 'USD/year'}
+  CASK['CockpitCrewTimeSpentInFlight'] = []
+  CASK['CockpitCrewTimeSpentInFlight']['FS'] = {value: 60, units: 'blockhours/month'}
+  CASK['CockpitCrewTimeSpentInFlight']['LC'] = {value: 65, units: 'blockhours/month'}
+  CASK['CockpitCrewTimeSpentInFlight']['TR'] = {value: 60, units: 'blockhours/month'} // N/A, No pilots
+  CASK['CabinCrewSalary'] = []
+  CASK['CabinCrewSalary']['FS'] = {value: 50000, units: 'USD/year'}
+  CASK['CabinCrewSalary']['LC'] = {value: 40000, units: 'USD/year'}
+  CASK['CabinCrewSalary']['TR'] = {value: 50000, units: 'USD/year'}
+  CASK['CabinCrewBenefitLoad'] = []
+  CASK['CabinCrewBenefitLoad']['FS'] = {value: 0.35, units: ''}
+  CASK['CabinCrewBenefitLoad']['LC'] = {value: 0.25, units: ''}
+  CASK['CabinCrewBenefitLoad']['TR'] = {value: 0.35, units: ''}
+  CASK['CabinCrewNumber'] = []
+  CASK['CabinCrewNumber']['FS'] = {value: 6, units: ''}
+  CASK['CabinCrewNumber']['LC'] = {value: 4, units: ''}
+  CASK['CabinCrewNumber']['TR'] = {value: 1, units: ''}
+  CASK['CabinCrewTimeSpentInFlight'] = []
+  CASK['CabinCrewTimeSpentInFlight']['FS'] = {value: 60, units: 'blockhours/month'}
+  CASK['CabinCrewTimeSpentInFlight']['LC'] = {value: 65, units: 'blockhours/month'}
+  CASK['CabinCrewTimeSpentInFlight']['TR'] = {value: 60, units: 'blockhours/month'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['CrewHotelAccomodations'] = []
+  CASK['CrewHotelAccomodations']['FS'] = {value: 150, units: 'USD/crewmember/day'}
+  CASK['CrewHotelAccomodations']['LC'] = {value: 0, units: 'USD/crewmember/day'}
+  CASK['CrewHotelAccomodations']['TR'] = {value: 0, units: 'USD/crewmember/day'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['AirportNavTurnCosts'] = []
+  CASK['AirportNavTurnCosts']['FS'] = {value: 2500, units: 'USD/turn'}
+  CASK['AirportNavTurnCosts']['LC'] = {value: 2000, units: 'USD/turn'}
+  CASK['AirportNavTurnCosts']['TR'] = {value: 0, units: 'USD/turn'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['AirportNavLegCosts'] = []
+  CASK['AirportNavLegCosts']['FS'] = {value: 750, units: 'USD/leg'}
+  CASK['AirportNavLegCosts']['LC'] = {value: 500, units: 'USD/leg'}
+  CASK['AirportNavLegCosts']['TR'] = {value: 0, units: 'USD/leg'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['AirportNavHandlingCosts'] = []
+  CASK['AirportNavHandlingCosts']['FS'] = {value: 5, units: 'USD/passenger'}
+  CASK['AirportNavHandlingCosts']['LC'] = {value: 3.5, units: 'USD/passenger'}
+  CASK['AirportNavHandlingCosts']['TR'] = {value: 0, units: 'USD/passenger'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['OnboardCosts'] = []
+  CASK['OnboardCosts']['FS'] = {value: 5, units: 'USD/passenger'}
+  CASK['OnboardCosts']['LC'] = {value: 1, units: 'USD/passenger'}
+  CASK['OnboardCosts']['TR'] = {value: 0, units: 'USD/passenger'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['SalesAndDistribution'] = []
+  CASK['SalesAndDistribution']['FS'] = {value: 15, units: 'USD/passenger'}
+  CASK['SalesAndDistribution']['LC'] = {value: 5, units: 'USD/passenger'}
+  CASK['SalesAndDistribution']['TR'] = {value: 0, units: 'USD/passenger'} // Need to estimate how the crew will transfer from vehicle to vehicle
+  CASK['GeneralAndAdministrative'] = []
+  CASK['GeneralAndAdministrative']['FS'] = {value: 10, units: 'USD/passenger'}
+  CASK['GeneralAndAdministrative']['LC'] = {value: 5, units: 'USD/passenger'}
+  CASK['GeneralAndAdministrative']['TR'] = {value: 0, units: 'USD/passenger'} // Need to estimate how the crew will transfer from vehicle to vehicle
+
+  const monthsPerYear = 12
+  const daysPerMonth = 30
+  const jetFuelCostPerGallon = dParamWithUnits['jetFuelCostPerGallon'].value // USD/Gallon
+  const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
+  const corridorAmortizationPeriod = 20
+  // ToDo: Can we more accurately account for time spent taxiing, waiting, borading and disembarling, accellerating and decellerating, circling, etc.?
+  // ToDo: Could be a bit confusing to add CASK values to some parameters and not others. Might want to come up with a better system.
+  Object.entries(CASK['VehicleCost']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['OperatingTime'][k].value / daysPerMonth
+  })
+  Object.entries(CASK['CorridorCapitalCost']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / totalVehiclesInExpressLanes / CASK['KilometersPerBlockHour'][k].value / CASK['OperatingTime'][k].value / daysPerMonth / monthsPerYear / corridorAmortizationPeriod
+  })
+  Object.entries(CASK['CorridorOperatingCost']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / totalVehiclesInExpressLanes / CASK['KilometersPerBlockHour'][k].value / CASK['OperatingTime'][k].value / daysPerMonth / monthsPerYear
+  })
+  Object.entries(CASK['Fuel']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / CASK['KilometersPerBlockHour'][k].value * jetFuelCostPerGallon
+  })
+  Object.entries(CASK['Electricity']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / CASK['KilometersPerBlockHour'][k].value * wholesaleCostOfElectricity
+  })
+  Object.entries(CASK['Maintenance']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['SeatsPerVehicle'][k].value / CASK['KilometersPerBlockHour'][k].value
+  })
+  Object.entries(CASK['CockpitCrewSalary']).forEach(([k, v]) => {
+    v['CASK'] = v.value * CASK['CockpitCrewNumber'][k].value / monthsPerYear / CASK['CockpitCrewTimeSpentInFlight'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['SeatsPerVehicle'][k].value
+  })
+  Object.entries(CASK['CockpitCrewBenefitLoad']).forEach(([k, v]) => {
+    v['CASK'] = v.value * CASK['CockpitCrewSalary'][k].value * CASK['CockpitCrewNumber'][k].value / monthsPerYear / CASK['CockpitCrewTimeSpentInFlight'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['SeatsPerVehicle'][k].value
+  })
+  Object.entries(CASK['CabinCrewSalary']).forEach(([k, v]) => {
+    v['CASK'] = v.value * CASK['CabinCrewNumber'][k].value / monthsPerYear / CASK['CabinCrewTimeSpentInFlight'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['SeatsPerVehicle'][k].value
+  })
+  Object.entries(CASK['CabinCrewBenefitLoad']).forEach(([k, v]) => {
+    v['CASK'] = v.value * CASK['CabinCrewSalary'][k].value * CASK['CabinCrewNumber'][k].value / monthsPerYear / CASK['CabinCrewTimeSpentInFlight'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['SeatsPerVehicle'][k].value
+  })
+  Object.entries(CASK['CrewHotelAccomodations']).forEach(([k, v]) => {
+    v['CASK'] = v.value * (CASK['CockpitCrewNumber'][k].value + CASK['CabinCrewNumber'][k].value) / CASK['OperatingTime'][k].value / CASK['KilometersPerBlockHour'][k].value / CASK['SeatsPerVehicle'][k].value
+  })
+  Object.entries(CASK['AirportNavTurnCosts']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value / CASK['SeatsPerVehicle'][k].value // ToDo: Is this the right formula?
+  })
+  Object.entries(CASK['AirportNavLegCosts']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value / CASK['SeatsPerVehicle'][k].value  // ToDo: Is this the right formula?
+  })
+  Object.entries(CASK['AirportNavHandlingCosts']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value
+  })
+  Object.entries(CASK['OnboardCosts']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value
+  })
+  Object.entries(CASK['SalesAndDistribution']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value
+  })
+  Object.entries(CASK['GeneralAndAdministrative']).forEach(([k, v]) => {
+    v['CASK'] = v.value / CASK['TripLength'][k].value
+  })
+
+  Object.entries(CASK).forEach(([k, v]) => {
+    let string = k
+    let printThis = false
+    Object.entries(v).forEach(([k2, v2]) => {
+      if (v2.hasOwnProperty('CASK')) {
+        v2['CASK'] = v2.CASK.toFixed(6)
+        string += ' ' + v2['CASK']
+        printThis = true
+      }
+    })
+    if (printThis) {
+      //console.log(string)
+    }
+  })
+
+}
+

@@ -6,8 +6,7 @@ export default {
   ],
   server: {
     watch: {
-        usePolling: true
+      usePolling: true
     }
   }
 }
-
