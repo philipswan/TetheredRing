@@ -4,11 +4,16 @@ import * as THREE from 'three'
 //import { CanvasCapture } from 'canvas-capture'
 //import CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
 //import CCapture from 'C:/Users/phils/Documents/repos/Three.js/three.js/examples/jsm/libs/ccapture.all.min.js'
-import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js'
-import { TWEEN } from 'three/examples/jsm/libs/tween.module.min'
+import { GUI } from 'three/addons/libs/lil-gui.module.min.js'
+import { TWEEN } from 'three/addons/libs/tween.module.min'
 //import { TWEEN } from '../tween.js/dist/tween.esm.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 //import * as CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
+//import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
+import { VRButton } from 'three/addons/webxr/VRButton.js'
+import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js'
+import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js'
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js'
 
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
@@ -23,7 +28,6 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 //import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 // import Stats from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/libs/stats.module.js'
 
-// import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
 // import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js'
 // import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 // import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
@@ -39,10 +43,10 @@ import * as launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
 
-import { makePlanetTexture } from './planetTexture.js'
+//import { makePlanetTexture } from './planetTexture.js'
 
 let verbose = false
-const enableVR = false
+const enableVR = true
 const enableKMLFileFeature = true
 const enableSpecsFileFeature = true
 let genKMLFile = false
@@ -688,14 +692,27 @@ scene.matrixWorldAutoUpdate = true
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
 //console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
-let nearClippingPlane = 0.1 * radiusOfPlanet
-let farClippingPlane = 100 * radiusOfPlanet
+let nearClippingPlane
+if (enableVR) {
+  // Bring the clipping plane in close so that the controller models don't get clipped.
+  nearClippingPlane = 0.1
+}
+else {
+  nearClippingPlane = 0.1 * radiusOfPlanet
+}
+let farClippingPlane = 10 * radiusOfPlanet
 let extraDistanceForCamera = 10000
 
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
+
+// The Camera group is a place where we will add things that should always be close to the user, wherever the user happens to be, such as VR controllers, for example, and maybe an in-VR gui for the user to interact with.
+// We will also move the camera group rather than the camera when we're navigating around the scene, for example when interacting with the orbit controls.
 const cameraGroup = new THREE.Group()
 cameraGroup.add(camera)
-camera.position.z = -30 * radiusOfPlanet/8
+if (!enableVR) {
+  camera.position.z = -30 * radiusOfPlanet/8
+}
+cameraGroup.matrixValid = false
 camera.matrixValid = false
 
 function updateCamerFieldOfView() {
@@ -714,6 +731,7 @@ if (enableVR) {
   cameraGroup.position.z = -1.005 * radiusOfPlanet
   cameraGroup.rotation.z = Math.PI / 2
   cameraGroup.rotation.y = -Math.PI / 2
+  cameraGroup.rotateY(Math.PI)
   cameraGroup.matrixValid = false
 }
 scene.add(cameraGroup)
@@ -730,6 +748,8 @@ renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
 //console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
 renderer.setPixelRatio(window.devicePixelRatio)
 renderer.xr.enabled = true
+renderer.autoClear = false
+
 renderer.xr.setReferenceSpaceType( 'local' )
 //document.body.appendChild(renderer.domElement)
 //const stats = new Stats()
@@ -770,6 +790,7 @@ if (enableVR) {
   planetCoordSys.rotation.x = Math.PI * -4 / 16
   planetCoordSys.matrixValid = false
   eightTextureMode = false
+  TextureMode24x12 = true
 }
 else {
   eightTextureMode = false
@@ -852,32 +873,32 @@ if (TextureMode24x12) {
     }
   }
 }
-else if (TextureModeOpenLayers) {
-  const planetMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
-    new THREE.ShaderMaterial({
-      vertexShader: document.getElementById('vertexShader').textContent,
-      fragmentShader: document.getElementById('fragmentShader').textContent,
-      uniforms: {
-        planetTexture: {
-          value: undefined,
-        }
-      }
-    })
-  )
-  makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
-    planetMesh.material.uniforms.planetTexture.value = planetTexture;
-    planetMesh.material.uniforms.planetTexture.needsUpdate = true;
-  });
+// else if (TextureModeOpenLayers) {
+//   const planetMesh = new THREE.Mesh(
+//     new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+//     new THREE.ShaderMaterial({
+//       vertexShader: document.getElementById('vertexShader').textContent,
+//       fragmentShader: document.getElementById('fragmentShader').textContent,
+//       uniforms: {
+//         planetTexture: {
+//           value: undefined,
+//         }
+//       }
+//     })
+//   )
+//   makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
+//     planetMesh.material.uniforms.planetTexture.value = planetTexture;
+//     planetMesh.material.uniforms.planetTexture.needsUpdate = true;
+//   });
 
-  planetMesh.name = 'planet'
-  planetMesh.rotation.y = -Math.PI / 2  // This is needed to have the planet's texture align with the planet's Longintitude system
-  planetMesh.matrixValid = false
-  if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
-  planetMeshes.push(planetMesh)
+//   planetMesh.name = 'planet'
+//   planetMesh.rotation.y = -Math.PI / 2  // This is needed to have the planet's texture align with the planet's Longintitude system
+//   planetMesh.matrixValid = false
+//   if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
+//   planetMeshes.push(planetMesh)
 
 
-}
+// }
 else if (eightTextureMode) {
   let letter
   for (let j=0; j<2; j++) {
@@ -1733,7 +1754,52 @@ function animate() {
 console.userdata = {'capture': 0, 'matrixAutoUpdateData': {}, 'matrixWorldUpdateData': {}}
 const elevatorPosCalc = new tram.elevatorPositionCalculator(dParamWithUnits, crv, ecv)
 
+const worldDirection = new THREE.Vector3
+const tempMatrix = new THREE.Matrix4()
+
 function renderFrame() {
+  if (enableVR) {
+    // These two lines are for the VR hand controllers
+    // handleController( controller1 )
+    // handleController( controller2 )
+    const controllers = [controller1, controller2]
+    controllers.forEach((controller, controllerIndex) => {
+      if (controller.inputEvents) {
+        //console.log(controller1.inputEvents.data)
+        controller.inputEvents.data.gamepad.buttons.forEach((button, buttonIndex) => {
+          if (button.pressed) {
+            // console.log(controllerIndex, buttonIndex)            
+            // 0 (trigger), 1(squeeze), 3(thumb press), 4 (A), and 5 (B) are valid
+            if ((controllerIndex==1) && (buttonIndex==0)) {
+              tempMatrix.identity().extractRotation( controller.matrixWorld );
+              worldDirection.set( 0, 0, -1000 ).applyMatrix4( tempMatrix );
+              cameraGroup.position.add(worldDirection)
+            }
+          }
+        })
+        controller.inputEvents.data.gamepad.axes.forEach((axis, axisIndex) => {
+          if (axis!=0) {
+            // console.log(controllerIndex, axisIndex, axis)
+            // 2 (left/right) and 3 (up/down) are valid
+            if ((controllerIndex==0) && (axisIndex==2)) {
+              cameraGroup.rotateZ(axis/100)
+            }
+            if ((controllerIndex==0) && (axisIndex==3)) {
+              cameraGroup.rotateX(axis/100)
+            }
+            if ((controllerIndex==1) && (axisIndex==2)) {
+              cameraGroup.rotateY(axis/100)
+            }
+            if ((controllerIndex==1) && (axisIndex==3)) {
+              tempMatrix.identity().extractRotation( controller.matrixWorld );
+              worldDirection.set( 0, 0, 10*axis ).applyMatrix4( tempMatrix );
+              cameraGroup.position.add(worldDirection)
+            }
+          }
+        })
+      }
+    })
+  }
 
   if (orbitControlsEarthRingLerpFactor!=1) {
     //console.log("Lerping...")
@@ -1822,9 +1888,16 @@ function renderFrame() {
   //   }
   // }
 
-  transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
+  let cameraPostition
+  if (enableVR) {
+    cameraPostition = cameraGroup.position.clone()
+  }
+  else {
+    cameraPostition = camera.position.clone()
+  }
+  transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, cameraPostition, mainRingCurve, dParamWithUnits)
 
-  const weAreFar1 = (camera.position.length() > (radiusOfPlanet + crv.currentMainRingAltitude)*1.1)
+  const weAreFar1 = (cameraGroup.position.length() > (radiusOfPlanet + crv.currentMainRingAltitude)*1.1)
   if (weAreFar1 !== prevWeAreFar1) {
     if (weAreFar1) {
       // To improve rendering performance when zoomed out, make parts of the ring invisible
@@ -1840,7 +1913,7 @@ function renderFrame() {
   }
   prevWeAreFar1 = weAreFar1
 
-  const weAreFar2 = (camera.position.length() > radiusOfPlanet*4)
+  const weAreFar2 = (cameraGroup.position.length() > radiusOfPlanet*4)
   if (weAreFar2 !== prevWeAreFar2) {
     if (weAreFar2) {
       elevatorCableMeshes.forEach(mesh => {mesh.visible = false})
@@ -1929,8 +2002,101 @@ addEventListener('mousemove', (event) => {
 })
 
 if (verbose) console.log("Adding keydown event listener")
-if (verbose) console.log("Adding VR button")
-//document.body.appendChild( VRButton.createButton( renderer ) )
+
+if (enableVR) {
+  if (verbose) console.log("Adding VR button")
+  document.body.appendChild( VRButton.createButton( renderer ) )
+}
+  
+let controller1, controller2
+let controllerGrip1, controllerGrip2
+
+function onSelectStart(event) {
+  // console.log(event.data.gamepad.buttons[0].pressed,
+  //   event.data.gamepad.buttons[1].pressed,
+  //   event.data.gamepad.buttons[2].pressed,
+  //   event.data.gamepad.buttons[3].pressed,
+  //   event.data.gamepad.buttons[4].pressed,
+  //   event.data.gamepad.buttons[5].pressed,
+  //   event.data.gamepad.buttons[6].pressed)
+  this.userData.isSelecting = true
+}
+
+function onSelectEnd() {
+  this.userData.isSelecting = false
+}
+
+controller1 = renderer.xr.getController( 0 )
+
+controller1.addEventListener( 'selectstart', onSelectStart )
+controller1.addEventListener( 'selectend', onSelectEnd )
+controller1.addEventListener( 'connected', function ( event ) {
+  this.add( buildController( event.data ) );
+  controller1.inputEvents = event
+  //console.log(controller1)
+} )
+controller1.addEventListener( 'disconnected', function () {
+  this.remove( this.children[ 0 ] )
+} )
+cameraGroup.add( controller1 )
+
+controller2 = renderer.xr.getController( 1 )
+controller2.addEventListener( 'selectstart', onSelectStart )
+controller2.addEventListener( 'selectend', onSelectEnd )
+controller2.addEventListener( 'connected', function ( event ) {
+  this.add( buildController( event.data ) )
+  controller2.inputEvents = event
+  //console.log(controller2)
+} )
+controller2.addEventListener( 'disconnected', function () {
+  this.remove( this.children[ 0 ] )
+} )
+cameraGroup.add( controller2 )
+
+// The XRControllerModelFactory will automatically fetch controller models
+// that match what the user is holding as closely as possible. The models
+// should be attached to the object returned from getControllerGrip in
+// order to match the orientation of the held device.
+
+const controllerModelFactory = new XRControllerModelFactory()
+
+controllerGrip1 = renderer.xr.getControllerGrip( 0 )
+controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) )
+cameraGroup.add( controllerGrip1 )
+
+controllerGrip2 = renderer.xr.getControllerGrip( 1 )
+controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) )
+cameraGroup.add( controllerGrip2 )
+
+function buildController( data ) {
+
+  let geometry, material;
+
+  switch ( data.targetRayMode ) {
+  case 'tracked-pointer':
+    geometry = new THREE.BufferGeometry()
+    geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 1 ], 3 ) )
+    geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( [ 0.5, 0.5, 0.5, 0, 0, 0 ], 3 ) )
+    material = new THREE.LineBasicMaterial( { vertexColors: true, blending: THREE.AdditiveBlending } )
+    return new THREE.Line( geometry, material )
+  case 'gaze':
+    geometry = new THREE.RingGeometry( 0.02, 0.04, 32 ).translate( 0, 0, - 1 )
+    material = new THREE.MeshBasicMaterial( { opacity: 0.5, transparent: true } )
+    return new THREE.Mesh( geometry, material )
+  }
+
+}
+
+function handleController( controller ) {
+
+  if ( controller.userData.isSelecting ) {
+  }
+
+}
+
+
+
+
 
 if (verbose) console.log("Calling animate")
 animate()
@@ -2472,7 +2638,7 @@ function recomputeNearFarClippingPlanes() {
 
   // Hack
   if (enableVR) {
-    camera.near = 0.00001 * radiusOfPlanet
+    camera.near = 0.1 // 0.00001 * radiusOfPlanet
     camera.far = 100 * radiusOfPlanet
   }
   //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)
