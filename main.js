@@ -46,7 +46,7 @@ import * as markers from './markers.js'
 //import { makePlanetTexture } from './planetTexture.js'
 
 let verbose = false
-const enableVR = true
+const enableVR = false
 const enableKMLFileFeature = true
 const enableSpecsFileFeature = true
 let genKMLFile = false
@@ -844,7 +844,7 @@ if (enableVR) {
 }
 else {
   eightTextureMode = false
-  TextureMode24x12 = false
+  TextureMode24x12 = true
 }
 const useShaders = true
 
