@@ -5,7 +5,7 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "sync-dev": "node syncTextures"
+    "dev-sync": "node syncTextures"
   },
   "devDependencies": {
     "vite": "^2.9.15",

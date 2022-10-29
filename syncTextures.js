@@ -41,45 +41,50 @@ function getLocalTextures(localPath, fileArray) {
 
 /**
  * pulls list (json) of remote textures from the server
+ * 
+ * @async
+ * @param {string}            url             // url to json output
  *
- * @param {string}  url             // url to json output
- *
- * @return {array}  remoteTextures  // list of remote textures
+ * @return {Promsie<array>}   remoteTextures  // list of remote textures
  */
 async function getRemoteTextures(url) {
-  let url = url || textureList;
-  return new Promise ((resolve, reject) => {
-    let req = https.get(url,(res) => {
-      let body = "";
+  if (url) {
+    return new Promise ((resolve, reject) => {
+      let req = https.get(url,(res) => {
+        let body = "";
 
-      res.on("data", (chunk) => {
-        body += chunk;
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        res.on("end", () => {
+          try {
+            let remoteTextures = JSON.parse(body);
+            resolve(remoteTextures);
+          } catch (error) {
+            console.error(error.message);
+          };
+        });
+
+      }).on("error", (error) => {
+        reject(error)
       });
-
-      res.on("end", () => {
-        try {
-          let remoteTextures = JSON.parse(body);
-          resolve(remoteTextures);
-        } catch (error) {
-          console.error(error.message);
-        };
-      });
-
-    }).on("error", (error) => {
-      reject(error)
+     
+      req.end();
     });
-   
-    req.end();
-  });
+  } else {
+    reject('No URL specified!');
+  }
 }
 
 /**
  * downloads the file from the server
  *
+ * @async
  * @param {string}  remoteFile  // url to remote file location
  * @param {string}  localFile   // local filename with full path
  *
- * @return {string} remoteFile  // downloaded filename
+ * @return {Promise<string>} remoteFile  // downloaded filename
  */
 async function downloadFile(remoteFile, localFile) {
   return new Promise ((resolve, reject) => {
@@ -104,24 +109,31 @@ async function downloadFile(remoteFile, localFile) {
 /**
  * determines missing files and iterates them through downloadFile
  *
+ * @async
+ *
  * @return {string}   
  */
 async function syncTextures() {
-  const remoteTextures = await getRemoteTextures();
+  const remoteTextures = await getRemoteTextures(textureList);
   const localTextures = getLocalTextures('./textures');
   const localTexturePath = path.join(__dirname, 'textures', '/');
   const diff = lodash.difference(remoteTextures, localTextures);
-
-  await Promise.all(diff.map( async file => {
-    let localFile = path.join(localTexturePath, file);
-    let remoteFile = textureSource + file;
-    let finishedFile = await downloadFile(remoteFile, localFile, localTexturePath);
-    console.log('Downloaded ' + finishedFile);
-    Promise.resolve(finishedFile);
-  }));
-
-  console.log('Files Synced.');
-  return Promise.resolve('synced');
+  if (!Array.isArray(diff)) {
+    return Promise.reject('Error! diff is not an array!');
+  } else if (Array.isArray(diff) && diff.length) {
+    await Promise.all(diff.map( async file => {
+      let localFile = path.join(localTexturePath, file);
+      let remoteFile = textureSource + file;
+      let finishedFile = await downloadFile(remoteFile, localFile, localTexturePath);
+      console.log('Downloaded ' + finishedFile);
+      Promise.resolve(finishedFile);
+    }));
+    console.log('Files Synced.');
+    return Promise.resolve('updated');
+  } else {
+    console.log('Up to date!');
+    return Promise.resolve('no-update');
+  }
 }
 
 
