@@ -3,27 +3,33 @@ _A Tethered Ring is a dynamic structure that can cost-effectively support space 
 
 # Getting started
 
-- install node (v18.11.0 tested)
-
-- clone repo
-```git clone https://github.com/philipswan/TetheredRing.git```
-
-- setup
+*Install node (v18.11.0 tested)*
+*Clone repo*
+```
+git clone https://github.com/philipswan/TetheredRing.git
+```
+*Setup*
 ```
 cd TetheredRing
 npm install
 npm run dev-sync
 npm run dev
 ```
-- open web browser to `localhost:3000`
+*Open web browser to* `localhost:3000`
 
 *Note:* If you make changes to main.js, or any of the other project files, these changes will immediately take effect in the browser. Note that when working on the project, on occasion you may need to refresh the browser with \<cntrl\> + \<shift\> + 'R' in order for the model to display properly.  
 
 # Using the Model - Keyboard:
 'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
+
 'O' will mode the point that you orbit around back to the center of the Earth.
+
 'R' and 'L' will slowly raise and lower the ring.
+
 'U' and 'D' will increase and decrease the altitude of the camera.
+
 'Z' and 'X' will slowly zoom in or out.
+
 'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
+
 'W' will instantly "warp" you over to a point much closer to the ring.
