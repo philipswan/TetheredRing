@@ -1,6 +1,5 @@
-/** syncs textures from the server to local development environment
- *  
- *  
+/** 
+ * syncs textures from the server to local development environment
  */
 
 const fs = require('fs');
@@ -11,6 +10,8 @@ const lodash = require('lodash/array');
 const textureList = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures/getTextures.php';
 // url to location of remote texture files
 const textureSource = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures';
+// local texture folder
+const textureFolder = './textures';
 
 /**
  * scans local textures
@@ -37,6 +38,55 @@ function getLocalTextures(localPath, fileArray) {
   });
 
   return fileArray;
+}
+
+/**
+ * creates any missing texture directories 
+ *
+ * @param {array} dirList   // list of directories to verify
+ */
+function verifyTextureFolders(dirList) {
+  try {
+    if (!fs.existsSync(textureFolder)) {
+      fs.mkdirSync(textureFolder);
+      console.log('Created ' + textureFolder);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  
+  dirList.forEach( (dir) => {
+    dir = path.join(__dirname, textureFolder, dir);
+    try {
+      if(!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log('Created ' + dir);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  })
+}
+
+/**
+ * parses the list of remote textures to determine directory structure to create locally
+ *
+ * @param {array}  remoteList               // array with list of remote textures
+ *
+ * @return {Promise<array>} directoryTree   // array containing folders to verify exist
+ */
+async function getRemoteDirectoryTree() {
+  let remoteList = await getRemoteTextures(textureList);
+  let directoryTree = [];
+  let dir;
+  if (remoteList) {
+    remoteList.forEach( (texture) => {
+      dir = texture.replace(/[^/]*$/, '');
+      directoryTree.push(dir);
+    });
+    directoryTree = [... new Set(directoryTree)];
+    return directoryTree;
+  }
 }
 
 /**
@@ -81,6 +131,7 @@ async function getRemoteTextures(url) {
  * downloads the file from the server
  *
  * @async
+ *
  * @param {string}  remoteFile  // url to remote file location
  * @param {string}  localFile   // local filename with full path
  *
@@ -114,10 +165,13 @@ async function downloadFile(remoteFile, localFile) {
  * @return {string}   
  */
 async function syncTextures() {
+  const remoteDirs = await getRemoteDirectoryTree()
+  verifyTextureFolders(remoteDirs);
   const remoteTextures = await getRemoteTextures(textureList);
   const localTextures = getLocalTextures('./textures');
   const localTexturePath = path.join(__dirname, 'textures', '/');
   const diff = lodash.difference(remoteTextures, localTextures);
+
   if (!Array.isArray(diff)) {
     return Promise.reject('Error! diff is not an array!');
   } else if (Array.isArray(diff) && diff.length) {
@@ -135,6 +189,5 @@ async function syncTextures() {
     return Promise.resolve('no-update');
   }
 }
-
 
 syncTextures();
