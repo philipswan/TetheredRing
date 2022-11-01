@@ -4,6 +4,7 @@ _A Tethered Ring is a dynamic structure that can cost-effectively support space 
 # Getting started
 
 **Install node (v18.11.0 tested)**
+
 **Clone repo**
 ```
 git clone https://github.com/philipswan/TetheredRing.git
