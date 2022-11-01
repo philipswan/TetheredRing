@@ -3,20 +3,20 @@ _A Tethered Ring is a dynamic structure that can cost-effectively support space 
 
 # Getting started
 
-**Install node (v18.11.0 tested)**
+- **Install node (v18.11.0 tested)**
 
-**Clone repo**
+- **Clone repo**
 ```
 git clone https://github.com/philipswan/TetheredRing.git
 ```
-**Setup**
+- **Setup**
 ```
 cd TetheredRing
 npm install
 npm run dev-sync
 npm run dev
 ```
-**Open web browser to** `localhost:3000`
+- **Open web browser to** `http://localhost:3000`
 
 **Note:** If you make changes to main.js, or any of the other project files, these changes will immediately take effect in the browser. Note that when working on the project, on occasion you may need to refresh the browser with \<cntrl\> + \<shift\> + 'R' in order for the model to display properly.  
 
