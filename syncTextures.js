@@ -6,12 +6,15 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const lodash = require('lodash/array');
+const axios = require('axios'); 
 // url to server-side script with updated image list (json)
 const textureList = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures/getTextures.php';
 // url to location of remote texture files
 const textureSource = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures';
 // local texture folder
 const textureFolder = './textures';
+// delay (milliseconds) between file download requests --- server overload prevention
+const delay = '10';
 
 /**
  * scans local textures
@@ -132,62 +135,95 @@ async function getRemoteTextures(url) {
  *
  * @async
  *
- * @param {string}  remoteFile  // url to remote file location
- * @param {string}  localFile   // local filename with full path
+ * @param {string}  url     // url to remote file location
+ * @param {string}  local   // local filename with full path
+ * @param {string}  agent   // HTTPS agent
  *
- * @return {Promise<string>} remoteFile  // downloaded filename
+ * @return {Promise} 
  */
-async function downloadFile(remoteFile, localFile) {
-  return new Promise ((resolve, reject) => {
-    let req = https.get(remoteFile, (res) => {
-      const download = fs.createWriteStream(localFile);
-      res.pipe(download);
-      res.unpipe(download);
-    });
+async function downloadFile(url, local, agent) {
+  let config = {
+    responseType: 'stream',
+    httpsAgent: agent,
+  };
 
-    req.on('response', res => {
-      resolve(remoteFile);
+  await axios.get(url, config)
+    .then(response => {
+      response.data.pipe(fs.createWriteStream(local));
+      console.log('Downloading ' + url);
+    })
+    .catch(function (error) {
+      console.log(error.toJSON());
+    })
+    .then(function () {
+      agent.destroy()
     });
-
-    req.on('error', err => {
-      reject(err);
-    });
-
-    req.end();
-  });
 }
+
+
 
 /**
  * determines missing files and iterates them through downloadFile
  *
  * @async
  *
- * @return {string}   
+ * @return {Promise}   
  */
 async function syncTextures() {
   const remoteDirs = await getRemoteDirectoryTree()
   verifyTextureFolders(remoteDirs);
   const remoteTextures = await getRemoteTextures(textureList);
-  const localTextures = getLocalTextures('./textures');
-  const localTexturePath = path.join(__dirname, 'textures', '/');
+  const localTextures = getLocalTextures(textureFolder);
+  const localTexturePath = path.join(__dirname, 'textures', '/');  // use textureFolder variable
   const diff = lodash.difference(remoteTextures, localTextures);
 
+  
   if (!Array.isArray(diff)) {
     return Promise.reject('Error! diff is not an array!');
   } else if (Array.isArray(diff) && diff.length) {
-    await Promise.all(diff.map( async file => {
-      let localFile = path.join(localTexturePath, file);
-      let remoteFile = textureSource + file;
-      let finishedFile = await downloadFile(remoteFile, localFile, localTexturePath);
-      console.log('Downloaded ' + finishedFile);
-      Promise.resolve(finishedFile);
-    }));
-    console.log('Files Synced.');
-    return Promise.resolve('updated');
+    const agent = new https.Agent({ 
+      keepAlive: true,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      rejectUnauthorized: false
+    });
+
+    let downloadLoop = function() {
+      return new Promise(function (outerResolve) {
+        let promise = Promise.resolve();
+        let i = 0;
+        let next = async function() {
+          let file = diff[i];
+          let localFile = path.join(localTexturePath, file);
+          let remoteFile = textureSource + file;
+          await downloadFile(remoteFile, localFile, agent);
+          if (++i < diff.length) {
+            promise = promise.then(function () {
+              return new Promise(function (resolve) {
+                setTimeout(function () {
+                  resolve();
+                  next();
+                }, delay);
+              });
+            });
+          } else {
+            outerResolve();
+          }
+        };
+        next();
+      });
+    };
+
+    downloadLoop().then(function() {
+      agent.destroy();
+      console.log('Sync Complete!');
+      return Promise.resolve();
+    });
+
   } else {
-    console.log('Up to date!');
-    return Promise.resolve('no-update');
+    console.log('No Sync Required.');
+    return Promise.resolve();
   }
 }
 
-syncTextures();
+syncTextures()
