@@ -1,6 +1,6 @@
 {
-  "name": "project1",
-  "version": "0.0.0",
+  "name": "TetheredRing",
+  "version": "1",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
