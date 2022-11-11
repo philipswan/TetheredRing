@@ -805,7 +805,6 @@ export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
   //const secondsOfTimeOverAmortizationPeriod = secondsPerYear * amortizationPeriod
   const absoluteTemperatureInsideTransitTube = 273.3 + 100 // ˚K  (We're assuming here that the transit vehicles heat up the hydrogen in the tube to around 100˚C - ToDo: This is a wild-assed-guess)
   const absoluteTemperatureOutsideTransitTube = 273.3 - 40 // ˚K
-  const molarMassOfHydrogen = 0.002016 // kg/mol
   const molarMassOfAir = 0.02897 // kg/mol
   
   const capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
@@ -824,13 +823,30 @@ export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
   const transitTubeTubeWallMaterialCost = dParamWithUnits['transitTubeTubeWallMaterialCost'].value // USD/kg  // Vinal Resin 
 
   const transitTubeMassPerMeter = transitTubeTubeWallMassPerMeter + 0 // Add rails, stringers, etc. 
-  const pressure = 3546 // Pa
+  const pressure = 3546 // Pa    ToDo - This needs to be a function of altitude
   const idealGasConstant = 8.31446261815324 // m3⋅Pa⋅K−1⋅mol−1
   const densityOfAir = pressure * molarMassOfAir / idealGasConstant / absoluteTemperatureOutsideTransitTube
   const overPressureFactor = 1.02
-  const densityOfHydrogen = pressure * overPressureFactor * molarMassOfHydrogen / idealGasConstant / absoluteTemperatureInsideTransitTube
 
-  const buoyancyOfHydrogenInTubePerMeter = Math.PI * transitTubeTubeRadius**2 * (densityOfAir-densityOfHydrogen) // kg/m
+  let lightGasMolarMass
+  let lightGasCostPerKg
+  let lightGasMoleculeMass
+  const lightGas = 'hydrogen'
+  switch (lightGas) {
+    case 'hydrogen':
+      lightGasMolarMass = 0.002016 // kg/mol
+      lightGasMoleculeMass = 3.32e-27 // kg
+      lightGasCostPerKg = dParamWithUnits['liquidHydrogenCostPerKg'].value
+      break
+    case 'helium':
+      lightGasMolarMass = 0.004 // kg/mol
+      lightGasMoleculeMass = 6.6423e-27 // kg
+      lightGasCostPerKg = dParamWithUnits['liquidHeliumCostPerKg'].value
+      break
+  }
+  const lightGasDensity = pressure * overPressureFactor * lightGasMolarMass / idealGasConstant / absoluteTemperatureInsideTransitTube
+
+  const buoyancyOfHydrogenInTubePerMeter = Math.PI * transitTubeTubeRadius**2 * (densityOfAir-lightGasDensity) // kg/m
   console.log('buoyancyOfHydrogenInTubePerMeter', buoyancyOfHydrogenInTubePerMeter)
   specs['buoyancyOfHydrogenInTubePerMeter'] = {value: buoyancyOfHydrogenInTubePerMeter, units: 'kg/m'}
 
@@ -877,17 +893,13 @@ export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
 
   const gamma = 7/5 // = 1.400 for diatomic gases (https://en.wikipedia.org/wiki/Speed_of_sound)
   const boltzmannConstant = 1.38e-23 // J/˚K
-  const massOfHydrogenMolecule = 3.32e-27 // kg
-  const speedOfSoundInTube = Math.sqrt(gamma * boltzmannConstant * absoluteTemperatureInsideTransitTube / massOfHydrogenMolecule)
+  const speedOfSoundInTube = Math.sqrt(gamma * boltzmannConstant * absoluteTemperatureInsideTransitTube / lightGasMoleculeMass)
   console.log('speedOfSoundInTube', speedOfSoundInTube, 'm/s')
   specs['speedOfSoundInTube'] = {value: speedOfSoundInTube, units: 'm/s'}
   const speedOfSoundInTubeInKPH = speedOfSoundInTube * 3.6
   console.log('speedOfSoundInTubeInKPH', speedOfSoundInTubeInKPH, 'm/s')
   specs['speedOfSoundInTubeInKPH'] = {value: speedOfSoundInTubeInKPH, units: 'm/s'}
 
-  const lightGasDensity = densityOfHydrogen
-  const lightGasCostPerKg = dParamWithUnits['liquidHydrogenCostPerKg'].value
-  // const lightGasCostPerKg = dParamWithUnits['liquidHeliumCostPerKg'].value
 
   const lightGasLeakageRate = 0 // ToDo: Need to calculate this!!
   const ringTerminusCost = dParamWithUnits['ringTerminusCost'].value

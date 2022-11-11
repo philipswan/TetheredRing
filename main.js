@@ -207,6 +207,9 @@ const guidParamWithUnits = {
   transitTubeTubeWallMaterialDensity: {value: 930, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeTubeWallMaterialCost: {value: 0.75, units: "USD/kg", autoMap: true, min: 0.01, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},  // https://www.theplasticsexchange.com//Research/WeeklyReview.aspx
 
+  // dynamicallyManagedObjectNumModels
+  dynamicallyManagedObjectNumModels: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+
   // ToDo: these parameters are not properly updated yet
   numVirtualTransitVehicles: {value: 40000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleNumModels: {value: 256, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -254,6 +257,7 @@ const guidParamWithUnits = {
   launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   launcherAcceleration: {value: 30, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateTransitsystem, folder: folderEngineering},
   launcherExitVelocity: {value: 15000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  launcherCoastTime: {value: 600, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateTransitsystem, folder: folderEngineering},
   launcherExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 200000, updateFunction: updateTransitsystem, folder: folderEngineering},
   launcherExitAngleInDegees: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 90, updateFunction: updateTransitsystem, folder: folderEngineering},
   launcherTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -380,7 +384,7 @@ const guidParamWithUnits = {
   showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchOrbit: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  showLaunchTrajectory: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showLaunchTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchVehiclePointLight: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -534,6 +538,7 @@ function updatedParam() {   // Read as "update_dParam"
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringEccentricity'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingEccentricity'].value, guidParamWithUnits['finalLocationRingEccentricity'].value, alpha), units: ""}
   dParamWithUnits['launcherLength'] = {value: dParamWithUnits['launcherExitVelocity'].value**2 /2 / dParamWithUnits['launcherAcceleration'].value, units: "m"}
+  console.log('launcherLength ' + dParamWithUnits['launcherLength'].value)
   dParamWithUnits['launcherAccelerationTime'] = {value: dParamWithUnits['launcherExitVelocity'].value / dParamWithUnits['launcherAcceleration'].value, units: "s"}
   updateTetherMaterial()
   updateCoilConductorMaterial()
@@ -1512,75 +1517,138 @@ function constructElevatorCables() {
 // Launch Trajectory Line
 const launcher = new Launcher.launcher()
 if (dParamWithUnits['showLaunchTrajectory'].value) {
-    const angleFromNorthPole = (Math.PI/2 - dParamWithUnits['ringCenterLatitude'].value + (Math.PI/2 - crv.currentEquivalentLatitude))
-  const launcherExitPosition = new THREE.Vector3().setFromSphericalCoords(
-    radiusOfPlanet + crv.currentMainRingAltitude,
-    angleFromNorthPole,
-    dParamWithUnits['ringCenterLongitude'].value
-  )
+  // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
+  // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of teh mass driver,
+  // follows a hyperbolic trajectory away from the earth.
+
+  const ringSouthernMostPosition = 2.955/4
+
+  const angleFromNorthPole = (Math.PI/2 - dParamWithUnits['ringCenterLatitude'].value + (Math.PI/2 - crv.currentEquivalentLatitude))
+  
+  // const launcherExitPosition = new THREE.Vector3().setFromSphericalCoords(
+  //   radiusOfPlanet + crv.currentMainRingAltitude,
+  //   angleFromNorthPole,
+  //   dParamWithUnits['ringCenterLongitude'].value
+  // )
+  const launcherExitPosition = mainRingCurve.getPoint(ringSouthernMostPosition)
+  // Adjust the position to place teh exit position on teh earth's surface
+  launcherExitPosition.multiplyScalar(radiusOfPlanet / (radiusOfPlanet + crv.currentMainRingAltitude))
 
   const launcherExitMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
-  let launcherExitMarkerSize = 1000
+  let launcherExitMarkerSize = 3000
   launcherExitMarker.position.copy(launcherExitPosition)
   launcherExitMarker.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
   launcherExitMarker.matrixValid = false
-  planetCoordSys.add(launcherExitMarker)
+  //planetCoordSys.add(launcherExitMarker)
+  //tetheredRingRefCoordSys.add(launcherExitMarker)
 
-  l.Update()
-  let ADandV
-  ADandV = l.GetAltitudeDistanceAndVelocity(0)
-  //const displacement = new THREE.Vector3(0, 0, 0)
-  //let distanceTraveledInsideTube = 0
-  //let distanceTraveledOutsideTube = 0
-  //let angularDistance = (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius
-  //let prevVehiclePostion = new THREE.Vector3(crv.mainRingRadius * Math.sin(angularDistance), crv.yf, crv.mainRingRadius * Math.cos(angularDistance))
+  // Now let's convert this position into a position on the surface of the planet
+  const launcherExitPosition2 = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(launcherExitPosition.clone()))
+  const launcherExitMarker2 = launcherExitMarker.clone()
+  launcherExitMarker2.position.copy(launcherExitPosition2)
+  planetCoordSys.add(launcherExitMarker2)
 
-  let t = 0
-  let prevVehiclePostion = new THREE.Vector3(
-    (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
-    crv.yf,
-    (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
-  let currVehiclePostion  = new THREE.Vector3(0, 0, 0)
+  // Now we need to define a direction. We can use the cross product of the position and the planet's axis of rotation for this. 
+  const planetAxisOfRotation = new THREE.Vector3(0, 1, 0)
+  const launcherExitDirection = new THREE.Vector3().crossVectors(planetAxisOfRotation, launcherExitPosition2).normalize()
+  // Draw and arrow to show the direction
+  // const arrowHelper = new THREE.ArrowHelper(launcherExitDirection, launcherExitPosition2, 1000000, 0x00ff00)
+  // planetCoordSys.add(arrowHelper)
+
+  // Next we need an axis of rotation to define the curvature of the mass driver
+  const massDriverAxisOfRotation = new THREE.Vector3().crossVectors(launcherExitPosition2, launcherExitDirection).normalize()
+
+  // Start the launch trajectory curve at the beginning of the mass driver.
   const color = new THREE.Color()
   const launchTrajectoryPoints = []
   const launchTrajectoryColors = []
+  // Rotate the position around the axis using the angle
+  let prevVehiclePosition = launcherExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (0 - dParamWithUnits['launcherLength'].value) / radiusOfPlanet)
+  let currVehiclePosition
+  const tStep = 1 // second
 
-  for (t=1; t<3*dParamWithUnits['launcherAccelerationTime'].value; t++) {
-    // distanceTraveledInsideTube = 0.5 * dParamWithUnits['launcherAcceleration'].value * t**2
-    // distanceTraveledOutsideTube = Math.max(0, dParamWithUnits['launcherExitVelocity'].value * (t - dParamWithUnits['launcherAccelerationTime'].value))
-    // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius)
-    // currVehiclePostion = new THREE.Vector3(
-    //   crv.mainRingRadius * Math.sin(angularDistance) + distanceTraveledOutsideTube,
-    //   crv.yf,
-    //   crv.mainRingRadius * Math.cos(angularDistance))
-    //displacement.add()
-    //currVehiclePostion = prevVehiclePostion.clone().add(displacement)
-    //console.log(prevVehiclePostion, currVehiclePostion)
-
-    ADandV = l.GetAltitudeDistanceAndVelocity(t)
-    currVehiclePostion = new THREE.Vector3(
-      (l.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(l.R_Earth + ADandV.Altitude)),
-      crv.yf,
-      (l.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(l.R_Earth + ADandV.Altitude)))
-    
-    launchTrajectoryPoints.push(prevVehiclePostion)
-    launchTrajectoryPoints.push(currVehiclePostion)
-    prevVehiclePostion = currVehiclePostion.clone()
+  let t = 0
+  for (t=0; t<dParamWithUnits['launcherAccelerationTime'].value; t+=tStep) {
+    const distanceTravelled = 0.5 * dParamWithUnits['launcherAcceleration'].value * t * t
+    currVehiclePosition = launcherExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['launcherLength'].value) / radiusOfPlanet)
+    launchTrajectoryPoints.push(prevVehiclePosition)
+    launchTrajectoryPoints.push(currVehiclePosition)
+    prevVehiclePosition = currVehiclePosition.clone()
     color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))   // Draw line with thick and thin tick marks
     launchTrajectoryColors.push(color.r, color.g, color.b)
     launchTrajectoryColors.push(color.r, color.g, color.b)
-    
-    const currentAltitude = 32000
-    const airDensity = l.GetAirDensity(currentAltitude)
-    const vehicleVelocity = 8000  // ToDo
-    const vehicleCrossSectionalArea = Math.PI * dParamWithUnits['launchVehicleRadius'].value**2
-    const forceOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value * airDensity * vehicleCrossSectionalArea * vehicleVelocity**2
-    const powerToOvercomeDrag = forceOfDrag * vehicleVelocity
-
   }
 
+  const R0 = new THREE.Vector2(radiusOfPlanet, 0)
+  const V0 = new THREE.Vector2(0, dParamWithUnits['launcherExitVelocity'].value)
+  for (; t < dParamWithUnits['launcherAccelerationTime'].value + dParamWithUnits['launcherCoastTime'].value; t+=tStep) {
+    const t2 = t - dParamWithUnits['launcherAccelerationTime'].value
+    const RV = launcher.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
+    const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
+    currVehiclePosition = launcherExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
+    launchTrajectoryPoints.push(prevVehiclePosition)
+    launchTrajectoryPoints.push(currVehiclePosition)
+    prevVehiclePosition = currVehiclePosition.clone()
+    color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))   // Draw line with thick and thin tick marks
+    launchTrajectoryColors.push(color.r, color.g, color.b)
+    launchTrajectoryColors.push(color.r, color.g, color.b)
+    console.log(RV, downRangeAngle, RV.R.length() / radiusOfPlanet)
+  }
+
+
+  if (0) {
+    launcher.Update()
+    let ADandV
+    ADandV = launcher.GetAltitudeDistanceAndVelocity(0)
+  
+      //const displacement = new THREE.Vector3(0, 0, 0)
+    //let distanceTraveledInsideTube = 0
+    //let distanceTraveledOutsideTube = 0
+    //let angularDistance = (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius
+    //let prevVehiclePostion = new THREE.Vector3(crv.mainRingRadius * Math.sin(angularDistance), crv.yf, crv.mainRingRadius * Math.cos(angularDistance))
+
+    let prevVehiclePostion = new THREE.Vector3(
+      (launcher.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(launcher.R_Earth + ADandV.Altitude)),
+      crv.yf,
+      (launcher.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(launcher.R_Earth + ADandV.Altitude)))
+    let currVehiclePostion  = new THREE.Vector3(0, 0, 0)
+
+    for (t=1; t<3*dParamWithUnits['launcherAccelerationTime'].value; t++) {
+      // distanceTraveledInsideTube = 0.5 * dParamWithUnits['launcherAcceleration'].value * t**2
+      // distanceTraveledOutsideTube = Math.max(0, dParamWithUnits['launcherExitVelocity'].value * (t - dParamWithUnits['launcherAccelerationTime'].value))
+      // angularDistance = Math.min(0, (distanceTraveledInsideTube-dParamWithUnits['launcherLength'].value)/crv.mainRingRadius)
+      // currVehiclePostion = new THREE.Vector3(
+      //   crv.mainRingRadius * Math.sin(angularDistance) + distanceTraveledOutsideTube,
+      //   crv.yf,
+      //   crv.mainRingRadius * Math.cos(angularDistance))
+      //displacement.add()
+      //currVehiclePostion = prevVehiclePostion.clone().add(displacement)
+      //console.log(prevVehiclePostion, currVehiclePostion)
+
+      ADandV = launcher.GetAltitudeDistanceAndVelocity(t)
+      currVehiclePostion = new THREE.Vector3(
+        (launcher.R_Earth + ADandV.Altitude) * Math.sin(ADandV.Distance/(launcher.R_Earth + ADandV.Altitude)),
+        crv.yf,
+        (launcher.R_Earth + ADandV.Altitude) * Math.cos(ADandV.Distance/(launcher.R_Earth + ADandV.Altitude)))
+      
+      launchTrajectoryPoints.push(prevVehiclePostion)
+      launchTrajectoryPoints.push(currVehiclePostion)
+      prevVehiclePostion = currVehiclePostion.clone()
+      color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))   // Draw line with thick and thin tick marks
+      launchTrajectoryColors.push(color.r, color.g, color.b)
+      launchTrajectoryColors.push(color.r, color.g, color.b)
+      
+      const currentAltitude = 32000
+      const airDensity = launcher.GetAirDensity(currentAltitude)
+      const vehicleVelocity = 8000  // ToDo
+      const vehicleCrossSectionalArea = Math.PI * dParamWithUnits['launchVehicleRadius'].value**2
+      const forceOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value * airDensity * vehicleCrossSectionalArea * vehicleVelocity**2
+      const powerToOvercomeDrag = forceOfDrag * vehicleVelocity
+
+    }
+  }  
   const launchTrajectoryGeometry = new THREE.BufferGeometry().setFromPoints(launchTrajectoryPoints)
-  launchTrajectoryGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( launchTrajectoryColors, 3 ) );
+  launchTrajectoryGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( launchTrajectoryColors, 3 ) )
 
   var launchTrajectoryMaterial = new THREE.LineBasicMaterial({
     vertexColors: true,
@@ -1588,8 +1656,8 @@ if (dParamWithUnits['showLaunchTrajectory'].value) {
     opacity: dParamWithUnits['launchTrajectoryVisibility'].value
   })
   const launchTrajectoryMesh = new THREE.LineSegments(launchTrajectoryGeometry, launchTrajectoryMaterial)
-  tetheredRingRefCoordSys.add( launchTrajectoryMesh )
-  //planetCoordSys.add( launchTrajectoryMesh )
+  //tetheredRingRefCoordSys.add( launchTrajectoryMesh )
+  planetCoordSys.add( launchTrajectoryMesh )
   // End Launch Trajectory Line
 }
 
@@ -2187,10 +2255,10 @@ function onKeyDown( event ) {
       // camera.up.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
 
       // Near Launch Tube Exit  
-      // orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
-      // orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
-      // orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
-      // camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+      orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
+      orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+      orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
+      camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
 
       // Near Launch Tube Entrance
       // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
@@ -2199,10 +2267,10 @@ function onKeyDown( event ) {
       // camera.up.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
 
       // Over Russia
-      orbitControls.target.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893)
-      orbitControls.upDirection.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
-      orbitControls.object.position.set(2658928.67289732, 5083188.169494178, -2860038.5902062203)
-      camera.up.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+      // orbitControls.target.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893)
+      // orbitControls.upDirection.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+      // orbitControls.object.position.set(2658928.67289732, 5083188.169494178, -2860038.5902062203)
+      // camera.up.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
 
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       setOrbitControlsTargetUpVector()

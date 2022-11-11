@@ -9,6 +9,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 //import { FBXLoader } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/loaders/FBXLoader.js'
 
 import * as tram from './tram.js'
+import { dynamicallyManagedObject } from './dynamicallyManagedObject.js'
 
 class referenceFrame {
   constructor(numWedges, v, direction, trackIndex) {
@@ -30,6 +31,7 @@ class referenceFrame {
       'virtualStationaryRings': [],
       'virtualMovingRings': [],
       'virtualTransitTubes': [],
+      'dynamicallyManagedObjects': [],
       'virtualLaunchTubes': [],
       'virtualLaunchVehicles': [],
       'virtualElevatorCables': [],
@@ -683,13 +685,14 @@ export class transitSystem {
     this.unallocatedStationaryRingModels = []
     this.unallocatedMovingRingModels = []
     this.unallocatedTransitTubeModels = []
+    this.unallocatedDynamicallyManagedObjects = []
     this.unallocatedLaunchTubeModels = []
     this.unallocatedLaunchVehicleModels = []
     this.unallocatedElevatorCableModels = []
     this.numWedges = 1024
     this.actionFlags = new Array(this.numWedges).fill(0)
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
-    const launcherLength = dParamWithUnits['launcherLength']
+    const launcherLength = dParamWithUnits['launcherLength'].value
     this.ringSouthernMostPosition = 3/4 // Hack
     
     // Debug - ToDo clean this up when it's no longer needed
@@ -707,11 +710,14 @@ export class transitSystem {
       // // For vehicles making a stop at a ringTerminus...
       new referenceFrame(this.numWedges, v1/10, 1, 0),
       new referenceFrame(this.numWedges, v1/10, -1, 2),
+      // Static reference frame
       new referenceFrame(this.numWedges, 0, 1, 1),
       // For Launch Vehicles (maybe temporary)
       new referenceFrame(this.numWedges, v2, -1, 0),
       // For Moving Rings
       new referenceFrame(this.numWedges, v3, -1, 0),
+      // Static reference frame with much greater camera range
+      new referenceFrame(this.numWedges, 0, 1, 1),
     ]
 
     this.eventList = []
@@ -797,6 +803,7 @@ export class transitSystem {
           refFrame.wedges[wedgeIndex]['virtualStationaryRings'].push(new virtualStationaryRing(positionInFrameOfReference, j, this.unallocatedStationaryRingModels))
         }
         refFrame.wedges[wedgeIndex]['virtualTransitTubes'].push(new virtualTransitTube(positionInFrameOfReference, this.unallocatedTransitTubeModels))
+        refFrame.wedges[wedgeIndex]['dynamicallyManagedObjects'].push(new dynamicallyManagedObject(positionInFrameOfReference, this.unallocatedDynamicallyManagedObjects))
         if ((i>=totalFacilities*this.ringSouthernMostPosition) && (i<totalFacilities*(this.ringSouthernMostPosition+launcherLength/(crv.mainRingRadius*2*Math.PI)))) {
           refFrame.wedges[wedgeIndex]['virtualLaunchTubes'].push(new virtualLaunchTube(positionInFrameOfReference, this.unallocatedLaunchTubeModels))
         }
@@ -881,6 +888,7 @@ export class transitSystem {
     const addStationaryRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
     const addMovingRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
     const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
+    const addDynamicallyManagedObjects = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedDynamicallyManagedObjects, 'dynamicallyManagedObject', 1, dParamWithUnits['dynamicallyManagedObjectNumModels'].value, this.perfOptimizedThreeJS)
     const addLaunchTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchTubeModels, 'launcherTube', 1, dParamWithUnits['launcherTubeNumModels'].value, this.perfOptimizedThreeJS)
     //const addLaunchVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  0.0254 * 3.25, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle',  1, dParamWithUnits['launchVehicleNumModels'].value, this.perfOptimizedThreeJS)
@@ -1010,6 +1018,8 @@ export class transitSystem {
     const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
     addTransitTubes(transitTubeMesh)
 
+    fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
+    
     // Manually create the launch tube
     function getLaunchTubeSegmentCurve() {
       const lengthSegments = 4
@@ -1072,6 +1082,7 @@ export class transitSystem {
     virtualStationaryRing.update(dParamWithUnits, crv, mainRingCurve)
     virtualMovingRing.update(dParamWithUnits, crv, mainRingCurve)
     virtualTransitTube.update(dParamWithUnits, crv, mainRingCurve)
+    dynamicallyManagedObject.update(dParamWithUnits, crv, mainRingCurve)
     virtualLaunchTube.update(dParamWithUnits, crv, mainRingCurve)
     virtualLaunchVehicle.update(dParamWithUnits, crv, mainRingCurve, this.ringSouthernMostPosition)
     virtualElevatorCable.update(dParamWithUnits, crv, mainRingCurve)
@@ -1329,6 +1340,13 @@ export class transitSystem {
         if (objectValue.length>0) {
           objectValue.forEach(object => {
             if (!object.model) {
+              if (object.unallocatedModels.length==1) {
+                // This is the last model. Duplicate it so that we don't run out.
+                const tempModel = object.unallocatedModels[0].clone()
+                object.unallocatedModels.push(tempModel)
+                this.scene.add(tempModel)
+                console.log('Duplicating model for ' + objectKey)
+              }
               if (object.unallocatedModels.length>0) {
                 object.model = object.unallocatedModels.pop()
                 object.model.visible = object.isVisible
@@ -1435,6 +1453,7 @@ export class transitSystem {
     virtualStationaryRing.hasChanged = false
     virtualMovingRing.hasChanged = false
     virtualTransitTube.hasChanged = false
+    dynamicallyManagedObject.hasChanged = false
     virtualLaunchTube.hasChanged = false
     virtualLaunchVehicle.hasChanged = false
 
