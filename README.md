@@ -3,34 +3,62 @@ A Tethered Ring is a dynamic structure that can cost-effectively support space l
 
 # Getting started
 
-- **Install node (19.0.1 tested) & npm (9.1.1 tested)**
+**Install NodeJS & NPM**
 
-- **Clone repo**
+https://nodejs.org/en/download/
+
+_Note: NPM is now included with NodeJS_
+
+You can verify installation and determine your installed version using the commands below
+
+**Node** _(v19.0.1 tested)_
+```
+node -v
+```
+**NPM** _(9.1.1 tested)_
+```
+npm -v
+```
+
+# Setup
+**Clone the repo**
 ```
 git clone https://github.com/philipswan/TetheredRing.git
 ```
-- **Setup**
+**Switch to the install directory**
 ```
 cd TetheredRing
+```
+**Install required packages**
+
+_Standard node modules installation_
+```
 npm install
+```
+**Sync development files**
+
+_This is an additional required setup step in order for the model to be displayed correctly. This script is responsible for syncing the textures from the remote server to your local development environment._
+```
 npm run dev-sync
+```
+**Run the development server**
+
+_Handled by [Vite](https://vitejs.dev/)_
+```
 npm run dev
 ```
-- **Open web browser to** `http://localhost:3000`
+**Navigate to the URL specified in the `run dev` output to view the model**
 
-**Note:** If you make changes to main.js, or any of the other project files, these changes will immediately take effect in the browser. Note that when working on the project, on occasion you may need to refresh the browser with \<cntrl\> + \<shift\> + 'R' in order for the model to display properly.  
+_**Note:** when working on the project, on occasion you may need to hard refresh the browser in order for the model to display properly. This is usually the command \<ctrl\> + \<shift\> + 'R'_
 
 # Using the Model - Keyboard:
-'P' will move the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.
 
-'O' will mode the point that you orbit around back to the center of the Earth.
-
-'R' and 'L' will slowly raise and lower the ring.
-
-'U' and 'D' will increase and decrease the altitude of the camera.
-
-'Z' and 'X' will slowly zoom in or out.
-
-'Q' will cause camera to slowly orbit around the point set by 'P' or 'O'.
-
-'W' will instantly "warp" you over to a point much closer to the ring.
+|Key|Function|
+|---|---|
+|`P`| Moves the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.|
+|`O`| Moves the point that you orbit around back to the center of the Earth.|
+|`R`/`L`| Slowly raise and lower the ring.|
+|`U`/`D`| Increase and decrease the altitude of the camera.|
+|`Z`/`X`| Slowly zoom in or out.|
+|`Q`| Slowly orbit around the point set by `P` or `O`.|
+|`W`| Instantly "warp" you over to a point much closer to the ring.|
