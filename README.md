@@ -3,7 +3,7 @@ A Tethered Ring is a dynamic structure that can cost-effectively support space l
 
 # Getting started
 
-**Install NodeJS & NPM**
+### Install NodeJS & NPM
 
 https://nodejs.org/en/download/
 
@@ -21,33 +21,33 @@ npm -v
 ```
 
 # Setup
-**Clone the repo**
+### Clone the repo
 ```
 git clone https://github.com/philipswan/TetheredRing.git
 ```
-**Switch to the install directory**
+### Switch to the install directory
 ```
 cd TetheredRing
 ```
-**Install required packages**
+### Install required packages
 
 _Standard node modules installation_
 ```
 npm install
 ```
-**Sync development files**
+### Sync development files
 
 _This is an additional required setup step in order for the model to be displayed correctly. This script is responsible for syncing the textures from the remote server to your local development environment._
 ```
 npm run dev-sync
 ```
-**Run the development server**
+### Run the development server
 
 _Handled by [Vite](https://vitejs.dev/)_
 ```
 npm run dev
 ```
-**Navigate to the URL specified in the `run dev` output to view the model**
+### Navigate to the URL specified in the `run dev` output to view the model
 
 _**Note:** when working on the project, on occasion you may need to hard refresh the browser in order for the model to display properly. This is usually the command \<ctrl\> + \<shift\> + 'R'_
 
