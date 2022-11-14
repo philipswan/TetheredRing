@@ -1,23 +1,41 @@
 /** 
- * syncs textures from the server to local development environment
+ * syncTexture.js
+ *
+ * This script is designed to sync texture files and folders from a remote
+ * server to the local development environement.
+ *
+ * Given the URL to a JSON file list (textureList), it will compare this list
+ * with local files in the specified folder (textureFolder).  Upon determining
+ * if any files are missing locally, it will iterate through the missing file
+ * list and download any missing files from the remote location (textureSource)
+ *
+ * TODO: Check for file changes other than filename (such as updating an image)  
+ * It currently only compares missing filenames.
+ *
  */
 
+
+/* Modules */
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const lodash = require('lodash/array');
 const axios = require('axios'); 
-// url to server-side script with updated image list (json)
+
+/* Global Variables */
+// URL to the list of texture files on the remote server - expects JSON data
 const textureList = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures/getTextures.php';
-// url to location of remote texture files
+// URL to the location (directory) of the texture files on the remote server
 const textureSource = 'https://www.project-atlantis.com/wp-content/threejs-simulation/textures';
-// local texture folder
+// local texture folder (where files are downloaded)
 const textureFolder = './textures';
-// delay (milliseconds) between file download requests --- server overload prevention
+// delay (milliseconds) between file download requests
+// see syncTextures() for more info
 const delay = '10';
 
 /**
- * scans local textures
+ * Iterates through all files in the localPath merging them into a single
+ * array to be compared with the remote files
  *
  * @param {string}  localPath   // path to local textures
  * @param {array}   fileArray   // callback to merge textures into single array
@@ -44,59 +62,11 @@ function getLocalTextures(localPath, fileArray) {
 }
 
 /**
- * creates any missing texture directories 
- *
- * @param {array} dirList   // list of directories to verify
- */
-function verifyTextureFolders(dirList) {
-  try {
-    if (!fs.existsSync(textureFolder)) {
-      fs.mkdirSync(textureFolder);
-      console.log('Created ' + textureFolder);
-    }
-  } catch (err) {
-    console.error(err);
-  }
-  
-  dirList.forEach( (dir) => {
-    dir = path.join(__dirname, textureFolder, dir);
-    try {
-      if(!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log('Created ' + dir);
-      }
-    } catch (err) {
-      console.log(err);
-    }
-  })
-}
-
-/**
- * parses the list of remote textures to determine directory structure to create locally
- *
- * @param {array}  remoteList               // array with list of remote textures
- *
- * @return {Promise<array>} directoryTree   // array containing folders to verify exist
- */
-async function getRemoteDirectoryTree() {
-  let remoteList = await getRemoteTextures(textureList);
-  let directoryTree = [];
-  let dir;
-  if (remoteList) {
-    remoteList.forEach( (texture) => {
-      dir = texture.replace(/[^/]*$/, '');
-      directoryTree.push(dir);
-    });
-    directoryTree = [... new Set(directoryTree)];
-    return directoryTree;
-  }
-}
-
-/**
- * pulls list (json) of remote textures from the server
+ * Given a valid URL to JSON data, this function will download the data to 
+ * a local variable and return it for use in the script 
  * 
  * @async
- * @param {string}            url             // url to json output
+ * @param {string}            url             // path or url to json output
  *
  * @return {Promsie<array>}   remoteTextures  // list of remote textures
  */
@@ -131,7 +101,63 @@ async function getRemoteTextures(url) {
 }
 
 /**
- * downloads the file from the server
+ * Using the list of remote files to be downloaded, an array is generated with a
+ * list of directory names on the remote server.
+ *
+ * @param {array}  remoteList               // array with list of remote texture files
+ *
+ * @return {Promise<array>} directoryTree   // array containing folders to verify exist
+ */
+async function getRemoteDirectoryTree() {
+  let remoteList = await getRemoteTextures(textureList);
+  let directoryTree = [];
+  let dir;
+  if (remoteList) {
+    remoteList.forEach( (texture) => {
+      dir = texture.replace(/[^/]*$/, '');
+      directoryTree.push(dir);
+    });
+    directoryTree = [... new Set(directoryTree)];
+    return directoryTree;
+  }
+}
+
+/**
+ * Given a list of directories to check, this verifies that they exist locally
+ * creating any missing directories.
+ *
+ * @param {array} dirList   // list of directories to verify
+ */
+function verifyTextureFolders(dirList) {
+  try {
+    if (!fs.existsSync(textureFolder)) {
+      fs.mkdirSync(textureFolder);
+      console.log('Created ' + textureFolder);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  
+  dirList.forEach( (dir) => {
+    dir = path.join(__dirname, textureFolder, dir);
+    try {
+      if(!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log('Created ' + dir);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  })
+}
+
+/**
+ * This function is responsible for the actual file transfer.  It is given a
+ * url to the remote file to be downloaded and the local location in which it
+ * will be saved.
+ *
+ * HTTPS agent is to help with connection control to the server and eliminate
+ * multiple connections/sockets causing server overloads/timeouts.
  *
  * @async
  *
@@ -163,7 +189,20 @@ async function downloadFile(url, local, agent) {
 
 
 /**
- * determines missing files and iterates them through downloadFile
+ * The main function to handle comparing the file lists and iterate through the 
+ * list of files to be downloaded.
+ *
+ * Starts by calling functions to determine remote directory tree and files.
+ * Then compares this with the local directory tree and files.
+ * Determines the missing files (diff) required.
+ * Loops each missing file through the download function.
+ *
+ * Not currently necessary while limiting sockets, but there is a delay added
+ * to the promise chain that can be specified globally.  This delay is the time
+ * between requesting files to download.  Helpful if performing simultaneous
+ * download requests. Number of sockets can be modified in the HTTPS agent to
+ * allow for this, but verify server connection limits as increasing this can
+ * lead to timeout/connection issues.
  *
  * @async
  *
