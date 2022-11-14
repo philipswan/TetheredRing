@@ -54,7 +54,7 @@ _**Note:** when working on the project, on occasion you may need to hard refresh
 # Using the Model - Keyboard:
 
 |Key|Function|
-|---|---|
+|:---:|---|
 |`P`| Moves the point that you orbit around. It will place it just above the surface of the Earth, or on the transit tube, depending on which of these objects the sprite is hovering over when you press this key.|
 |`O`| Moves the point that you orbit around back to the center of the Earth.|
 |`R`/`L`| Slowly raise and lower the ring.|
