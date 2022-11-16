@@ -5,3 +5,4 @@ vite-project
 dist
 dist-ssr
 *.local
+*.swp
