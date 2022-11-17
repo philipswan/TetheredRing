@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
-// import { FBXLoader } from './node_modules/three/examples/jsm/loaders/FBXLoader.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 // C:\Users\phils\Documents\repos\Three.js\TetheredRing\node_modules\three\examples\jsm\loaders
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
@@ -818,10 +818,13 @@ export class transitSystem {
     gltfloader.load('models/TransitCar.glb', addTransitVehicles, progressFunction, errorFunction )
 
     const fbxloader = new FBXLoader()
+    console.log('Loading RingTerminus.fbx')
     fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
+    console.log('Loading GroundTerminus.fbx')
     fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
     //gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
     fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
+    console.log('Loading Elevator.fbx')
     fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
     //gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
 
