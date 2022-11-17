@@ -30,7 +30,6 @@ const textureSource = 'https://www.project-atlantis.com/wp-content/threejs-simul
 // local texture folder (where files are downloaded)
 const textureFolder = './textures';
 // delay (milliseconds) between file download requests
-// see syncTextures() for more info
 const delay = '10';
 
 /**
@@ -168,24 +167,32 @@ function verifyTextureFolders(dirList) {
  * @return {Promise} 
  */
 async function downloadFile(url, local, agent) {
+  const writer = fs.createWriteStream(local);
+
   let config = {
     responseType: 'stream',
     httpsAgent: agent,
   };
 
-  await axios.get(url, config)
-    .then(response => {
-      response.data.pipe(fs.createWriteStream(local));
+  return axios.get(url, config)
+  .then(response => {
+    return new Promise((resolve, reject) => {
+      response.data.pipe(writer);
       console.log('Downloading ' + url);
-    })
-    .catch(function (error) {
-      console.log(error.toJSON());
-    })
-    .then(function () {
-      agent.destroy()
+      let error;
+      writer.on('error', err => {
+        error = err;
+        writer.close();
+        reject(err);
+      });
+      writer.on('close', () => {
+        if (!error) {
+          resolve(true);
+        }
+      });
     });
+  });
 }
-
 
 
 /**
@@ -197,12 +204,9 @@ async function downloadFile(url, local, agent) {
  * Determines the missing files (diff) required.
  * Loops each missing file through the download function.
  *
- * Not currently necessary while limiting sockets, but there is a delay added
- * to the promise chain that can be specified globally.  This delay is the time
- * between requesting files to download.  Helpful if performing simultaneous
- * download requests. Number of sockets can be modified in the HTTPS agent to
- * allow for this, but verify server connection limits as increasing this can
- * lead to timeout/connection issues.
+ * There is a delay added to the promise chain that can be specified globally.  
+ * This delay is the time between requesting files to download.  This helps 
+ * keep the server from blocking requests.
  *
  * @async
  *
@@ -216,14 +220,11 @@ async function syncTextures() {
   const localTexturePath = path.join(__dirname, 'textures', '/');  // use textureFolder variable
   const diff = lodash.difference(remoteTextures, localTextures);
 
-  
   if (!Array.isArray(diff)) {
     return Promise.reject('Error! diff is not an array!');
   } else if (Array.isArray(diff) && diff.length) {
     const agent = new https.Agent({ 
       keepAlive: true,
-      maxSockets: 1,
-      maxTotalSockets: 1,
       rejectUnauthorized: false
     });
 
