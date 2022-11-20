@@ -22,10 +22,16 @@ npm -v
 
 # Setup
 ### Clone the repo
+
+If you haven't aready, create a directory on your PC for your three.js projects. For example, you can do this with the command: 
+```
+mkdir C:\Users\Username\Documents\repos\Three.js\
+```
+cd into this directory. Then clone the repository with...
 ```
 git clone https://github.com/philipswan/TetheredRing.git
 ```
-### Switch to the install directory
+### Switch to the project directory
 ```
 cd TetheredRing
 ```
@@ -41,6 +47,24 @@ _This is an additional required setup step in order for the model to be displaye
 ```
 npm run dev-sync
 ```
+
+(Note: at the moment there's a problem with this script. So instead, you'll have to enter the following commands...
+```
+cd textures
+wget https://www.project-atlantis.com/wp-content/threejs-simulation/textures/bluemarble_16384.png -outfile bluemarble_16384.png
+curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/moon.jpg
+curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/movingRingTexture.jpg
+curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/myakka_oli_2022031_lrg.jpg
+mkdir 24x12\LR
+mkdir 24x12\HR
+cd 24x12\LR
+foreach ($X in @(0..23)) {foreach ($Y in @(0..11)) {curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/24x12/LR/earth_LR_24x12_${X}x${Y}.jpg}}
+cd ..\HR
+foreach ($X in @(0..23)) {foreach ($Y in @(0..11)) {curl.exe -O https://www.project-atlantis.com/wp-content/threejs-simulation/textures/24x12/HR/earth_HR_24x12_${X}x${Y}.jpg}}
+cd ..\..\..
+```
+)
+
 ### Run the development server
 
 _Handled by [Vite](https://vitejs.dev/)_
