@@ -48,7 +48,7 @@ _This is an additional required setup step in order for the model to be displaye
 npm run dev-sync
 ```
 
-(Note: at the moment there's a problem with this script. So instead, you'll have to enter the following commands...
+(Note: If you encounter a problem using the dev-sync script, an alternate method of downoading the texture files is to use the following commands...
 ```
 cd textures
 wget https://www.project-atlantis.com/wp-content/threejs-simulation/textures/bluemarble_16384.png -outfile bluemarble_16384.png
