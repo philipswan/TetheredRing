@@ -54,10 +54,8 @@ class launchVehicleModel {
       new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
     launchVehiclePointLightMesh.name = 'pointLight'
     const launchVehicleMesh = new THREE.Group().add(launchVehicleBodyMesh).add(launchVehicleFlameMesh)
-    if (dParamWithUnits['showLaunchVehiclePointLight'].value) {
-      launchVehicleMesh.add(launchVehiclePointLightMesh)
-    } 
-    //launchVehicleMesh.rotateX(-Math.PI/2)
+    launchVehiclePointLightMesh.visible = dParamWithUnits['showLaunchVehiclePointLight'].value
+    launchVehicleMesh.add(launchVehiclePointLightMesh)
     return launchVehicleMesh
   }
 }
@@ -89,6 +87,7 @@ class virtualLaunchVehicle {
     //virtualLaunchVehicle.launchVehicleRelativePosition_y  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     //virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
     virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
+    virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
     virtualLaunchVehicle.slowDownTime = dParamWithUnits['launcherSlowDownTime'].value
     virtualLaunchVehicle.isDynamic =  true
     virtualLaunchVehicle.hasChanged = true
@@ -113,12 +112,14 @@ class virtualLaunchVehicle {
       om.visible = virtualLaunchVehicle.isVisible
 
       // Turn on the flame at the exit of the launch tube
+      // ToDo: Using hard coded indicies for parts of teh model is not good for code maintainability - improve this but without degrading performance.
       if (refFrame.timeSinceStart*virtualLaunchVehicle.slowDownTime - this.timeLaunched > virtualLaunchVehicle.timeInsideLaunchSystem) {
         om.children[1].visible = true
       }
       else {
         om.children[1].visible = false
       }
+      om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
       om.matrixValid = false
     }
   }

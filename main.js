@@ -270,7 +270,7 @@ const guidParamWithUnits = {
   launcherTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherExitPositionAroundRing: {value:0.73875, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
-  launchVehicleSpacingInSeconds: {value: 2, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderLauncher},
   launchVehicleRadius: {value: 3, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleBodyLength: {value: 50, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -392,10 +392,10 @@ const guidParamWithUnits = {
   showElevatorCables: {value: true, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
   showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
-  showLaunchTrajectory: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchVehiclePointLight: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRings: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -1868,7 +1868,7 @@ function renderFrame() {
 
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
   launchSystemObject.animate(timeSinceStart)
-  
+
   let cameraPostition
   if (enableVR) {
     cameraPostition = cameraGroup.position.clone()
