@@ -11,7 +11,8 @@ class referenceFrame {
     this.prevStartWedgeIndex = -1
     this.prevFinishWedgeIndex = -1
     const makePlaceHolderEntry = () => ({
-      'virtualLaunchTubes': [],
+      'virtualMassDrivers': [],
+      'virtualEvacuatedTubes': [],
       'virtualLaunchVehicles': []
     })
     this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
@@ -77,10 +78,10 @@ class virtualLaunchVehicle {
   static isDynamic
   static hasChanged
 
-  static update(dParamWithUnits, launchTrajectoryCurve, launchTrajectoryCurveDuration, timeWithinMassDriver, timeWithinSuspendedEvacuatedTube) {
+  static update(dParamWithUnits, launchTrajectoryCurve, launchTrajectoryCurveDuration, timeWithinMassDriver, timeWithinEvacuatedTube) {
     virtualLaunchVehicle.launchTrajectoryCurve = launchTrajectoryCurve
     virtualLaunchVehicle.launchTrajectoryCurveDuration = launchTrajectoryCurveDuration
-    virtualLaunchVehicle.timeInsideLaunchSystem = timeWithinMassDriver + timeWithinSuspendedEvacuatedTube
+    virtualLaunchVehicle.timeInsideLaunchSystem = timeWithinMassDriver + timeWithinEvacuatedTube
     const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
     const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
     //virtualLaunchVehicle.launchVehicleRelativePosition_r = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
@@ -88,18 +89,19 @@ class virtualLaunchVehicle {
     //virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
     virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
     virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
-    virtualLaunchVehicle.slowDownTime = dParamWithUnits['launcherSlowDownTime'].value
+    virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     virtualLaunchVehicle.isDynamic =  true
     virtualLaunchVehicle.hasChanged = true
     //virtualLaunchVehicle.ringSouthernMostPosition = ringSouthernMostPosition
   }
 
   placeAndOrientModel(om, refFrame) {
-    const modelsCurvePosition = (refFrame.timeSinceStart*virtualLaunchVehicle.slowDownTime - this.timeLaunched) / virtualLaunchVehicle.launchTrajectoryCurveDuration
-    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0) || (modelsCurvePosition>1)) {
+    const modelsCurvePosition = (refFrame.timeSinceStart*virtualLaunchVehicle.slowDownPassageOfTime - this.timeLaunched) / virtualLaunchVehicle.launchTrajectoryCurveDuration
+    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0)) {
       console.log("error!!!")
     }
-    else {
+    // ToDo: we should be removing the model before we get to the point where it has travelled beyond the end of the launch tragectory
+    else if (modelsCurvePosition<=1) {
       const pointOnLaunchTrajectoryCurve = virtualLaunchVehicle.launchTrajectoryCurve.getPoint(modelsCurvePosition)
       const tangentToLaunchTrajectoryCurve = virtualLaunchVehicle.launchTrajectoryCurve.getTangent(modelsCurvePosition)
       om.position.set(
@@ -112,8 +114,8 @@ class virtualLaunchVehicle {
       om.visible = virtualLaunchVehicle.isVisible
 
       // Turn on the flame at the exit of the launch tube
-      // ToDo: Using hard coded indicies for parts of teh model is not good for code maintainability - improve this but without degrading performance.
-      if (refFrame.timeSinceStart*virtualLaunchVehicle.slowDownTime - this.timeLaunched > virtualLaunchVehicle.timeInsideLaunchSystem) {
+      // ToDo: Using hard coded indicies for parts of the model is not good for code maintainability - improve this but without degrading performance.
+      if (refFrame.timeSinceStart*virtualLaunchVehicle.slowDownPassageOfTime - this.timeLaunched > virtualLaunchVehicle.timeInsideLaunchSystem) {
         om.children[1].visible = true
       }
       else {
@@ -122,27 +124,150 @@ class virtualLaunchVehicle {
       om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
       om.matrixValid = false
     }
+    // ToDo: we should be removing the model before we get to the point where it has travelled beyond the end of the launch tragectory
+    else {
+      om.visible = false
+    }
   }
 }
 
-class launchTubeModel {
-  constructor(dParamWithUnits, launchTrajectoryCurve) {
-    // Manually create the launch tube
-    function getLaunchTubeSegmentCurve() {
-      const lengthSegments = 4
-      const segmentNumber = 0
-      const totalSegments = 16
-      return launchTrajectoryCurve
-    }
+class massDriverModel {
+  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+  constructor(dParamWithUnits, massDriverCurve, segmentIndex) {
 
-    const lengthSegments = 4
-    const radius = dParamWithUnits['launcherTubeRadius'].value
-    const radialSegments = 32
-    const launchTubeGeometry = new THREE.TubeGeometry(getLaunchTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    const launchTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
-    const launchTubeMesh = new THREE.Mesh(launchTubeGeometry, launchTubeMaterial)
-    return launchTubeMesh
+    const tubePoints = []
+    const modelLengthSegments = 4
+    const modelRadialSegments = 32
+    const massDriverSegments = dParamWithUnits['launcherMassDriverNumModels'].value
+    const radius = dParamWithUnits['launcherMassDriverTubeRadius'].value
+
+    for (let i = 0; i<=modelLengthSegments; i++) {
+      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverSegments
+      const pointOnRingCurve = massDriverCurve.getPoint(modelsCurvePosition)
+      tubePoints.push(pointOnRingCurve)
+    }
+    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverSegments
+    const refPoint = massDriverCurve.getPoint(modelsCurvePosition)
+    tubePoints.forEach(point => {point.sub(refPoint)})
+    const massDriverSegementCurve = new THREE.CatmullRomCurve3(tubePoints)
+    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
+    //const massDriverTubeGeometry = new THREE.SphereGeometry(10000, 32, 16)
+    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
+    const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
+
+    return massDriverTubeMesh
   }
+}
+class evacuatedTubeModel {
+  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+  constructor(dParamWithUnits, evacuatedTubeCurve, segmentIndex) {
+
+    const tubePoints = []
+    const modelLengthSegments = 4
+    const modelRadialSegments = 32
+    const evacuatedTubeSegments = dParamWithUnits['launcherEvacuatedTubeNumModels'].value
+    const radius = dParamWithUnits['launcherEvacuatedTubeRadius'].value
+
+    for (let i = 0; i<=modelLengthSegments; i++) {
+      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / evacuatedTubeSegments
+      const pointOnRingCurve = evacuatedTubeCurve.getPoint(modelsCurvePosition)
+      tubePoints.push(pointOnRingCurve)
+    }
+    const modelsCurvePosition = (segmentIndex + 0.5) / evacuatedTubeSegments
+    const refPoint = evacuatedTubeCurve.getPoint(modelsCurvePosition)
+    tubePoints.forEach(point => {point.sub(refPoint)})
+    const evacuatedTubeSegementCurve = new THREE.CatmullRomCurve3(tubePoints)
+    const evacuatedTubeTubeGeometry = new THREE.TubeGeometry(evacuatedTubeSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
+    //const evacuatedTubeTubeGeometry = new THREE.SphereGeometry(10000, 32, 16)
+    const evacuatedTubeTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
+    const evacuatedTubeTubeMesh = new THREE.Mesh(evacuatedTubeTubeGeometry, evacuatedTubeTubeMaterial)
+
+    return evacuatedTubeTubeMesh
+  }
+}
+
+class virtualMassDriver {
+  constructor(positionInFrameOfReference) {
+    this.p = positionInFrameOfReference
+    this.model = null
+  }
+
+  // The following properties are common to all virtual habitats...
+  static massDriverCurve
+  static isVisible
+  static isDynamic
+  static hasChanged
+
+  static update(dParamWithUnits, massDriverCurve) {
+    virtualMassDriver.massDriverCurve = massDriverCurve
+    virtualMassDriver.isVisible = dParamWithUnits['showMassDriver'].value
+    virtualMassDriver.isDynamic =  false
+    virtualMassDriver.hasChanged = true
+  }
+
+  placeAndOrientModel(om, refFrame) {
+    const modelsCurvePosition = this.p 
+    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0) || (modelsCurvePosition>1)) {
+      console.log("error!!!")
+    }
+    else {
+      const pointOnMassDriverCurve = virtualMassDriver.massDriverCurve.getPoint(modelsCurvePosition)
+      //const tangentToMassDriverCurve = virtualMassDriver.massDriverCurve.getTangent(modelsCurvePosition)
+      om.position.set(
+        pointOnMassDriverCurve.x,
+        pointOnMassDriverCurve.y,
+        pointOnMassDriverCurve.z)
+      om.visible = virtualMassDriver.isVisible
+      om.matrixValid = false
+      if (this.perfOptimizedThreeJS) om.freeze()
+    }
+  }
+
+}
+
+class virtualEvacuatedTube {
+  constructor(positionInFrameOfReference) {
+    this.p = positionInFrameOfReference
+    this.model = null
+  }
+
+  // The following properties are common to all virtual habitats...
+  static massDriverCurve
+  static isVisible
+  static isDynamic
+  static hasChanged
+
+  static update(dParamWithUnits, evacuatedTubeCurve) {
+    virtualEvacuatedTube.evacuatedTubeCurve = evacuatedTubeCurve
+    virtualEvacuatedTube.isVisible = dParamWithUnits['showEvacuatedTube'].value
+    virtualEvacuatedTube.isDynamic =  false
+    virtualEvacuatedTube.hasChanged = true
+  }
+
+  placeAndOrientModel(om, refFrame) {
+    const modelsCurvePosition = this.p 
+    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0) || (modelsCurvePosition>1)) {
+      console.log("error!!!")
+    }
+    else {
+      const pointOnEvacuatedTubeCurve = virtualEvacuatedTube.evacuatedTubeCurve.getPoint(modelsCurvePosition)
+      //const tangentToEvacuatedTubeCurve = virtualEvacuatedTube.evacuatedTubeCurve.getTangent(modelsCurvePosition)
+      om.position.set(
+        pointOnEvacuatedTubeCurve.x,
+        pointOnEvacuatedTubeCurve.y,
+        pointOnEvacuatedTubeCurve.z)
+      om.visible = virtualEvacuatedTube.isVisible
+      om.matrixValid = false
+      if (this.perfOptimizedThreeJS) om.freeze()
+    }
+  }
+
 }
 
 export class launcher {
@@ -192,7 +317,6 @@ export class launcher {
 
       this.numWedges = 1
       this.unallocatedLaunchVehicleModels = []
-      this.unallocatedLaunchTubeModels = []
       this.refFrames = [
         // For vehicles cruising at a steady speed...
         new referenceFrame(this.numWedges)
@@ -200,15 +324,15 @@ export class launcher {
       this.actionFlags = new Array(this.numWedges).fill(0)
       this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
 
-      this.updateCurve(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs)
+      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs)
 
       // Next, create all of the virtual objects that will be placed along the launch trajectory curve
       
       // Add the virtual launch vehicles
       const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
-      let t, n
-      // Put all of the launch vehicles into the same wedge for now
-      let wedgeIndex = 0
+      let t, n, wedgeIndex
+      // Put all of the virtual launch vehicles into the same wedge for now
+      wedgeIndex = 0
       const refFrame = this.refFrames[0]
       for (t = 0, n = 0; t<this.launchTrajectoryCurveDuration; t += tInc, n++) {
         refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
@@ -237,33 +361,31 @@ export class launcher {
         }
       }
 
-      // Create and add the launch tube models
-      const launchTubeMesh = new launchTubeModel(dParamWithUnits, this.launchTrajectoryCurve)
-      addLaunchTubes(launchTubeMesh, this.scene, this.unallocatedLaunchTubeModels, 'launcherTube', 1, dParamWithUnits['launcherTubeNumModels'].value, this.perfOptimizedThreeJS)
+      // Add the virtual mass drivers and the models for each virtual mass driver
+      wedgeIndex = 0
+      n = dParamWithUnits['launcherMassDriverNumModels'].value
+      for (let i = 0; i < n; i++) {
+        const vmd = new virtualMassDriver((i+0.5)/n)        
+        refFrame.wedges[wedgeIndex]['virtualMassDrivers'].push(vmd)
+        vmd.model = new massDriverModel(dParamWithUnits, this.massDriverCurve, i)
+        this.scene.add(vmd.model)
+      }
 
-      function addLaunchTubes(object, myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
-        object.updateMatrixWorld()
-        object.visible = false
-        object.name = objName
-        object.traverse(child => {
-          if (child!==object) {
-            child.name = objName+'_'+child.name
-          }
-        })
-        if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
-        object.scale.set(scaleFactor, scaleFactor, scaleFactor)
-        for (let i=0; i<n; i++) {
-          const tempModel = object.clone()
-          myScene.add(tempModel)
-          unallocatedModelsList.push(tempModel)
-        }
+      // Add the virtual mass drivers and the models for each virtual mass driver
+      wedgeIndex = 0
+      n = dParamWithUnits['launcherEvacuatedTubeNumModels'].value
+      for (let i = 0; i < n; i++) {
+        const vet = new virtualEvacuatedTube((i+0.5)/n)        
+        refFrame.wedges[wedgeIndex]['virtualEvacuatedTubes'].push(vet)
+        vet.model = new evacuatedTubeModel(dParamWithUnits, this.evacuatedTubeCurve, i)
+        this.scene.add(vet.model)
       }
 
     }
 
-    updateCurve(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs) {
+    updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs) {
       // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
-      // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of teh mass driver,
+      // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of the mass driver,
       // follows a hyperbolic trajectory away from the earth.
     
       // Let's define the end of the mass driver as the launcher's exit position, since from that point on the vehicles will be coasting. 
@@ -280,7 +402,7 @@ export class launcher {
       const R0 = new THREE.Vector2(radiusOfPlanet, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
       const V0 = new THREE.Vector2(0, dParamWithUnits['launcherExitVelocity'].value) // This is the vehicle's velocity vector at the exit of the launcher
 
-      // We want to find the downrange distance where the vehicle's altitude is equal to the desired launchTube exit altitude. We solve for this iteratively, although there's probably a better way...
+      // We want to find the downrange distance where the vehicle's altitude is equal to the desired suspended evacuated tube exit altitude. We solve for this iteratively, although there's probably a better way...
       let t = 0
       let tStep = 1 // second
       let RV, distSquared 
@@ -292,7 +414,7 @@ export class launcher {
           tStep = -tStep/2
         }
       }
-      this.timeWithinSuspendedEvacuatedTube = t
+      this.timeWithinEvacuatedTube = t
 
       const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
       const downRangeStraightLineDistance = 2 * radiusOfPlanet * Math.sin(downRangeAngle/2)
@@ -300,20 +422,8 @@ export class launcher {
       const aroundTheRingAngle = 2 * Math.asin(downRangeStraightLineDistance / 2 / mainRingProjectionRadius)
       // Assume that the ring is circular for now
       const launcherEvacuatedTubeExitPosition = mainRingCurve.getPoint(launcherExitPositionAroundRing - aroundTheRingAngle/(2*Math.PI))
-      //launcherEvacuatedTubeExitPosition.multiplyScalar(radiusOfPlanet / (radiusOfPlanet + crv.currentMainRingAltitude))
       // Convert to the planet's coordinate system
       const launcherEvacuatedTubeExitPosition2 = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(launcherEvacuatedTubeExitPosition.clone()))
-      // this.launcherExitMarker2.position.copy(launcherEvacuatedTubeExitPosition2)
-      // this.launcherExitMarker2.scale.set(100, 100, 100)
-      // console.log(Math.sqrt(distSquared) - radiusOfPlanet, downRangeAngle * radiusOfPlanet)
-
-      // Now we need to define a direction. We can use the cross product of the position and the planet's axis of rotation for this. 
-      // const planetAxisOfRotation = new THREE.Vector3(0, 1, 0)
-      // const ringAxisOfRotation = planetAxisOfRotation.applyQuaternion(ringToPlanetRotation)
-      // const launcherExitDirection = new THREE.Vector3().crossVectors(ringAxisOfRotation, massDriverExitPosition2).normalize()
-      // Draw and arrow to show the direction
-      // const arrowHelper = new THREE.ArrowHelper(launcherExitDirection, massDriverExitPosition2, 1000000, 0x00ff00)
-      // planetCoordSys.add(arrowHelper)
     
       // Next we need an axis of rotation to define the curvature of the mass driver
       const massDriverAxisOfRotation = new THREE.Vector3().crossVectors(massDriverExitPosition2, launcherEvacuatedTubeExitPosition2.clone().sub(massDriverExitPosition2)).normalize()
@@ -322,49 +432,77 @@ export class launcher {
       specs['launcherAccelerationTime'] = {value: launcherAccelerationTime, units: 's'}
     
       const launchTrajectoryCurveControlPoints = []
+      const massDriverCurveControlPoints = []
+      const evacuatedTubeCurveControlPoints = []
       t = 0
       tStep = 1 // second
       let vehiclePosition
       // Create the part of the trajectory where the mass driver is at the planet's surface
       // Start the launch trajectory curve at the beginning of the mass driver.
-      for (t = 0; t<dParamWithUnits['launcherAccelerationTime'].value; t+=tStep) {
+      for (t = 0; t < dParamWithUnits['launcherAccelerationTime'].value; t += tStep) {
         const distanceTravelled = 0.5 * dParamWithUnits['launcherAcceleration'].value * t * t   // 1/2 at^2
         // Rotate the massDriverExitPosition2 around the massDriverAxisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['launcherLength'].value) / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['massDriverLength'].value) / radiusOfPlanet)
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
       }
       this.timeWithinMassDriver = dParamWithUnits['launcherAccelerationTime'].value
-
-      // Create the part of the trajectory where the vehicle coasts on a hyperbolic trajectory
-      for (; t < dParamWithUnits['launcherAccelerationTime'].value + dParamWithUnits['launcherCoastTime'].value; t+=tStep) {
+      
+      // Create the part of the trajectory where the vehicle coasts on a hyperbolic trajectory both within the evacuated tube and beyond
+      for (; t < dParamWithUnits['launcherAccelerationTime'].value + this.timeWithinEvacuatedTube + dParamWithUnits['launcherCoastTime'].value; t += tStep) {
         const t2 = t - dParamWithUnits['launcherAccelerationTime'].value
         const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
         const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
         vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
-        //console.log(RV, downRangeAngle, RV.R.length() / radiusOfPlanet)
-
-        // We'll assume that the force of drag is offset by rocket thrust for now, so the following lines of unfinished code can be commented out
-        // const currentAltitude = 32000
-        // const airDensity = launcher.GetAirDensity(currentAltitude)
-        // const vehicleVelocity = 8000  // ToDo
-        // const vehicleCrossSectionalArea = Math.PI * dParamWithUnits['launchVehicleRadius'].value**2
-        // const forceOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value * airDensity * vehicleCrossSectionalArea * vehicleVelocity**2
-        // const powerToOvercomeDrag = forceOfDrag * vehicleVelocity
       }
 
+      // Now create a curve consisting of equally spaced points to be the backbone of the mass driver object
+      const numMassDriverCurveSegments = 32
+      const mdl = dParamWithUnits['massDriverLength'].value
+      for (let i = 0; i <= numMassDriverCurveSegments; i++) {
+        const d = i / numMassDriverCurveSegments * mdl
+        // Rotate the massDriverExitPosition2 around the massDriverAxisOfRotation using the angle derived from the distance travelled
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (d - mdl)  / radiusOfPlanet)
+        massDriverCurveControlPoints.push(vehiclePosition)
+      }
+
+      // Create a curve along the part of the trajectory where the vehicle coasts on a hyperbolic trajectory within the evacuated tube
+      const numEvacuatedTubeCurveSegments = 32
+      for (let i = 0; i <= numEvacuatedTubeCurveSegments; i++) {
+        const t2 = i / numEvacuatedTubeCurveSegments * this.timeWithinEvacuatedTube
+        const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
+        const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
+        evacuatedTubeCurveControlPoints.push(vehiclePosition)
+      }
+
+      // Make a curve for the launch trajectory
       this.launchTrajectoryCurve = new THREE.CatmullRomCurve3(launchTrajectoryCurveControlPoints)
       this.launchTrajectoryCurveDuration = t
       this.launchTrajectoryCurve.curveType = 'centripetal'
       this.launchTrajectoryCurve.closed = false
       this.launchTrajectoryCurve.tension = 0
 
+      // Make a curve for the mass driver
+      this.massDriverCurve = new THREE.CatmullRomCurve3(massDriverCurveControlPoints)
+      this.massDriverCurve.curveType = 'centripetal'
+      this.massDriverCurve.closed = false
+      this.massDriverCurve.tension = 0
+
+      // Make a curve for the suspended evacuated tube
+      this.evacuatedTubeCurve = new THREE.CatmullRomCurve3(evacuatedTubeCurveControlPoints)
+      this.evacuatedTubeCurve.curveType = 'centripetal'
+      this.evacuatedTubeCurve.closed = false
+      this.evacuatedTubeCurve.tension = 0
+
+      // ToDo: Probably update should be calling this function, not the other way around.
       this.update(dParamWithUnits)
     }
-    
+      
     update(dParamWithUnits) {
-      //virtualLaunchTube.update(dParamWithUnits, crv, mainRingCurve)
-      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.launchTrajectoryCurveDuration, this.timeWithinMassDriver, this.timeWithinSuspendedEvacuatedTube)
+      virtualMassDriver.update(dParamWithUnits, this.massDriverCurve)
+      virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
+      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.launchTrajectoryCurveDuration, this.timeWithinMassDriver, this.timeWithinEvacuatedTube)
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0    
     }
 
@@ -501,14 +639,14 @@ export class launcher {
       // Place and orient all of the active models
       if (removeModelList.length > 0) {
         // console.log(
-        //   this.unallocatedLaunchTubeModels.length,
+        //   this.unallocatedMassDriverModels.length,
         //   this.unallocatedLaunchVehicleModels.length,
         // )
         //console.log('Removing ' + removeModelList.length)
       }
       if (assignModelList.length > 0) {
         // console.log(
-        //   this.unallocatedLaunchTubeModels.length,
+        //   this.unallocatedMassDriverModels.length,
         //   this.unallocatedLaunchVehicleModels.length,
         // )
         //console.log('Adding ' + assignModelList.length)
@@ -520,8 +658,10 @@ export class launcher {
           objectValue.forEach(object => {
             if (object.model) {
               object.model.visible = false
-              object.unallocatedModels.push(object.model)
-              object.model = null
+              if (object.hasElement('unallocatedModels')) {
+                object.unallocatedModels.push(object.model)
+                object.model = null
+              }
             }
           })
         })
@@ -553,6 +693,9 @@ export class launcher {
                     ranOutOfModelsInfo[objectKey] = 1
                   }
                 }
+              }
+              else {
+                object.model.visible = object.isVisible
               }
             })
             const classIsDynamic = objectValue[0].constructor.isDynamic
@@ -603,19 +746,19 @@ export class launcher {
   
       if (removeModelList.length > 0) {
         // console.log(
-        //   this.unallocatedLaunchTubeModels.length,
+        //   this.unallocatedMassDriverModels.length,
         //   this.unallocatedLaunchVehicleModels.length,
         // )
       }
       if (assignModelList.length > 0) {
         // console.log(
-        //   this.unallocatedLaunchTubeModels.length,
+        //   this.unallocatedMassDriverModels.length,
         //   this.unallocatedLaunchVehicleModels.length,
         // )
       }
   
       // Clear all of the "hasChanged" flags
-      //virtualLaunchTube.hasChanged = false
+      virtualMassDriver.hasChanged = false
       virtualLaunchVehicle.hasChanged = false
   
       // Debug stuff...

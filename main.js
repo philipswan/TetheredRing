@@ -260,15 +260,17 @@ const guidParamWithUnits = {
   launcherAcceleration: {value: 30, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherExitVelocity: {value: 13000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherCoastTime: {value: 800, units: 's', autoMap: true, min: 10, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherSlowDownTime: {value: 1, units: '', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherTubeRadius: {value: 4, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitUpwardOffset: {value: -250, units: "m", autoMap: true, min: -500, max: 0, step: 0.001, updateFunction: updateLauncher, folder: folderLauncher},
   launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 200000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherExitAngleInDegees: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherExitPositionAroundRing: {value:0.73875, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherEvacuatedTubeNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchVehicleSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderLauncher},
@@ -393,7 +395,8 @@ const guidParamWithUnits = {
   showElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchTube: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showMassDriver: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showEvacuatedTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRings: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -545,8 +548,8 @@ function updatedParam() {   // Read as "update_dParam"
   dParamWithUnits['ringCenterLongitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLongitude'].value, guidParamWithUnits['finalLocationRingCenterLongitude'].value, alpha)  / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringEccentricity'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingEccentricity'].value, guidParamWithUnits['finalLocationRingEccentricity'].value, alpha), units: ""}
-  dParamWithUnits['launcherLength'] = {value: dParamWithUnits['launcherExitVelocity'].value**2 /2 / dParamWithUnits['launcherAcceleration'].value, units: "m"}
-  console.log('launcherLength ' + dParamWithUnits['launcherLength'].value)
+  dParamWithUnits['massDriverLength'] = {value: dParamWithUnits['launcherExitVelocity'].value**2 /2 / dParamWithUnits['launcherAcceleration'].value, units: "m"}
+  console.log('massDriverLength ' + dParamWithUnits['massDriverLength'].value)
   dParamWithUnits['launcherAccelerationTime'] = {value: dParamWithUnits['launcherExitVelocity'].value / dParamWithUnits['launcherAcceleration'].value, units: "s"}
   updateTetherMaterial()
   updateCoilConductorMaterial()
@@ -582,8 +585,9 @@ function updateTransitsystem() {
 function updateLauncher() {
   updatedParam()
   crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
-  launchSystemObject.updateCurve(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs)
+  launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
+  launchSystemObject.update(dParamWithUnits)
 }
 
 function adjustRingDesign() {
@@ -1679,6 +1683,7 @@ function updateRing() {
 
   tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
   tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)
+  updateLauncher()
 
   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
   //calculateAdditionalSpecs()
@@ -2291,6 +2296,12 @@ function onKeyDown( event ) {
       orbitControls.upDirection.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
       orbitControls.object.position.set(-1129098.8667539947, -4115028.8859032947, -4783335.510637315)
       camera.up.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
+
+      // Point near Mass driver
+      // orbitControls.target.set(210819.33113643105, -4106234.679293935, -4875874.11292025)
+      // orbitControls.upDirection.set(0.0342386994857858, -0.643787019644437, -0.7644383459736012)
+      // orbitControls.object.position.set(209369.0394275477, -4107259.381617337, -4875459.313691121)
+      // camera.up.set(0.0342386994857858, -0.643787019644437, -0.7644383459736012)
 
       // Near Launch Tube Entrance
       // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
