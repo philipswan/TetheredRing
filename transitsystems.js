@@ -1298,7 +1298,7 @@ export class transitSystem {
     virtualTransitTube.hasChanged = false
     dynamicallyManagedObject.hasChanged = false
     //virtualLaunchTube.hasChanged = false
-
+    
     // Debug stuff...
     // console.log(ringTerminusModels)
     // if (transitVehicleShortageCount>0) {
