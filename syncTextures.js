@@ -33,6 +33,25 @@ const textureFolder = './textures';
 const delay = '10';
 
 /**
+ * Warns the user if they are running an older version of NodeJS
+ * Only checks major version
+ *
+ */
+function checkNodeVersion() {
+  const minVersion = '19.0.1';
+  const installed = process.versions.node;
+
+  if (installed.split('.'[0]) < minVersion.split('.'[0])) {
+    console.log(
+      `\n WARNING! You are running an untested version of NodeJS!
+      Installed: ${installed}
+      Tested: ${minVersion}
+      Should any errors arise, try updating Node and NPM to the latest tested versions before reporting.\n`
+    );
+  }
+}
+
+/**
  * Iterates through all files in the localPath merging them into a single
  * array to be compared with the remote files
  *
@@ -213,7 +232,7 @@ async function downloadFile(url, local, agent) {
  * @return {Promise}   
  */
 async function syncTextures() {
-  const remoteDirs = await getRemoteDirectoryTree()
+  const remoteDirs = await getRemoteDirectoryTree();
   verifyTextureFolders(remoteDirs);
   const remoteTextures = await getRemoteTextures(textureList);
   const localTextures = getLocalTextures(textureFolder);
@@ -266,4 +285,5 @@ async function syncTextures() {
   }
 }
 
+checkNodeVersion()
 syncTextures()
