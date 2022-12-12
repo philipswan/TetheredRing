@@ -38,16 +38,11 @@ const delay = '10';
  *
  */
 function checkNodeVersion() {
-  const minVersion = '19.0.1';
+  const minVersion = '20.0.1';
   const installed = process.versions.node;
 
   if (installed.split('.'[0]) < minVersion.split('.'[0])) {
-    console.log(
-      `\n WARNING! You are running an untested version of NodeJS!
-      Installed: ${installed}
-      Tested: ${minVersion}
-      Should any errors arise, try updating Node and NPM to the latest tested versions before reporting.\n`
-    );
+    console.log(`Warning: This script was verified to work with version ${minVersion} of Node and you are on an earlier version. Please update to version ${minVersion} or later if you are experiencing issues.\n`);
   }
 }
 
