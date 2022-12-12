@@ -139,7 +139,7 @@ class massDriverModel {
   constructor(dParamWithUnits, massDriverCurve, segmentIndex) {
 
     const tubePoints = []
-    const modelLengthSegments = 4
+    const modelLengthSegments = 32
     const modelRadialSegments = 32
     const massDriverSegments = dParamWithUnits['launcherMassDriverNumModels'].value
     const radius = dParamWithUnits['launcherMassDriverTubeRadius'].value
@@ -169,7 +169,7 @@ class evacuatedTubeModel {
   constructor(dParamWithUnits, evacuatedTubeCurve, segmentIndex) {
 
     const tubePoints = []
-    const modelLengthSegments = 4
+    const modelLengthSegments = 32
     const modelRadialSegments = 32
     const evacuatedTubeSegments = dParamWithUnits['launcherEvacuatedTubeNumModels'].value
     const radius = dParamWithUnits['launcherEvacuatedTubeRadius'].value
@@ -426,7 +426,7 @@ export class launcher {
       const launcherEvacuatedTubeExitPosition2 = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(launcherEvacuatedTubeExitPosition.clone()))
     
       // Next we need an axis of rotation to define the curvature of the mass driver
-      const massDriverAxisOfRotation = new THREE.Vector3().crossVectors(massDriverExitPosition2, launcherEvacuatedTubeExitPosition2.clone().sub(massDriverExitPosition2)).normalize()
+      this.massDriverAxisOfRotation = new THREE.Vector3().crossVectors(massDriverExitPosition2, launcherEvacuatedTubeExitPosition2.clone().sub(massDriverExitPosition2)).normalize()
     
       const launcherAccelerationTime = dParamWithUnits['launcherExitVelocity'].value / dParamWithUnits['launcherAcceleration'].value
       specs['launcherAccelerationTime'] = {value: launcherAccelerationTime, units: 's'}
@@ -442,7 +442,7 @@ export class launcher {
       for (t = 0; t < dParamWithUnits['launcherAccelerationTime'].value; t += tStep) {
         const distanceTravelled = 0.5 * dParamWithUnits['launcherAcceleration'].value * t * t   // 1/2 at^2
         // Rotate the massDriverExitPosition2 around the massDriverAxisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['massDriverLength'].value) / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['massDriverLength'].value) / radiusOfPlanet)
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
       }
       this.timeWithinMassDriver = dParamWithUnits['launcherAccelerationTime'].value
@@ -452,27 +452,28 @@ export class launcher {
         const t2 = t - dParamWithUnits['launcherAccelerationTime'].value
         const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
         const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
       }
+      this.durationOfLaunchTrajectory = t
 
       // Now create a curve consisting of equally spaced points to be the backbone of the mass driver object
-      const numMassDriverCurveSegments = 32
+      const numMassDriverCurveSegments = 128
       const mdl = dParamWithUnits['massDriverLength'].value
       for (let i = 0; i <= numMassDriverCurveSegments; i++) {
         const d = i / numMassDriverCurveSegments * mdl
         // Rotate the massDriverExitPosition2 around the massDriverAxisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, (d - mdl)  / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, (d - mdl)  / radiusOfPlanet)
         massDriverCurveControlPoints.push(vehiclePosition)
       }
 
       // Create a curve along the part of the trajectory where the vehicle coasts on a hyperbolic trajectory within the evacuated tube
-      const numEvacuatedTubeCurveSegments = 32
+      const numEvacuatedTubeCurveSegments = 128
       for (let i = 0; i <= numEvacuatedTubeCurveSegments; i++) {
         const t2 = i / numEvacuatedTubeCurveSegments * this.timeWithinEvacuatedTube
         const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
         const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
         evacuatedTubeCurveControlPoints.push(vehiclePosition)
       }
 

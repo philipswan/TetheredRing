@@ -62,6 +62,8 @@ let previousKeyFrame
 let followElevators = false
 let followTransitVehicles = false
 let followLaunchVehicles = false
+let lastPointOnLaunchTrajectoryCurve
+let followLaunchVehiclesStartTime
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -131,7 +133,7 @@ const guidParamWithUnits = {
   permeabilityOfFreeSpace: {value: 4*Math.PI*1e-7, units: "N/A2", autoMap: true, min: 0, max: 0.0001, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Ring
-  ringFinalAltitude: {value: 32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  ringFinalAltitude: {value: 3200, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringAmountRaisedFactor: {value: 1, units: "", autoMap: true, min: 0, max: 5, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
   movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -373,7 +375,7 @@ const guidParamWithUnits = {
   showMoon: {value: true, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: true, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
-  showBackgroundPatch: {value: false, units: '', autoMap: true, updateFunction: updateBackgroundPatch, folder: folderRendering},
+  showBackgroundPatch: {value: true, units: '', autoMap: true, updateFunction: updateBackgroundPatch, folder: folderRendering},
   showEarthEquator: {value: false, units: '', autoMap: true, updateFunction: earthEquatorObjectUpdate, folder: folderRendering},
   showMainRingCurve: {value: false, units: '', autoMap: true, updateFunction: mainRingCurveObjectUpdate, folder: folderRendering},
   showGravityForceArrows: {value: false, units: '', autoMap: true, updateFunction: gravityForceArrowsUpdate, folder: folderRendering},
@@ -640,7 +642,7 @@ function adjustTetherColor() {
 
 function adjustLaunchTrajectoryOpacity() {
   updatedParam()
-  launchTrajectoryMaterial.opacity = dParamWithUnits['launchTrajectoryVisibility'].value
+  //launchTrajectoryMaterial.opacity = dParamWithUnits['launchTrajectoryVisibility'].value
 }
 
 let ringToPlanetRotation = new THREE.Quaternion()
@@ -1284,8 +1286,9 @@ const backgroundPatchMesh = new THREE.Mesh(
   //   }
   // })
 )
-const patchAltitude = 50
-backgroundPatchMesh.position.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893).multiplyScalar((radiusOfPlanet+patchAltitude)/(radiusOfPlanet + crv.ringFinalAltitude))
+const patchAltitude = 200
+//backgroundPatchMesh.position.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893).multiplyScalar((radiusOfPlanet+patchAltitude)/(radiusOfPlanet + crv.ringFinalAltitude))
+backgroundPatchMesh.position.set(2647021.614830413, 5060338.43596699, -2847110.7651077993).multiplyScalar((radiusOfPlanet+patchAltitude)/(radiusOfPlanet + crv.ringFinalAltitude))
 backgroundPatchMesh.lookAt(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
 let backgroundPatchActive = false
 updateBackgroundPatch()
@@ -1949,12 +1952,14 @@ function renderFrame() {
     camera.position.applyAxisAngle(axis, angle)
     orbitControls.target.applyAxisAngle(axis, angle)
   }
-  if (followLaunchVehicles>0) {
-    const axis = new THREE.Vector3(0,1,0).applyQuaternion(ringToPlanetRotation)
-    const driftFactor = 1 + (followLaunchVehicles-2)*0.02 + Math.sin(timeSinceStart*0.3)*0.01  + Math.sin(timeSinceStart*1)*0.003
-    const angle = driftFactor * delta * dParamWithUnits['launchVehicleCruisingSpeed'].value / crv.mainRingRadius
-    camera.position.applyAxisAngle(axis, angle)
-    orbitControls.target.applyAxisAngle(axis, angle)
+  if (followLaunchVehicles==2) {
+    const pointOnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint((timeSinceStart - followLaunchVehiclesStartTime)/launchSystemObject.durationOfLaunchTrajectory)
+    const trackingOffset = pointOnLaunchTrajectoryCurve.clone().sub(lastPointOnLaunchTrajectoryCurve)
+    lastPointOnLaunchTrajectoryCurve = pointOnLaunchTrajectoryCurve.clone()
+    camera.position.add(trackingOffset)
+    orbitControls.target.add(trackingOffset)
+    orbitControlsTargetPoint.add(trackingOffset)
+    setOrbitControlsTargetUpVector()
   }
   orbitControls.enabled = true
   orbitControls.update()
@@ -2191,13 +2196,13 @@ function onKeyDown( event ) {
           .to(orbitControlsTargetUpVector, 1000)
           .easing(TWEEN.Easing.Cubic.InOut)
           .start(timeSinceStart*1000)
-          // new TWEEN.Tween(orbitControlsUpVector)
-          // .to(orbitControlsTargetUpVector, 1000)
-          // .easing(TWEEN.Easing.Cubic.InOut)
-          // .start(timeSinceStart*1000)
+        // new TWEEN.Tween(orbitControlsUpVector)
+        // .to(orbitControlsTargetUpVector, 1000)
+        // .easing(TWEEN.Easing.Cubic.InOut)
+        // .start(timeSinceStart*1000)
 
-          camera.up.copy(orbitControlsUpVector.clone())
-          orbitControls.upDirection.copy(orbitControlsUpVector.clone())
+        camera.up.copy(orbitControlsUpVector.clone())
+        orbitControls.upDirection.copy(orbitControlsUpVector.clone())
         
 
         // previousTargetPoint.copy(orbitControls.target.clone())
@@ -2314,6 +2319,12 @@ function onKeyDown( event ) {
       // orbitControls.upDirection.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
       // orbitControls.object.position.set(2658928.67289732, 5083188.169494178, -2860038.5902062203)
       // camera.up.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+
+      // Over High-res Patch
+      // orbitControls.target.set(2647021.614830413, 5060338.43596699, -2847110.7651077993)
+      // orbitControls.upDirection.set(0.4148152673651506, 0.7930066114735066, -0.44617127666411416)
+      // orbitControls.object.position.set(2646996.0468927287, 5061104.575712552, -2846772.4153546905)
+      // camera.up.set(0.4148152673651506, 0.7930066114735066, -0.44617127666411416)
 
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       setOrbitControlsTargetUpVector()
@@ -2591,7 +2602,43 @@ function onKeyDown( event ) {
       followTransitVehicles = !followTransitVehicles
       break
     case 74: /*J*/
-      followLaunchVehicles = (followLaunchVehicles+3) % 4
+      if (followLaunchVehicles==0) {
+        lastPointOnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(10/launchSystemObject.durationOfLaunchTrajectory)
+        followLaunchVehiclesStartTime = timeSinceStart - 10
+        
+        const point1OnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(20/launchSystemObject.durationOfLaunchTrajectory)
+        point1OnLaunchTrajectoryCurve.multiplyScalar((radiusOfPlanet + 100) / radiusOfPlanet)
+
+        const point2OnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(0)
+        point2OnLaunchTrajectoryCurve.multiplyScalar((radiusOfPlanet + 100) / radiusOfPlanet)
+
+        orbitControlsTargetPoint.copy(point1OnLaunchTrajectoryCurve.clone())
+        setOrbitControlsTargetUpVector()
+        new TWEEN.Tween(orbitControls.target)
+          .to(point1OnLaunchTrajectoryCurve, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start(timeSinceStart*1000)
+        new TWEEN.Tween(orbitControls.upDirection)
+          .to(orbitControlsTargetUpVector, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start(timeSinceStart*1000)
+        new TWEEN.Tween(camera.position)
+          .to(point2OnLaunchTrajectoryCurve, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start(timeSinceStart*1000)
+        new TWEEN.Tween(camera.up)
+          .to(orbitControlsTargetUpVector, 1000)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start(timeSinceStart*1000)
+      
+        followLaunchVehicles = 1
+      }
+      else if (followLaunchVehicles==1) {
+        followLaunchVehicles = 2
+      }
+      else {
+        followLaunchVehicles = 0
+      }
       break
   }
 }
