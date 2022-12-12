@@ -38,11 +38,12 @@ const delay = '10';
  *
  */
 function checkNodeVersion() {
-  const minVersion = '20.0.1';
+  const minNode = '19.0.1';
+  const minNPM = '9.1.1';
   const installed = process.versions.node;
 
-  if (installed.split('.'[0]) < minVersion.split('.'[0])) {
-    console.log(`Warning: This script was verified to work with version ${minVersion} of Node and you are on an earlier version. Please update to version ${minVersion} or later if you are experiencing issues.\n`);
+  if (installed.split('.'[0]) < minNode.split('.'[0])) {
+    console.log(`Warning: This script was verified to work with version ${minNode} of NodeJS and ${minNPM} of NPM - you are on an earlier version. Please update NodeJS to version ${minNode} or later if you are experiencing issues.\n`);
   }
 }
 
