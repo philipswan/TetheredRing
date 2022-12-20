@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { XYChart } from './XYChart.js'
 
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
@@ -82,8 +83,8 @@ class virtualLaunchVehicle {
     virtualLaunchVehicle.launchTrajectoryCurve = launchTrajectoryCurve
     virtualLaunchVehicle.launchTrajectoryCurveDuration = launchTrajectoryCurveDuration
     virtualLaunchVehicle.timeInsideLaunchSystem = timeWithinMassDriver + timeWithinEvacuatedTube
-    const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
-    const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
+    //const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
+    //const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
     //virtualLaunchVehicle.launchVehicleRelativePosition_r = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     //virtualLaunchVehicle.launchVehicleRelativePosition_y  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     //virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
@@ -272,7 +273,7 @@ class virtualEvacuatedTube {
 
 export class launcher {
 
-    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs) {
+    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, specs) {
       this.const_G = 0.0000000000667408;
 
       // Possible User defined (e.g. if user changes the planet)
@@ -280,6 +281,7 @@ export class launcher {
       this.const_M = 5.9722E+24;
       this.mu = this.const_G * this.const_M;
       this.R_Earth = 6371000;
+      this.xyChart = xyChart
 
       // User defined parameters
       this.MPayload = 60000;
@@ -304,13 +306,16 @@ export class launcher {
       this.CoefficientOfDrag = 0.4;
 
       this.scene = planetCoordSys
-      // const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
-      // this.launcherExitMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
-      // const launcherExitMarkerSize = 3000
-      // this.launcherExitMarker1.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
-      // planetCoordSys.add(this.launcherExitMarker1)
-      // this.launcherExitMarker2 = this.launcherExitMarker1.clone()
-      // planetCoordSys.add(this.launcherExitMarker2)
+      const showLauncherExitMarkers = true
+      if (showLauncherExitMarkers) {
+        const greenMaterial = new THREE.MeshLambertMaterial({color: 0x005f00})
+        this.launcherExitMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), greenMaterial)
+        const launcherExitMarkerSize = 3000
+        this.launcherExitMarker1.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
+        planetCoordSys.add(this.launcherExitMarker1)
+        this.launcherExitMarker2 = this.launcherExitMarker1.clone()
+        planetCoordSys.add(this.launcherExitMarker2)
+      }
       this.launchTrajectoryCurve = null
       this.launchTrajectoryCurveDuration = dParamWithUnits['launcherAccelerationTime'].value + dParamWithUnits['launcherCoastTime'].value
       this.launchTrajectoryMesh = null
@@ -391,16 +396,21 @@ export class launcher {
       // Let's define the end of the mass driver as the launcher's exit position, since from that point on the vehicles will be coasting. 
       const launcherExitPositionAroundRing = dParamWithUnits['launcherExitPositionAroundRing'].value
       const massDriverExitPosition = mainRingCurve.getPoint(launcherExitPositionAroundRing)
-      // Adjust the position to place the exit position on the earth's surface
-      massDriverExitPosition.multiplyScalar(radiusOfPlanet / (radiusOfPlanet + crv.currentMainRingAltitude))
+      // Adjust the position to place the exit position at the desired altitude relative to teh earth's surface
+      const launcherMassDriverExitAltitude = dParamWithUnits['launcherMassDriverExitAltitude'].value
+      massDriverExitPosition.multiplyScalar((radiusOfPlanet + launcherMassDriverExitAltitude) / (radiusOfPlanet + crv.currentMainRingAltitude))
+      // console.log('crv.currentMainRingAltitude = ' + crv.currentMainRingAltitude + ' m')
+      // console.log('launcherMassDriverExitAltitude = ' + launcherMassDriverExitAltitude + ' m')
       // Convert the position into the planet's coordinate system 
       const massDriverExitPosition2 = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(massDriverExitPosition.clone()))
-      //this.launcherExitMarker1.position.copy(massDriverExitPosition2)
+      this.launcherExitMarker1.position.copy(massDriverExitPosition2)
 
       // We also need to find another point downrange of the mass driver that is at the altitiude of the ring, and we need this point to be just under the ring,
       // so that the ring and its tetheres can support the lightweight evacuated tube that the launched vehicles will coast through.
-      const R0 = new THREE.Vector2(radiusOfPlanet, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
-      const V0 = new THREE.Vector2(0, dParamWithUnits['launcherExitVelocity'].value) // This is the vehicle's velocity vector at the exit of the launcher
+      const R0 = new THREE.Vector2(radiusOfPlanet + launcherMassDriverExitAltitude, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
+      const exitVelocity = dParamWithUnits['launcherExitVelocity'].value
+      const exitAngle = dParamWithUnits['launcherMassDriverExitAngle'].value * Math.PI / 180
+      const V0 = new THREE.Vector2(exitVelocity * Math.sin(exitAngle), exitVelocity * Math.cos(exitAngle)) // This is the vehicle's velocity vector at the exit of the launcher
 
       // We want to find the downrange distance where the vehicle's altitude is equal to the desired suspended evacuated tube exit altitude. We solve for this iteratively, although there's probably a better way...
       let t = 0
@@ -476,6 +486,7 @@ export class launcher {
         vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
         evacuatedTubeCurveControlPoints.push(vehiclePosition)
       }
+      this.launcherExitMarker2.position.copy(vehiclePosition)
 
       // Make a curve for the launch trajectory
       this.launchTrajectoryCurve = new THREE.CatmullRomCurve3(launchTrajectoryCurveControlPoints)
@@ -498,6 +509,16 @@ export class launcher {
 
       // ToDo: Probably update should be calling this function, not the other way around.
       this.update(dParamWithUnits)
+
+      this.xyChart.drawAxes()
+      this.xyChart.labelAxes()
+      const curvePoints = []
+      curvePoints.push(new THREE.Vector3(0, 0, 0))
+      curvePoints.push(new THREE.Vector3(100, 10, 0))
+      curvePoints.push(new THREE.Vector3(200, 50, 0))
+      curvePoints.push(new THREE.Vector3(300, 100, 0))
+      this.xyChart.addCurve(curvePoints, 0x00ff00)
+
     }
       
     update(dParamWithUnits) {
@@ -1037,5 +1058,24 @@ export class launcher {
     {
         const DragForce = CoefficientOfDrag * VehicleCrossSectionalAreaForDrag * (Speed - EarthsRimSpeed)**2 / 2 * CurrentAirDensity
         return DragForce;
+    }
+
+    // ChatGPT version
+    GetAerodynamicDrag_ChatGPT(altitude, speed, noseConeAngle, radius, length) {
+      // Calculate the atmospheric density at the given altitude using the barometric formula
+      const temperature = 288.15 - 0.0065 * altitude;
+      const pressure = 101325 * Math.pow(temperature / 288.15, -5.255);
+      const density = pressure / (287.05 * temperature);
+    
+      // Calculate the drag coefficient based on the nose cone angle and length
+      const dragCoefficient = 0.5 * Math.pow(Math.cos(Math.radians(noseConeAngle)), 2) + (length / (Math.PI * radius * radius));
+    
+      // Calculate the cross-sectional area of the object
+      const crossSectionalArea = Math.PI * radius * radius;
+    
+      // Calculate the drag force using the drag equation
+      const dragForce = 0.5 * dragCoefficient * density * speed * speed * crossSectionalArea;
+    
+      return dragForce;
     }
 }

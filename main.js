@@ -14,6 +14,7 @@ import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js'
 import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js'
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js'
+import { XYChart } from './XYChart.js'
 
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
@@ -133,7 +134,7 @@ const guidParamWithUnits = {
   permeabilityOfFreeSpace: {value: 4*Math.PI*1e-7, units: "N/A2", autoMap: true, min: 0, max: 0.0001, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Ring
-  ringFinalAltitude: {value: 3200, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  ringFinalAltitude: {value: 32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringAmountRaisedFactor: {value: 1, units: "", autoMap: true, min: 0, max: 5, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
   movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -265,10 +266,10 @@ const guidParamWithUnits = {
   launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitUpwardOffset: {value: -250, units: "m", autoMap: true, min: -500, max: 0, step: 0.001, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 200000, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherExitAngleInDegees: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
+  //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
+  //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherMassDriverExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverExitAngle: {value: 10, units: 'degrees', autoMap: true, min: 0, max: 200000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherExitPositionAroundRing: {value:0.73875, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -369,6 +370,8 @@ const guidParamWithUnits = {
 
   // Rendering Parameters
   parameterPresetNumber: {value: 0, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
+  showLogo: {value: true, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
+  showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
   showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
@@ -745,6 +748,49 @@ let simContainer = document.querySelector('#simContainer')
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
 const renderToBuffer = false // Hack - needs a GUI control still
+
+// Overlay an XY chart over the scene
+let sceneOrtho = new THREE.Scene()
+let logoSprite, logoSpriteWidth, logoSpriteHeight
+const width = simContainer.offsetWidth
+const height = simContainer.offsetHeight
+let cameraOrtho = new THREE.OrthographicCamera( - width / 2, width / 2, height / 2, - height / 2, 1, 10 );
+cameraOrtho.position.z = 10
+const spriteTextureLoader = new THREE.TextureLoader()
+const spriteMap = spriteTextureLoader.load( './textures/TransparentLogo.png', createLogoSprite)
+
+function createLogoSprite(texture) {
+  const spriteMaterial = new THREE.SpriteMaterial( { map: texture } )
+  logoSpriteWidth = spriteMaterial.map.image.width / 8
+  logoSpriteHeight = spriteMaterial.map.image.height / 8
+  logoSprite = new THREE.Sprite( spriteMaterial )
+  logoSprite.center.set( 0.5, 0.5 )
+  logoSprite.scale.set( logoSpriteWidth, logoSpriteHeight, 1 )
+  sceneOrtho.add( logoSprite )
+  updateLogoSprite()
+}
+
+function updateLogoSprite() {
+  updatedParam()
+  const width = simContainer.offsetWidth
+  const height = simContainer.offsetHeight
+  logoSprite.position.set( -width/2 + logoSpriteWidth/2, height/2 - logoSpriteHeight/2, 1 ); // top left  
+  logoSprite.visible = dParamWithUnits['showLogo'].value
+  //logoSprite.position.set( 0, 0, 1 ); // center  
+}
+
+const xyChart = new XYChart(sceneOrtho)
+updateXYChart()
+
+function updateXYChart() {
+  updatedParam()
+  const width = simContainer.offsetWidth
+  const height = simContainer.offsetHeight
+  xyChart.chartGroup.position.set(-width/2 + xyChart.width/2, -height/2 + xyChart.height/2, 1 ); // bottom left
+  xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
+}
+
+console.log(sceneOrtho)
 
 // Used for saving the rendered images to series of numbered files
 let bufferTexture
@@ -1543,7 +1589,7 @@ function constructElevatorCables() {
 }
 
 // Launch Trajectory Line
-const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs)
+const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, specs)
 launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
 
 //calculateAdditionalSpecs()
@@ -1927,7 +1973,10 @@ function renderFrame() {
     renderer.render(scene, camera, bufferTexture)
   }
   else {
-    renderer.render(scene, camera)
+    renderer.clear()
+    renderer.render( scene, camera )
+    renderer.clearDepth()
+    renderer.render( sceneOrtho, cameraOrtho )
   }
   if (capturer) {
     capturer.capture( renderer.domElement );
@@ -1976,10 +2025,22 @@ if (verbose) console.log("Adding resize event listener")
 window.addEventListener( 'resize', onWindowResize )
 function onWindowResize() {
   simContainer = document.querySelector('#simContainer')
-  camera.aspect = simContainer.offsetWidth/simContainer.offsetHeight
+  const width = simContainer.offsetWidth
+  const height = simContainer.offsetHeight
+
+  camera.aspect = width/height
   camera.updateProjectionMatrix()
   //console.log(simContainer.offsetWidth, simContainer.offsetHeight)
-  renderer.setSize( simContainer.offsetWidth, simContainer.offsetHeight)
+
+  cameraOrtho.left = - width / 2
+  cameraOrtho.right = width / 2
+  cameraOrtho.top = height / 2
+  cameraOrtho.bottom = - height / 2
+  cameraOrtho.updateProjectionMatrix()
+  updatelogoSprite()
+  updateXYChart()
+
+  renderer.setSize( width, height)
   //console.log("resizing...", simContainer.offsetWidth, simContainer.offsetHeight)
 }
 
@@ -2291,23 +2352,22 @@ function onKeyDown( event ) {
       // camera.up.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
 
       // Near Launch Tube Exit  
-      // orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
-      // orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
-      // orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
-      // camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+      orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
+      orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
+      orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
+      camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
 
       // Near new launch tube exit
-      orbitControls.target.set(-1129444.2066706873, -4114891.5534803034, -4783320.466173469)
-      orbitControls.upDirection.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
-      orbitControls.object.position.set(-1129098.8667539947, -4115028.8859032947, -4783335.510637315)
-      camera.up.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
+      // orbitControls.target.set(-1129444.2066706873, -4114891.5534803034, -4783320.466173469)
+      // orbitControls.upDirection.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
+      // orbitControls.object.position.set(-1129098.8667539947, -4115028.8859032947, -4783335.510637315)
+      // camera.up.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
 
-      // Point near Mass driver
-      // orbitControls.target.set(210819.33113643105, -4106234.679293935, -4875874.11292025)
-      // orbitControls.upDirection.set(0.0342386994857858, -0.643787019644437, -0.7644383459736012)
-      // orbitControls.object.position.set(209369.0394275477, -4107259.381617337, -4875459.313691121)
-      // camera.up.set(0.0342386994857858, -0.643787019644437, -0.7644383459736012)
-
+      // High above launcher evacuated tube
+      orbitControls.target.set(-447220.1842095446, -4261391.4374927515, -4815199.374994534)
+      orbitControls.upDirection.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
+      orbitControls.object.position.set(-299604.1322159651, -4444342.8380777, -4755515.292461898)
+      camera.up.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
       // Near Launch Tube Entrance
       // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
       // orbitControls.upDirection.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
