@@ -1,14 +1,10 @@
 // Use when local
 import * as THREE from 'three'
 //import { GUI } from 'three/examples/jsm/libs/dat.gui.module'
-//import { CanvasCapture } from 'canvas-capture'
-//import CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
-//import CCapture from 'C:/Users/phils/Documents/repos/Three.js/three.js/examples/jsm/libs/ccapture.all.min.js'
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js'
 import { TWEEN } from 'three/addons/libs/tween.module.min'
 //import { TWEEN } from '../tween.js/dist/tween.esm.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
-//import * as CCapture from 'three/examples/jsm/libs/CCapture.all.min.js'
 //import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
 import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js'
@@ -2931,9 +2927,9 @@ sCB.addEventListener( 'click', function( e ) {
     motionBlurFrames: ( 960 / framerate ) * ( document.querySelector('input[name="motion-blur"]').checked ? 1 : 0 ),
     quality: 100,
     format: document.querySelector('input[name="encoder"]:checked').value,
-    workersPath: './ccapture_workers/',
-    timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
-    frameLimit: 1200,
+    workersPath: './components/CCapture/',
+    //timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
+    //frameLimit: 1200,
     autoSaveTime: 1,
     onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
   } );
