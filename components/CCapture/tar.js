@@ -1,3 +1,5 @@
+/* credit to James Pollack for original code modifications - https://github.com/imgntn/j360 */
+
 (function () {
 	"use strict";
 
