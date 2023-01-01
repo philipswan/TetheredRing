@@ -574,8 +574,8 @@ export function generateHabitatMeshes(dParamWithUnits, specs, genSpecs) {
 }
 
 export function makeOffsetCurve(outwardOffset, upwardOffset, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments) {
-  const tubePoints = []
   // Create a curve to represent the path we want the tube to take
+  const tubePoints = []
   const dr = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
   const dy = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
   for (let i = -lengthSegments/2; i<=lengthSegments/2; i++) {
@@ -1148,3 +1148,12 @@ export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
 
 }
 
+export function interplanetaryDeltaV() {
+  const earthOrbitRadius = 1.4959787e11
+  const marsOrbitRadius = (206650000 + 249261000) / 2
+  const massOfTheSun = 1.989e30 // kg
+  const velocityOfEarth = Math.sqrt(G * massOfTheSun / earthOrbitRadius) 
+  const velocityOfMars = Math.sqrt(G * massOfTheSun / marsOrbitRadius)
+  const deltaVAtEarth = Math.sqrt(G * massOfTheSun / earthOrbitRadius) * (Math.sqrt(2 * marsOrbitRadius / (earthOrbitRadius+marsOrbitRadius)) - 1)
+  const deltaVAtMars = Math.sqrt(G * massOfTheSun / marsOrbitRadius) * (1 - Math.sqrt(2 * earthOrbitRadius / (earthOrbitRadius+marsOrbitRadius)))
+}
