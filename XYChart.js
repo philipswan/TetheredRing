@@ -141,30 +141,54 @@ export class XYChart {
 
   labelAxes() {
     const loader = new FontLoader();
-    //C:\Users\phils\Documents\repos\Three.js\TetheredRing/node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json
-    //loader.load( 'fonts/helvetiker_regular.typeface.json', function ( font ) {
-    console.log('Loading Fonts')
-    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', function ( font ) {
-    
-      const textGeometry = new TextGeometry( 'Hello three.js!', {
-        font: font,
-        size: 80,
-        height: 5,
-        curveSegments: 12,
-        bevelEnabled: true,
-        bevelThickness: 10,
-        bevelSize: 8,
-        bevelOffset: 0,
-        bevelSegments: 5
-      } );
-      const textMaterial = new THREE.MeshBasicMaterial({color: 0x808080, transparent: true})
-      const textMesh = new THREE.Mesh(textGeometry, textMaterial)
-      this.chartGroup.add(textMesh)
-    } );
-    console.log('Done')
+
+    function prepareACallbackFunctionForFontFLoader(chart) {
+      return function (font) {
+        //console.log('Font Loaded', font)
+        // x-axis lable
+        const textGeometry = new TextGeometry( 'Time (10\'s of s)',
+        {
+          font: font,
+          size: 20,
+          height: 5,
+          curveSegments: 12,
+        } )
+        const textMaterial = new THREE.MeshBasicMaterial({color: 0x808080, transparent: false})
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial)
+        textMesh.position.set(200, -30, 0)  // ToDo: calculate this based on chart dimension and position
+        chart.add(textMesh)
+
+        // y-axis lable
+
+        // x-axis numbers
+
+        // y-axis numbers
+
+        // legend
+
+        // title
+
+      }
+    }
+  
+    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this.chartGroup))
   }
 
   addCurve(curveXYPoints, curveColor) {
+    let maxX = 0.001
+    let maxY = 0.001
+    let maxZ = 0.001
+    curveXYPoints.forEach(point => {
+      maxX = Math.max(point.x, maxX)
+      maxY = Math.max(point.y, maxY)
+      maxZ = Math.max(point.z, maxZ)
+    })
+    curveXYPoints.forEach(point => {
+      point.x *= GRAPH_X_MAX / maxX
+      point.y *= GRAPH_Y_MAX / maxY
+      point.z *= 100 / maxZ
+    })
+
     const curveGeometry = new THREE.BufferGeometry().setFromPoints(curveXYPoints);
     const curveMaterial = new THREE.LineBasicMaterial({ color: curveColor });
     const curveLine = new THREE.Line(curveGeometry, curveMaterial);

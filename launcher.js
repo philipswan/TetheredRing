@@ -315,6 +315,8 @@ export class launcher {
         planetCoordSys.add(this.launcherExitMarker1)
         this.launcherExitMarker2 = this.launcherExitMarker1.clone()
         planetCoordSys.add(this.launcherExitMarker2)
+        this.launcherExitMarker1.visible = false
+        this.launcherExitMarker2.visible = false
       }
       this.launchTrajectoryCurve = null
       this.launchTrajectoryCurveDuration = dParamWithUnits['launcherAccelerationTime'].value + dParamWithUnits['launcherCoastTime'].value
@@ -397,21 +399,29 @@ export class launcher {
       const launcherExitPositionAroundRing = dParamWithUnits['launcherExitPositionAroundRing'].value
       const massDriverExitPosition = mainRingCurve.getPoint(launcherExitPositionAroundRing)
       // Adjust the position to place the exit position at the desired altitude relative to teh earth's surface
-      const launcherMassDriverExitAltitude = dParamWithUnits['launcherMassDriverExitAltitude'].value
-      massDriverExitPosition.multiplyScalar((radiusOfPlanet + launcherMassDriverExitAltitude) / (radiusOfPlanet + crv.currentMainRingAltitude))
+      const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
+      massDriverExitPosition.multiplyScalar((radiusOfPlanet + launcherMassDriverAltitude) / (radiusOfPlanet + crv.currentMainRingAltitude))
       // console.log('crv.currentMainRingAltitude = ' + crv.currentMainRingAltitude + ' m')
-      // console.log('launcherMassDriverExitAltitude = ' + launcherMassDriverExitAltitude + ' m')
+      // console.log('launcherMassDriverAltitude = ' + launcherMassDriverAltitude + ' m')
       // Convert the position into the planet's coordinate system 
       const massDriverExitPosition2 = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(massDriverExitPosition.clone()))
       this.launcherExitMarker1.position.copy(massDriverExitPosition2)
 
       // We also need to find another point downrange of the mass driver that is at the altitiude of the ring, and we need this point to be just under the ring,
       // so that the ring and its tetheres can support the lightweight evacuated tube that the launched vehicles will coast through.
-      const R0 = new THREE.Vector2(radiusOfPlanet + launcherMassDriverExitAltitude, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
+      const R0 = new THREE.Vector2(radiusOfPlanet + launcherMassDriverAltitude, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
       const exitVelocity = dParamWithUnits['launcherExitVelocity'].value
       const exitAngle = dParamWithUnits['launcherMassDriverExitAngle'].value * Math.PI / 180
       const V0 = new THREE.Vector2(exitVelocity * Math.sin(exitAngle), exitVelocity * Math.cos(exitAngle)) // This is the vehicle's velocity vector at the exit of the launcher
 
+      const altitudeVesusTimeData = []
+      const speedVersusTimeData = []
+      const downrangeDistanceVersusTimeData = []
+      const forwardAccelerationVersusTimeData = []
+      const upwardAccelerationVersusTimeData = []
+      const aerodynamicDragVersusTimeData = []
+      const totalMassVerusTimeData = []
+      
       // We want to find the downrange distance where the vehicle's altitude is equal to the desired suspended evacuated tube exit altitude. We solve for this iteratively, although there's probably a better way...
       let t = 0
       let tStep = 1 // second
@@ -447,23 +457,72 @@ export class launcher {
       t = 0
       tStep = 1 // second
       let vehiclePosition
+      let vehicleAirSpeed
+      let altitude = launcherMassDriverAltitude
+      const acceleration = dParamWithUnits['launcherAcceleration'].value
+      const mVehicle = dParamWithUnits['launchVehicleEmptyMass'].value
+      const mPayload = dParamWithUnits['launchVehiclePayloadMass'].value
+      const mPropellant = dParamWithUnits['launchVehiclePropellantMass'].value
+      let m0 = mVehicle + mPayload + mPropellant // mass of vehicle, payload, and propellant
+
       // Create the part of the trajectory where the mass driver is at the planet's surface
       // Start the launch trajectory curve at the beginning of the mass driver.
       for (t = 0; t < dParamWithUnits['launcherAccelerationTime'].value; t += tStep) {
-        const distanceTravelled = 0.5 * dParamWithUnits['launcherAcceleration'].value * t * t   // 1/2 at^2
+        const distanceTravelled = 0.5 * acceleration * t * t   // 1/2 at^2
         // Rotate the massDriverExitPosition2 around the massDriverAxisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['massDriverLength'].value) / radiusOfPlanet)
+        vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, (distanceTravelled - dParamWithUnits['massDriverLength'].value) / (radiusOfPlanet + launcherMassDriverAltitude))
+        vehicleAirSpeed = acceleration * t // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
+        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
+        speedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
+        forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, acceleration, 0))
+        upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+        totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
       }
       this.timeWithinMassDriver = dParamWithUnits['launcherAccelerationTime'].value
       
       // Create the part of the trajectory where the vehicle coasts on a hyperbolic trajectory both within the evacuated tube and beyond
-      for (; t < dParamWithUnits['launcherAccelerationTime'].value + this.timeWithinEvacuatedTube + dParamWithUnits['launcherCoastTime'].value; t += tStep) {
+      const t3 = dParamWithUnits['launcherAccelerationTime'].value + this.timeWithinEvacuatedTube
+      const t4 = dParamWithUnits['launcherCoastTime'].value
+      const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
+      const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
+      const launchVehicleNoseConeLength = dParamWithUnits['launchVehicleNoseConeLength'].value
+      const noseConeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseConeLength)
+      let aerodynamicDrag
+      let tStepState = 0
+      const partialStep = t3 - Math.floor(t3)
+      const tStep2 = [tStep, partialStep, 0.01, 1 - 0.01 - partialStep, tStep]
+      for (; t < t3 + t4; t += tStep2[tStepState]) {
         const t2 = t - dParamWithUnits['launcherAccelerationTime'].value
         const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t2)
         const downRangeAngle = Math.atan2(RV.R.y, RV.R.x)
         vehiclePosition = massDriverExitPosition2.clone().applyAxisAngle(this.massDriverAxisOfRotation, downRangeAngle).multiplyScalar(RV.R.length() / radiusOfPlanet)
+        vehicleAirSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
+        altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - radiusOfPlanet
+        // distanceTravelled =  // ToDo: Need to find the equation for distance traveled along a hyperbolic path versus time.
+        if (t<=t3) {
+          aerodynamicDrag = 0
+        }
+        else {
+          aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseConeAngle, launchVehicleRadius, launchVehicleBodyLength)
+        }
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
+        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        //downrangeDistanceVersusTimeData.push([t, distanceTravelled, 0))
+        speedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
+        forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
+        upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
+        totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
+        // Cause the value of t to make some extra stops when t ~= t3
+        if ((tStepState==0) && (t<t3) && (t+tStep>t3)) {
+          tStepState = 1
+        }
+        else if ((tStepState>0) && (tStepState<4)) {
+          tStepState++
+        }
       }
       this.durationOfLaunchTrajectory = t
 
@@ -512,13 +571,13 @@ export class launcher {
 
       this.xyChart.drawAxes()
       this.xyChart.labelAxes()
-      const curvePoints = []
-      curvePoints.push(new THREE.Vector3(0, 0, 0))
-      curvePoints.push(new THREE.Vector3(100, 10, 0))
-      curvePoints.push(new THREE.Vector3(200, 50, 0))
-      curvePoints.push(new THREE.Vector3(300, 100, 0))
-      this.xyChart.addCurve(curvePoints, 0x00ff00)
-
+      this.xyChart.addCurve(altitudeVesusTimeData, 0xff0000)
+      this.xyChart.addCurve(downrangeDistanceVersusTimeData, 0xff00ff)
+      this.xyChart.addCurve(speedVersusTimeData, 0x00ffff)
+      this.xyChart.addCurve(forwardAccelerationVersusTimeData, 0xffff00)
+      this.xyChart.addCurve(upwardAccelerationVersusTimeData, 0xff8000)
+      this.xyChart.addCurve(aerodynamicDragVersusTimeData, 0xff0080)
+      //this.xyChart.addCurve(totalMassVerusTimeData, 0x80ff00)
     }
       
     update(dParamWithUnits) {
@@ -701,7 +760,7 @@ export class launcher {
                   const tempModel = object.unallocatedModels[0].clone()
                   object.unallocatedModels.push(tempModel)
                   this.scene.add(tempModel)
-                  console.log('Duplicating model for ' + objectKey)
+                  //console.log('Duplicating model for ' + objectKey)
                 }
                 if (object.unallocatedModels.length>0) {
                   object.model = object.unallocatedModels.pop()
@@ -1063,18 +1122,17 @@ export class launcher {
     // ChatGPT version
     GetAerodynamicDrag_ChatGPT(altitude, speed, noseConeAngle, radius, length) {
       // Calculate the atmospheric density at the given altitude using the barometric formula
-      const temperature = 288.15 - 0.0065 * altitude;
-      const pressure = 101325 * Math.pow(temperature / 288.15, -5.255);
-      const density = pressure / (287.05 * temperature);
+      const density = this.GetAirDensity(altitude)
     
       // Calculate the drag coefficient based on the nose cone angle and length
-      const dragCoefficient = 0.5 * Math.pow(Math.cos(Math.radians(noseConeAngle)), 2) + (length / (Math.PI * radius * radius));
+      // const dragCoefficient = 0.5 * Math.pow(Math.cos(noseConeAngle), 2) + (length / (Math.PI * radius * radius)) // Suspect this formula is BS
+      const dragCoefficient = 0.035  // From page 23 of https://upcommons.upc.edu/bitstream/handle/2117/328318/REPORT_556.pdf?sequence=1&isAllowed=y
     
       // Calculate the cross-sectional area of the object
-      const crossSectionalArea = Math.PI * radius * radius;
+      const crossSectionalArea = Math.PI * radius * radius
     
       // Calculate the drag force using the drag equation
-      const dragForce = 0.5 * dragCoefficient * density * speed * speed * crossSectionalArea;
+      const dragForce = 0.5 * dragCoefficient * density * speed * speed * crossSectionalArea
     
       return dragForce;
     }

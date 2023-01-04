@@ -264,8 +264,10 @@ const guidParamWithUnits = {
   launcherEvacuatedTubeExitUpwardOffset: {value: -250, units: "m", autoMap: true, min: -500, max: 0, step: 0.001, updateFunction: updateLauncher, folder: folderLauncher},
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverExitAngle: {value: 10, units: 'degrees', autoMap: true, min: 0, max: 200000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverExitAngle: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 200000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherExitPositionAroundRing: {value:0.73875, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -280,6 +282,10 @@ const guidParamWithUnits = {
   launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateTransitsystem, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 4000, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNumModels: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchVehiclePayloadMass: {value: 180, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
+  // ToDo: Values for launchVehicleEmptyMass and launchVehiclePropellantMass will be calculated later from other parameters 
+  launchVehicleEmptyMass: {value: 180, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchVehiclePropellantMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
 
   launcherFlywheelRadius: {value: 0.08, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherScrewRadius: {value: 0.09, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -550,7 +556,6 @@ function updatedParam() {   // Read as "update_dParam"
   dParamWithUnits['ringCenterLatitude'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingCenterLatitude'].value, guidParamWithUnits['finalLocationRingCenterLatitude'].value, alpha) / 180 * Math.PI, units: "radians"}
   dParamWithUnits['ringEccentricity'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingEccentricity'].value, guidParamWithUnits['finalLocationRingEccentricity'].value, alpha), units: ""}
   dParamWithUnits['massDriverLength'] = {value: dParamWithUnits['launcherExitVelocity'].value**2 /2 / dParamWithUnits['launcherAcceleration'].value, units: "m"}
-  console.log('massDriverLength ' + dParamWithUnits['massDriverLength'].value)
   dParamWithUnits['launcherAccelerationTime'] = {value: dParamWithUnits['launcherExitVelocity'].value / dParamWithUnits['launcherAcceleration'].value, units: "s"}
   updateTetherMaterial()
   updateCoilConductorMaterial()
@@ -785,8 +790,6 @@ function updateXYChart() {
   xyChart.chartGroup.position.set(-width/2 + xyChart.width/2, -height/2 + xyChart.height/2, 1 ); // bottom left
   xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
 }
-
-console.log(sceneOrtho)
 
 // Used for saving the rendered images to series of numbered files
 let bufferTexture
@@ -2033,7 +2036,7 @@ function onWindowResize() {
   cameraOrtho.top = height / 2
   cameraOrtho.bottom = - height / 2
   cameraOrtho.updateProjectionMatrix()
-  updatelogoSprite()
+  updateLogoSprite()
   updateXYChart()
 
   renderer.setSize( width, height)
@@ -2354,16 +2357,17 @@ function onKeyDown( event ) {
       camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
 
       // Near new launch tube exit
-      // orbitControls.target.set(-1129444.2066706873, -4114891.5534803034, -4783320.466173469)
-      // orbitControls.upDirection.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
-      // orbitControls.object.position.set(-1129098.8667539947, -4115028.8859032947, -4783335.510637315)
-      // camera.up.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
+      orbitControls.target.set(-1129444.2066706873, -4114891.5534803034, -4783320.466173469)
+      orbitControls.upDirection.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
+      orbitControls.object.position.set(-1129098.8667539947, -4115028.8859032947, -4783335.510637315)
+      camera.up.set(-0.1762002769379901, -0.6419485150402188, -0.7462275567443442)
 
       // High above launcher evacuated tube
-      orbitControls.target.set(-447220.1842095446, -4261391.4374927515, -4815199.374994534)
-      orbitControls.upDirection.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
-      orbitControls.object.position.set(-299604.1322159651, -4444342.8380777, -4755515.292461898)
-      camera.up.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
+      // orbitControls.target.set(-447220.1842095446, -4261391.4374927515, -4815199.374994534)
+      // orbitControls.upDirection.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
+      // orbitControls.object.position.set(-299604.1322159651, -4444342.8380777, -4755515.292461898)
+      // camera.up.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
+
       // Near Launch Tube Entrance
       // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
       // orbitControls.upDirection.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
