@@ -192,7 +192,7 @@ const guidParamWithUnits = {
   groundTerminusUpwardOffset: {value: 150, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateTransitsystem, folder: folderEngineering},
   
   transitVehicleUpwardOffset: {value: 1.1, units: 'm', autoMap: true, min: -1, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
-  transitVehicleCruisingSpeed: {value: 500, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleCruisingSpeed: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleMaxAcceleration: {value: 10, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleMergeTime: {value: 1, units: 's', autoMap: true, min: 1, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleStopDuration: {value: 3, units: 's', autoMap: true, min: 1, max: 300, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -257,7 +257,7 @@ const guidParamWithUnits = {
 
   // Engineering Parameters - Launch System
   launcherAcceleration: {value: 30, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherExitVelocity: {value: 13000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherExitVelocity: {value: 15000, units: 'm*s-1', autoMap: true, min: 100, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherCoastTime: {value: 800, units: 's', autoMap: true, min: 10, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -267,7 +267,7 @@ const guidParamWithUnits = {
   launcherMassDriverAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverExitAngle: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 200000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverExitAngleInDegrees: {value: 0, units: 'degrees', autoMap: true, min: 0, max: 200000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherExitPositionAroundRing: {value:0.73875, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -277,6 +277,8 @@ const guidParamWithUnits = {
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: adjustRingDesign, folder: folderLauncher},
   launchVehicleRadius: {value: 3, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleBodyLength: {value: 50, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
+  // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
+  //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNoseConeLength: {value: 80, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleCruisingSpeed: {value: 8000, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -284,20 +286,22 @@ const guidParamWithUnits = {
   launchVehicleNumModels: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehiclePayloadMass: {value: 180, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
   // ToDo: Values for launchVehicleEmptyMass and launchVehiclePropellantMass will be calculated later from other parameters 
-  launchVehicleEmptyMass: {value: 180, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launchVehiclePropellantMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
-
-  launcherFlywheelRadius: {value: 0.08, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherScrewRadius: {value: 0.09, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherScrewToothRadius: {value: 0.10, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherScrewRotationRate: {value: 350, units: 's-1', autoMap: true, min: 1, max: 2000, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launchVehicleEmptyMass: {value: 2000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherFlywheelRadius: {value: 0.225, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherFlywheelThickness: {value: 0.06, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherFlywheelDensity: {value: 8000, units: 'kg/m3', autoMap: true, min: 1000, max: 20000, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherScrewRadius: {value: 0.3, units: 'm', autoMap: true, min: 0.05, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherScrewToothRadius: {value: 0.5, units: 'm', autoMap: true, min: 0.005, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherScrewToothContactPatchWidth: {value: 0.125, units: 'm', autoMap: true, min: 0.005, max: 2, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launcherScrewRotationRate: {value: 200, units: 's-1', autoMap: true, min: 1, max: 2000, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchSledEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehiclePropellantMass: {value: 3500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehiclePayloadMass: {value: 4500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehiclePropellantMassFlowRate: {value: 40, units: 'kg/s', autoMap: true, min: 0.1, max: 100000, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launchVehicleAMBAverageMagneticFluxDensity: {value: 3.58, units: 'T', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherFlywheelMassPerMeter: {value: 102, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchSledAMBMaxMagneticFluxDensity: {value: 1.25, units: 'T', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderLauncher},
+  launchSledAMBMagneticFluxDensityPortion: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: updateTransitsystem, folder: folderLauncher},
+  //launcherFlywheelMassPerMeter: {value: 1020, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherUnderwaterTubeJacketThickness: {value: 0.002, units: 'm', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherBracketsMassPerMeter: {value: 40, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherRailsMassPerMeter: {value: 100, units: 'kg/m', autoMap: true, min: 0, max: 1000, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -804,7 +808,7 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0xffffff )
+scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight

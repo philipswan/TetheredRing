@@ -411,7 +411,7 @@ export class launcher {
       // so that the ring and its tetheres can support the lightweight evacuated tube that the launched vehicles will coast through.
       const R0 = new THREE.Vector2(radiusOfPlanet + launcherMassDriverAltitude, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
       const exitVelocity = dParamWithUnits['launcherExitVelocity'].value
-      const exitAngle = dParamWithUnits['launcherMassDriverExitAngle'].value * Math.PI / 180
+      const exitAngle = dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * Math.PI / 180
       const V0 = new THREE.Vector2(exitVelocity * Math.sin(exitAngle), exitVelocity * Math.cos(exitAngle)) // This is the vehicle's velocity vector at the exit of the launcher
 
       const altitudeVesusTimeData = []

@@ -80,7 +80,7 @@ class virtualTransitVehicle {
   }
 
   placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
+    const modelsTrackPosition = (this.p + refFrame.p) % 1
     if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
       console.log("error!!!")
     }
@@ -95,6 +95,9 @@ class virtualTransitVehicle {
         pointOnRingCurve.y + y1,
         pointOnRingCurve.z + r1 * Math.sin(angle) )
       om.rotation.set(0, -angle, virtualTransitVehicle.currentEquivalentLatitude)
+      if (refFrame.direction===-1) {
+        om.rotateX(Math.PI)
+      }
       om.rotateZ(-Math.PI/2)
       om.visible = virtualTransitVehicle.isVisible
       om.matrixValid = false
@@ -788,7 +791,8 @@ export class transitSystem {
       }
     }
 
-    const addTransitVehicles = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle',  0.0254 * 1.25, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
+    // 0.0254
+    const addTransitVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle', 1, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.perfOptimizedThreeJS)
     const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
     //const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
@@ -814,9 +818,11 @@ export class transitSystem {
     // various "virtual objects" and made visible when the virtual objects are deemed to be near enough to the scene's camera.
     const gltfloader = new GLTFLoader()
     // Note: looks like maybe the TransitCar model was created in units of inches and then a 0.02539 scaling factor was applied
-    gltfloader.load('models/TransitCar.glb', addTransitVehicles, progressFunction, errorFunction )
+    //gltfloader.load('models/TransitCar.glb', addTransitVehicles, progressFunction, errorFunction )
 
     const fbxloader = new FBXLoader()
+    console.log('Loading TransitCar.fbx')
+    fbxloader.load('models/TransitCar.fbx', addTransitVehicles, progressFunction, errorFunction )
     console.log('Loading RingTerminus.fbx')
     fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
     console.log('Loading GroundTerminus.fbx')
