@@ -98,7 +98,6 @@ class virtualTransitVehicle {
       if (refFrame.direction===-1) {
         om.rotateX(Math.PI)
       }
-      om.rotateZ(-Math.PI/2)
       om.visible = virtualTransitVehicle.isVisible
       om.matrixValid = false
     }
