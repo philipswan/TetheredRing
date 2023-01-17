@@ -808,7 +808,7 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-scene.background = new THREE.Color( 0xffffff )
+//scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
