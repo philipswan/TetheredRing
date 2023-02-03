@@ -592,14 +592,14 @@ export function makeOffsetCurve(outwardOffset, upwardOffset, crv, lengthSegments
 export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
   // Launcher Design Length
-  const launcherAcceleration = dParamWithUnits['launcherAcceleration'].value
-  const launcherExitVelocity = dParamWithUnits['launcherExitVelocity'].value
-  console.log('launcherExitVelocity', launcherExitVelocity)
-  const launcherAccellerationLength = launcherExitVelocity**2/(2*launcherAcceleration) // m
+  const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+  const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
+  console.log('launcherMassDriverExitVelocity', launcherMassDriverExitVelocity)
+  const launcherAccellerationLength = launcherMassDriverExitVelocity**2/(2*launcherMassDriverForwardAcceleration) // m
   specs['launcherAccellerationLength'] = {value: launcherAccellerationLength, units: "m"}
   console.log('launcherAccellerationLength', launcherAccellerationLength)
 
-  const launcherAccellerationTime = launcherExitVelocity / launcherAcceleration
+  const launcherAccellerationTime = launcherMassDriverExitVelocity / launcherMassDriverForwardAcceleration
   specs['launcherAccellerationTime'] = {value: launcherAccellerationTime, units: "s"}
   console.log('launcherAccellerationTime', launcherAccellerationTime)
   
@@ -621,7 +621,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
   specs['GE90TurboFanCircumferentialVelocity'] = {value: GE90TurboFanCircumferentialVelocity, units: "m/s"}
   
-  const launcherScrewThreadPitchAtExit = launcherExitVelocity / launcherScrewToothSpeed
+  const launcherScrewThreadPitchAtExit = launcherMassDriverExitVelocity / launcherScrewToothSpeed
   console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
   //const launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value // m
   const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value // m
@@ -630,13 +630,14 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const vehicleCrossSectionalArea = Math.PI * launchVehicleRadius*2
   const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle witha very pointy nose.
   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value // m/s
-  const launcherMassDriverExitAltitude = dParamWithUnits['launcherMassDriverExitAltitude'].value // m
-  const launcherMassDriverExitAngleInDegrees = dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
+  const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
+  const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
+  console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
   const launcherMassDriverExitAngleInRadians = launcherMassDriverExitAngleInDegrees * Math.PI / 180
   const R0_x = 0
-  const R0_y = (crv.radiusOfPlanet + launcherMassDriverExitAltitude)
-  const V0_x = launcherExitVelocity * Math.cos(launcherMassDriverExitAngleInRadians)
-  const V0_y = launcherExitVelocity * Math.sin(launcherMassDriverExitAngleInRadians)
+  const R0_y = (crv.radiusOfPlanet + launcherMassDriverAltitude)
+  const V0_x = launcherMassDriverExitVelocity * Math.cos(launcherMassDriverExitAngleInRadians)
+  const V0_y = launcherMassDriverExitVelocity * Math.sin(launcherMassDriverExitAngleInRadians)
   const tStep = 0.125
 
   let propellantConsumed = 0 
@@ -698,7 +699,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['PropellantCostPerKgOfPayload'] = {value: PropellantCostPerKgOfPayload, units: 'USD'}
   
   //const launchVehiclePropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value // kg/s
-  const launchSledDriveForce = launchSledAndVehicleTotalMass * launcherAcceleration
+  const launchSledDriveForce = launchSledAndVehicleTotalMass * launcherMassDriverForwardAcceleration
   console.log('launchSledDriveForce', launchSledDriveForce)
   specs['launchSledDriveForce'] = {value: launchSledDriveForce, units: 'N'}
   const numScrews = 2  // 2 counter-rotating screws per launch tube
@@ -738,7 +739,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   console.log('launchSledSidewaysForcePerMeterOfScrewAtExit', launchSledSidewaysForcePerMeterOfScrewAtExit)
 
   // The flywheelDecelerationTime is the time that the vehicle's body is adjacent to the flywheel
-  const flywheelDecelerationTimeAtExit = launchSledBodyLength / launcherExitVelocity
+  const flywheelDecelerationTimeAtExit = launchSledBodyLength / launcherMassDriverExitVelocity
   specs['flywheelDecelerationTimeAtExit'] = {value: flywheelDecelerationTimeAtExit, units: 's'}
   console.log('flywheelDecelerationTimeAtExit', flywheelDecelerationTimeAtExit)
 
@@ -772,7 +773,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   // Eddy Current Power Losses
   const peakMagneticField = launchSledAMBAverageMagneticFluxDensity * 2
   const thicknessOfSheet = 0.0001  // m
-  const frequencyOfField = launcherExitVelocity / launchSledBodyLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
+  const frequencyOfField = launcherMassDriverExitVelocity / launchSledBodyLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
   const constantK = 1
   const materialResistivity = 4.6e-7  // Ohm*m, for Grain-oriented electrical steel rom https://www.thoughtco.com/table-of-electrical-resistivity-conductivity-608499
   const materialDensity = 7650  // kg/m3
@@ -781,7 +782,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   console.log('launcherEddyCurrentPowerLossesPerKg', launcherEddyCurrentPowerLossesPerKg)
 
   // Per kg Energy Costs
-  const kineticEnergyPerKilogram = 0.5 * launcherExitVelocity**2
+  const kineticEnergyPerKilogram = 0.5 * launcherMassDriverExitVelocity**2
   const launcherEfficiency = dParamWithUnits['launcherEfficiency'].value
   const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
   const launcherEnergyCostPerKilogram = kineticEnergyPerKilogram * launchSledAndVehicleTotalMass * wholesaleCostOfElectricity / launchVehicleClassifiedAsPayloadMass / launcherEfficiency
@@ -838,7 +839,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
   // Suspended Evacuated Tube
   const launcherSuspendedTubeMassPerMeter = dParamWithUnits['launcherSuspendedTubeMassPerMeter'].value // kg/m
-  const capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
+  const capitalCostPerKgSupported = (specs.hasOwnProperty('capitalCostPerKgSupported')) ? specs['capitalCostPerKgSupported'].value: dParamWithUnits['defaultcapitalCostPerKgSupported'].value
   console.log('capitalCostPerKgSupported', capitalCostPerKgSupported)
   const launcherSuspendedTubeCost = launcherSuspendedTubeLength * launcherSuspendedTubeMassPerMeter * (costOfAluminum + capitalCostPerKgSupported)
   specs['launcherSuspendedTubeCost'] = {value: launcherSuspendedTubeCost/1e9, units: 'B USD'}
@@ -864,7 +865,7 @@ export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
   const absoluteTemperatureOutsideTransitTube = 273.3 - 40 // ˚K
   const molarMassOfAir = 0.02897 // kg/mol
   
-  const capitalCostPerKgSupported = specs['capitalCostPerKgSupported'].value
+  const capitalCostPerKgSupported = (specs.hasOwnProperty('capitalCostPerKgSupported')) ? specs['capitalCostPerKgSupported'].value: dParamWithUnits['defaultcapitalCostPerKgSupported'].value
   const operatingCostPerKgUniformStaticMassSupported = 0 // ToDo: Need to calculate this!!  = specs['operatingCostPerKgUniformStaticMassSupported'].value
   const operatingCostOfAeronaticThruster = 7.1e-7 //  USD/(N·s)
   const transitTubeTubeRadius = dParamWithUnits['transitTubeTubeRadius'].value

@@ -61,9 +61,9 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 const GRAPH_WIDTH = 600;
 const GRAPH_HEIGHT = 300;
 const GRAPH_X_MIN = 0;
-const GRAPH_X_MAX = 500;
+const GRAPH_X_MAX = 600;
 const GRAPH_Y_MIN = 0;
-const GRAPH_Y_MAX = 200;
+const GRAPH_Y_MAX = 300;
 const GRAPH_X_MIDDLE = (GRAPH_X_MIN + GRAPH_X_MAX) / 2;
 const GRAPH_Y_MIDDLE = (GRAPH_Y_MIN + GRAPH_Y_MAX) / 2;
 const X_STEP = 10;
@@ -76,6 +76,7 @@ export class XYChart {
     this.scene.add(this.chartGroup)
     this.width = GRAPH_WIDTH
     this.height = GRAPH_HEIGHT
+    this.curveInfo = []
   }
 
   // Next, we will create a function to draw the x and y axis lines and labels
@@ -146,7 +147,7 @@ export class XYChart {
       return function (font) {
         //console.log('Font Loaded', font)
         // x-axis lable
-        const textGeometry = new TextGeometry( 'Time (10\'s of s)',
+        const textGeometry = new TextGeometry( 'Time (??\'s of s)',
         {
           font: font,
           size: 20,
@@ -174,7 +175,7 @@ export class XYChart {
     loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this.chartGroup))
   }
 
-  addCurve(curveXYPoints, curveColor) {
+  addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName) {
     let maxX = 0.001
     let maxY = 0.001
     let maxZ = 0.001
@@ -183,15 +184,29 @@ export class XYChart {
       maxY = Math.max(point.y, maxY)
       maxZ = Math.max(point.z, maxZ)
     })
+
+    // For now we'll assume that the minimums are always zero
     curveXYPoints.forEach(point => {
       point.x *= GRAPH_X_MAX / maxX
       point.y *= GRAPH_Y_MAX / maxY
       point.z *= 100 / maxZ
     })
-
-    const curveGeometry = new THREE.BufferGeometry().setFromPoints(curveXYPoints);
-    const curveMaterial = new THREE.LineBasicMaterial({ color: curveColor });
-    const curveLine = new THREE.Line(curveGeometry, curveMaterial);
-    this.chartGroup.add(curveLine);
+    
+    const existingCurves = this.curveInfo.map(function (o) {return o.name})
+    if (existingCurves.includes(curveName)) {
+      const index = existingCurves.indexOf(curveName)
+      const curveLine = this.curveInfo[index].mesh
+      // Recreate the line's geometry using the new points
+      curveLine.geometry.setFromPoints(curveXYPoints)
+      //curveLine.material.color = curveColor
+      this.curveInfo[index] = {name: curveName, units: curveUnits, colorName: curveColorName, maxX: maxX, maxY: maxY, maxZ: maxZ, mesh: curveLine}
+    }
+    else {
+      const curveGeometry = new THREE.BufferGeometry().setFromPoints(curveXYPoints);
+      const curveMaterial = new THREE.LineBasicMaterial({ color: curveColor });
+      const curveLine = new THREE.Line(curveGeometry, curveMaterial);
+      this.chartGroup.add(curveLine);
+      this.curveInfo.push({name: curveName, units: curveUnits, colorName: curveColorName, maxX: maxX, maxY: maxY, maxZ: maxZ, mesh: curveLine})
+    }
   }
 }
