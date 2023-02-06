@@ -262,13 +262,13 @@ const guidParamWithUnits = {
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverForwardAcceleration: {value: 30, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverUpwardAcceleration: {value: 100, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverAltitude: {value: 0, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherRampExitAltitude: {value: 3500, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherEvacuatedTubeExitAltitude: {value: 4000, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: 2500, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampExitAltitude: {value: 3300, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherEvacuatedTubeExitAltitude: {value: 3500, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverInitialVelocity: {value: 0, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverExitVelocity: {value: 3000, units: 'm*s-1', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverExitVelocity: {value: 500, units: 'm*s-1', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -282,7 +282,7 @@ const guidParamWithUnits = {
   //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNoseConeLength: {value: 80, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
 
-  launcherCoastTime: {value: 80, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherCoastTime: {value: 25, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSlowDownPassageOfTime: {value: .0001, units: '', autoMap: true, min: 0.0001, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -295,14 +295,15 @@ const guidParamWithUnits = {
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.05, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadStarts: {value: 1  , units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
-  launcherMassDriverScrewNumModels: {value: 160000, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewModelRoughLength: {value: 500, units: "", autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  
   launcherMassDriverScrewSidewaysOffset: {value: 2, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewUpwardsOffset: {value: -3.5, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewRevolutionsPerSecond: {value: 200, units: "", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewInitialRotation: {value: 0.157, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewBracketThickness: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-
   launcherEvacuatedTubeNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMarkerRadius: {value: 500, units: "m", autoMap: true, min: 1, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchSledSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
@@ -777,6 +778,7 @@ function setRingLatLonWithPreset() {
 // Three.js Rendering Setup
 let simContainer = document.querySelector('#simContainer')
 
+const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
 const renderToBuffer = false // Hack - needs a GUI control still
@@ -1348,8 +1350,8 @@ const backgroundPatchMaterial = new THREE.MeshBasicMaterial({
   //map: new THREE.TextureLoader().load( './textures/myakka_oli_2022031_lrg.jpg' ),
   //map: new THREE.TextureLoader().load( './textures/chinasolar_oli_2020264_lrg.jpg' ),
   //map: new THREE.TextureLoader().load( './textures/AustraliaDesert.jpg' ),
-  //map: new THREE.TextureLoader().load( './textures/CrepuscularRays.jpg' ),
-  map: new THREE.TextureLoader().load( './textures/ISS042-E-263234.jpg' ),
+  map: new THREE.TextureLoader().load( './textures/CrepuscularRays.jpg' ),
+  //map: new THREE.TextureLoader().load( './textures/ISS042-E-263234.jpg' ),
 })
 const backgroundPatchMesh = new THREE.Mesh(
   backgroundPatchGeometry,
@@ -1621,7 +1623,7 @@ function constructElevatorCables() {
 }
 
 // Launch Trajectory Line
-const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, specs)
+const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, clock, specs)
 launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
 
 //calculateAdditionalSpecs()
@@ -1801,7 +1803,6 @@ let cameraSpeed = 0
 let showTensileForceArrows = false
 let showGravityForceArrows = false
 let showInertialForceArrows = false
-const clock = new THREE.Clock();
 let timeSinceStart = 0
 let prevWeAreFar1 = NaN
 let prevWeAreFar2 = NaN
@@ -2452,10 +2453,16 @@ function onKeyDown( event ) {
       // camera.up.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
 
       // Looking at the launcher's ramp
-      orbitControls.target.set(488943.45105641714, -4051079.540584312, -4859619.360242842)
-      orbitControls.upDirection.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
-      orbitControls.object.position.set(759993.1799353235, -4498742.065301571, -4872138.743944233)
-      camera.up.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
+      // orbitControls.target.set(488943.45105641714, -4051079.540584312, -4859619.360242842)
+      // orbitControls.upDirection.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
+      // orbitControls.object.position.set(759993.1799353235, -4498742.065301571, -4872138.743944233)
+      // camera.up.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
+
+      // Looking at the sub-scale launcher's ramp
+      orbitControls.target.set(349677.24273683707, -4057686.393412026, -4908703.579518056)
+      orbitControls.upDirection.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
+      orbitControls.object.position.set(369112.7700758991, -4104989.2685997845, -4882750.221652073)
+      camera.up.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
 
       toRingAlreadyTriggered = true
       toPlanetAlreadyTriggered = false

@@ -373,9 +373,8 @@ class massDriverScrewModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverCurve, launcherMassDriverLength, segmentIndex, lr, massDriverScrewTexture) {
+  constructor(dParamWithUnits, massDriverCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, lr, massDriverScrewTexture) {
 
-    const massDriverScrewSegments = dParamWithUnits['launcherMassDriverScrewNumModels'].value // ToDo: This really should be based on the length of the mass driver, not a parameter
     const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
     const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
     const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
@@ -386,7 +385,8 @@ class massDriverScrewModel {
     const initialRotation = dParamWithUnits['launcherMassDriverScrewInitialRotation'].value
     const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     
-    const modelLengthSegments = 256 // this needs to be related to the number of turns
+    // The point of breaking the screw into segments relates to the need to display the brackets.
+    const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when teh pitch is
     const modelRadialSegments = 8
     const tubePoints = []
 
@@ -600,8 +600,9 @@ class virtualEvacuatedTube {
 
 export class launcher {
 
-    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, specs) {
+    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, clock, specs) {
       this.const_G = 0.0000000000667408;
+      this.clock = clock
 
       // Possible User defined (e.g. if user changes the planet)
       this.const_g = 9.8;
@@ -642,7 +643,7 @@ export class launcher {
         const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
         const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
         this.launcherExitMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
-        const launcherExitMarkerSize = 1000
+        const launcherExitMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
         this.launcherExitMarker1.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
         this.launcherExitMarker2 = this.launcherExitMarker1.clone()
         this.launcherExitMarker2.material = greenMaterial
@@ -750,7 +751,7 @@ export class launcher {
         this.scene.add(vmdt.model)
       }
 
-      n = dParamWithUnits['launcherMassDriverScrewNumModels'].value
+      n = this.massDriverScrewSegments
       // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
       this.nLimit = 50
 
@@ -760,7 +761,7 @@ export class launcher {
         for (let lr = -1; lr < 2; lr+=2) {
           const vmds = new virtualMassDriverScrew((i+0.5)/n, orientation, lr)
           refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
-          vmds.model = new massDriverScrewModel(dParamWithUnits, this.massDriverCurve, this.launcherMassDriverLength, i, lr, this.massDriverScrewTexture)
+          vmds.model = new massDriverScrewModel(dParamWithUnits, this.massDriverCurve, this.massDriverScrewSegments, this.launcherMassDriverLength, i, lr, this.massDriverScrewTexture)
           vmds.model.name = 'massDriverScrew'
           this.scene.add(vmds.model)
         }
@@ -792,7 +793,7 @@ export class launcher {
       this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
 
       const wedgeIndex = 0
-      const n = dParamWithUnits['launcherMassDriverScrewNumModels'].value
+      const n = this.massDriverScrewSegments
       const refFrame = this.refFrames[0]
       const screwsArray = refFrame.wedges[wedgeIndex]['virtualMassDriverScrews']
       // Very Hacky...
@@ -828,6 +829,21 @@ export class launcher {
 
       let forwardAcceleration
       let upwardAcceleration
+      let timeNow = this.clock.getElapsedTime()
+      function gotStuckCheck(clock, timeNow, t, msg) {
+        if (t%2==0) {
+          if (timeNow + 2 < clock.getElapsedTime()) {
+            console.log('Stuck in ', msg)
+            return true
+          }
+          else {
+            return false
+          }
+        }
+        else {
+          return false
+        }
+      }
 
       const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
       const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
@@ -845,6 +861,8 @@ export class launcher {
       const launcherMassDriverLength = launcherMassDriverInitialVelocity * launcherMassDriverAccelerationTime + 0.5 * forwardAcceleration * launcherMassDriverAccelerationTime**2
       specs['launcherMassDriverLength'] = {value: launcherMassDriverLength, units: 's'}
       this.launcherMassDriverLength = launcherMassDriverLength
+      this.launcherMassDriverScrewModelRoughLength = dParamWithUnits['launcherMassDriverScrewModelRoughLength']  // This is the length we want to specify for dynamic model allocation purposes, not a real dimension used to specify the hardware.
+      this.massDriverScrewSegments = Math.ceil(launcherMassDriverLength / this.launcherMassDriverScrewModelRoughLength)
 
       // ***************************************************************
       // Design the ramp. The ramp is positioned at the end of the mass driver to divert the vehicle's trajectory skwards.
@@ -891,18 +909,18 @@ export class launcher {
 
       const R0 = new THREE.Vector3(radiusOfPlanet + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
       
-      for (let launcherMassDriverExitVelocity = 100; launcherMassDriverExitVelocity<8000; launcherMassDriverExitVelocity+=100) {
-        const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
-        const coe = this.OrbitalElements_from_StateVector(R0, V0)
-        const c = coe.semimajorAxis * coe.eccentricity
-        const apogeeDistance = coe.semimajorAxis + c
-        const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
-        const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
-        const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
-        const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
-        const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
-        console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - radiusOfPlanet), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
-      }
+      // for (let launcherMassDriverExitVelocity = 100; launcherMassDriverExitVelocity<8000; launcherMassDriverExitVelocity+=100) {
+      //   const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
+      //   const coe = this.OrbitalElements_from_StateVector(R0, V0)
+      //   const c = coe.semimajorAxis * coe.eccentricity
+      //   const apogeeDistance = coe.semimajorAxis + c
+      //   const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
+      //   const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
+      //   const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
+      //   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
+      //   const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
+      //   console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - radiusOfPlanet), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
+      // }
 
       const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
       const coe = this.OrbitalElements_from_StateVector(R0, V0)
@@ -952,6 +970,7 @@ export class launcher {
             lastDifference = difference
           }
         }
+        if (gotStuckCheck(this.clock, timeNow, t, 'the downrange distance calculation')) break
       }
       if (!converging) {
         console.log('Warning: The downrange distance calculation did not converge')
