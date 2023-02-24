@@ -461,9 +461,6 @@ const guidParamWithUnits = {
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
   // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
-
-  // Camera Parameters
-  
 }
 
 function updatePerfOptimzation() {
@@ -912,7 +909,6 @@ renderer.xr.setReferenceSpaceType( 'local' )
 //const stats = new Stats()
 //simContainer.appendChild( stats.dom )
 
-console.log("[DEBUG] camera: %o", camera)
 const orbitControls = new OrbitControls(camera, renderer.domElement)
 orbitControls.addEventListener('change', orbitControlsEventHandler)
 
@@ -2412,7 +2408,7 @@ function onKeyDown( event ) {
       setOrbitControlsTargetUpVector()
       orbitControlsUpVector.copy(orbitControlsTargetUpVector.clone())
 
-      toRingAlreadyTriggered = false
+      toRingAlreadyTriggered = true
       toPlanetAlreadyTriggered = false
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       orbitControlsTargetUpVector.copy(orbitControls.upDirection.clone())
