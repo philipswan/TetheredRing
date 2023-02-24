@@ -40,7 +40,9 @@ import * as Launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
 
+// load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
+
 //import { makePlanetTexture } from './planetTexture.js'
 
 let verbose = false
