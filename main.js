@@ -2368,6 +2368,31 @@ function onKeyDown( event ) {
     case 89: /*Y*/
       backgroundPatchMesh.lookAt(camera.position)
       break
+    case 77: /*M*/
+      let positionObject = {
+        "orbitTarget":{
+          "X":orbitControls.target.x.toString(),
+          "Y":orbitControls.target.y.toString(),
+          "Z":orbitControls.target.z.toString()
+        },
+        "orbitUpDirection":{
+          "X":orbitControls.upDirection.x.toString(),
+          "Y":orbitControls.upDirection.y.toString(),
+          "Z":orbitControls.upDirection.z.toString()
+        },
+        "orbitObjectPosition":{
+          "X":orbitControls.object.position.x.toString(),
+          "Y":orbitControls.object.position.y.toString(),
+          "Z":orbitControls.object.position.z.toString()
+        },
+        "cameraUp":{
+          "X":camera.up.x.toString(),
+          "Y":camera.up.y.toString(),
+          "Z":camera.up.z.toString()
+        }
+      }
+      console.log("Current Position Vectors\n%s", JSON.stringify(positionObject, null, 2))
+      break
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
       console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
