@@ -45,8 +45,16 @@ import cameraPresets from './cameraPresets.json'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
+// Get the URL of the current page
+const url = new URL(window.location.href)
+console.log(url)
+
+// Get the value of the "action" query parameter
+// To enable VR, add "?enableVR=true" to end of url. For example, http://localhost:5173/?enableVR=true
+const enableVR = url.searchParams.get("enableVR")
+console.log(enableVR)
+
 let verbose = false
-const enableVR = false
 const enableKMLFileFeature = true
 const enableSpecsFileFeature = true
 let genKMLFile = false
