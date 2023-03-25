@@ -37,10 +37,17 @@ export class earthEquatorObject {
   update(dParamWithUnits, radiusOfPlanet) {
     const equatorThickness = radiusOfPlanet * 0.004
     if (dParamWithUnits['showEarthEquator'].value) {
-      const equatorGeometry = new THREE.TorusGeometry(radiusOfPlanet, equatorThickness, 8, 128)
-      this.equatorMesh = new THREE.Mesh(equatorGeometry, new THREE.MeshBasicMaterial({color: 0x3f3f4f}))
-      this.equatorMesh.name = 'equator'
-      this.equatorMesh.rotation.x = Math.PI/2
+      this.equatorMesh = new THREE.Group()
+      const equatorMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
+      for (let a = 0; a<=0; a+=10) {
+        const latitude = a * Math.PI / 180
+        const equatorGeometry = new THREE.TorusGeometry(radiusOfPlanet * Math.cos(latitude), equatorThickness, 8, 128)
+        const mesh = new THREE.Mesh(equatorGeometry, equatorMaterial)
+        mesh.name = 'equator'
+        mesh.position.y = radiusOfPlanet * Math.sin(latitude)
+        mesh.rotation.x = Math.PI/2
+        this.equatorMesh.add(mesh)
+      }
       this.planetCoordSys.add(this.equatorMesh)
     }
     else if (this.equatorMesh) {

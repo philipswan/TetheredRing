@@ -1,9 +1,18 @@
 import * as THREE from 'three'
+import { BoxGeometry } from 'three'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { XYChart } from './XYChart.js'
+import { Quaternion } from 'three/src/math/Quaternion.js'
+//import { XYChart } from './XYChart.js'
 import { ScrewGeometry } from './ScrewGeometry.js'
-import { arrow } from './markers.js'
-import { FrontSide } from 'three'
+import { SledGrapplerGeometry } from './SledGrapplerGeometry.js'
+import { CatmullRomSuperCurve3 } from './SuperCurves'
+import { CircleSuperCurve3 } from './SuperCurves'
+import { LineSuperCurve3 } from './SuperCurves'
+import * as kmlutils from './kmlutils.js'
+import * as tram from './tram.js'
+
+//import { arrow } from './markers.js'
+//import { FrontSide } from 'three'
 
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
@@ -16,6 +25,8 @@ class referenceFrame {
     this.prevFinishWedgeIndex = -1
     const makePlaceHolderEntry = () => ({
       'virtualMassDriverTubes': [],
+      'virtualMassDriverRails': [],
+      'virtualMassDriverBrackets': [],
       'virtualMassDriverScrews': [],
       'virtualEvacuatedTubes': [],
       'virtualLaunchVehicles': [],
@@ -38,14 +49,15 @@ class launchVehicleModel {
     // Create the vehicle's body
     const launchVehicleBodyGeometry = new THREE.CylinderGeometry(radius, radius, bodyLength, radialSegments, lengthSegments, false)
     launchVehicleBodyGeometry.name = "body"
+    launchVehicleBodyGeometry.translate(0, bodyLength/2, 0)
     // Create the nose cone
     const launchVehicleNoseConeGeometry = new THREE.CylinderGeometry(0, radius, noseConeLength, radialSegments, lengthSegments, true)
     launchVehicleNoseConeGeometry.name = "noseCone"
-    launchVehicleNoseConeGeometry.translate(0, (bodyLength+noseConeLength)/2, 0)
+    launchVehicleNoseConeGeometry.translate(0, (bodyLength+noseConeLength)/2 + bodyLength/2, 0)
     // Create the vehicle's engine
     const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*.9, radius*0.4, engineLength, radialSegments, lengthSegments, false)
     launchVehicleFlameGeometry.name = "rocketEngine"
-    launchVehicleFlameGeometry.translate(0, -(bodyLength+engineLength)/2, 0)
+    launchVehicleFlameGeometry.translate(0, -(bodyLength+engineLength)/2 + bodyLength/2, 0)
 
     // Merge the nosecone into the body
     const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleBodyGeometry, launchVehicleNoseConeGeometry])
@@ -68,7 +80,7 @@ class launchVehicleModel {
   }
 }
 class launchSledModel {
-  constructor(dParamWithUnits) {
+  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
     // Manually Create the Launch Vehicle
 
     const lengthSegments = 2
@@ -78,37 +90,22 @@ class launchSledModel {
     const bodyLength = dParamWithUnits['launchSledBodyLength'].value
     const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
 
-    // Create the vehicle's body
-    const launchSledBodyGeometry = new THREE.BoxGeometry(width, height, bodyLength, 1, 1, 1)
-    launchSledBodyGeometry.translate(0, 0, -bodyLength/2)
-    launchSledBodyGeometry.rotateX(Math.PI/2)
+    // Create the sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+    const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
     const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
     const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
     launchSledBodyMesh.name = 'body'
     const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
     launchSledMesh.name = 'launchSled'
 
-    // Create the vehicle's grapplers
-    // ToDo: Need to add a little space between the shaft and grappler
-    const grapplerWidth = bodyLength/numGrapplers   // This corresponds to the dimension in the direction of thravel of the screw face
-    const grapplerHeight = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value - dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
-    const grapplerDepth = width / 10 // This corresponds to the dimension normal to the screw thread face
-    const grapplerGeometry = new THREE.BoxGeometry(grapplerWidth, grapplerDepth, grapplerHeight, 1, 1, 1)
-    grapplerGeometry.translate(0, -grapplerDepth/2, 0)
-    //const grapplerGeometry = new THREE.BoxGeometry(width*2, width*2, width*2, 1, 1, 1)
-    const grapplerMaterial = new THREE.MeshPhongMaterial( {color: 0x9f3f00})
-    const grapplerMesh = new THREE.Mesh(grapplerGeometry, grapplerMaterial)
-    grapplerMesh.name = "grappler"
-
-    for (let i = 0; i < numGrapplers / 2; i++) {
-      const sad = bodyLength * ((i + 0.5) / (numGrapplers/2))
-      for (let lr = -1; lr<=1; lr+=2) {
-        const grappler = grapplerMesh.clone()
-        grappler.userData = {lr: lr, sledArmDistance: sad}
-        launchSledMesh.add(grappler)
-      }
-    }
-
+    // Create the sled's grapplers
+    const baseDistanceAlongScrew = 0
+    const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, massDriverScrewTexture)
+    launchSledGrapplerMesh.name = 'leftGrapplers'
+    launchSledMesh.add(launchSledGrapplerMesh.clone())
+    launchSledGrapplerMesh.name = 'rightGrapplers'
+    launchSledGrapplerMesh.scale.set(-1, 1, 1)
+    launchSledMesh.add(launchSledGrapplerMesh.clone())
     return launchSledMesh
   }
 }
@@ -116,37 +113,25 @@ class launchSledModel {
 class virtualLaunchSled {
   constructor(timeLaunched, unallocatedModelsArray) {
     // The virtual vehicle has a position along the launch trajectory curve.
-    // 0 represents the beginning of the mass driver, 1 represents 't==launchTrajectoryCurveDuration'
+    // 0 represents the begginning of the mass driver, 1 represents 't==launchTrajectoryCurveDuration'
     this.timeLaunched = timeLaunched
     this.unallocatedModels = unallocatedModelsArray
   }
 
-  // The following properties are common to all virtual vehicles...
-  static launchTrajectoryCurve
-  static launchTrajectoryCurveDuration
-  //static launchSledRelativePosition_r = []
-  //static launchSledRelativePosition_y = []
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, launchTrajectoryCurve, launchTrajectoryCurveDuration, scene) {
-    virtualLaunchSled.launchTrajectoryCurve = launchTrajectoryCurve
-    virtualLaunchSled.launchTrajectoryCurveDuration = launchTrajectoryCurveDuration
+  static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene) {
+    virtualLaunchSled.massDriverSuperCurve = massDriverSuperCurve
+    virtualLaunchSled.launcherMassDriverLength = launcherMassDriverLength
     virtualLaunchSled.launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
     virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
     virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
     virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
     virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-    virtualLaunchSled.isDynamic =  true
-    virtualLaunchSled.hasChanged = true
-    virtualLaunchSled.scene = scene
+    virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+    virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+    virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+
     // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
-    virtualLaunchSled.screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
-    virtualLaunchSled.screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
     virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-    virtualLaunchSled.launcherMassDriverScrewInitialRotation = dParamWithUnits['launcherMassDriverScrewInitialRotation'].value
     virtualLaunchSled.launcherMassDriverScrewShaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
     virtualLaunchSled.launcherMassDriverScrewThreadRadius =  dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
     virtualLaunchSled.launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
@@ -154,107 +139,88 @@ class virtualLaunchSled {
     virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
     virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
 
-    virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-    virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+    virtualLaunchSled.isDynamic =  true
+    virtualLaunchSled.hasChanged = true
+    virtualLaunchSled.scene = scene
   }
 
   placeAndOrientModel(om, refFrame) {
     if (virtualLaunchSled.isVisible) {
       const deltaT = refFrame.timeSinceStart * virtualLaunchSled.slowDownPassageOfTime - this.timeLaunched
-      const modelsCurvePosition = deltaT / virtualLaunchSled.launchTrajectoryCurveDuration
-      const distanceDownMassDriver = 0.5 * virtualLaunchSled.launcherMassDriverForwardAcceleration * deltaT**2  // Might be more future-proof if we trust the curve to provide us with this value, but for now I don't trust the accuracy of the curve methods for obtaining distances.
-      if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0)) {
-        console.log("error!!!")
-      }
-      // ToDo: we should be removing the model before we get to the point where it has travelled beyond the end of the launch tragectory
-      else if (modelsCurvePosition<=1) {
-        // ToDo: We night want to put the sled on it's own curve, or at least the massDriver curve, so that we can show the vehicle separating from it and then teh sled returning to the beginning of the mass dirver.
-        const pointOnLaunchTrajectoryCurve = virtualLaunchSled.launchTrajectoryCurve.getPoint(modelsCurvePosition)
-        const forward = virtualLaunchSled.launchTrajectoryCurve.getTangent(modelsCurvePosition)
-        const upward = pointOnLaunchTrajectoryCurve.clone().normalize()
-        const rightward = new THREE.Vector3()
-        rightward.crossVectors(upward, forward).normalize()
-        const normal = new THREE.Vector3()
-        normal.crossVectors(rightward, forward).normalize()
+      const a = virtualLaunchSled.launcherMassDriverForwardAcceleration
+      const v0 = virtualLaunchSled.launcherMassDriverInitialVelocity
+      const sledBackDistance = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, v0, a)
+      const bodyLength = virtualLaunchSled.launchSledBodyLength
+      const d = (sledBackDistance + bodyLength/2) / virtualLaunchSled.launcherMassDriverLength
+      const pointOnMassDriverCurve = virtualLaunchSled.massDriverSuperCurve.getPointAt(d)
+      const forward = virtualLaunchSled.massDriverSuperCurve.getTangentAt(d)
+      const upward = virtualLaunchSled.massDriverSuperCurve.getNormalAt(d)
+      const rightward = virtualLaunchSled.massDriverSuperCurve.getBinormalAt(d)
+      const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+      const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+      const orientation = virtualLaunchSled.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
 
-        // Next we need to position the launch sled's legs so that they interface with the screws
-        // First, working from the back of the launch sled towards the front, we need to virtually recreate the back face of the screw thread, but only the 
-        // parts of the that back face that are within the reach of the launch sled's legs.
-        const sledBackDistance = distanceDownMassDriver
-        const sledFrontDistance = distanceDownMassDriver + virtualLaunchSled.launchSledBodyLength
+      // Next we need to position the launch sled's legs so that they interface with the screws
+      // First, working from the back of the launch sled towards the front, we need to virtually recreate the back face of the screw thread, but only the 
+      // parts of the that back face that are within the reach of the launch sled's legs.
 
-        const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
-        const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
-        const screwRevolutionsPerSecond = virtualLaunchSled.screwRevolutionsPerSecond
-        const threadRadius = virtualLaunchSled.launcherMassDriverScrewThreadRadius
-        const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
-        const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
-        const shaftRadius = virtualLaunchSled.launcherMassDriverScrewShaftRadius
-        const upwardsOffset = virtualLaunchSled.upwardsOffset
-        const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
-        const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
-        const grapplerUpwardsOffset = screwUpwardsOffset
-        const grapplerRadius = (shaftRadius + threadRadius)/2
+      const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
+      const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
+      const screwRevolutionsPerSecond = virtualLaunchSled.screwRevolutionsPerSecond
+      const threadRadius = virtualLaunchSled.launcherMassDriverScrewThreadRadius
+      const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
+      const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
+      const shaftRadius = virtualLaunchSled.launcherMassDriverScrewShaftRadius
+      const upwardsOffset = virtualLaunchSled.upwardsOffset
+      const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
+      const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
+      const numGrapplers = virtualLaunchSled.launchSledNumGrapplers
+      const grapplersSidewaysOffset = screwSidewaysOffset
+      const grapplerUpwardsOffset = screwUpwardsOffset
+      const grapplerRadius = (shaftRadius + threadRadius)/2
 
-        om.children.forEach(child => {
-          if (child.name=='launchSled_body') {
-            child.position.copy(pointOnLaunchTrajectoryCurve.clone().add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset)).add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset)))
-            const straightForwardsVector = new THREE.Vector3(0, 1, 0)
-            const q = new THREE.Quaternion().setFromUnitVectors(straightForwardsVector, forward)
-            child.rotation.setFromQuaternion(q)
-            // Now rotate the vehicle to roll it so that it is level with the ground
-            // const worldDirection = new THREE.Vector3()
-            // om.getWorldDirection(worldDirection)
-            //virtualLaunchSled.scene.add(arrow(pointOnLaunchTrajectoryCurve, worldDirection, 10))
-            child.rotateY(-child.getWorldDirection(new THREE.Vector3()).angleTo(upward))
-          }
-          else if (child.name=='launchSled_grappler') {
-            const lr = child.userData['lr']
-            const distanceAlongScrew = sledBackDistance + child.userData['sledArmDistance']
-            // ToDo: A lot of this math is a duplicate of the math in ScrewGeometry.js, which is not good coding practice. We should call a common function located in tram.js to do this for us.
-            // Convert the distance into a time
-            const cA = 0.5 * acceleration
-            const cB = initialVelocity
-            const cC = -distanceAlongScrew
-            const time = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
-            // Convert the vehicle time into a screw time
-            const screwTime = time + this.timeLaunched
-
-            const rotations = screwRevolutionsPerSecond * time
-            const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(screwRevolutionsPerSecond)
-            const rateOfChangeInForwardDisplacement = initialVelocity + acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
-            const threadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance
-
-            const threadHalfOfCrossWidth = Math.min(threadThickness/2 * Math.sqrt(threadPitch**2+1) / Math.abs(threadPitch), shaftRadius/2);
-            const threadBaseHalfAngle = Math.asin(threadHalfOfCrossWidth/shaftRadius);
-            const threadBaseEndAngle = 2 * Math.PI / threadStarts - threadBaseHalfAngle;
-            const threadTopHalfAngle = Math.asin(threadHalfOfCrossWidth/threadRadius);
-
-            const angle = 2 * Math.PI * threadRadius * Math.abs(screwRevolutionsPerSecond) * threadStarts * time * lr % (2 * Math.PI)
-            child.position.copy(pointOnLaunchTrajectoryCurve.clone()
-              .add(rightward.clone().multiplyScalar(screwSidewaysOffset * lr + Math.sin(angle) * grapplerRadius))
-              .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + Math.cos(angle) * grapplerRadius))
-              .add(forward.clone().multiplyScalar(distanceAlongScrew)))
-              const straightForwardsVector = new THREE.Vector3(0, 1, 0)
-              const q = new THREE.Quaternion().setFromUnitVectors(straightForwardsVector, forward)
-            child.rotation.setFromQuaternion(q)
-            // Now rotate the vehicle to roll it so that it is level with the ground
-            // const worldDirection = new THREE.Vector3()
-            // om.getWorldDirection(worldDirection)
-            //virtualLaunchSled.scene.add(arrow(pointOnLaunchTrajectoryCurve, worldDirection, 10))
-            child.rotateY(-child.getWorldDirection(new THREE.Vector3()).angleTo(upward) + -angle)
-            // child.rotation = 
-            const absAngle = Math.abs(angle)
-            if ((absAngle>Math.PI*7/4) || (absAngle<Math.PI/4)) {
-              child.visible = true
-            }
-            else {
-              child.visible = false
-            }
-          }
-        })
-        om.matrixValid = false
-      }
+      // Create a new screw geometry to represent the adaptive nut
+      const additionalRotation = (deltaT * virtualMassDriverScrew.screwRevolutionsPerSecond) % 1
+      const grapplerGeometry = createSledGrapplerGeometry(
+        shaftRadius,
+        threadRadius,
+        threadThickness,
+        threadStarts,
+        screwRevolutionsPerSecond,
+        acceleration,
+        initialVelocity,
+        sledBackDistance,
+        bodyLength,
+        numGrapplers,
+        additionalRotation
+      )
+  
+      om.children.forEach(child => {
+        if (child.name=='launchSled_leftGrapplers') {
+          child.geometry.dispose()
+          child.geometry = grapplerGeometry
+          child.position.copy(pointOnMassDriverCurve)
+            .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset)) // ToDo: This should be a parameter
+            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset))
+          child.setRotationFromQuaternion(orientation)
+        }
+        if (child.name=='launchSled_rightGrapplers') {
+          child.geometry.dispose()
+          child.geometry = grapplerGeometry
+          child.position.copy(pointOnMassDriverCurve)
+            .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset)) // ToDo: This should be a parameter
+            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset))
+          child.setRotationFromQuaternion(orientation)
+        }
+        else if (child.name=='launchSled_body') {
+          child.position.copy(pointOnMassDriverCurve)
+            .add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
+            .add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))
+          child.setRotationFromQuaternion(orientation)
+        }
+        child.visible = true
+      })
+      om.matrixValid = false
     }
     om.visible = virtualLaunchSled.isVisible
   }
@@ -342,7 +308,7 @@ class massDriverTubeModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverCurve, segmentIndex) {
+  constructor(dParamWithUnits, massDriverSuperCurve, segmentIndex) {
 
     const massDriverTubeSegments = dParamWithUnits['launcherMassDriverTubeNumModels'].value
     const radius = dParamWithUnits['launcherMassDriverTubeRadius'].value
@@ -352,20 +318,120 @@ class massDriverTubeModel {
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
     const modelsCurvePosition = (segmentIndex + 0.5) / massDriverTubeSegments
-    const refPoint = massDriverCurve.getPoint(modelsCurvePosition)
-    const orientation = new THREE.Quaternion()
-    orientation.setFromUnitVectors(massDriverCurve.getTangent(modelsCurvePosition), new THREE.Vector3(0, 1, 0))
+    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
+    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
 
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
       const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverTubeSegments
-      tubePoints.push(massDriverCurve.getPoint(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
+      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
     }
-    const massDriverSegementCurve = new THREE.CatmullRomCurve3(tubePoints)
+    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
     const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
     const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
     const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
     return massDriverTubeMesh
+  }
+}
+class massDriverRailModel {
+  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+  constructor(dParamWithUnits, massDriverSuperCurve, segmentIndex) {
+
+    const massDriverRailSegments = dParamWithUnits['launcherMassDriverTubeNumModels'].value
+    const width = dParamWithUnits['launcherMassDriverRailWidth'].value
+    const height = dParamWithUnits['launcherMassDriverRailHeight'].value
+    const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
+    const modelRadialSegments = 32
+    const tubePoints = []
+    const shape = new THREE.Shape()
+    shape.moveTo( width/2 , height/2 )
+    shape.lineTo( width/2 , -height/2 )
+    shape.lineTo( -width/2 , -height/2 )
+    shape.lineTo( -width/2 , height/2 )
+    shape.lineTo( width/2 , height/2 )
+    // Now we need a reference point in the middle of this segment of the whole mass driver
+    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverRailSegments
+    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
+    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
+
+    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
+    for (let i = 0; i<=modelLengthSegments; i++) {
+      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverRailSegments
+      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
+    }
+    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
+    const extrudeSettings = {
+      steps: 2,
+      depth: 1,
+      extrudePath: massDriverSegementCurve
+    }
+    const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+    const massDriverRailMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E })
+    const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
+    return massDriverRailMesh
+  }
+}
+class massDriverBracketModel {
+  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex) {
+
+    const width = dParamWithUnits['launcherMassDriverBracketWidth'].value
+    const height = dParamWithUnits['launcherMassDriverBracketHeight'].value
+    const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
+    const bracketUpwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+    const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
+    const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
+    const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+
+    const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
+
+    const modelLengthSegments = 1    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
+    const modelRadialSegments = 32
+    const shape = new THREE.Shape()
+    shape.moveTo( 0 , height/2 )
+    shape.lineTo( -width/2 , height/2 )
+    for (let a = 8; a<=24; a++) {
+      shape.lineTo( -screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
+    }
+    for (let a = 24; a<=40; a++) {
+      shape.lineTo( +screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
+    }
+    shape.lineTo( width/2 , height/2 )
+    shape.lineTo( 0 , height/2 )
+    // Now we need a reference point in the middle of this segment of the whole mass driver
+    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
+    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
+    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
+
+    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
+    const tubePoints = []
+    for (let i = 0; i<=modelLengthSegments; i++) {
+      const modelsCurvePosition = (segmentIndex + (i-0.5) * bracketThickness/segmentSpacing) / massDriverScrewSegments
+      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
+    }
+    const upDirection = new THREE.Vector3(-1, 0, 0)
+    const massDriverSegementCurve = new LineSuperCurve3(tubePoints[0], tubePoints[1], upDirection, upDirection)
+    const extrudeSettings = {
+      steps: 2,
+      depth: 1,
+      extrudePath: massDriverSegementCurve
+    }
+    const massDriverBracketGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+    const massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
+    const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, massDriverBracketMaterial)
+    return massDriverBracketMesh
   }
 }
 class massDriverScrewModel {
@@ -373,7 +439,7 @@ class massDriverScrewModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, lr, massDriverScrewTexture) {
+  constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewTexture) {
 
     const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
     const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
@@ -382,33 +448,18 @@ class massDriverScrewModel {
     const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
     const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
     const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
-    const initialRotation = dParamWithUnits['launcherMassDriverScrewInitialRotation'].value
     const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     
     // The point of breaking the screw into segments relates to the need to display the brackets.
-    const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when teh pitch is
-    const modelRadialSegments = 8
-    const tubePoints = []
+    const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when the pitch is finer
+    const modelRadialSegments = 24 / Math.min(threadStarts, 4)
 
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
     const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
     const baseDistanceAlongScrew = segmentIndex * segmentSpacing
-    const refPoint = massDriverCurve.getPoint(modelsCurvePosition)
-    const orientation = new THREE.Quaternion()
-    orientation.setFromUnitVectors(massDriverCurve.getTangent(modelsCurvePosition), new THREE.Vector3(0, 1, 0))
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    const bracketFactor = (segmentSpacing - bracketThickness) / segmentSpacing
-    for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments * bracketFactor) / massDriverScrewSegments
-      tubePoints.push(massDriverCurve.getPoint(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
-
-    const massDriverSegementCurve = new THREE.CatmullRomCurve3(tubePoints)
+    const screwLength = segmentSpacing - bracketThickness
 
     const massDriverScrewGeometry = new ScrewGeometry(
-      massDriverSegementCurve,
+      screwLength,
       modelLengthSegments,
       shaftRadius,
       threadRadius,
@@ -416,15 +467,73 @@ class massDriverScrewModel {
       threadStarts,
       baseDistanceAlongScrew,
       launcherMassDriverInitialVelocity,
-      launcherMassDriverScrewRevolutionsPerSecond * lr,
+      launcherMassDriverScrewRevolutionsPerSecond,
       launcherMassDriverForwardAcceleration,
-      modelRadialSegments,
-      initialRotation)
-    const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
+      modelRadialSegments)
+    const massDriverScrewMaterial = new THREE.MeshPhongMaterial() //( {map: massDriverScrewTexture})
     const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterial)
 
     return massDriverScrewMesh
   }
+}
+
+function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, massDriverScrewTexture) {
+  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+  const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+  const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+  const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+  const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
+  const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
+  const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+  const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+  const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+  const additionalRotation = 0
+
+  const sledGrapplerGeometry = createSledGrapplerGeometry(
+    shaftRadius,
+    threadRadius,
+    threadThickness,
+    threadStarts,
+    launcherMassDriverScrewRevolutionsPerSecond,
+    launcherMassDriverForwardAcceleration,
+    launcherMassDriverInitialVelocity,
+    baseDistanceAlongScrew,
+    bodyLength,
+    numGrapplers,
+    additionalRotation)
+  const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f }) //( {map: massDriverScrewTexture})
+  //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({wireframe: false, color: 0xffffff }) //( {map: massDriverScrewTexture})
+  return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
+}
+
+function createSledGrapplerGeometry(
+  shaftRadius,
+  threadRadius,
+  threadThickness,
+  threadStarts,
+  launcherMassDriverScrewRevolutionsPerSecond,
+  launcherMassDriverForwardAcceleration,
+  launcherMassDriverInitialVelocity,
+  baseDistanceAlongScrew,
+  bodyLength,
+  numGrapplers,
+  additionalRotation) {
+  
+  return new SledGrapplerGeometry(
+    shaftRadius,
+    threadRadius,
+    threadThickness,
+    threadStarts,
+    launcherMassDriverScrewRevolutionsPerSecond,
+    launcherMassDriverForwardAcceleration,
+    launcherMassDriverInitialVelocity,
+    baseDistanceAlongScrew,
+    bodyLength,
+    numGrapplers,
+    additionalRotation)
 }
 class evacuatedTubeModel {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
@@ -451,7 +560,7 @@ class evacuatedTubeModel {
       tubePoints.push(evacuatedTubeCurve.getPoint(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
     }
 
-    const evacuatedTubeSegementCurve = new THREE.CatmullRomCurve3(tubePoints)
+    const evacuatedTubeSegementCurve = new CatmullRomSuperCurve3(tubePoints)
     const evacuatedTubeTubeGeometry = new THREE.TubeGeometry(evacuatedTubeSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
     const evacuatedTubeTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
     const evacuatedTubeTubeMesh = new THREE.Mesh(evacuatedTubeTubeGeometry, evacuatedTubeTubeMaterial)
@@ -462,37 +571,43 @@ class evacuatedTubeModel {
 
 
 class virtualMassDriverTube {
-  constructor(positionInFrameOfReference, orientation) {
-    this.p = positionInFrameOfReference
-    this.orientation = orientation
+  constructor(d) {
+    this.d = d
     this.model = null
   }
 
-  static massDriverCurve
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, massDriverCurve) {
-    virtualMassDriverTube.massDriverCurve = massDriverCurve
+  static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
+    virtualMassDriverTube.massDriverSuperCurve = massDriverSuperCurve
     virtualMassDriverTube.isVisible = dParamWithUnits['showMassDriverTube'].value
     virtualMassDriverTube.isDynamic =  false
     virtualMassDriverTube.hasChanged = true
+    virtualMassDriverTube.versionNumber = versionNumber
   }
 
   placeAndOrientModel(om, refFrame) {
-    const modelsCurvePosition = this.p 
-    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0) || (modelsCurvePosition>1)) {
+    const d = this.d 
+    if (d==='undefined' || (d<0) || (d>1)) {
       console.log("error!!!")
     }
     else {
-      const pointOnMassDriverCurve = virtualMassDriverTube.massDriverCurve.getPoint(modelsCurvePosition)
-      om.position.set(
-        pointOnMassDriverCurve.x,
-        pointOnMassDriverCurve.y,
-        pointOnMassDriverCurve.z)
-      om.rotation.setFromQuaternion(this.orientation)
+      if (virtualMassDriverTube.isVisible) {
+        if (this.versionNumber!=virtualMassDriverTube.versionNumber) {
+          // Something about the design has been updated so this instance also needs to be updated
+          const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+          const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+          // const forward = virtualMassDriverTube.massDriverSuperCurve.getTangentAt(d)
+          // const upward = virtualMassDriverTube.massDriverSuperCurve.getNormalAt(d)
+          // const rightward = virtualMassDriverTube.massDriverSuperCurve.getBinormalAt(d)
+          this.position = virtualMassDriverTube.massDriverSuperCurve.getPointAt(d)
+            // .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverTube.sidewaysOffset))
+            // .add(upward.clone().multiplyScalar(virtualMassDriverTube.upwardsOffset))
+          this.orientation = virtualMassDriverTube.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+          this.versionNumber = virtualMassDriverTube.versionNumber
+        }
 
+        om.position.copy(this.position)
+        om.setRotationFromQuaternion(this.orientation)
+      }
       om.visible = virtualMassDriverTube.isVisible
       om.matrixValid = false
       if (this.perfOptimizedThreeJS) om.freeze()
@@ -500,54 +615,143 @@ class virtualMassDriverTube {
   }
 
 }
-class virtualMassDriverScrew {
-  constructor(positionInFrameOfReference, orientation, lr) {
-    this.p = positionInFrameOfReference
-    this.orientation = orientation
+class virtualMassDriverRail {
+  constructor(d) {
+    this.d = d
     this.model = null
-    this.lr = lr    // left or right screw
   }
 
-  static massDriverCurve
-  static isVisible
-  static isDynamic
-  static hasChanged
+  static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
+    virtualMassDriverRail.massDriverSuperCurve = massDriverSuperCurve
+    virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value
+    virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
+    virtualMassDriverRail.isDynamic =  false
+    virtualMassDriverRail.hasChanged = true
+    virtualMassDriverRail.versionNumber = versionNumber
+  }
 
-  static update(dParamWithUnits, massDriverCurve) {
-    virtualMassDriverScrew.massDriverCurve = massDriverCurve
+  placeAndOrientModel(om, refFrame) {
+    const d = this.d 
+    if (d==='undefined' || (d<0) || (d>1)) {
+      console.log("error!!!")
+    }
+    else {
+      if (virtualMassDriverRail.isVisible) {
+        if (this.versionNumber!=virtualMassDriverRail.versionNumber) {
+          // Something about the design has been updated so this instance also needs to be updated
+          const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+          const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+          // const forward = virtualMassDriverRail.massDriverSuperCurve.getTangentAt(d)
+          const upward = virtualMassDriverRail.massDriverSuperCurve.getNormalAt(d)
+          // const rightward = virtualMassDriverRail.massDriverSuperCurve.getBinormalAt(d)
+          this.position = virtualMassDriverRail.massDriverSuperCurve.getPointAt(d)
+            // .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverRail.sidewaysOffset))
+            .add(upward.clone().multiplyScalar(virtualMassDriverRail.upwardsOffset))
+          this.orientation = virtualMassDriverRail.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+          this.versionNumber = virtualMassDriverRail.versionNumber
+        }
+
+        om.position.copy(this.position)
+        om.setRotationFromQuaternion(this.orientation)
+      }
+      om.visible = virtualMassDriverRail.isVisible
+      om.matrixValid = false
+      if (this.perfOptimizedThreeJS) om.freeze()
+    }
+  }
+
+}
+class virtualMassDriverBracket {
+  constructor(d) {
+    this.d = d
+    this.model = null
+  }
+
+  static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
+    virtualMassDriverBracket.massDriverSuperCurve = massDriverSuperCurve
+    virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBracket'].value
+    virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+    virtualMassDriverBracket.isDynamic =  false
+    virtualMassDriverBracket.hasChanged = true
+    virtualMassDriverBracket.versionNumber = versionNumber
+  }
+
+  placeAndOrientModel(om, refFrame) {
+    const d = this.d 
+    if (d==='undefined' || (d<0) || (d>1)) {
+      console.log("error!!!")
+    }
+    else {
+      if (virtualMassDriverBracket.isVisible) {
+        if (this.versionNumber!=virtualMassDriverBracket.versionNumber) {
+          // Something about the design has been updated so this instance also needs to be updated
+          const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+          const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+          // const forward = virtualMassDriverBracket.massDriverSuperCurve.getTangentAt(d)
+          const upward = virtualMassDriverBracket.massDriverSuperCurve.getNormalAt(d)
+          // const rightward = virtualMassDriverBracket.massDriverSuperCurve.getBinormalAt(d)
+          this.position = virtualMassDriverBracket.massDriverSuperCurve.getPointAt(d)
+            // .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverBracket.sidewaysOffset))
+            .add(upward.clone().multiplyScalar(virtualMassDriverBracket.upwardsOffset))
+          this.orientation = virtualMassDriverBracket.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+          this.versionNumber = virtualMassDriverBracket.versionNumber
+        }
+
+        om.position.copy(this.position)
+        om.setRotationFromQuaternion(this.orientation)
+      }
+      om.visible = virtualMassDriverBracket.isVisible
+      om.matrixValid = false
+      if (this.perfOptimizedThreeJS) om.freeze()
+    }
+  }
+
+}
+class virtualMassDriverScrew {
+  constructor(d, lr) {
+    this.d = d
+    this.model = null
+    this.lr = lr    // left or right screw
+    this.versionNumber = 0
+  }
+
+  static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
+    virtualMassDriverScrew.massDriverSuperCurve = massDriverSuperCurve
     virtualMassDriverScrew.isVisible = dParamWithUnits['showMassDriverScrews'].value
     virtualMassDriverScrew.isDynamic =  false
     virtualMassDriverScrew.hasChanged = true
     virtualMassDriverScrew.sidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
     virtualMassDriverScrew.upwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-    virtualMassDriverScrew.revolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
+    virtualMassDriverScrew.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
     virtualMassDriverScrew.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    virtualMassDriverScrew.versionNumber = versionNumber
   }
 
   placeAndOrientModel(om, refFrame) {
-    const modelsCurvePosition = this.p 
-    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0) || (modelsCurvePosition>1)) {
+    const d = this.d 
+    if (d==='undefined' || (d<0) || (d>1)) {
       console.log("error!!!")
     }
     else {
       if (virtualMassDriverScrew.isVisible) {
-        const pointOnMassDriverCurve = virtualMassDriverScrew.massDriverCurve.getPoint(modelsCurvePosition)
-        const forward = virtualMassDriverScrew.massDriverCurve.getTangent(modelsCurvePosition)
-        const upward = pointOnMassDriverCurve.clone().normalize()
-        const rightward = new THREE.Vector3()
-        rightward.crossVectors(upward, forward ).normalize()
-        const normal = new THREE.Vector3()
-        normal.crossVectors(rightward, forward).normalize()
-        pointOnMassDriverCurve.add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverScrew.sidewaysOffset)).add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
-        om.position.set(
-          pointOnMassDriverCurve.x,
-          pointOnMassDriverCurve.y,
-          pointOnMassDriverCurve.z)
-        const deltaT = refFrame.timeSinceStart * virtualMassDriverScrew.slowDownPassageOfTime
-        // const initialRotationAngle = -om.getWorldDirection(new THREE.Vector3()).angleTo(normalToLaunchTrajectoryCurve))
+        if (this.versionNumber!=virtualMassDriverScrew.versionNumber) {
+          // Something about the design has been updated so this instance also needs to be updated
+          const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+          const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+          const forward = virtualMassDriverScrew.massDriverSuperCurve.getTangentAt(d)
+          const upward = virtualMassDriverScrew.massDriverSuperCurve.getNormalAt(d)
+          const rightward = virtualMassDriverScrew.massDriverSuperCurve.getBinormalAt(d)
+          this.position = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
+            .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverScrew.sidewaysOffset))
+            .add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
+          this.orientation = virtualMassDriverScrew.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+          this.versionNumber = virtualMassDriverScrew.versionNumber
+        }
 
-        om.rotation.set(0, ((-this.lr * deltaT * virtualMassDriverScrew.revolutionsPerSecond) % 1) * 2 * Math.PI, 0)
-        om.applyQuaternion(this.orientation)
+        om.position.copy(this.position)
+        om.setRotationFromQuaternion(this.orientation)
+        const deltaT = refFrame.timeSinceStart * virtualMassDriverScrew.slowDownPassageOfTime
+        om.rotateY(((-this.lr * deltaT * virtualMassDriverScrew.screwRevolutionsPerSecond) % 1) * 2 * Math.PI)
       }
       om.visible = virtualMassDriverScrew.isVisible
       om.matrixValid = false
@@ -563,12 +767,6 @@ class virtualEvacuatedTube {
     this.orientation = orientation
     this.model = null
   }
-
-  // The following properties are common to all virtual habitats...
-  static massDriverCurve
-  static isVisible
-  static isDynamic
-  static hasChanged
 
   static update(dParamWithUnits, evacuatedTubeCurve) {
     virtualEvacuatedTube.evacuatedTubeCurve = evacuatedTubeCurve
@@ -600,9 +798,10 @@ class virtualEvacuatedTube {
 
 export class launcher {
 
-    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, xyChart, clock, specs) {
+    constructor(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
       this.const_G = 0.0000000000667408;
       this.clock = clock
+      this.versionNumber = 0
 
       // Possible User defined (e.g. if user changes the planet)
       this.const_g = 9.8;
@@ -637,28 +836,26 @@ export class launcher {
 
       this.timeWithinMassDriver = dParamWithUnits['launcherMassDriverExitVelocity'].value / dParamWithUnits['launcherMassDriverForwardAcceleration'].value
     
-      const showLauncherExitMarkers = true
-      if (showLauncherExitMarkers) {
-        const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
-        const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
-        const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
-        this.launcherExitMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
-        const launcherExitMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
-        this.launcherExitMarker1.scale.set(launcherExitMarkerSize, launcherExitMarkerSize, launcherExitMarkerSize)
-        this.launcherExitMarker2 = this.launcherExitMarker1.clone()
-        this.launcherExitMarker2.material = greenMaterial
-        this.launcherExitMarker3 = this.launcherExitMarker1.clone()
-        this.launcherExitMarker3.material = blueMaterial
-        this.launcherExitMarker4 = this.launcherExitMarker1.clone()
-        planetCoordSys.add(this.launcherExitMarker1)
-        planetCoordSys.add(this.launcherExitMarker2)
-        planetCoordSys.add(this.launcherExitMarker3)
-        planetCoordSys.add(this.launcherExitMarker4)
-        this.launcherExitMarker1.visible = true
-        this.launcherExitMarker2.visible = true
-        this.launcherExitMarker3.visible = true
-        this.launcherExitMarker4.visible = true
-      }
+      const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
+      const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
+      const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
+      this.LaunchTrajectoryMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
+      const LaunchTrajectoryMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
+      this.LaunchTrajectoryMarker1.scale.set(LaunchTrajectoryMarkerSize, LaunchTrajectoryMarkerSize, LaunchTrajectoryMarkerSize)
+      this.LaunchTrajectoryMarker2 = this.LaunchTrajectoryMarker1.clone()
+      this.LaunchTrajectoryMarker2.material = greenMaterial
+      this.LaunchTrajectoryMarker3 = this.LaunchTrajectoryMarker1.clone()
+      this.LaunchTrajectoryMarker3.material = blueMaterial
+      this.LaunchTrajectoryMarker4 = this.LaunchTrajectoryMarker1.clone()
+      planetCoordSys.add(this.LaunchTrajectoryMarker1)
+      planetCoordSys.add(this.LaunchTrajectoryMarker2)
+      planetCoordSys.add(this.LaunchTrajectoryMarker3)
+      planetCoordSys.add(this.LaunchTrajectoryMarker4)
+      this.LaunchTrajectoryMarker1.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value
+
       this.launchTrajectoryCurve = null
       this.launchTrajectoryCurveDuration = this.timeWithinMassDriver + this.curveUpTime + this.evacuatedTubeCurve + dParamWithUnits['launcherCoastTime'].value
       this.launchTrajectoryMesh = null
@@ -673,8 +870,7 @@ export class launcher {
       this.actionFlags = new Array(this.numWedges).fill(0)
       this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
 
-      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, ringToPlanetRotation, specs)
-
+      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
       // Next, create all of the virtual objects that will be placed along the launch trajectory curve
       
       // Add the virtual launch sleds and launch vehicles
@@ -683,13 +879,14 @@ export class launcher {
       // Put all of the virtual launch vehicles into the same wedge for now
       wedgeIndex = 0
       const refFrame = this.refFrames[0]
-      for (t = 0, n = 0; t<this.launchTrajectoryCurveDuration; t += tInc, n++) {
+      // Hack - remove "&& (n<1)"
+      for (t = -.02, n = 0; (t<this.launchTrajectoryCurveDuration) && (n<1); t += tInc, n++) {
         refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
         refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
       }
 
       // Create and add the launch sleds
-      const launchSledMesh = new launchSledModel(dParamWithUnits)
+      const launchSledMesh = new launchSledModel(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.massDriverScrewSegments, this.massDriverScrewTexture)
       // n = dParamWithUnits['launchVehicleNumModels'].value
       addLaunchSleds(launchSledMesh, this.scene, this.unallocatedLaunchSledModels, 'launchSled', 1, n, this.perfOptimizedThreeJS)
 
@@ -737,34 +934,47 @@ export class launcher {
       // Add the virtual mass drivers and a model for each virtual mass driver
 
       // ToDo: Since there's a one-to-one mapping between real and virtual components here, consider whether virtual components are really needed.
-      this.massDriverScrewTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
+      
+      // Hack
+      //this.massDriverScrewTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
 
       wedgeIndex = 0
       n = dParamWithUnits['launcherMassDriverTubeNumModels'].value
       for (let i = 0; i < n; i++) {
-        const orientation = new THREE.Quaternion
-        orientation.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.massDriverCurve.getTangentAt((i+0.5)/n))
-        const vmdt = new virtualMassDriverTube((i+0.5)/n, orientation)
+        const d = (i+0.5)/n
+        const vmdt = new virtualMassDriverTube(d)
         refFrame.wedges[wedgeIndex]['virtualMassDriverTubes'].push(vmdt)
-        vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverCurve, i)
+        vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverSuperCurve, i)
         vmdt.model.name = 'massDriverTube'
         this.scene.add(vmdt.model)
+        const vmdr = new virtualMassDriverRail(d)
+        refFrame.wedges[wedgeIndex]['virtualMassDriverRails'].push(vmdr)
+        vmdr.model = new massDriverRailModel(dParamWithUnits, this.massDriverSuperCurve, i)
+        vmdr.model.name = 'massDriverRail'
+        this.scene.add(vmdr.model)
       }
 
       n = this.massDriverScrewSegments
+      const halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / this.launcherMassDriverLength
       // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
-      this.nLimit = 50
+      this.nLimit = 600
 
       for (let i = 0; i < Math.min(this.nLimit, n); i++) {
-        const orientation = new THREE.Quaternion
-        orientation.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.massDriverCurve.getTangentAt((i+0.5)/n))
+        const d = (i+0.5)/n - halfBracketThickness
+        const leftmodel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, i, this.massDriverScrewTexture)
+        leftmodel.name = 'massDriverScrew'
         for (let lr = -1; lr < 2; lr+=2) {
-          const vmds = new virtualMassDriverScrew((i+0.5)/n, orientation, lr)
+          const vmds = new virtualMassDriverScrew(d, lr)
           refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
-          vmds.model = new massDriverScrewModel(dParamWithUnits, this.massDriverCurve, this.massDriverScrewSegments, this.launcherMassDriverLength, i, lr, this.massDriverScrewTexture)
-          vmds.model.name = 'massDriverScrew'
+          vmds.model = leftmodel.clone()
+          vmds.model.scale.set(lr, 1, 1)
           this.scene.add(vmds.model)
         }
+        const vmdb = new virtualMassDriverBracket(d)
+        refFrame.wedges[wedgeIndex]['virtualMassDriverBrackets'].push(vmdb)
+        vmdb.model = new massDriverBracketModel(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.massDriverScrewSegments, i)
+        vmdb.model.name = 'massDriverBracket'
+        this.scene.add(vmdb.model)
       }
 
       // Add the virtual evacuated tube and a model for each virtual evacuated tube
@@ -784,11 +994,14 @@ export class launcher {
     }
 
     update(dParamWithUnits) {
-      virtualMassDriverTube.update(dParamWithUnits, this.massDriverCurve)
-      virtualMassDriverScrew.update(dParamWithUnits, this.massDriverCurve)
+      this.versionNumber++
+      virtualMassDriverTube.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
+      virtualMassDriverRail.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
+      virtualMassDriverBracket.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
+      virtualMassDriverScrew.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
+      virtualLaunchSled.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.scene)
       virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.launchTrajectoryCurveDuration, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
-      virtualLaunchSled.update(dParamWithUnits, this.launchTrajectoryCurve, this.launchTrajectoryCurveDuration, this.scene)
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
       this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
 
@@ -796,24 +1009,31 @@ export class launcher {
       const n = this.massDriverScrewSegments
       const refFrame = this.refFrames[0]
       const screwsArray = refFrame.wedges[wedgeIndex]['virtualMassDriverScrews']
+
+      this.LaunchTrajectoryMarker1.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.LaunchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value
+      this.xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
+
       // Very Hacky...
-      if (screwsArray.length == 2 * this.nLimit) {
-        // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
-        for (let i = 0; i < Math.min(this.nLimit, n); i++) {
-          for (let lr = -1; lr < 2; lr+=2) {
-            //const vmds = new virtualMassDriverScrew((i+0.5)/n, orientation, lr)
-            const index = i*2+(1+lr)/2
-            const oldModel = refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'][index].model
-            this.scene.remove(oldModel)
-            const newModel = new massDriverScrewModel(dParamWithUnits, this.massDriverCurve, this.launcherMassDriverLength, i, lr, this.massDriverScrewTexture)
-            refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'][index].model = newModel
-            this.scene.add(newModel)
-          }
-        }
-      }
+      // if (screwsArray.length == 2 * this.nLimit) {
+      //   // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
+      //   for (let i = 0; i < Math.min(this.nLimit, n); i++) {
+      //     for (let lr = -1; lr < 2; lr+=2) {
+      //       //const vmds = new virtualMassDriverScrew((i+0.5)/n, orientation, lr)
+      //       const index = i*2+(1+lr)/2
+      //       const oldModel = refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'][index].model
+      //       this.scene.remove(oldModel)
+      //       const newModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, i, this.massDriverScrewTexture)
+      //       refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'][index].model = newModel
+      //       this.scene.add(newModel)
+      //     }
+      //   }
+      // }
     }
 
-    updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs) {
+    updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
       // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
       // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of the mass driver,
       // follows a hyperbolic trajectory away from the earth.
@@ -861,7 +1081,7 @@ export class launcher {
       const launcherMassDriverLength = launcherMassDriverInitialVelocity * launcherMassDriverAccelerationTime + 0.5 * forwardAcceleration * launcherMassDriverAccelerationTime**2
       specs['launcherMassDriverLength'] = {value: launcherMassDriverLength, units: 's'}
       this.launcherMassDriverLength = launcherMassDriverLength
-      this.launcherMassDriverScrewModelRoughLength = dParamWithUnits['launcherMassDriverScrewModelRoughLength']  // This is the length we want to specify for dynamic model allocation purposes, not a real dimension used to specify the hardware.
+      this.launcherMassDriverScrewModelRoughLength = dParamWithUnits['launcherMassDriverScrewModelRoughLength'].value  // This is the length we want to specify for dynamic model allocation purposes, not a real dimension used to specify the hardware.
       this.massDriverScrewSegments = Math.ceil(launcherMassDriverLength / this.launcherMassDriverScrewModelRoughLength)
 
       // ***************************************************************
@@ -891,8 +1111,8 @@ export class launcher {
       // console.log('angleACB', angleACB, angleACB*180/Math.PI)
       // console.log('upwardAngleAtEndOfRamp', upwardAngleAtEndOfRamp, upwardAngleAtEndOfRamp*180/Math.PI)
 
-      const curveUpDistance = angleACB * allowableUpwardTurningRadius
-      this.curveUpTime = curveUpDistance / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
+      this.launcherRampLength = angleACB * allowableUpwardTurningRadius
+      this.curveUpTime = this.launcherRampLength / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
 
       // Let's define the end of the ramp as the launcher's exit position, since from that point on the vehicles will either be coasting or accelerating under their own power.
       // Also, it's a position that we can stick at the top of a mountain ridge and from their adjust parameters like launcer accelleration, etc.
@@ -931,7 +1151,7 @@ export class launcher {
       const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
       const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
       const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
-      console.log(coe)
+      //console.log(coe)
       console.log('speedAtApogee', speedAtApogee)
       console.log('apogeeAltitude', apogeeDistance - radiusOfPlanet)
       console.log('deltaVNeededToCircularizeOrbit', deltaVNeededToCircularizeOrbit)
@@ -1003,9 +1223,9 @@ export class launcher {
       massDriverExitPosition.multiplyScalar((radiusOfPlanet + launcherMassDriverAltitude) / (radiusOfPlanet + launcherRampExitAltitude))
 
       // Position markers at the end of the mass driver and at entrance and exit positions of the evacuated tube
-      this.launcherExitMarker1.position.copy(massDriverExitPosition)
-      this.launcherExitMarker2.position.copy(evacuatedTubeEntrancePosition)
-      this.launcherExitMarker3.position.copy(evacuatedTubeExitPosition)
+      this.LaunchTrajectoryMarker1.position.copy(massDriverExitPosition)
+      this.LaunchTrajectoryMarker2.position.copy(evacuatedTubeEntrancePosition)
+      this.LaunchTrajectoryMarker3.position.copy(evacuatedTubeExitPosition)
 
       // ***************************************************************
       // Next we need to capture some curves and data sets for plotting
@@ -1045,16 +1265,27 @@ export class launcher {
       // ***************************************************************
       // Create the part of the trajectory where the vehicle is within mass driver near the planet's surface
       // ***************************************************************
+      this.massDriverSuperCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriverExitPosition, -launcherMassDriverLength)
+      function tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration) {
+        return launcherMassDriverInitialVelocity + forwardAcceleration * t  // 1/2 at^2
+      }
+      function tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration) {
+        return launcherMassDriverInitialVelocity * t + 0.5 * forwardAcceleration * t * t  // 1/2 at^2
+      }
+      this.massDriverSuperCurve.addtTodConvertor(tTod)
+
       // Start the launch trajectory curve at the beginning of the mass driver.
       //console.log('Creating mass driver part of trajectory.')
       upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
       altitude = launcherMassDriverAltitude
 
       for (t = 0; t < this.timeWithinMassDriver; t += tStep) {
-        vehicleAirSpeed = launcherMassDriverInitialVelocity + forwardAcceleration * t
-        distanceTravelled = launcherMassDriverInitialVelocity * t + 0.5 * forwardAcceleration * t * t  // 1/2 at^2
+        vehicleAirSpeed = tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration)
+        distanceTravelled = tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration)
         // Rotate the massDriverExitPosition around the axisOfRotation using the angle derived from the distance travelled
         vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, (distanceTravelled - launcherMassDriverLength) / (radiusOfPlanet + launcherMassDriverAltitude))
+        //console.log('old angle', (distanceTravelled - launcherMassDriverLength) / (radiusOfPlanet + launcherMassDriverAltitude))
+        const vp2 = this.massDriverSuperCurve.getPointAt(distanceTravelled/launcherMassDriverLength)
         if (t==0) {
           this.startOfMassDriverPosition = vehiclePosition.clone()
         }
@@ -1076,7 +1307,7 @@ export class launcher {
       const v1 = massDriverExitPosition.clone().multiplyScalar((allowableUpwardTurningRadius + l1) / l1)  // Points to the center of the circle that defines the ramp's curve
       const v2 = massDriverExitPosition.clone().multiplyScalar(-allowableUpwardTurningRadius / l1)     // A vector from the center of the circle that defines the ramp back to the mass driver's exit position.
       //const pivotPoint = massDriverExitPosition.clone().multiplyScalar((l1+allowableUpwardTurningRadius)/l1)
-      this.launcherExitMarker4.position.copy(v1)
+      this.LaunchTrajectoryMarker4.position.copy(v1)
 
       forwardAcceleration = 0
       upwardAcceleration = launcherMassDriverUpwardAcceleration
@@ -1103,7 +1334,7 @@ export class launcher {
       //console.log('done')
 
       vehiclePosition = v1.clone().add(v2.clone().applyAxisAngle(this.axisOfRotation, -angleACB))
-      //this.launcherExitMarker2.position.copy(vehiclePosition)
+      //this.LaunchTrajectoryMarker2.position.copy(vehiclePosition)
       const downrangeAngle = massDriverExitPosition.angleTo(vehiclePosition)
       const downrangeDistanceTravelledOnRamp = downrangeAngle * radiusOfPlanet
       distanceTravelled += angleACB * allowableUpwardTurningRadius
@@ -1181,6 +1412,7 @@ export class launcher {
       }
       //console.log('done')
       this.durationOfLaunchTrajectory = t
+      this.launcherEvacuatedTubeLength = distanceTravelledWithinEvacuatedTube
       distanceTravelled += distanceTravelledWithinEvacuatedTube
       const totalLengthOfLaunchSystem = distanceTravelled
       distanceTravelled += distanceTravelledOutsideLaunchSystem
@@ -1203,23 +1435,17 @@ export class launcher {
         vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l1)
         evacuatedTubeCurveControlPoints.push(vehiclePosition)
       }
-      //this.launcherExitMarker3.position.copy(vehiclePosition)
+      //this.LaunchTrajectoryMarker3.position.copy(vehiclePosition)
 
       // Make a curve for the launch trajectory
-      this.launchTrajectoryCurve = new THREE.CatmullRomCurve3(launchTrajectoryCurveControlPoints)
+      this.launchTrajectoryCurve = new CatmullRomSuperCurve3(launchTrajectoryCurveControlPoints)
       this.launchTrajectoryCurveDuration = t
       this.launchTrajectoryCurve.curveType = 'centripetal'
       this.launchTrajectoryCurve.closed = false
       this.launchTrajectoryCurve.tension = 0
 
-      // Make a curve for the mass driver
-      this.massDriverCurve = new THREE.CatmullRomCurve3(massDriverCurveControlPoints)
-      this.massDriverCurve.curveType = 'centripetal'
-      this.massDriverCurve.closed = false
-      this.massDriverCurve.tension = 0
-
       // Make a curve for the suspended evacuated tube
-      this.evacuatedTubeCurve = new THREE.CatmullRomCurve3(evacuatedTubeCurveControlPoints)
+      this.evacuatedTubeCurve = new CatmullRomSuperCurve3(evacuatedTubeCurveControlPoints)
       this.evacuatedTubeCurve.curveType = 'centripetal'
       this.evacuatedTubeCurve.closed = false
       this.evacuatedTubeCurve.tension = 0
@@ -1257,6 +1483,16 @@ export class launcher {
       console.print("Total Length Of Launch System", Math.round(totalLengthOfLaunchSystem/1000), 'km')
       console.print('========================================')
 
+      if (genLauncherKMLFile) {
+        kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+        launchTrajectoryCurveControlPoints.forEach(point => {
+          const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
+          const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+          const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+          kmlFile = kmlFile.concat(coordString)
+        })
+        kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+      }
     }
 
     drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys) {
@@ -1514,6 +1750,8 @@ export class launcher {
   
       // Clear all of the "hasChanged" flags
       virtualMassDriverTube.hasChanged = false
+      virtualMassDriverRail.hasChanged = false
+      virtualMassDriverBracket.hasChanged = false
       virtualMassDriverScrew.hasChanged = false
       virtualLaunchVehicle.hasChanged = false
       virtualLaunchSled.hasChanged = false
