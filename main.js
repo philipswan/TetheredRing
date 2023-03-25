@@ -105,7 +105,7 @@ const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perf
 
 const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfPlanet + 32000)) * 180 / Math.PI
 
-const defaultShows = false // Set to false to reduce loading time
+const defaultShows = true // Set to false to reduce loading time
 // Hack - distort scale to better illustrate certain concepts
 // radiusOfPlanet = 637810
 // massOfPlanet = 5.97E+22
@@ -2469,128 +2469,42 @@ function onKeyDown( event ) {
       }
       console.log("Current Position Vectors\n%s", JSON.stringify(positionObject, null, 2))
       break
-    case 87: /*W*/
+      case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
       console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
 
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
 
-      // Over Seattle
-      // orbitControls.target.set(-3728615.36059678, 4702742.973959817, -2251613.4283880345)
-      // orbitControls.upDirection.set(-0.5816870725007586, 0.7336570090212697, -0.3512656299717662)
-      // orbitControls.object.position.set(-3728723.436685938, 4702649.491443358, -2251664.0418805806)
-      // camera.up.set(-0.5816870725007586, 0.7336570090212697, -0.3512656299717662)
-
-      // Near Launch Tube Exit  
-      // orbitControls.target.set(-959403.9186715716, -4131275.008171093, -4806261.304458168)
-      // orbitControls.upDirection.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
-      // orbitControls.object.position.set(-963233.9251227962, -4135157.2251201035, -4802567.211628173)
-      // camera.up.set(-0.1496731133449664, -0.6445051771451986, -0.7498073324359138)
-
-      // Near Launch Tube Exit  
-      // orbitControls.target.set(33178.768367661774, -4117699.478692944, -4912389.51831872)
-      // orbitControls.upDirection.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
-      // orbitControls.object.position.set(32229.08411921596, -4118140.307036758, -4912011.091366182)
-      // camera.up.set(0.005176093611151558, -0.642386653058475, -0.7663632272149147)
-
-      // Near new launch tube exit
-      // orbitControls.target.set(-762402.4534920481, -4143860.0024682847, -4830854.827077495)
-      // orbitControls.upDirection.set(-0.11895341748880593, -0.6463893266392364, -0.7536782621746554)
-      // orbitControls.object.position.set(-764756.7772352826, -4144669.4248090736, -4830602.053380188)
-      // camera.up.set(-0.11895341748880593, -0.6463893266392364, -0.7536782621746554)
-
-      // Position to view the upward ramp
-      // orbitControls.target.set(-527561.5001162894, -4133868.4714470366, -4837822.060135088)
+      // Near start of mass driver
+      // orbitControls.target = launchSystemObject.startOfMassDriverPosition
+      // orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
       // orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-      // orbitControls.object.position.set(-445793.4229041671, -4566057.259578699, -4687455.598761724)
       // camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
 
-      // High above launcher evacuated tube
-      // orbitControls.target.set(-447220.1842095446, -4261391.4374927515, -4815199.374994534)
-      // orbitControls.upDirection.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
-      // orbitControls.object.position.set(-299604.1322159651, -4444342.8380777, -4755515.292461898)
-      // camera.up.set(-0.10335806154864093, -0.646712533484324, -0.7556983592328319)
+      // Location of bug in mass driver screw (need to set nLimit to 500 as well)
+      // orbitControls.target.set(1552194.5865943027, -3779932.922417909, -4897240.98907675)
+      // orbitControls.upDirection.set(0.24336401900302615, -0.5926415580337122, -0.7678215534524079)
+      // orbitControls.object.position.set(1552214.725039794, -3779946.637422108, -4897234.0064508)
+      // camera.up.set(0.24336401900302615, -0.5926415580337122, -0.7678215534524079)
 
-      // Near Launch Tube Entrance
-      // orbitControls.target.set(1647190.8829419166, -3683942.7903694445, -4980181.980788017)
-      // orbitControls.upDirection.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
-      // orbitControls.object.position.set(1647910.788732048, -3683797.352299046, -4980117.875703896)
-      // camera.up.set(0.2569764437820993, -0.5747394570336154, -0.7769412229183174)
 
-      // Over Russia
-      // orbitControls.target.set(2658955.8695003525, 5083161.091401661, -2859960.6445000893)
-      // orbitControls.upDirection.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
-      // orbitControls.object.position.set(2658928.67289732, 5083188.169494178, -2860038.5902062203)
-      // camera.up.set(0.41481475047657973, 0.7930065109804368, -0.44617193583828985)
+      // orbitControls.target.set(-3763210.8232434946, 4673319.5670904, -2255256.723306473)
+      // orbitControls.upDirection.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
+      // orbitControls.object.position.set(-3764246.447379286, 4672428.630481427, -2255483.089866906)
+      // camera.up.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
 
-      // Over High-res Patch
-      // orbitControls.target.set(2647021.614830413, 5060338.43596699, -2847110.7651077993)
-      // orbitControls.upDirection.set(0.4148152673651506, 0.7930066114735066, -0.44617127666411416)
-      // orbitControls.object.position.set(2646996.0468927287, 5061104.575712552, -2846772.4153546905)
-      // camera.up.set(0.4148152673651506, 0.7930066114735066, -0.44617127666411416)
+      // orbitControls.target vector needs to be passed as a float to work correctly
+      let tempX = Number.parseFloat(guidParam['CameraPreset'].orbitTarget.X)
+      let tempY = Number.parseFloat(guidParam['CameraPreset'].orbitTarget.Y)
+      let tempZ = Number.parseFloat(guidParam['CameraPreset'].orbitTarget.Z)
 
-      // Over High-res Patch #2
-      // orbitControls.target.set(2554832.590936777, 5152448.654550519, -2830893.7908884706)
-      // orbitControls.upDirection.set(0.39856531989247806, 0.8038100847130886, -0.4416277091539255)
-      // orbitControls.object.position.set(2554619.6426276597, 5152618.678197268, -2830898.6575803543)
-      // camera.up.set(0.39856531989247806, 0.8038100847130886, -0.4416277091539255)      
+      // set camera position based on Camera Preset
+      orbitControls.target.set(tempX, tempY, tempZ)
+      orbitControls.upDirection.set(guidParam['CameraPreset'].orbitUpDirection.X,guidParam['CameraPreset'].orbitUpDirection.Y,guidParam['CameraPreset'].orbitUpDirection.Z)
+      orbitControls.object.position.set(guidParam['CameraPreset'].orbitObjectPosition.X,guidParam['CameraPreset'].orbitObjectPosition.Y,guidParam['CameraPreset'].orbitObjectPosition.Z)
+      camera.up.set(guidParam['CameraPreset'].cameraUp.X,guidParam['CameraPreset'].cameraUp.Y,guidParam['CameraPreset'].cameraUp.Z)
 
-      switch (flyToLocation) {
-      case 0:
-        // orbitControls.target.set(388343.52064642037, -4048661.8378679054, -4916254.112696809)
-        // orbitControls.upDirection.set(0.06086332132946655, -0.6345274089465096, -0.7705002423181807)
-        // orbitControls.object.position.set(388347.5747852647, -4048656.133809612, -4916263.880503781)
-        // camera.up.set(0.06086332132946655, -0.6345274089465096, -0.7705002423181807)
-
-        // orbitControls.target.set(388347.4202682493, -4048661.6349999458, -4916254.61403778)
-        // orbitControls.upDirection.set(0.06086379329991882, -0.6345267183273732, -0.7705007737788713)
-        // orbitControls.object.position.set(388349.22151263396, -4048661.506562397, -4916254.893385243)
-        // camera.up.set(0.06086379329991882, -0.6345267183273732, -0.7705007737788713)
-
-        orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
-        orbitControls.upDirection.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
-        orbitControls.object.position.set(462644.614909767, -4035553.341659306, -4920607.446758332)
-        camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
-        break
-      case 1:
-        // orbitControls.target.set(-3763210.8232434946, 4673319.5670904, -2255256.723306473)
-        // orbitControls.upDirection.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
-        // orbitControls.object.position.set(-3764246.447379286, 4672428.630481427, -2255483.089866906)
-        // camera.up.set(-0.5870824578788134, 0.7290700269983701, -0.351839570519814)
-
-        // Looking at the launcher's ramp
-        // orbitControls.target.set(488943.45105641714, -4051079.540584312, -4859619.360242842)
-        // orbitControls.upDirection.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
-        // orbitControls.object.position.set(759993.1799353235, -4498742.065301571, -4872138.743944233)
-        // camera.up.set(0.07363778873480939, -0.633275749135336, -0.7704150190821349)
-
-        // Looking at the sub-scale launcher's ramp
-        orbitControls.target.set(349677.24273683707, -4057686.393412026, -4908703.579518056)
-        orbitControls.upDirection.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
-        orbitControls.object.position.set(369112.7700758991, -4104989.2685997845, -4882750.221652073)
-        camera.up.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
-
-        // orbitControls.target.set(446763.699716048, -4000801.09104758, -4932696.0587857235)
-        // orbitControls.upDirection.set(0.06086379329991882, -0.6345267183273732, -0.7705007737788713)
-        // orbitControls.object.position.set(700100.6414826814, -4208111.980640555, -4905700.940803865)
-        // camera.up.set(0.06086379329991882, -0.6345267183273732, -0.7705007737788713)
-        break
-      case 2:
-        // Near start of mass driver
-        orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
-        orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
-        orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-        camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-
-        // Location of bug in mass driver screw (need to set nLimit to 500 as well)
-        // orbitControls.target.set(1552194.5865943027, -3779932.922417909, -4897240.98907675)
-        // orbitControls.upDirection.set(0.24336401900302615, -0.5926415580337122, -0.7678215534524079)
-        // orbitControls.object.position.set(1552214.725039794, -3779946.637422108, -4897234.0064508)
-        // camera.up.set(0.24336401900302615, -0.5926415580337122, -0.7678215534524079)
-        break
-      }
-      flyToLocation = (flyToLocation+1)%3
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       setOrbitControlsTargetUpVector()
       orbitControlsUpVector.copy(orbitControlsTargetUpVector.clone())
@@ -2606,6 +2520,50 @@ function onKeyDown( event ) {
       // }
       // updatedParam()
       // updateRing()
+      break;
+    case 78: /*N*/
+      // Previous "Warp To Location" Command (depricated)
+      // This executes and instantaneous "Warp" to a position much closer to the ring
+
+      // Print out the current location of the camera
+      console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
+
+      orbitControls.maxPolarAngle = Math.PI/2 + .1
+      orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
+
+      switch (flyToLocation) {
+      case 0:
+        orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
+        orbitControls.upDirection.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
+        orbitControls.object.position.set(462644.614909767, -4035553.341659306, -4920607.446758332)
+        camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
+        break
+      case 1:
+        // Looking at the sub-scale launcher's ramp
+        orbitControls.target.set(349677.24273683707, -4057686.393412026, -4908703.579518056)
+        orbitControls.upDirection.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
+        orbitControls.object.position.set(369112.7700758991, -4104989.2685997845, -4882750.221652073)
+        camera.up.set(0.05562888137174756, -0.6350298080432386, -0.7704820377230709)
+        break
+      case 2:
+        // Near start of mass driver
+        orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
+        orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
+        orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+        camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+        break
+      }
+      flyToLocation = (flyToLocation+1)%3
+
+      orbitControlsTargetPoint.copy(orbitControls.target.clone())
+      setOrbitControlsTargetUpVector()
+      orbitControlsUpVector.copy(orbitControlsTargetUpVector.clone())
+
+      toRingAlreadyTriggered = true
+      toPlanetAlreadyTriggered = false
+      orbitControlsTargetPoint.copy(orbitControls.target.clone())
+      orbitControlsTargetUpVector.copy(orbitControls.upDirection.clone())
+      orbitControls.update()
       break;
     case 88: /*X*/
       animateZoomingIn = false
