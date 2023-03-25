@@ -51,7 +51,7 @@ console.log(url)
 
 // Get the value of the "action" query parameter
 // To enable VR, add "?enableVR=true" to end of url. For example, http://localhost:5173/?enableVR=true
-const enableVR = url.searchParams.get("enableVR")
+const enableVR = (url.searchParams.get("enableVR")=="true")
 console.log(enableVR)
 
 let verbose = false
