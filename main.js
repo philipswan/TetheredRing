@@ -40,6 +40,9 @@ import * as Launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
 
+// load camera preset vectors from external file
+import cameraPresets from './cameraPresets.json'
+
 //import { makePlanetTexture } from './planetTexture.js'
 
 let verbose = false
@@ -82,6 +85,7 @@ const folderMaterials = gui.addFolder('Materials').close()
 const folderEconomics = gui.addFolder('Economics').close()
 const folderRendering = gui.addFolder('Rendering').close()
 const folderTextOutput = gui.addFolder('TextOutput').close()
+const folderCamera = gui.addFolder('Camera').close()
 
 const guiTextOutput = document.createElement( 'div' )
 guiTextOutput.classList.add( 'gui-stats' )
@@ -465,7 +469,6 @@ const guidParamWithUnits = {
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
   // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
-
 }
 
 function updatePerfOptimzation() {
@@ -514,9 +517,10 @@ const coilConductorMaterials = {
 
 guidParam['TetherMaterial'] = tetherMaterials.CarbonFiber
 guidParam['CoilConductorMaterial'] = coilConductorMaterials.Aluminum
-folderMaterials.add(guidParam, 'TetherMaterial', tetherMaterials ).onChange( updateTetherMaterial )
-folderMaterials.add(guidParam, 'CoilConductorMaterial', coilConductorMaterials ).onChange( updateCoilConductorMaterial )
-
+guidParam['CameraPreset'] = cameraPresets.Default
+folderMaterials.add(guidParam, 'TetherMaterial', tetherMaterials).onChange(updateTetherMaterial)
+folderMaterials.add(guidParam, 'CoilConductorMaterial', coilConductorMaterials ).onChange(updateCoilConductorMaterial)
+folderCamera.add(guidParam, 'CameraPreset', cameraPresets)
 
 // Add automapped sliders
 Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -2439,6 +2443,31 @@ function onKeyDown( event ) {
       break
     case 89: /*Y*/
       backgroundPatchMesh.lookAt(camera.position)
+      break
+    case 77: /*M*/
+      let positionObject = {
+        "orbitTarget":{
+          "X":orbitControls.target.x.toString(),
+          "Y":orbitControls.target.y.toString(),
+          "Z":orbitControls.target.z.toString()
+        },
+        "orbitUpDirection":{
+          "X":orbitControls.upDirection.x.toString(),
+          "Y":orbitControls.upDirection.y.toString(),
+          "Z":orbitControls.upDirection.z.toString()
+        },
+        "orbitObjectPosition":{
+          "X":orbitControls.object.position.x.toString(),
+          "Y":orbitControls.object.position.y.toString(),
+          "Z":orbitControls.object.position.z.toString()
+        },
+        "cameraUp":{
+          "X":camera.up.x.toString(),
+          "Y":camera.up.y.toString(),
+          "Z":camera.up.z.toString()
+        }
+      }
+      console.log("Current Position Vectors\n%s", JSON.stringify(positionObject, null, 2))
       break
     case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
