@@ -19,15 +19,15 @@ class SuperCurvePath extends SuperCurve {
 
 	}
 
-	add( curve ) {
+	add( superCurve ) {
 
-		this.superCurves.push( curve );
+		this.superCurves.push( superCurve );
 
 	}
 
 	closePath() {
 
-		// Add a line curve if start and end of lines are not connected
+		// Add a line superCurve if start and end of lines are not connected
 		const startPoint = this.superCurves[ 0 ].getPoint( 0 );
 		const endPoint = this.superCurves[ this.superCurves.length - 1 ].getPoint( 1 );
 
@@ -44,9 +44,9 @@ class SuperCurvePath extends SuperCurve {
 	// following has to be done:
 
 	// 1. Length of each sub path have to be known
-	// 2. Locate and identify type of curve
-	// 3. Get t for the curve
-	// 4. Return curve.getPointAt(t')
+	// 2. Locate and identify type of superCurve
+	// 3. Get t for the superCurve
+	// 4. Return superCurve.getPointAt(t')
 
 	getPoint( t, optionalTarget ) {
 
@@ -61,12 +61,12 @@ class SuperCurvePath extends SuperCurve {
 			if ( curveLengths[ i ] >= d ) {
 
 				const diff = curveLengths[ i ] - d;
-				const curve = this.superCurves[ i ];
+				const superCurve = this.superCurves[ i ];
 
-				const segmentLength = curve.getLength();
+				const segmentLength = superCurve.getLength();
 				const u = segmentLength === 0 ? 0 : 1 - diff / segmentLength;
 
-				return curve.getPointAt( u, optionalTarget );
+				return superCurve.getPointAt( u, optionalTarget );
 
 			}
 
@@ -113,7 +113,7 @@ class SuperCurvePath extends SuperCurve {
 
 		}
 
-		// Get length of sub-curve
+		// Get length of sub-superCurve
 		// Push sums into cached array
 
 		const lengths = [];
@@ -159,13 +159,13 @@ class SuperCurvePath extends SuperCurve {
 
 		for ( let i = 0, superCurves = this.superCurves; i < superCurves.length; i ++ ) {
 
-			const curve = superCurves[ i ];
-			const resolution = curve.isEllipseSuperCurve ? divisions * 2
-				: ( curve.isLineCurve || curve.isLineSuperCurve3 ) ? 1
-					: curve.isSplineSuperCurve ? divisions * curve.points.length
+			const superCurve = superCurves[ i ];
+			const resolution = superCurve.isEllipseSuperCurve ? divisions * 2
+				: ( superCurve.isLineCurve || superCurve.isLineSuperCurve3 ) ? 1
+					: superCurve.isSplineSuperCurve ? divisions * superCurve.points.length
 						: divisions;
 
-			const pts = curve.getPoints( resolution );
+			const pts = superCurve.getPoints( resolution );
 
 			for ( let j = 0; j < pts.length; j ++ ) {
 
@@ -198,9 +198,9 @@ class SuperCurvePath extends SuperCurve {
 
 		for ( let i = 0, l = source.superCurves.length; i < l; i ++ ) {
 
-			const curve = source.superCurves[ i ];
+			const superCurve = source.superCurves[ i ];
 
-			this.superCurves.push( curve.clone() );
+			this.superCurves.push( superCurve.clone() );
 
 		}
 
@@ -219,8 +219,8 @@ class SuperCurvePath extends SuperCurve {
 
 		for ( let i = 0, l = this.superCurves.length; i < l; i ++ ) {
 
-			const curve = this.superCurves[ i ];
-			data.superCurves.push( curve.toJSON() );
+			const superCurve = this.superCurves[ i ];
+			data.superCurves.push( superCurve.toJSON() );
 
 		}
 
@@ -237,8 +237,8 @@ class SuperCurvePath extends SuperCurve {
 
 		for ( let i = 0, l = json.superCurves.length; i < l; i ++ ) {
 
-			const curve = json.superCurves[ i ];
-			this.superCurves.push( new SuperCurves[ curve.type ]().fromJSON( curve ) );
+			const superCurve = json.superCurves[ i ];
+			this.superCurves.push( new SuperCurves[ superCurve.type ]().fromJSON( superCurve ) );
 
 		}
 
