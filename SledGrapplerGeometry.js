@@ -125,15 +125,15 @@ class SledGrapplerGeometry extends BufferGeometry {
                     innerThreadPitch[i] = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
                     outerThreadPitch[i] = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
 				}
-                //if (true || distanceFromTop<nearTopRange) {
                 if ((rotationsFrac[0] < angleRange2) || (rotationsFrac[0] > angleRange3)) {
-                    generateGrappler(gList, nearestThread, rotations, innerThreadPitch, outerThreadPitch)
+                    generateGrapplerMagneticPad(gList, nearestThread, rotations, innerThreadPitch, outerThreadPitch)
+					// generateGrapplerStruts
                 }
             }
             SledGrapplerGeometry.alreadyPrinted = true
 		}
 
-        function generateGrappler(g, nearestThread, rotations, innerThreadPitch, outerThreadPitch) {
+        function generateGrapplerMagneticPad(g, nearestThread, rotations, innerThreadPitch, outerThreadPitch) {
 
 			const l = vertices.length / 3
 			const vertexArray = []
@@ -146,6 +146,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 
 			for (let i = 0; i<2; i++) {
 				P = new Vector3(0, g[i], 0 );
+
 
 				const threadHalfOfCrossWidth = Math.min(threadThickness * Math.sqrt(outerThreadPitch[i]**2+1) / Math.abs(outerThreadPitch[i]), shaftRadius/2);
 				const threadBaseHalfAngle = Math.asin(threadHalfOfCrossWidth/shaftRadius);

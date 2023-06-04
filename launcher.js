@@ -35,6 +35,51 @@ class referenceFrame {
     this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
   }
 }
+
+class FacesGeometry extends THREE.BufferGeometry {
+  constructor(
+    inputVertices = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
+    inputIndices = [
+      0, 1, 2,
+      0, 2, 3,
+      0, 3, 1,
+      3, 2, 1]
+    ) {
+    super();
+    this.type = 'FacesGeometry';
+		this.parameters = {
+			inputVertices: inputVertices,
+			inputIndices: inputIndices
+		};
+
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    const indices = [];
+    for (let i = 0; i<inputIndices.length/3; i++) {
+      vertices.push(inputVertices[inputIndices[i*3+0]].x, inputVertices[inputIndices[i*3+0]].y, inputVertices[inputIndices[i*3+0]].z);
+      vertices.push(inputVertices[inputIndices[i*3+1]].x, inputVertices[inputIndices[i*3+1]].y, inputVertices[inputIndices[i*3+1]].z);
+      vertices.push(inputVertices[inputIndices[i*3+2]].x, inputVertices[inputIndices[i*3+2]].y, inputVertices[inputIndices[i*3+2]].z);
+      const normal = new THREE.Vector3().crossVectors(inputVertices[inputIndices[i*3+0]].clone().sub(inputVertices[inputIndices[i*3+1]]), inputVertices[inputIndices[i*3+0]].clone().sub(inputVertices[inputIndices[i*3+2]])).normalize();
+      normals.push(normal.x, normal.y, normal.z);
+      normals.push(normal.x, normal.y, normal.z);
+      normals.push(normal.x, normal.y, normal.z);
+      uvs.push(0, 0, 0, 0, 0, 0);
+      indices.push(i*3+0, i*3+1, i*3+2);
+    }
+    this.setIndex(indices);
+    this.setAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
+    this.setAttribute( 'normal', new THREE.Float32BufferAttribute( normals, 3 ) );
+    this.setAttribute( 'uv', new THREE.Float32BufferAttribute( uvs, 2 ) );
+  }
+  copy( source ) {
+		super.copy( source );
+		this.parameters = Object.assign( {}, source.parameters );
+		return this;
+	}
+
+}
+
 class launchVehicleModel {
   constructor(dParamWithUnits) {
     // Manually Create the Launch Vehicle
@@ -44,23 +89,49 @@ class launchVehicleModel {
     const radialSegments = 32
     const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     const noseConeLength = dParamWithUnits['launchVehicleNoseConeLength'].value
-    const engineLength = bodyLength * 1.5
+    const flameLength = bodyLength * 1.5
 
     // Create the vehicle's body
     const launchVehicleBodyGeometry = new THREE.CylinderGeometry(radius, radius, bodyLength, radialSegments, lengthSegments, false)
     launchVehicleBodyGeometry.name = "body"
     launchVehicleBodyGeometry.translate(0, bodyLength/2, 0)
     // Create the nose cone
-    const launchVehicleNoseConeGeometry = new THREE.CylinderGeometry(0, radius, noseConeLength, radialSegments, lengthSegments, true)
+    const launchVehicleNoseConeGeometry = new THREE.ConeGeometry(radius, noseConeLength, radialSegments, lengthSegments, true)
     launchVehicleNoseConeGeometry.name = "noseCone"
     launchVehicleNoseConeGeometry.translate(0, (bodyLength+noseConeLength)/2 + bodyLength/2, 0)
-    // Create the vehicle's engine
-    const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*.9, radius*0.4, engineLength, radialSegments, lengthSegments, false)
+    // Create the fins
+    const finLength = bodyLength * 0.5
+    const finThickness = 0.2
+    const finHeight = radius * 0.5
+    const finVertices = [
+      new THREE.Vector3(0, finLength, radius),   // Leading edge of fin
+      new THREE.Vector3(finThickness/2, 0.1, radius),  // Left trailing edge of fin
+      new THREE.Vector3(-finThickness/2, 0.1, radius),  // Right trailing edge of fin
+      new THREE.Vector3(0, 0, radius+finHeight)  // Back trailing edge of fin
+    ]
+    const finIndices = [
+      0, 1, 2,
+      0, 2, 3,
+      0, 3, 1,
+      3, 2, 1
+    ]
+    const launchVehicleFin0Geometry = new FacesGeometry(finVertices, finIndices)
+
+    launchVehicleFin0Geometry.name = "fin0"
+    const launchVehicleFin1Geometry = launchVehicleFin0Geometry.clone()
+    launchVehicleFin1Geometry.name = "fin1"
+    launchVehicleFin1Geometry.rotateY(Math.PI*2/3)
+    const launchVehicleFin2Geometry = launchVehicleFin0Geometry.clone()
+    launchVehicleFin2Geometry.name = "fin2"
+    launchVehicleFin2Geometry.rotateY(-Math.PI*2/3)
+
+    // Create the vehicle's flame
+    const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*.9, radius*0.4, flameLength, radialSegments, lengthSegments, false)
     launchVehicleFlameGeometry.name = "rocketEngine"
-    launchVehicleFlameGeometry.translate(0, -(bodyLength+engineLength)/2 + bodyLength/2, 0)
+    launchVehicleFlameGeometry.translate(0, -(bodyLength+flameLength)/2 + bodyLength/2, 0)
 
     // Merge the nosecone into the body
-    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleBodyGeometry, launchVehicleNoseConeGeometry])
+    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleBodyGeometry, launchVehicleNoseConeGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry])
 
     const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
     const launchVehicleFlameMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, emissive: 0xdfa0df, emissiveIntensity: 1.25, transparent: true, opacity: 0.5})
@@ -113,7 +184,7 @@ class launchSledModel {
 class virtualLaunchSled {
   constructor(timeLaunched, unallocatedModelsArray) {
     // The virtual vehicle has a position along the launch trajectory curve.
-    // 0 represents the begginning of the mass driver, 1 represents 't==launchTrajectoryCurveDuration'
+    // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
     this.timeLaunched = timeLaunched
     this.unallocatedModels = unallocatedModelsArray
   }
@@ -229,14 +300,14 @@ class virtualLaunchSled {
 class virtualLaunchVehicle {
   constructor(timeLaunched, unallocatedModelsArray) {
     // The virtual vehicle has a position along the launch trajectory curve.
-    // 0 represents the beginning of the mass driver, 1 represents 't==launchTrajectoryCurveDuration'
+    // 0 represents the beginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
     this.timeLaunched = timeLaunched
     this.unallocatedModels = unallocatedModelsArray
   }
 
   // The following properties are common to all virtual vehicles...
   static launchTrajectoryCurve
-  static launchTrajectoryCurveDuration
+  static durationOfLaunchTrajectory
   //static launchVehicleRelativePosition_r = []
   //static launchVehicleRelativePosition_y = []
   static currentEquivalentLatitude
@@ -244,9 +315,9 @@ class virtualLaunchVehicle {
   static isDynamic
   static hasChanged
 
-  static update(dParamWithUnits, launchTrajectoryCurve, launchTrajectoryCurveDuration, timeWithinMassDriver, curveUpTime, timeWithinEvacuatedTube) {
+  static update(dParamWithUnits, launchTrajectoryCurve, durationOfLaunchTrajectory, timeWithinMassDriver, curveUpTime, timeWithinEvacuatedTube) {
     virtualLaunchVehicle.launchTrajectoryCurve = launchTrajectoryCurve
-    virtualLaunchVehicle.launchTrajectoryCurveDuration = launchTrajectoryCurveDuration
+    virtualLaunchVehicle.durationOfLaunchTrajectory = durationOfLaunchTrajectory
     virtualLaunchVehicle.timeInsideLaunchSystem = timeWithinMassDriver + curveUpTime + timeWithinEvacuatedTube
     //const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
     //const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
@@ -263,7 +334,7 @@ class virtualLaunchVehicle {
 
   placeAndOrientModel(om, refFrame) {
     const deltaT = refFrame.timeSinceStart * virtualLaunchVehicle.slowDownPassageOfTime - this.timeLaunched
-    const modelsCurvePosition = deltaT / virtualLaunchVehicle.launchTrajectoryCurveDuration
+    const modelsCurvePosition = deltaT / virtualLaunchVehicle.durationOfLaunchTrajectory
     
     if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0)) {
       console.log("error!!!")
@@ -470,7 +541,7 @@ class massDriverScrewModel {
       launcherMassDriverScrewRevolutionsPerSecond,
       launcherMassDriverForwardAcceleration,
       modelRadialSegments)
-    const massDriverScrewMaterial = new THREE.MeshPhongMaterial() //( {map: massDriverScrewTexture})
+    const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
     const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterial)
 
     return massDriverScrewMesh
@@ -504,8 +575,8 @@ function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLen
     bodyLength,
     numGrapplers,
     additionalRotation)
-  const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f }) //( {map: massDriverScrewTexture})
-  //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({wireframe: false, color: 0xffffff }) //( {map: massDriverScrewTexture})
+  const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f})
+  //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({map: massDriverScrewTexture})
   return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
 }
 
@@ -857,7 +928,6 @@ export class launcher {
       this.LaunchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value
 
       this.launchTrajectoryCurve = null
-      this.launchTrajectoryCurveDuration = this.timeWithinMassDriver + this.curveUpTime + this.evacuatedTubeCurve + dParamWithUnits['launcherCoastTime'].value
       this.launchTrajectoryMesh = null
 
       this.numWedges = 1
@@ -872,15 +942,18 @@ export class launcher {
 
       this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
       // Next, create all of the virtual objects that will be placed along the launch trajectory curve
-      
+
+      // Hack
+      this.massDriverScrewTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
+
       // Add the virtual launch sleds and launch vehicles
       const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
       let t, n, wedgeIndex
       // Put all of the virtual launch vehicles into the same wedge for now
       wedgeIndex = 0
       const refFrame = this.refFrames[0]
-      // Hack - remove "&& (n<1)"
-      for (t = -.02, n = 0; (t<this.launchTrajectoryCurveDuration) && (n<1); t += tInc, n++) {
+      // Hack - remove "&& (n<150)"
+      for (t = -.02, n = 0; (t<this.durationOfLaunchTrajectory) && (n<150); t += tInc, n++) {
         refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
         refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
       }
@@ -935,9 +1008,6 @@ export class launcher {
 
       // ToDo: Since there's a one-to-one mapping between real and virtual components here, consider whether virtual components are really needed.
       
-      // Hack
-      //this.massDriverScrewTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
-
       wedgeIndex = 0
       n = dParamWithUnits['launcherMassDriverTubeNumModels'].value
       for (let i = 0; i < n; i++) {
@@ -1001,7 +1071,7 @@ export class launcher {
       virtualMassDriverScrew.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
       virtualLaunchSled.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.scene)
-      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.launchTrajectoryCurveDuration, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
+      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.durationOfLaunchTrajectory, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
       this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
 
@@ -1131,7 +1201,7 @@ export class launcher {
       
       // for (let launcherMassDriverExitVelocity = 100; launcherMassDriverExitVelocity<8000; launcherMassDriverExitVelocity+=100) {
       //   const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
-      //   const coe = this.OrbitalElements_from_StateVector(R0, V0)
+      //   const coe = this.orbitalElementsFromStateVector(R0, V0)
       //   const c = coe.semimajorAxis * coe.eccentricity
       //   const apogeeDistance = coe.semimajorAxis + c
       //   const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
@@ -1143,7 +1213,7 @@ export class launcher {
       // }
 
       const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
-      const coe = this.OrbitalElements_from_StateVector(R0, V0)
+      const coe = this.orbitalElementsFromStateVector(R0, V0)
       const c = coe.semimajorAxis * coe.eccentricity
       const apogeeDistance = coe.semimajorAxis + c
       const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
@@ -1411,7 +1481,7 @@ export class launcher {
         lastR = RV.R
       }
       //console.log('done')
-      this.durationOfLaunchTrajectory = t
+			this.durationOfLaunchTrajectory = t
       this.launcherEvacuatedTubeLength = distanceTravelledWithinEvacuatedTube
       distanceTravelled += distanceTravelledWithinEvacuatedTube
       const totalLengthOfLaunchSystem = distanceTravelled
@@ -1439,7 +1509,6 @@ export class launcher {
 
       // Make a curve for the launch trajectory
       this.launchTrajectoryCurve = new CatmullRomSuperCurve3(launchTrajectoryCurveControlPoints)
-      this.launchTrajectoryCurveDuration = t
       this.launchTrajectoryCurve.curveType = 'centripetal'
       this.launchTrajectoryCurve.closed = false
       this.launchTrajectoryCurve.tension = 0
@@ -1500,7 +1569,7 @@ export class launcher {
       let t = 0
       let prevVehiclePosition, currVehiclePosition
       
-      prevVehiclePosition = this.launchTrajectoryCurve.getPoint(t / this.launchTrajectoryCurveDuration)
+      prevVehiclePosition = this.launchTrajectoryCurve.getPoint(t / this.durationOfLaunchTrajectory)
       t += tStep
 
       const color = new THREE.Color()
@@ -1509,13 +1578,18 @@ export class launcher {
       
 
       for (; t < this.timeWithinMassDriver + dParamWithUnits['launcherCoastTime'].value; t+=tStep) {
-        currVehiclePosition = this.launchTrajectoryCurve.getPoint(t / this.launchTrajectoryCurveDuration)
+        currVehiclePosition = this.launchTrajectoryCurve.getPoint(t / this.durationOfLaunchTrajectory)
         launchTrajectoryPoints.push(prevVehiclePosition)
         launchTrajectoryPoints.push(currVehiclePosition)
         prevVehiclePosition = currVehiclePosition.clone()
         // This code adds major thick hash marks to the line every 60 seconds, and thin hash marks every 10 seconds.
-        color.setHSL(0.5 , 0.5, 1.0 * ((t%10==9) || (t%60==58)))
-        launchTrajectoryColors.push(color.r, color.g, color.b)
+				if ((t%10==9) || (t%60==58)) {
+	        color.setHSL(0.0 , 0.8, 0.7 )
+				}
+				else {
+					color.setHSL(0.35 , 0.8, 0.3 )
+				}
+				launchTrajectoryColors.push(color.r, color.g, color.b)
         launchTrajectoryColors.push(color.r, color.g, color.b)
       }
 
@@ -1965,8 +2039,7 @@ export class launcher {
         return RV
     }
 
-    OrbitalElements_from_StateVector(R, V)
-    {
+    orbitalElementsFromStateVector(R, V) {
       // This function computes the classical orbital elements (coe)
       // from the state vector (R,V) using Algorithm 4.1.
 
@@ -2051,7 +2124,7 @@ export class launcher {
         }
       }
       else {
-        cp = N.clone().cross(R)
+        const cp = N.clone().cross(R)
         if (cp.z >= 0) {
           TA = Math.acos(N.clone().dot(R)/n/r)
         }

@@ -594,34 +594,34 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   // Launcher Design Length
   const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
   const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
-  console.log('launcherMassDriverExitVelocity', launcherMassDriverExitVelocity)
+  //console.log('launcherMassDriverExitVelocity', launcherMassDriverExitVelocity)
 
   specs['launcherMassDriverLength'] = {value: launcher.launcherMassDriverLength, units: "m"}
-  console.log('launcherMassDriverLength', launcher.launcherMassDriverLength)
+  //console.log('launcherMassDriverLength', launcher.launcherMassDriverLength)
 
   specs['timeWithinMassDriver'] = {value: launcher.timeWithinMassDriver, units: "s"}
-  console.log('timeWithinMassDriver', launcher.timeWithinMassDriver)
+  //console.log('timeWithinMassDriver', launcher.timeWithinMassDriver)
   
   const timeWithinMassDriverMinutes = launcher.timeWithinMassDriver / 60
   specs['timeWithinMassDriverMinutes'] = {value: timeWithinMassDriverMinutes, units: "minutes"}
-  console.log('timeWithinMassDriverMinutes', timeWithinMassDriverMinutes)
+  //console.log('timeWithinMassDriverMinutes', timeWithinMassDriverMinutes)
 
   const launcherScrewRadius = dParamWithUnits['launcherScrewRadius'].value // m
   const launcherScrewToothRadius = dParamWithUnits['launcherScrewToothRadius'].value // m
   const launcherScrewRotationRate = dParamWithUnits['launcherScrewRotationRate'].value // rad/s
   const launcherScrewToothCircumference = 2 * Math.PI * launcherScrewToothRadius
   const launcherScrewToothSpeed = launcherScrewToothCircumference * launcherScrewRotationRate
-  console.log('launcherScrewToothSpeed', launcherScrewToothSpeed)
+  //console.log('launcherScrewToothSpeed', launcherScrewToothSpeed)
   specs['launcherScrewToothSpeed'] = {value: launcherScrewToothSpeed, units: "m/s"}
   // The GE-90 has a fan diameter of 3124 mm and a rotational speed of 3475 RPM. Their circumferential velocity is d·π·57.917 = 568 m/s
   const GE90TurboFanDiameter = 3.124 // m
   const GE90TurboFanRotationRate = 3475 // RPM
   const GE90TurboFanCircumferentialVelocity = GE90TurboFanDiameter * Math.PI * GE90TurboFanRotationRate / 60
   specs['GE90TurboFanCircumferentialVelocity'] = {value: GE90TurboFanCircumferentialVelocity, units: "m/s"}
-  console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
+  //console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
   
   const launcherScrewThreadPitchAtExit = launcherMassDriverExitVelocity / launcherScrewToothSpeed
-  console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
+  //console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
   //const launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value // m
   const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value // m
 
@@ -631,7 +631,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value // m/s
   const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
   const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
-  console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
+  //console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
   const launcherMassDriverExitAngleInRadians = launcherMassDriverExitAngleInDegrees * Math.PI / 180
   const R0_x = 0
   const R0_y = (crv.radiusOfPlanet + launcherMassDriverAltitude)
@@ -676,7 +676,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launchVehicleNonPayloadMass = dParamWithUnits['launchVehicleNonPayloadMass'].value // kg
 
   const launchSledAndVehicleTotalMass = launchSledEmptyMass + launchVehicleEmptyMass + launchVehiclePropellantMass + launchVehiclePayloadMass // kg
-  console.log('launchSledAndVehicleTotalMass', launchSledAndVehicleTotalMass)
+  //console.log('launchSledAndVehicleTotalMass', launchSledAndVehicleTotalMass)
   specs['launchSledAndVehicleTotalMass'] = {value: launchSledAndVehicleTotalMass, units: 'kg'}
   // Because most of the vehicle is needed to land at the destination, or because it is made from materials that we would need to ship anyway, we are classifying most of its mass as "mission payload", except for a small amount called "launchVehicleNonPayloadMass".
   // Propellant that is consumed during accent through the Earth's the atmosphere is not clasified as payload mass, but propelants reserved for maneuvering to and landing at the destination is.
@@ -699,48 +699,48 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   
   //const launchVehiclePropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value // kg/s
   const launchSledDriveForce = launchSledAndVehicleTotalMass * launcherMassDriverForwardAcceleration
-  console.log('launchSledDriveForce', launchSledDriveForce)
+  //console.log('launchSledDriveForce', launchSledDriveForce)
   specs['launchSledDriveForce'] = {value: launchSledDriveForce, units: 'N'}
   const numScrews = 2  // 2 counter-rotating screws per launch tube
   const launchSledSidewaysForceAtExit = launchSledDriveForce * launcherScrewThreadPitchAtExit / numScrews
   specs['launchSledSidewaysForceAtExit'] = {value: launchSledSidewaysForceAtExit, units: 'N'}
-  console.log('launchSledSidewaysForceAtExit', launchSledSidewaysForceAtExit)
+  //console.log('launchSledSidewaysForceAtExit', launchSledSidewaysForceAtExit)
   const tensileStrengthOfCarbonFiberStrut = 3500000000 // Pa
   const crossSectionalAreaOfCarbonFiberStrut = launchSledSidewaysForceAtExit / tensileStrengthOfCarbonFiberStrut
   const diameterOfCarbonFiberStrut = 2 * Math.sqrt(crossSectionalAreaOfCarbonFiberStrut/Math.PI)
   specs['diameterOfCarbonFiberStrut'] = {value: diameterOfCarbonFiberStrut, units: 'm'}
-  console.log('diameterOfCarbonFiberStrut', diameterOfCarbonFiberStrut)
+  //console.log('diameterOfCarbonFiberStrut', diameterOfCarbonFiberStrut)
 
   const permeabilityOfFreeSpace = dParamWithUnits['permeabilityOfFreeSpace'].value // H/m
   const launchSledAMBMaxMagneticFluxDensity = dParamWithUnits['launchSledAMBMaxMagneticFluxDensity'].value // T 
   const launchSledAMBMagneticFluxDensityPortion = dParamWithUnits['launchSledAMBMagneticFluxDensityPortion'].value // T 
   const launchSledAMBAverageMagneticFluxDensity = launchSledAMBMaxMagneticFluxDensity * launchSledAMBMagneticFluxDensityPortion
   specs['launchSledAMBAverageMagneticFluxDensity'] = {value: launchSledAMBAverageMagneticFluxDensity, units: 'T'}
-  console.log('launchSledAMBAverageMagneticFluxDensity', launchSledAMBAverageMagneticFluxDensity)
+  //console.log('launchSledAMBAverageMagneticFluxDensity', launchSledAMBAverageMagneticFluxDensity)
 
   const launchVehicleAreaOfAirgap = launchSledSidewaysForceAtExit * permeabilityOfFreeSpace / launchSledAMBAverageMagneticFluxDensity**2
   specs['launchVehicleAreaOfAirgap'] = {value: launchVehicleAreaOfAirgap, units: 'm^2'}
-  console.log('launchVehicleAreaOfAirgap', launchVehicleAreaOfAirgap)
+  //console.log('launchVehicleAreaOfAirgap', launchVehicleAreaOfAirgap)
 
   const launcherScrewToothContactPatchWidth = dParamWithUnits['launcherScrewToothContactPatchWidth'].value // m
   const launcherScrewToothContactPatchLength = launchVehicleAreaOfAirgap / launcherScrewToothContactPatchWidth
   specs['launcherScrewToothContactPatchLength'] = {value: launcherScrewToothContactPatchLength, units: 'm'}
-  console.log('launcherScrewToothContactPatchLength', launcherScrewToothContactPatchLength)
+  //console.log('launcherScrewToothContactPatchLength', launcherScrewToothContactPatchLength)
 
   const threadTurnsOverCouplingPatchLength = launcherScrewToothContactPatchLength / launcherScrewThreadPitchAtExit / (2 * launcherScrewToothRadius * Math.PI)
   specs['threadTurnsOverCouplingPatchLength'] = {value: threadTurnsOverCouplingPatchLength, units: 'turns'}
-  console.log('threadTurnsOverCouplingPatchLength', threadTurnsOverCouplingPatchLength)
+  //console.log('threadTurnsOverCouplingPatchLength', threadTurnsOverCouplingPatchLength)
 
   const launchSledBodyLength = launcherScrewToothContactPatchLength
 
   const launchSledSidewaysForcePerMeterOfScrewAtExit = launchSledSidewaysForceAtExit / launchSledBodyLength
   specs['launchSledSidewaysForcePerMeterOfScrewAtExit'] = {value: launchSledSidewaysForcePerMeterOfScrewAtExit, units: 'N'}
-  console.log('launchSledSidewaysForcePerMeterOfScrewAtExit', launchSledSidewaysForcePerMeterOfScrewAtExit)
+  //console.log('launchSledSidewaysForcePerMeterOfScrewAtExit', launchSledSidewaysForcePerMeterOfScrewAtExit)
 
   // The flywheelDecelerationTime is the time that the vehicle's body is adjacent to the flywheel
   const flywheelDecelerationTimeAtExit = launchSledBodyLength / launcherMassDriverExitVelocity
   specs['flywheelDecelerationTimeAtExit'] = {value: flywheelDecelerationTimeAtExit, units: 's'}
-  console.log('flywheelDecelerationTimeAtExit', flywheelDecelerationTimeAtExit)
+  //console.log('flywheelDecelerationTimeAtExit', flywheelDecelerationTimeAtExit)
 
   //const launcherFlywheelMassPerMeter = dParamWithUnits['launcherFlywheelMassPerMeter'].value // kg/m
   const launcherFlywheelRadius = dParamWithUnits['launcherFlywheelRadius'].value // m  (This is the distance to the center of the rim, probably would be better to use moments of inertia here...)
@@ -749,24 +749,24 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherFlywheelMassPerMeter = 2 * Math.PI * launcherFlywheelRadius * launcherFlywheelThickness * launcherFlywheelDensity
   // ToDo: this math could be improved by using more accurate formulas for flywheel engineering
   specs['launcherFlywheelMassPerMeter'] = {value: launcherFlywheelMassPerMeter, units: 'kg/m'}
-  console.log('launcherFlywheelMassPerMeter', launcherFlywheelMassPerMeter)
+  //console.log('launcherFlywheelMassPerMeter', launcherFlywheelMassPerMeter)
   const flywheelToThreadRadiusRatio = launcherFlywheelRadius / launcherScrewToothRadius
   const flywheelDecelerationRateAtExit = launchSledSidewaysForcePerMeterOfScrewAtExit / flywheelToThreadRadiusRatio / launcherFlywheelMassPerMeter  // m/s^2
   specs['flywheelDecelerationRateAtExit'] = {value: flywheelDecelerationRateAtExit, units: 'm/s2'}
-  console.log('flywheelDecelerationRateAtExit', flywheelDecelerationRateAtExit)
+  //console.log('flywheelDecelerationRateAtExit', flywheelDecelerationRateAtExit)
     
   const flywheelInitialRelativeRimSpeed = flywheelDecelerationRateAtExit * flywheelDecelerationTimeAtExit
   specs['flywheelInitialRelativeRimSpeed'] = {value: flywheelInitialRelativeRimSpeed, units: 'm/s'}
-  console.log('flywheelInitialRelativeRimSpeed', flywheelInitialRelativeRimSpeed)
+  //console.log('flywheelInitialRelativeRimSpeed', flywheelInitialRelativeRimSpeed)
 
   const flywheelInitialRelativeRotationRate = flywheelInitialRelativeRimSpeed / (2 * launcherFlywheelRadius * Math.PI)
   specs['flywheelInitialRelativeRotationRate'] = {value: flywheelInitialRelativeRotationRate, units: 's-1'}
-  console.log('flywheelInitialRelativeRotationRate', flywheelInitialRelativeRotationRate)
+  //console.log('flywheelInitialRelativeRotationRate', flywheelInitialRelativeRotationRate)
 
   const flywheelFinalAbsoluteRimSpeed = launcherScrewToothSpeed / launcherScrewToothRadius * launcherFlywheelRadius
   const flywheelInitialAbsoluteRimSpeed = flywheelFinalAbsoluteRimSpeed + flywheelInitialRelativeRimSpeed
   const flywheelKineticEnergyChangePerMeterOfScrewAtExit = 0.5 * launcherFlywheelMassPerMeter * (flywheelInitialAbsoluteRimSpeed**2 - flywheelFinalAbsoluteRimSpeed**2)
-  console.log('flywheelKineticEnergyChangePerMeterOfScrewAtExit', flywheelKineticEnergyChangePerMeterOfScrewAtExit)
+  //console.log('flywheelKineticEnergyChangePerMeterOfScrewAtExit', flywheelKineticEnergyChangePerMeterOfScrewAtExit)
   specs['flywheelKineticEnergyChangePerMeterOfScrewAtExit'] = {value:flywheelKineticEnergyChangePerMeterOfScrewAtExit, units: 'J'}
   
   // Eddy Current Power Losses
@@ -778,7 +778,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const materialDensity = 7650  // kg/m3
   const launcherEddyCurrentPowerLossesPerKg = 2 * (Math.PI * peakMagneticField * thicknessOfSheet * frequencyOfField)**2 / (6 * constantK * materialResistivity * materialDensity)
   specs['launcherEddyCurrentPowerLossesPerKg'] = {value: launcherEddyCurrentPowerLossesPerKg, units: 'W'}
-  console.log('launcherEddyCurrentPowerLossesPerKg', launcherEddyCurrentPowerLossesPerKg)
+  //console.log('launcherEddyCurrentPowerLossesPerKg', launcherEddyCurrentPowerLossesPerKg)
 
   // Per kg Energy Costs
   const kineticEnergyPerKilogram = 0.5 * launcherMassDriverExitVelocity**2
@@ -786,12 +786,12 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
   const launcherEnergyCostPerKilogram = kineticEnergyPerKilogram * launchSledAndVehicleTotalMass * wholesaleCostOfElectricity / launchVehicleClassifiedAsPayloadMass / launcherEfficiency
   specs['launcherEnergyCostPerKilogram'] = {value: launcherEnergyCostPerKilogram, units: 'USD/kg'}
-  console.log('launcherEnergyCostPerKilogram', launcherEnergyCostPerKilogram)
+  //console.log('launcherEnergyCostPerKilogram', launcherEnergyCostPerKilogram)
 
   // Per kg Total Costs
   const launcherTotalCostPerKilogram = launcherEnergyCostPerKilogram + propellantCostPerKgOfPayload
   specs['launcherTotalCostPerKilogram'] = {value: launcherTotalCostPerKilogram, units: 'USD/kg'}
-  console.log('launcherTotalCostPerKilogram', launcherTotalCostPerKilogram)
+  //console.log('launcherTotalCostPerKilogram', launcherTotalCostPerKilogram)
 
   const costOfSteel = dParamWithUnits['costOfSteel'].value
   const costOfConcrete = dParamWithUnits['costOfConcrete'].value
@@ -826,57 +826,57 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverSteelMassPerMeter = launcherConcreteTubeJacketMassPerMeter + launcherBracketsMassPerMeter + launcherRailsMassPerMeter + launcherScrewsMassPerMeter + launcherTorqueConvertorsMassPerMeter
   const launcherMassDriverSteelCost = launcherConcreteTubeVolumePerMeter * costOfSteel * launcher.launcherMassDriverLength
   specs['launcherMassDriverSteelCost'] = {value: launcherMassDriverSteelCost/1e6, units: 'M USD'}
-  console.log('launcherMassDriverSteelCost', launcherMassDriverSteelCost/1e6, 'M USD')
+  //console.log('launcherMassDriverSteelCost', launcherMassDriverSteelCost/1e6, 'M USD')
 
   // Mass Driver Motors
   const launcherMassDriverMotorsCost = launcherMotorCost * launcherMotorsPerMeter * launcher.launcherMassDriverLength
   specs['launcherMassDriverMotorsCost'] = {value: launcherMassDriverMotorsCost/1e6, units: 'M USD'}
-  console.log('launcherMassDriverMotorsCost', launcherMassDriverMotorsCost/1e6, 'M USD')
+  //console.log('launcherMassDriverMotorsCost', launcherMassDriverMotorsCost/1e6, 'M USD')
 
   // Mass Driver Vacuum Pumps
   const launcherMassDriverVacuumPumpsCost = launcherVacuumPumpCost * launcherVacuumPumpsPerMeter * launcher.launcherMassDriverLength
   specs['launcherMassDriverVacuumPumpsCost'] = {value: launcherMassDriverVacuumPumpsCost/1e6, units: 'M USD'}
-  console.log('launcherMassDriverVacuumPumpsCost', launcherMassDriverVacuumPumpsCost/1e6, 'M USD')
+  //console.log('launcherMassDriverVacuumPumpsCost', launcherMassDriverVacuumPumpsCost/1e6, 'M USD')
 
   // Mass Driver Concrete Tube
   const launcherMassDriverConcreteTubeVolume = launcherConcreteTubeVolumePerMeter * launcher.launcherMassDriverLength
   const launcherMassDriverConcreteTubeMass = launcherMassDriverConcreteTubeVolume * densityOfConcrete
   const launcherMassDriverConcreteTubeCost = launcherMassDriverConcreteTubeMass * costOfConcrete
   specs['launcherMassDriverConcreteTubeCost'] = {value: launcherMassDriverConcreteTubeCost/1e6, units: 'M USD'}
-  console.log('launcherMassDriverConcreteTubeCost', launcherMassDriverConcreteTubeCost/1e6, 'M USD')
+  //console.log('launcherMassDriverConcreteTubeCost', launcherMassDriverConcreteTubeCost/1e6, 'M USD')
 
   // Ramp Steel Mass
   const launcherRampSteelMassPerMeter = launcherConcreteTubeJacketMassPerMeter + launcherBracketsMassPerMeter + launcherRailsMassPerMeter
   const launcherRampSteelCost = launcherRampSteelMassPerMeter * costOfSteel * launcher.launcherRampLength
   specs['launcherRampSteelCost'] = {value: launcherRampSteelCost/1e6, units: 'M USD'}
-  console.log('launcherRampSteelCost', launcherRampSteelCost/1e6, 'M USD')
+  //console.log('launcherRampSteelCost', launcherRampSteelCost/1e6, 'M USD')
 
   // Ramp Vacuum Pumps
   const launcherRampVacuumPumpsCost = launcherVacuumPumpCost * launcherVacuumPumpsPerMeter * launcher.launcherRampLength
   specs['launcherRampVacuumPumpsCost'] = {value: launcherRampVacuumPumpsCost/1e6, units: 'M USD'}
-  console.log('launcherRampVacuumPumpsCost', launcherRampVacuumPumpsCost/1e6, 'M USD')
+  //console.log('launcherRampVacuumPumpsCost', launcherRampVacuumPumpsCost/1e6, 'M USD')
 
   // Ramp Concrete Tube
   const launcherRampConcreteTubeVolume = launcherConcreteTubeVolumePerMeter * launcher.launcherRampLength
   const launcherRampConcreteTubeMass = launcherRampConcreteTubeVolume * densityOfConcrete
   const launcherRampConcreteTubeCost = launcherRampConcreteTubeMass * costOfConcrete
   specs['launcherRampConcreteTubeCost'] = {value: launcherRampConcreteTubeCost/1e6, units: 'M USD'}
-  console.log('launcherRampConcreteTubeCost', launcherRampConcreteTubeCost/1e6, 'M USD')
+  //console.log('launcherRampConcreteTubeCost', launcherRampConcreteTubeCost/1e6, 'M USD')
 
   // Suspended Evacuated Tube
   const launcherSuspendedTubeMassPerMeter = dParamWithUnits['launcherSuspendedTubeMassPerMeter'].value // kg/m
   const capitalCostPerKgSupported = (specs.hasOwnProperty('capitalCostPerKgSupported')) ? specs['capitalCostPerKgSupported'].value: dParamWithUnits['defaultcapitalCostPerKgSupported'].value
-  console.log('capitalCostPerKgSupported', capitalCostPerKgSupported)
+  //console.log('capitalCostPerKgSupported', capitalCostPerKgSupported)
   const launcherSuspendedTubeCost = launcherSuspendedTubeMassPerMeter * (costOfAluminum + capitalCostPerKgSupported) * launcher.launcherEvacuatedTubeLength
   specs['launcherSuspendedTubeCost'] = {value: launcherSuspendedTubeCost/1e6, units: 'M USD'}
-  console.log('launcherSuspendedTubeCost', launcherSuspendedTubeCost/1e6, 'M USD')
+  //console.log('launcherSuspendedTubeCost', launcherSuspendedTubeCost/1e6, 'M USD')
 
   // Suspended Evacuated Tube Vacuum Pumps
   const launcherEvacuatedTubeVacuumPumpsCost = launcherVacuumPumpCost * launcherVacuumPumpsPerMeter * launcher.launcherEvacuatedTubeLength
 
   const launcherFactoryCost = dParamWithUnits['launcherFactoryCost'].value
   specs['launcherFactoryCost'] = {value: launcherFactoryCost/1e6, units: 'M USD'}
-  console.log('launcherFactoryCost', launcherFactoryCost/1e6, 'M USD')
+  //console.log('launcherFactoryCost', launcherFactoryCost/1e6, 'M USD')
 
   const launcherSteelCost = launcherMassDriverSteelCost + launcherRampSteelCost
   const launcherMotorsCost = launcherMassDriverMotorsCost
@@ -886,13 +886,13 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverCost = launcherMassDriverSteelCost + launcherMassDriverConcreteTubeCost + launcherMassDriverMotorsCost + launcherMassDriverVacuumPumpsCost
   const launcherRampCost = launcherRampSteelCost + launcherRampConcreteTubeCost + launcherRampVacuumPumpsCost
   const launcherEvacuatedTubeCost = launcherSuspendedTubeCost + launcherEvacuatedTubeVacuumPumpsCost
-  console.log('launcherMassDriverCost', launcherMassDriverCost/1e6, 'M USD')
-  console.log('launcherRampCost ', launcherRampCost/1e6, 'M USD')
-  console.log('launcherEvacuatedTubeCost', launcherEvacuatedTubeCost/1e6, 'M USD')
+  //console.log('launcherMassDriverCost', launcherMassDriverCost/1e6, 'M USD')
+  //console.log('launcherRampCost ', launcherRampCost/1e6, 'M USD')
+  //console.log('launcherEvacuatedTubeCost', launcherEvacuatedTubeCost/1e6, 'M USD')
 
   const launcherTotalCost = launcherSteelCost + launcherMotorsCost + launcherVacuumPumpsCost + launcherConcreteTubeCost + launcherSuspendedTubeCost + launcherFactoryCost
   specs['launcherTotalCost'] = {value: launcherTotalCost/1e6, units: 'M USD'}
-  console.log('launcherTotalCost', launcherTotalCost/1e6, 'M USD')
+  //console.log('launcherTotalCost', launcherTotalCost/1e6, 'M USD')
 
 }
 

@@ -1,6 +1,18 @@
 import * as THREE from 'three'
+
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import { referenceFrame } from './ReferenceFrame.js'
+import { virtualSolarArray } from './SolarArray.js'
+import { virtualTransitTubeSegment } from './TransitTubeSegment.js'
+import { virtualTransitVehicle } from './TransitVehicle.js'
+import { virtualRingTerminus } from './RingTerminus.js'
+import { virtualGroundTerminus } from './GroundTerminus.js'
+import { virtualElevatorCar } from './ElevatorCar.js'
+import { virtualHabitat } from './Habitat.js'
+import { virtualStationaryRingSegment } from './StationaryRingSegment.js'
+import { virtualMovingRingSegment } from './MovingRingSegment.js'
+import { virtualElevatorCable } from './ElevatorCable.js'
 
 // C:\Users\phils\Documents\repos\Three.js\TetheredRing\node_modules\three\examples\jsm\loaders
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
@@ -9,589 +21,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 
 import * as tram from './tram.js'
 import { dynamicallyManagedObject } from './dynamicallyManagedObject.js'
-
-class referenceFrame {
-  constructor(numWedges, v, direction, trackIndex) {
-    this.p = 0
-    this.v = v
-    this.direction = direction
-    this.trackIndex = trackIndex
-    this.startWedgeIndex = -1
-    this.finishWedgeIndex = -1
-    this.prevStartWedgeIndex = -1
-    this.prevFinishWedgeIndex = -1
-    // In each frame-of-reference, create an array of wedges. In each wedge, create an empty array for storing virtual transit vehicles
-    const makePlaceHolderEntry = () => ({
-      'virtualTransitVehicles': [],
-      'virtualRingTerminuses': [],
-      'virtualGroundTerminuses': [],
-      'virtualHabitats': [],
-      'virtualElevatorCars': [],
-      'virtualStationaryRings': [],
-      'virtualMovingRings': [],
-      'virtualTransitTubes': [],
-      'dynamicallyManagedObjects': [],
-      //'virtualLaunchTubes': [],
-      'virtualElevatorCables': [],
-    })
-    this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
-
-  }
-}
-
-class virtualTransitVehicle {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    // The virtual vehicle has a position around the ring, a transitTubeLevel, and an innerOuterTrackFactor
-    // A 0 indicates the lower level, and a 1 indicates the upper level
-    // A 0 indicates the inner track and a 1 indicates the outer track. Values between 0 and 1 indicate that the vehicle is changing tracks.
-    // Distance around the track is a value from 0 to 2*PI
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-    // level
-    // innerOuterTrackFactor
-    // distanceAroundTrack
-    // speed
-    // accelleration
-    // position
-    // modelIndex
-  }
-
-  // The following properties are common to all virtual vehicles...
-  static mainRingCurve
-  static transitVehicleRelativePosition_r = []
-  static transitVehicleRelativePosition_y = []
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, trackOffsetsList, crv, mainRingCurve) {
-    virtualTransitVehicle.mainRingCurve = mainRingCurve
-    for (let trackIndex = 0; trackIndex<trackOffsetsList.length; trackIndex++) {
-      const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[trackIndex][0]
-      const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value + trackOffsetsList[trackIndex][1] + dParamWithUnits['transitVehicleUpwardOffset'].value  // Last is half of the track height
-      virtualTransitVehicle.transitVehicleRelativePosition_r[trackIndex] = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-      virtualTransitVehicle.transitVehicleRelativePosition_y[trackIndex]  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-    }
-    virtualTransitVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualTransitVehicle.isVisible = dParamWithUnits['showTransitVehicles'].value
-    virtualTransitVehicle.isDynamic =  true
-    virtualTransitVehicle.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const trackIndex = refFrame.trackIndex
-      const r1 = virtualTransitVehicle.transitVehicleRelativePosition_r[trackIndex]
-      const y1 = virtualTransitVehicle.transitVehicleRelativePosition_y[trackIndex]
-      const pointOnRingCurve = virtualTransitVehicle.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + r1 * Math.cos(angle),
-        pointOnRingCurve.y + y1,
-        pointOnRingCurve.z + r1 * Math.sin(angle) )
-      om.rotation.set(0, -angle, virtualTransitVehicle.currentEquivalentLatitude)
-      if (refFrame.direction===-1) {
-        om.rotateX(Math.PI)
-      }
-      om.visible = virtualTransitVehicle.isVisible
-      om.matrixValid = false
-    }
-  }
-}
-
-class virtualRingTerminus {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual ringTerminuses...
-  static mainRingCurve
-  static ringTerminusRelativePosition_r
-  static ringTerminusRelativePosition_y
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualRingTerminus.mainRingCurve = mainRingCurve
-    const ringTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['ringTerminusOutwardOffset'].value
-    const ringTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value
-    virtualRingTerminus.ringTerminusRelativePosition_r = tram.offset_r(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualRingTerminus.ringTerminusRelativePosition_y = tram.offset_y(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualRingTerminus.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualRingTerminus.isVisible = dParamWithUnits['showRingTerminuses'].value
-    virtualRingTerminus.isDynamic =  false
-    virtualRingTerminus.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualRingTerminus.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualRingTerminus.ringTerminusRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualRingTerminus.ringTerminusRelativePosition_y,
-        pointOnRingCurve.z + virtualRingTerminus.ringTerminusRelativePosition_r * Math.sin(angle) )
-      om.rotation.set(0, -angle, virtualRingTerminus.currentEquivalentLatitude)
-      om.rotateZ(-Math.PI/2)
-      om.rotateY(-Math.PI/2)
-      om.visible = virtualRingTerminus.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-
-class virtualGroundTerminus {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual groundTerminuses...
-  static mainRingCurve
-  static groundTerminusRelativePosition_r
-  static groundTerminusRelativePosition_y
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualGroundTerminus.mainRingCurve = mainRingCurve
-    const groundTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['groundTerminusOutwardOffset'].value
-    const groundTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['groundTerminusUpwardOffset'].value - crv.currentMainRingAltitude
-    virtualGroundTerminus.groundTerminusRelativePosition_r = tram.offset_r(groundTerminusOutwardOffset, groundTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualGroundTerminus.groundTerminusRelativePosition_y = tram.offset_y(groundTerminusOutwardOffset, groundTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualGroundTerminus.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualGroundTerminus.isVisible = dParamWithUnits['showGroundTerminuses'].value
-    virtualGroundTerminus.isDynamic =  false
-    virtualGroundTerminus.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualGroundTerminus.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualGroundTerminus.groundTerminusRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualGroundTerminus.groundTerminusRelativePosition_y,
-        pointOnRingCurve.z + virtualGroundTerminus.groundTerminusRelativePosition_r * Math.sin(angle) )
-      om.rotation.set(0, -angle, virtualGroundTerminus.currentEquivalentLatitude)
-      om.rotateZ(-Math.PI/2)
-      om.rotateY(-Math.PI/2)
-      om.visible = virtualGroundTerminus.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-
-
-class virtualElevatorCar {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual elevators...
-  static mainRingCurve
-  static elevatorCarOutwardOffset
-  static elevatorCarUpwardOffset
-  static elevatorCarForwardOffset
-  static elevatorCarPosition_dr
-  static elevatorCarPosition_dy
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualElevatorCar.mainRingCurve = mainRingCurve
-    virtualElevatorCar.elevatorCarOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
-    virtualElevatorCar.elevatorCarUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value
-    virtualElevatorCar.elevatorCarForwardOffset = dParamWithUnits['elevatorCableForwardOffset'].value
-    virtualElevatorCar.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualElevatorCar.elevatorCarRotZ = crv.currentEquivalentLatitude - Math.PI/2
-    virtualElevatorCar.isVisible = dParamWithUnits['showElevatorCars'].value
-    virtualElevatorCar.isDynamic =  true
-    virtualElevatorCar.hasChanged = true
-  }
-
-  static animate(elevatorAltitude, crv) {
-    virtualElevatorCar.elevatorCarPosition_dr = tram.offset_r(virtualElevatorCar.elevatorCarOutwardOffset, virtualElevatorCar.elevatorCarUpwardOffset + elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    virtualElevatorCar.elevatorCarPosition_dy = tram.offset_y(virtualElevatorCar.elevatorCarOutwardOffset, virtualElevatorCar.elevatorCarUpwardOffset + elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualElevatorCar.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualElevatorCar.elevatorCarPosition_dr * Math.cos(angle) + virtualElevatorCar.elevatorCarForwardOffset * -Math.sin(angle),
-        pointOnRingCurve.y + virtualElevatorCar.elevatorCarPosition_dy,
-        pointOnRingCurve.z + virtualElevatorCar.elevatorCarPosition_dr * Math.sin(angle) + virtualElevatorCar.elevatorCarForwardOffset * Math.cos(angle))
-      //console.log('Car ' + virtualElevatorCar.elevatorCableForwardOffset)
-      om.rotation.set(0, -angle, virtualElevatorCar.elevatorCarRotZ)
-      //om.rotateY(-Math.PI)
-      om.visible = virtualElevatorCar.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-
-}
-
-class virtualHabitat {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual habitats...
-  static mainRingCurve
-  static habitatRelativePosition_r
-  static habitatRelativePosition_y
-  static habitatOutwardOffset
-  static habitatUpwardOffset
-  static habitatForwardOffset
-  static currentEquivalentLatitude
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualHabitat.mainRingCurve = mainRingCurve
-    const ringTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['ringTerminusOutwardOffset'].value
-    const ringTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value
-    virtualHabitat.habitatOutwardOffset = dParamWithUnits['habitatOutwardOffset'].value
-    virtualHabitat.habitatUpwardOffset = dParamWithUnits['habitatUpwardOffset'].value
-    virtualHabitat.habitatForwardOffset = dParamWithUnits['habitatForwardOffset'].value
-    virtualHabitat.habitatRelativePosition_r = tram.offset_r(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualHabitat.habitatRelativePosition_y = tram.offset_y(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
-    virtualHabitat.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualHabitat.isVisible = dParamWithUnits['showHabitats'].value
-    virtualHabitat.isDynamic =  false
-    virtualHabitat.hasChanged = true
-  }
-
-  // static update(dParamWithUnits, crv, mainRingCurve) {
-  //   virtualHabitat.mainRingCurve = mainRingCurve 
-  //   virtualHabitat.habitatRelativePosition_r = tram.offset_r(habitatOutwardOffset, habitatUpwardOffset, crv.currentEquivalentLatitude)
-  //   virtualHabitat.habitatRelativePosition_y = tram.offset_y(habitatOutwardOffset, habitatUpwardOffset, crv.currentEquivalentLatitude)
-  //   virtualHabitat.habitatForwardOffset = dParamWithUnits['habitatForwardOffset'].value
-  //   virtualHabitat.currentEquivalentLatitude = crv.currentEquivalentLatitude
-  //   virtualHabitat.isDynamic =  false
-  //   virtualHabitat.hasChanged = true
-  // }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualHabitat.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualHabitat.habitatRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualHabitat.habitatRelativePosition_y,
-        pointOnRingCurve.z + virtualHabitat.habitatRelativePosition_r * Math.sin(angle) )
-      om.rotation.set(0, -angle, virtualHabitat.currentEquivalentLatitude)
-      om.rotateZ(-Math.PI/2)
-      om.rotateY(-Math.PI/2)
-      om.visible = virtualHabitat.isVisible
-      om.matrixValid = false
-      om.children[0].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
-      om.children[1].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset, virtualHabitat.habitatOutwardOffset)
-      om.children[2].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[2].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
-      om.children[3].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[3].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
-      om.children[4].position.set(virtualHabitat.habitatForwardOffset, virtualHabitat.habitatUpwardOffset + om.children[4].userData['upwardOffset'], virtualHabitat.habitatOutwardOffset)
-      om.updateMatrixWorld()
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-
-class virtualStationaryRing {
-  constructor(positionInFrameOfReference, index, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.index = index
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual habitats...
-  static mainRingCurve
-  static currentEquivalentLatitude
-  static stationaryRingRotZ
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualStationaryRing.mainRingCurve = mainRingCurve 
-    const stationaryRingOutwardOffset = dParamWithUnits['mainRingOutwardOffset'].value
-    const stationaryRingUpwardOffset = dParamWithUnits['mainRingUpwardOffset'].value
-    virtualStationaryRing.mro = (dParamWithUnits['numMainRings'].value - 1)/2
-    virtualStationaryRing.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-    virtualStationaryRing.stationaryRingRelativePosition_r = tram.offset_r(stationaryRingOutwardOffset, stationaryRingUpwardOffset, crv.currentEquivalentLatitude)
-    virtualStationaryRing.stationaryRingRelativePosition_y = tram.offset_y(stationaryRingOutwardOffset, stationaryRingUpwardOffset, crv.currentEquivalentLatitude)
-    virtualStationaryRing.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualStationaryRing.stationaryRingRotZ = crv.currentEquivalentLatitude - Math.PI/2
-    virtualStationaryRing.isVisible = dParamWithUnits['showStationaryRing'].value
-    virtualStationaryRing.isDynamic =  false
-    virtualStationaryRing.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualStationaryRing.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualStationaryRing.stationaryRingRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualStationaryRing.stationaryRingRelativePosition_y + (this.index-virtualStationaryRing.mro) * virtualStationaryRing.mainRingSpacing,
-        pointOnRingCurve.z + virtualStationaryRing.stationaryRingRelativePosition_r * Math.sin(angle))
-      om.rotation.set(0, -angle, virtualStationaryRing.stationaryRingRotZ)
-      om.visible = virtualStationaryRing.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-class virtualMovingRing {
-  constructor(positionInFrameOfReference, index, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.index = index
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual habitats...
-  static mainRingCurve
-  static currentEquivalentLatitude
-  static movingRingRotZ
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualMovingRing.mainRingCurve = mainRingCurve 
-    const movingRingOutwardOffset = dParamWithUnits['mainRingOutwardOffset'].value
-    const movingRingUpwardOffset = dParamWithUnits['mainRingUpwardOffset'].value
-    virtualMovingRing.mro = (dParamWithUnits['numMainRings'].value - 1)/2
-    virtualMovingRing.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-    virtualMovingRing.movingRingRelativePosition_r = tram.offset_r(movingRingOutwardOffset, movingRingUpwardOffset, crv.currentEquivalentLatitude)
-    virtualMovingRing.movingRingRelativePosition_y = tram.offset_y(movingRingOutwardOffset, movingRingUpwardOffset, crv.currentEquivalentLatitude)
-    virtualMovingRing.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-    virtualMovingRing.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualMovingRing.movingRingRotZ = crv.currentEquivalentLatitude - Math.PI/2
-    virtualMovingRing.isVisible = dParamWithUnits['showMovingRing'].value
-    virtualMovingRing.isDynamic =  false
-    virtualMovingRing.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualMovingRing.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualMovingRing.movingRingRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualMovingRing.movingRingRelativePosition_y + (this.index-virtualMovingRing.mro) * virtualMovingRing.mainRingSpacing,
-        pointOnRingCurve.z + virtualMovingRing.movingRingRelativePosition_r * Math.sin(angle))
-      om.rotation.set(0, -angle, virtualMovingRing.movingRingRotZ)
-      om.visible = virtualMovingRing.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-
-class virtualTransitTube {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all tube sections...
-  static mainRingCurve
-  static currentEquivalentLatitude
-  static transitTubeRotZ
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualTransitTube.mainRingCurve = mainRingCurve 
-    const transitTubeOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value
-    const transitTubeUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value
-    virtualTransitTube.transitTubeRelativePosition_r = tram.offset_r(transitTubeOutwardOffset, transitTubeUpwardOffset, crv.currentEquivalentLatitude)
-    virtualTransitTube.transitTubeRelativePosition_y = tram.offset_y(transitTubeOutwardOffset, transitTubeUpwardOffset, crv.currentEquivalentLatitude)
-    virtualTransitTube.currentEquivalentLatitude = crv.currentEquivalentLatitude
-    virtualTransitTube.transitTubeRotZ = crv.currentEquivalentLatitude - Math.PI/2
-    virtualTransitTube.isVisible = dParamWithUnits['showTransitTube'].value
-    virtualTransitTube.isDynamic =  false
-    virtualTransitTube.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1 
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualTransitTube.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      om.position.set(
-        pointOnRingCurve.x + virtualTransitTube.transitTubeRelativePosition_r * Math.cos(angle),
-        pointOnRingCurve.y + virtualTransitTube.transitTubeRelativePosition_y,
-        pointOnRingCurve.z + virtualTransitTube.transitTubeRelativePosition_r * Math.sin(angle))
-      om.rotation.set(0, -angle, virtualTransitTube.transitTubeRotZ)
-      om.visible = virtualTransitTube.isVisible
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-    }
-  }
-}
-
-// class virtualLaunchTube {
-//   constructor(positionInFrameOfReference, unallocatedModelsArray) {
-//     this.p = positionInFrameOfReference
-//     this.unallocatedModels = unallocatedModelsArray
-//   }
-
-//   // The following properties are common to all virtual habitats...
-//   static mainRingCurve
-//   static currentEquivalentLatitude
-//   static launcherRotZ
-//   static isVisible
-//   static isDynamic
-//   static hasChanged
-
-//   static update(dParamWithUnits, crv, mainRingCurve) {
-//     virtualLaunchTube.mainRingCurve = mainRingCurve 
-//     const launcherOutwardOffset = dParamWithUnits['launcherOutwardOffset'].value
-//     const launcherUpwardOffset = dParamWithUnits['launcherUpwardOffset'].value
-//     virtualLaunchTube.launcherRelativePosition_r = tram.offset_r(launcherOutwardOffset, launcherUpwardOffset, crv.currentEquivalentLatitude)
-//     virtualLaunchTube.launcherRelativePosition_y = tram.offset_y(launcherOutwardOffset, launcherUpwardOffset, crv.currentEquivalentLatitude)
-//     virtualLaunchTube.currentEquivalentLatitude = crv.currentEquivalentLatitude
-//     virtualLaunchTube.launcherRotZ = crv.currentEquivalentLatitude - Math.PI/2
-//     virtualLaunchTube.isVisible = dParamWithUnits['showLaunchTube'].value
-//     virtualLaunchTube.isDynamic =  false
-//     virtualLaunchTube.hasChanged = true
-//   }
-
-//   placeAndOrientModel(om, refFrame) {
-//     const modelsTrackPosition = (this.p + refFrame.p) % 1 
-//     if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-//       console.log("error!!!")
-//     }
-//     else {
-//       const pointOnRingCurve = virtualLaunchTube.mainRingCurve.getPoint(modelsTrackPosition)
-//       const angle = 2 * Math.PI * modelsTrackPosition
-//       om.position.set(
-//         pointOnRingCurve.x + virtualLaunchTube.launcherRelativePosition_r * Math.cos(angle),
-//         pointOnRingCurve.y + virtualLaunchTube.launcherRelativePosition_y,
-//         pointOnRingCurve.z + virtualLaunchTube.launcherRelativePosition_r * Math.sin(angle))
-//       om.rotation.set(0, -angle, virtualLaunchTube.launcherRotZ)
-//       om.visible = virtualLaunchTube.isVisible
-//       om.matrixValid = false
-//       if (this.perfOptimizedThreeJS) om.freeze()
-//     }
-//   }
-// }
-
-
-class virtualElevatorCable {
-  constructor(positionInFrameOfReference, unallocatedModelsArray) {
-    this.p = positionInFrameOfReference
-    this.unallocatedModels = unallocatedModelsArray
-  }
-
-  // The following properties are common to all virtual habitats...
-  static mainRingCurve
-  static elevatorCableUpperAttachPnt_dr
-  static elevatorCableLowerAttachPnt_dr
-  static elevatorCableUpperAttachPnt_dy
-  static elevatorCableLowerAttachPnt_dy
-  static elevatorCableForwardOffset
-  static isVisible
-  static isDynamic
-  static hasChanged
-
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualElevatorCable.mainRingCurve = mainRingCurve
-    const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
-    virtualElevatorCable.elevatorCableUpperAttachPnt_dr = tram.offset_r(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-    virtualElevatorCable.elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    virtualElevatorCable.elevatorCableUpperAttachPnt_dy = tram.offset_y(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-    virtualElevatorCable.elevatorCableLowerAttachPnt_dy = tram.offset_y(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    virtualElevatorCable.elevatorCableForwardOffset = dParamWithUnits['elevatorCableForwardOffset'].value
-    virtualElevatorCable.isVisible = dParamWithUnits['showElevatorCables'].value
-    virtualElevatorCable.isDynamic =  false
-    virtualElevatorCable.hasChanged = true
-  }
-
-  placeAndOrientModel(om, refFrame) {
-    const modelsTrackPosition = (this.p + refFrame.p) % 1     
-    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-      console.log("error!!!")
-    }
-    else {
-      const pointOnRingCurve = virtualElevatorCable.mainRingCurve.getPoint(modelsTrackPosition)
-      const angle = 2 * Math.PI * modelsTrackPosition
-      const elevatorCableUpperAttachPnt = new THREE.Vector3(
-        virtualElevatorCable.elevatorCableUpperAttachPnt_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),
-        virtualElevatorCable.elevatorCableUpperAttachPnt_dy,
-        virtualElevatorCable.elevatorCableUpperAttachPnt_dr * Math.sin(angle) + virtualElevatorCable.elevatorCableForwardOffset * Math.cos(angle),
-      )
-      const elevatorCableLowerAttachPnt = new THREE.Vector3(
-        virtualElevatorCable.elevatorCableLowerAttachPnt_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),
-        virtualElevatorCable.elevatorCableLowerAttachPnt_dy,
-        virtualElevatorCable.elevatorCableLowerAttachPnt_dr * Math.sin(angle) + virtualElevatorCable.elevatorCableForwardOffset * Math.cos(angle),
-      )
-      const pointSet = [elevatorCableUpperAttachPnt, elevatorCableLowerAttachPnt]
-      om.geometry.setFromPoints(pointSet)
-      om.position.set(
-        pointOnRingCurve.x,
-        pointOnRingCurve.y,
-        pointOnRingCurve.z)
-      //om.rotation.set(0, 0, 0)
-      om.visible = virtualElevatorCable.isVisible
-      om.updateMatrix()
-      om.matrixValid = false
-      if (this.perfOptimizedThreeJS) om.freeze()
-
-      //console.log('New Cable ', om, modelsTrackPosition, angle, pointOnRingCurve, virtualElevatorCable.elevatorCableLowerAttachPnt_dr, virtualElevatorCable.elevatorCableLowerAttachPnt_dy, elevatorCableLowerAttachPnt)
-
-    }
-  }
-}
+import { remove } from 'lodash'
 
 export class transitSystem {
 
@@ -611,11 +41,11 @@ export class transitSystem {
     this.unallocatedGroundTerminusModels = []
     this.unallocatedElevatorCarModels = []
     this.unallocatedHabitatModels = []
-    this.unallocatedStationaryRingModels = []
-    this.unallocatedMovingRingModels = []
-    this.unallocatedTransitTubeModels = []
+    this.unallocatedStationaryRingSegmentModels = []
+    this.unallocatedMovingRingSegmentModels = []
+    this.unallocatedTransitTubeSegmentModels = []
     this.unallocatedDynamicallyManagedObjects = []
-    //this.unallocatedLaunchTubeModels = []
+    this.unallocatedSolarArrayModels = []
     this.unallocatedElevatorCableModels = []
     this.numWedges = 1024
     this.actionFlags = new Array(this.numWedges).fill(0)
@@ -630,98 +60,68 @@ export class transitSystem {
     const v1 = dParamWithUnits['transitVehicleCruisingSpeed'].value
     const v3 = dParamWithUnits['movingRingsSpeedForRendering'].value
 
-    // Would probably better to use a dictionary for this so that we can label the reference frames
-    this.refFrames = [
-      // For vehicles cruising at a steady speed...
-      new referenceFrame(this.numWedges, v1, 1, 1),
-      new referenceFrame(this.numWedges, v1, -1, 3),
-      // // For vehicles making a stop at a ringTerminus...
-      new referenceFrame(this.numWedges, v1/10, 1, 0),
-      new referenceFrame(this.numWedges, v1/10, -1, 2),
-      // Static reference frame
-      new referenceFrame(this.numWedges, 0, 1, 1),
-      // For Moving Rings
-      new referenceFrame(this.numWedges, v3, -1, 0),
-      // Static reference frame with much greater camera range
-      new referenceFrame(this.numWedges, 0, 1, 1),
-    ]
+    this.refFrames = []
+
+    // For vehicles cruising at a steady speed...
+    const rf0 = new referenceFrame(mainRingCurve, this.numWedges, v1, 1, 1, 'transitVehiclesExpressClockwise')
+    rf0.addVirtualObject('virtualTransitVehicles')
+    rf0.initialize()
+    this.refFrames.push(rf0)
+
+    const rf1 = new referenceFrame(mainRingCurve, this.numWedges, v1, -1, 3, 'transitVehiclesExpressCounterClockwise')
+    rf1.addVirtualObject('virtualTransitVehicles')
+    rf1.initialize()
+    this.refFrames.push(rf1)
+
+    // For vehicles making stops at ringTerminuses...
+    const rf2 = new referenceFrame(mainRingCurve, this.numWedges, v1, 1, 0, 'transitVehiclesCollectorClockwise')
+    rf2.addVirtualObject('virtualTransitVehicles')
+    rf2.initialize()
+    this.refFrames.push(rf2)
+
+    const rf3 = new referenceFrame(mainRingCurve, this.numWedges, v1, -1, 2, 'transitVehiclesCollectorCounterClockwise')
+    rf3.addVirtualObject('virtualTransitVehicles')
+    rf3.initialize()
+    this.refFrames.push(rf3)
+
+    // Static reference frame
+    const rf4 = new referenceFrame(mainRingCurve, this.numWedges, 0, 1, 1, 'staticReferenceFrame')
+    rf4.addVirtualObject('virtualRingTerminuses')
+    rf4.addVirtualObject('virtualGroundTerminuses')
+    rf4.addVirtualObject('virtualHabitats')
+    rf4.addVirtualObject('virtualElevatorCars')
+    rf4.addVirtualObject('virtualStationaryRingSegments')
+    rf4.addVirtualObject('virtualTransitTubeSegments')
+    rf4.addVirtualObject('virtualSolarArrays')
+    rf4.addVirtualObject('virtualElevatorCables')
+    rf4.addVirtualObject('dynamicallyManagedObjects')
+    rf4.initialize()
+    this.refFrames.push(rf4)
+
+    // For Moving Rings
+    const rf5 = new referenceFrame(mainRingCurve, this.numWedges, v3, -1, 0, 'movingRings')
+    rf5.addVirtualObject('virtualMovingRingSegments')
+    rf5.initialize()
+    this.refFrames.push(rf5)
+
+    // Static reference frame with much greater camera range
+    const rf6 = new referenceFrame(mainRingCurve, this.numWedges, 0, 1, 1, 'staticReferenceFrameBigCameraRange')
+    //rf6.addVirtualObject('virtualMovingRingSegments')
+    rf6.initialize()
+    this.refFrames.push(rf6)
 
     this.eventList = []
 
-    let n = dParamWithUnits['numVirtualTransitVehicles'].value
-    let step1 = 1.0 / (n*10/40)
-    // We will only place virtual vehicles on the express lanes initially. Timer events will later move vehicles
-    // over to the collector lanes
-    const outerTracks = [this.refFrames[0], this.refFrames[1]]
-    outerTracks.forEach(refFrame => {
-      for (let positionInFrameOfReference = 0, i = 0; i < n * 10 / 40; positionInFrameOfReference += step1, i++) {
-        const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step1 * 0.8 * Math.random())
-        const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
-        refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
-      }
-    })
-
-    // Put cars in collector lanes
-    let step2 = 1.0 / (n*10/40)
-    const innerTracks = [this.refFrames[2], this.refFrames[3]]
-    innerTracks.forEach(refFrame => {
-      for (let positionInFrameOfReference = 0, i = 0; i < n * 10 / 40; positionInFrameOfReference += step2, i++) {
-        const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step2 * 0.8 * Math.random())
-        const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
-        refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
-      }
-    })
-
-    const nt = dParamWithUnits['numVirtualRingTerminuses'].value
-    const nh = dParamWithUnits['numVirtualHabitats'].value
-    const totalFacilities = nt + nh
-    let positionInFrameOfReference
-
-    // Place static reference frame objects such as ringTerminuses, elevatorCars, habitats, transit tubes, launch tubes, main rings, etc...
-    let step3 = 1.0 / totalFacilities
-    let prevFloorS = -1
-    const staticFrame = [this.refFrames[4]]
-    staticFrame.forEach(refFrame => {
-      for (let i = 0; i < totalFacilities; i++) {
-        positionInFrameOfReference = i * step3
-        const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-        const currFloorS = Math.floor(i * nt / totalFacilities)
-        if (currFloorS == prevFloorS) {
-          refFrame.wedges[wedgeIndex]['virtualHabitats'].push(new virtualHabitat(positionInFrameOfReference, this.unallocatedHabitatModels))
-        }
-        else {
-          refFrame.wedges[wedgeIndex]['virtualRingTerminuses'].push(new virtualRingTerminus(positionInFrameOfReference, this.unallocatedRingTerminusModels))
-          refFrame.wedges[wedgeIndex]['virtualGroundTerminuses'].push(new virtualGroundTerminus(positionInFrameOfReference, this.unallocatedGroundTerminusModels))
-          refFrame.wedges[wedgeIndex]['virtualElevatorCars'].push(new virtualElevatorCar(positionInFrameOfReference, this.unallocatedElevatorCarModels))
-          //refFrame.wedges[wedgeIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
-        }
-        // ToDo - Improve: the number of virtual transit tubes and stationary rings should not be determined by the number of virtual habitats and ring terminuses
-        for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
-          refFrame.wedges[wedgeIndex]['virtualStationaryRings'].push(new virtualStationaryRing(positionInFrameOfReference, j, this.unallocatedStationaryRingModels))
-        }
-        refFrame.wedges[wedgeIndex]['virtualTransitTubes'].push(new virtualTransitTube(positionInFrameOfReference, this.unallocatedTransitTubeModels))
-        //refFrame.wedges[wedgeIndex]['dynamicallyManagedObjects'].push(new dynamicallyManagedObject(positionInFrameOfReference, this.unallocatedDynamicallyManagedObjects))
-        // if ((i>=totalFacilities*this.ringSouthernMostPosition) && (i<totalFacilities*(this.ringSouthernMostPosition+massDriverLength/(crv.mainRingRadius*2*Math.PI)))) {
-        //   refFrame.wedges[wedgeIndex]['virtualLaunchTubes'].push(new virtualLaunchTube(positionInFrameOfReference, this.unallocatedLaunchTubeModels))
-        // }
-        prevFloorS = currFloorS
-      }
-    })
-
-    // Add Moving Rings
-    let step5 = 1.0 / totalFacilities
-    // We will only place virtual vehicles on the express lanes initially. Timer events will later move vehicles
-    // over to the collector lanes
-    const movingRingReferenceFrame = [this.refFrames[5]]
-    movingRingReferenceFrame.forEach(refFrame => {
-      for (let i = 0; i < totalFacilities; i++) {
-        positionInFrameOfReference = i * step5
-        const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-        for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
-          refFrame.wedges[wedgeIndex]['virtualMovingRings'].push(new virtualMovingRing(positionInFrameOfReference, j, this.unallocatedMovingRingModels))
-        }
-      }
-    })
+    this.numVirtualTransitVehicles = 0
+    this.numVirtualHabitats = 0
+    this.numVirtualRingTerminuses = 0
+    this.numVirtualGroundTerminuses = 0
+    this.numVirtualElevatorCables = 0
+    this.numVirtualElevatorCars = 0
+    this.numVirtualSolarArrays = 0
+    this.numVirtualTransitTubeSegments = 0
+    this.numVirtualStationaryRingSegments = 0
+    this.numVirtualMovingRingSegments = 0
 
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, perfOptimizedThreeJS) {
       return function( {scene} ) {
@@ -790,7 +190,6 @@ export class transitSystem {
       }
     }
 
-    // 0.0254
     const addTransitVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle', 1, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
     const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.perfOptimizedThreeJS)
     const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
@@ -798,11 +197,11 @@ export class transitSystem {
     const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
     //const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
     const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.perfOptimizedThreeJS)
-    const addStationaryRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
-    const addMovingRings = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
-    const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
+    const addStationaryRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingSegmentModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
+    const addMovingRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingSegmentModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
+    const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeSegmentModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
+    const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['numVirtualSolarArrays'].value, this.perfOptimizedThreeJS)
     const addDynamicallyManagedObjects = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedDynamicallyManagedObjects, 'dynamicallyManagedObject', 1, dParamWithUnits['dynamicallyManagedObjectNumModels'].value, this.perfOptimizedThreeJS)
-    //const addLaunchTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedLaunchTubeModels, 'launcherTube', 1, dParamWithUnits['launcherTubeNumModels'].value, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
     }
@@ -833,10 +232,14 @@ export class transitSystem {
     //gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
 
     // Manually create the stationary rings
+    const nt = dParamWithUnits['numVirtualRingTerminuses'].value
+    const nh = dParamWithUnits['numVirtualHabitats'].value
+    const numTransitStops = nt + nh
+
     function getStationaryRingSegmentCurve() {
       const lengthSegments = 4
       const segmentNumber = 0
-      const totalSegments = totalFacilities
+      const totalSegments = numTransitStops
       return tram.makeOffsetCurve(dParamWithUnits['mainRingOutwardOffset'].value, dParamWithUnits['mainRingUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
@@ -847,13 +250,13 @@ export class transitSystem {
     const stationaryRingGeometry = new THREE.TubeGeometry(getStationaryRingSegmentCurve(), lengthSegments, radius, radialSegments, false)
     const stationaryRingMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.9})
     const stationaryRingMesh = new THREE.Mesh(stationaryRingGeometry, stationaryRingMaterial)
-    addStationaryRings(stationaryRingMesh)
+    addStationaryRingSegments(stationaryRingMesh)
 
     // Manually create the moving rings
     function getMovingRingSegmentCurve() {
       const lengthSegments = 4
       const segmentNumber = 0
-      const totalSegments = totalFacilities
+      const totalSegments = numTransitStops
       return tram.makeOffsetCurve(dParamWithUnits['mainRingOutwardOffset'].value, dParamWithUnits['mainRingUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
@@ -865,13 +268,13 @@ export class transitSystem {
     const movingRingTexture = new THREE.TextureLoader().load( './textures/movingRingTexture.jpg' )
     const movingRingMaterial = new THREE.MeshPhongMaterial( {transparent: false, shininess: 10, map: movingRingTexture})
     const movingRingMesh = new THREE.Mesh(movingRingGeometry, movingRingMaterial)
-    addMovingRings(movingRingMesh)
+    addMovingRingSegments(movingRingMesh)
 
     // Manually create the transit tube 
     function getTransitTubeSegmentCurve() {
       const lengthSegments = 4
       const segmentNumber = 0
-      const totalSegments = totalFacilities
+      const totalSegments = numTransitStops
       return tram.makeOffsetCurve(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
@@ -885,22 +288,23 @@ export class transitSystem {
 
     fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
     
-    // Manually create the launch tube
-    // function getLaunchTubeSegmentCurve() {
-    //   const lengthSegments = 4
-    //   const segmentNumber = 0
-    //   const totalSegments = totalFacilities
-    //   return tram.makeOffsetCurve(dParamWithUnits['launcherOutwardOffset'].value, dParamWithUnits['launcherUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
-    // }
+    // Manually create the solar arrays
+    function getSolarArraySegmentCurve() {
+      const lengthSegments = 4
+      const segmentNumber = 0
+      const totalSegments = numTransitStops
+      return tram.makeOffsetCurve(dParamWithUnits['solarArrayOutwardOffset'].value, dParamWithUnits['solarArrayUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
+    }
 
-    // lengthSegments = 4
-    // radius = dParamWithUnits['launcherTubeRadius'].value
-    // radialSegments = 32
-    // const launchTubeGeometry = new THREE.TubeGeometry(getLaunchTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    // const launchTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
-    // const launchTubeMesh = new THREE.Mesh(launchTubeGeometry, launchTubeMaterial)
-    // addLaunchTubes(launchTubeMesh)
-
+    lengthSegments = 4
+    const solarArrayWidth = dParamWithUnits['solarArrayWidth'].value
+    const solarArrayHeight = dParamWithUnits['solarArrayHeight'].value
+    radialSegments = 32
+    const solarArrayGeometry = new THREE.PlaneGeometry(solarArrayWidth, solarArrayHeight, 1, 1)
+    const solarArrayTexture = new THREE.TextureLoader().load( './textures/SolarPanelTexture.jpg' )
+    const solarArrayMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, map: solarArrayTexture})
+    const solarArrayMesh = new THREE.Mesh(solarArrayGeometry, solarArrayMaterial)
+    addSolarArrays(solarArrayMesh)
 
     const pointSet = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]
     const cableMaterial = new THREE.LineBasicMaterial({
@@ -934,23 +338,274 @@ export class transitSystem {
   }
 
   update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
-    this.refFrames[0].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
-    this.refFrames[1].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
-    this.refFrames[5].v = dParamWithUnits['movingRingsSpeedForRendering'].value
 
     virtualTransitVehicle.update(dParamWithUnits, trackOffsetsList, crv, mainRingCurve)
     virtualRingTerminus.update(dParamWithUnits, crv, mainRingCurve)
     virtualGroundTerminus.update(dParamWithUnits, crv, mainRingCurve)
     virtualElevatorCar.update(dParamWithUnits, crv, mainRingCurve)
     virtualHabitat.update(dParamWithUnits, crv, mainRingCurve)
-    virtualStationaryRing.update(dParamWithUnits, crv, mainRingCurve)
-    virtualMovingRing.update(dParamWithUnits, crv, mainRingCurve)
-    virtualTransitTube.update(dParamWithUnits, crv, mainRingCurve)
-    dynamicallyManagedObject.update(dParamWithUnits, crv, mainRingCurve)
-    //virtualLaunchTube.update(dParamWithUnits, crv, mainRingCurve)
+    virtualStationaryRingSegment.update(dParamWithUnits, crv, mainRingCurve)
+    virtualMovingRingSegment.update(dParamWithUnits, crv, mainRingCurve)
+    virtualTransitTubeSegment.update(dParamWithUnits, crv, mainRingCurve)
+    virtualSolarArray.update(dParamWithUnits, crv, mainRingCurve)
     virtualElevatorCable.update(dParamWithUnits, crv, mainRingCurve)
+    dynamicallyManagedObject.update(dParamWithUnits, crv, mainRingCurve)
+ 
+    function removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
+      refFrames.forEach(refFrame => {
+        for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
+          if (objectName in refFrame.wedges[wedgeIndex]) {
+            const wedgeList = refFrame.wedges[wedgeIndex][objectName]
+            wedgeList.forEach(vobj => {
+              if (vobj.model) {
+                vobj.model.visible = false
+                unallocatedModelsArray.push(vobj.model)
+              }
+            })
+            wedgeList.splice(0, wedgeList.length)
+          }
+          else {
+            console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
+          }
+        }
+      })
+    }
 
-    this.animateMovingRings = dParamWithUnits['animateMovingRings'].value ? 1 : 0    
+    // Update the number of transit vehicles
+    const newNumVirtualTransitVehicles = dParamWithUnits['showTransitVehicles'].value ? dParamWithUnits['numVirtualTransitVehicles'].value : 0
+    // Remove old virtual transit vehicles
+    const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
+    let changeOccured = (this.numVirtualTransitVehicles != newNumVirtualTransitVehicles)
+    if (changeOccured && (this.numVirtualTransitVehicles > 0)) {
+      removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
+    }
+
+    // Add new virtual transit vehicles
+    const outerTracks = [this.refFrames[0], this.refFrames[1]]
+    const innerTracks = [this.refFrames[2], this.refFrames[3]]
+
+    if (changeOccured && (newNumVirtualTransitVehicles > 0)) {
+      // Add new virtual transit vehicles to express lane tracks
+      const n1 = newNumVirtualTransitVehicles * 10 / 40
+      const step1 = 1.0 / n1
+      outerTracks.forEach(refFrame => {
+        for (let i = 0; i < n1; i++) {
+          const positionInFrameOfReference = i * step1
+          const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step1 * 0.8 * Math.random())
+          const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
+          refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+
+      // Add new virtual transit vehicles to collector lane tracks
+      const n2 = newNumVirtualTransitVehicles * 10 / 40
+      const step2 = 1.0 / n2
+      innerTracks.forEach(refFrame => {
+        for (let i = 0; i < n2; i++) {
+          const positionInFrameOfReference = i * step2
+          const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step2 * 0.8 * Math.random())
+          const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
+          refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+    this.numVirtualTransitVehicles = newNumVirtualTransitVehicles
+
+    // Update virtual objects residing in the static reference frame
+    const staticRefFrame = [this.refFrames[4]]
+
+    // Facilities (habitats, terminuses, elevator cables, elevator cars)
+    const nt = dParamWithUnits['numVirtualRingTerminuses'].value
+    const nh = dParamWithUnits['numVirtualHabitats'].value
+    const numTransitStops = nt + nh
+
+    // Since habitats and terminuses are interspersed, changing either causes a major teardown of not only
+    // habitatis and ring terminuses, but also elevator cables, cars, and ground terminuses
+    const showRingTerminuses = dParamWithUnits['showRingTerminuses'].value
+    const showHabitats = dParamWithUnits['showHabitats'].value
+    const showElevatorCables = dParamWithUnits['showElevatorCables'].value
+    const showElevatorCars = dParamWithUnits['showElevatorCars'].value
+    const showGroundTerminuses = dParamWithUnits['showGroundTerminuses'].value
+
+    const newNumVirtualRingTerminuses = showRingTerminuses ? dParamWithUnits['numVirtualRingTerminuses'].value : 0
+    const newNumVirtualHabitats = showHabitats ? dParamWithUnits['numVirtualHabitats'].value : 0
+    const newNumVirtualElevatorCables = showElevatorCables ? dParamWithUnits['numVirtualRingTerminuses'].value : 0
+    const newNumVirtualElevatorCars = showElevatorCars ? dParamWithUnits['numVirtualRingTerminuses'].value : 0
+    const newNumVirtualGroundTerminuses = showGroundTerminuses ? dParamWithUnits['numVirtualRingTerminuses'].value : 0
+
+    // If a needed, remove all of the existing virtual facilities
+    changeOccured = (this.numVirtualRingTerminuses != newNumVirtualRingTerminuses) || 
+                    (this.numVirtualHabitats != newNumVirtualHabitats) ||
+                    (this.numVirtualElevatorCables != newNumVirtualElevatorCables) || 
+                    (this.numVirtualElevatorCars != newNumVirtualElevatorCars) || 
+                    (this.numVirtualGroundTerminuses != newNumVirtualGroundTerminuses)
+    if (changeOccured && (this.numVirtualRingTerminuses > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
+    }
+    if (changeOccured && (this.numVirtualHabitats > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
+    }
+    if (changeOccured && (this.numVirtualElevatorCables > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
+    }
+    if (changeOccured && (this.numVirtualElevatorCars > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
+    }
+    if (changeOccured && (this.numVirtualGroundTerminuses > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
+    }
+
+    // Add new facilities
+    if (changeOccured) {
+      // Place static reference frame objects such as ringTerminuses, elevatorCars, habitats, transit tubes, launch tubes, main rings, etc...
+      let step3 = 1.0 / numTransitStops
+      let prevFloorS = -1
+      staticRefFrame.forEach(refFrame => {
+        for (let i = 0; i < numTransitStops; i++) {
+          const positionInFrameOfReference = i * step3
+          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const currFloorS = Math.floor(i * nt / numTransitStops)
+          if (currFloorS == prevFloorS) {
+            if (showHabitats) refFrame.wedges[wedgeIndex]['virtualHabitats'].push(new virtualHabitat(positionInFrameOfReference, this.unallocatedHabitatModels))
+          }
+          else {
+            if (showRingTerminuses) refFrame.wedges[wedgeIndex]['virtualRingTerminuses'].push(new virtualRingTerminus(positionInFrameOfReference, this.unallocatedRingTerminusModels))
+            if (showGroundTerminuses) refFrame.wedges[wedgeIndex]['virtualGroundTerminuses'].push(new virtualGroundTerminus(positionInFrameOfReference, this.unallocatedGroundTerminusModels))
+            if (showElevatorCars) refFrame.wedges[wedgeIndex]['virtualElevatorCars'].push(new virtualElevatorCar(positionInFrameOfReference, this.unallocatedElevatorCarModels))
+            //if (showElevatorCables) refFrame.wedges[wedgeIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
+          }
+          prevFloorS = currFloorS
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+    this.numVirtualRingTerminuses = newNumVirtualRingTerminuses
+    this.numVirtualHabitats = newNumVirtualHabitats
+    this.numVirtualElevatorCables = newNumVirtualElevatorCables
+    this.numVirtualElevatorCars = newNumVirtualElevatorCars
+    this.numVirtualGroundTerminuses = newNumVirtualGroundTerminuses
+    
+    // Transit Tube Segments
+    const newNumVirtualTransitTubeSegments = dParamWithUnits['showTransitTube'].value ? numTransitStops : 0
+    changeOccured = (this.numVirtualTransitTubeSegments != newNumVirtualTransitTubeSegments)
+
+
+    if (changeOccured && (this.numVirtualTransitTubeSegments > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
+    }
+
+    if (changeOccured && (newNumVirtualTransitTubeSegments > 0)) {
+      const nt = dParamWithUnits['numVirtualRingTerminuses'].value
+      const nh = dParamWithUnits['numVirtualHabitats'].value
+      const numTransitStops = nt + nh
+      let step3 = 1.0 / numTransitStops
+
+      staticRefFrame.forEach(refFrame => {
+        for (let i = 0; i < numTransitStops; i++) {
+          const positionInFrameOfReference = i * step3
+          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+            refFrame.wedges[wedgeIndex]['virtualTransitTubeSegments'].push(new virtualTransitTubeSegment(positionInFrameOfReference, this.unallocatedTransitTubeSegmentModels))
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+    this.numVirtualTransitTubeSegments = newNumVirtualTransitTubeSegments
+  
+    // Stationary Ring Segments
+    const newNumVirtualStationaryRingSegments = dParamWithUnits['showStationaryRings'].value ? dParamWithUnits['numVirtualStationaryRingSegments'].value : 0
+    changeOccured = (this.numStationaryRingSegments != newNumVirtualStationaryRingSegments)
+
+    if (changeOccured && (this.numVirtualStationaryRingSegments > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
+      // ToDo: We need to remove the models as well, because the length of the model depends on the number of virtual ring segments
+    }
+
+    if (changeOccured && (newNumVirtualStationaryRingSegments > 0)) {
+      const nsr = newNumVirtualStationaryRingSegments
+      let step4 = 1.0 / nsr
+
+      staticRefFrame.forEach(refFrame => {
+        for (let i = 0; i < nsr; i++) {
+          const positionInFrameOfReference = i * step4
+          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+            refFrame.wedges[wedgeIndex]['virtualStationaryRingSegments'].push(new virtualStationaryRingSegment(positionInFrameOfReference, j, this.unallocatedStationaryRingSegmentModels))
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+      // ToDo: We will need to recreate the models as well, if the number of virtual ring segments has changed.
+    }
+    this.numVirtualStationaryRingSegments = newNumVirtualStationaryRingSegments
+
+    // Solar Arrays
+    const newNumVirtualSolarArrays = dParamWithUnits['showSolarArrays'].value ? dParamWithUnits['numVirtualSolarArrays'].value : 0
+    changeOccured = (this.numVirtualSolarArrays != newNumVirtualSolarArrays)
+
+    if (changeOccured && (this.numVirtualSolarArrays > 0)) {
+      removeOldVirtualObjects(staticRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
+    }
+
+    if (changeOccured && (newNumVirtualSolarArrays > 0)) {
+      const nsa = dParamWithUnits['numVirtualSolarArrays'].value
+      let step4 = 1.0 / nsa
+
+      staticRefFrame.forEach(refFrame => {
+        if (dParamWithUnits['showSolarArrays'].value) {
+          for (let i = 0; i < nsa; i++) {
+            const positionInFrameOfReference = i * step4
+            const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+            refFrame.wedges[wedgeIndex]['virtualSolarArrays'].push(new virtualSolarArray(positionInFrameOfReference, this.unallocatedSolarArrayModels))
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+    this.numVirtualSolarArrays = newNumVirtualSolarArrays
+
+    // Moving Rings' frame of reference
+    const movingRingReferenceFrame = [this.refFrames[5]]
+
+    // Moving Ring Segments
+    const newNumVirtualMovingRingSegments = dParamWithUnits['showMovingRings'].value ? dParamWithUnits['numVirtualMovingRingSegments'].value : 0
+    changeOccured = (this.numVirtualMovingRingSegments != newNumVirtualMovingRingSegments)
+
+    if (changeOccured && (this.numVirtualMovingRingSegments > 0)) {
+      removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
+      // ToDo: We need to remove the models as well, because the length of the model depends on the number of virtual ring segments
+    }
+
+    if (changeOccured && (newNumVirtualMovingRingSegments > 0)) {
+      let step5 = 1.0 / newNumVirtualMovingRingSegments
+      movingRingReferenceFrame.forEach(refFrame => {
+        for (let i = 0; i < newNumVirtualMovingRingSegments; i++) {
+          const positionInFrameOfReference = i * step5
+          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          // For now, all of the rings are the same diameter, so we can get away with using the same models and virtual objects for all of them.
+          // In the final design, the rings will likely have slightly different diameters.
+          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+            refFrame.wedges[wedgeIndex]['virtualMovingRingSegments'].push(new virtualMovingRingSegment(positionInFrameOfReference, j, this.unallocatedMovingRingSegmentModels))
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+      // ToDo: We will need to recreate the models as well, if the number of virtual ring segments has changed.
+    }
+    this.numVirtualMovingRingSegments = newNumVirtualMovingRingSegments
+
+    // Still to do...
+    // Elevator Cars
+
+
+    this.refFrames[0].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
+    this.refFrames[1].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
+    this.refFrames[5].v = dParamWithUnits['movingRingsSpeedForRendering'].value
+
+    this.animateMovingRingSegments = dParamWithUnits['animateMovingRingSegments'].value ? 1 : 0    
     this.animateTransitVehicles = dParamWithUnits['animateTransitVehicles'].value ? 1 : 0
     this.animateElevatorCars = dParamWithUnits['animateElevatorCars'].value ? 1 : 0
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
@@ -996,7 +651,7 @@ export class transitSystem {
     this.refFrames[4].p = 0 // This is the stationary reference frame 
 
     const timePerCompleteRevolution6 = 2 * Math.PI * this.crv.mainRingRadius / this.refFrames[5].v
-    this.refFrames[5].p = (this.animateMovingRings * timeSinceStart / timePerCompleteRevolution6) % 1 // This is the stationary reference frame 
+    this.refFrames[5].p = (this.animateMovingRingSegments * timeSinceStart / timePerCompleteRevolution6) % 1 // This is the stationary reference frame 
 
     // There are time window based lists to indicate which vehicles are due to start manuevering
     // Walk these lists and add any registered vehicles to the list of vehicles executing a manuever.
@@ -1138,10 +793,10 @@ export class transitSystem {
       //   this.unallocatedGroundTerminusModels.length,
       //   this.unallocatedElevatorCarModels.length,
       //   this.unallocatedHabitatModels.length,
-      //   this.unallocatedStationaryRingModels.length,
-      //   this.unallocatedMovingRingModels.length,
-      //   this.unallocatedTransitTubeModels.length,
-      //   this.unallocatedLaunchTubeModels.length,
+      //   this.unallocatedStationaryRingSegmentModels.length,
+      //   this.unallocatedMovingRingSegmentModels.length,
+      //   this.unallocatedTransitTubeSegmentModels.length,
+      //   this.unallocatedSolarArrayModels.length,
       //   this.unallocatedElevatorCableModels.length,
       // )
       //console.log('Removing ' + removeModelList.length)
@@ -1153,10 +808,10 @@ export class transitSystem {
       //   this.unallocatedGroundTerminusModels.length,
       //   this.unallocatedElevatorCarModels.length,
       //   this.unallocatedHabitatModels.length,
-      //   this.unallocatedStationaryRingModels.length,
-      //   this.unallocatedMovingRingModels.length,
-      //   this.unallocatedTransitTubeModels.length,
-      //   this.unallocatedLaunchTubeModels.length,
+      //   this.unallocatedStationaryRingSegmentModels.length,
+      //   this.unallocatedMovingRingSegmentModels.length,
+      //   this.unallocatedTransitTubeSegmentModels.length,
+      //   this.unallocatedSolarArrayModels.length,
       //   this.unallocatedElevatorCableModels.length,
       // )
       //console.log('Adding ' + assignModelList.length)
@@ -1269,10 +924,10 @@ export class transitSystem {
       //   this.unallocatedGroundTerminusModels.length,
       //   this.unallocatedElevatorCarModels.length,
       //   this.unallocatedHabitatModels.length,
-      //   this.unallocatedStationaryRingModels.length,
-      //   this.unallocatedMovingRingModels.length,
-      //   this.unallocatedTransitTubeModels.length,
-      //   this.unallocatedLaunchTubeModels.length,
+      //   this.unallocatedStationaryRingSegmentModels.length,
+      //   this.unallocatedMovingRingSegmentModels.length,
+      //   this.unallocatedTransitTubeSegmentModels.length,
+      //   this.unallocatedSolarArrayModels.length,
       //   this.unallocatedElevatorCableModels.length,
       // )
     }
@@ -1283,10 +938,10 @@ export class transitSystem {
       //   this.unallocatedGroundTerminusModels.length,
       //   this.unallocatedElevatorCarModels.length,
       //   this.unallocatedHabitatModels.length,
-      //   this.unallocatedStationaryRingModels.length,
-      //   this.unallocatedMovingRingModels.length,
-      //   this.unallocatedTransitTubeModels.length,
-      //   this.unallocatedLaunchTubeModels.length,
+      //   this.unallocatedStationaryRingSegmentModels.length,
+      //   this.unallocatedMovingRingSegmentModels.length,
+      //   this.unallocatedTransitTubeSegmentModels.length,
+      //   this.unallocatedSolarArrayModels.length,
       //   this.unallocatedElevatorCableModels.length,
       // )
     }
@@ -1298,11 +953,11 @@ export class transitSystem {
     virtualHabitat.hasChanged = false
     virtualElevatorCable.hasChanged = false
     virtualElevatorCar.hasChanged = false
-    virtualStationaryRing.hasChanged = false
-    virtualMovingRing.hasChanged = false
-    virtualTransitTube.hasChanged = false
+    virtualStationaryRingSegment.hasChanged = false
+    virtualMovingRingSegment.hasChanged = false
+    virtualTransitTubeSegment.hasChanged = false
     dynamicallyManagedObject.hasChanged = false
-    //virtualLaunchTube.hasChanged = false
+    virtualSolarArray.hasChanged = false
     
     // Debug stuff...
     // console.log(ringTerminusModels)

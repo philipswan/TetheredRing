@@ -664,7 +664,6 @@ class TetherGeometry extends BufferGeometry {
           })
           kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
         })
-        kmlFile = kmlFile.concat(kmlutils.kmlFileFooter)
       }
     }
   
