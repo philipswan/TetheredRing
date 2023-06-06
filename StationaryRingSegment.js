@@ -8,15 +8,13 @@ export class virtualStationaryRingSegment {
     }
 
     // The following properties are common to all virtual habitats...
-    static mainRingCurve
     static currentEquivalentLatitude
     static stationaryRingRotZ
     static isVisible
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualStationaryRingSegment.mainRingCurve = mainRingCurve 
+    static update(dParamWithUnits, crv) {
         const stationaryRingOutwardOffset = dParamWithUnits['mainRingOutwardOffset'].value
         const stationaryRingUpwardOffset = dParamWithUnits['mainRingUpwardOffset'].value
         virtualStationaryRingSegment.mro = (dParamWithUnits['numMainRings'].value - 1)/2
@@ -36,7 +34,7 @@ export class virtualStationaryRingSegment {
             console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualStationaryRingSegment.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + virtualStationaryRingSegment.stationaryRingRelativePosition_r * Math.cos(angle),

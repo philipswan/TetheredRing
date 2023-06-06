@@ -7,7 +7,6 @@ export class virtualGroundTerminus {
     }
 
     // The following properties are common to all virtual groundTerminuses...
-    static mainRingCurve
     static groundTerminusRelativePosition_r
     static groundTerminusRelativePosition_y
     static currentEquivalentLatitude
@@ -15,8 +14,7 @@ export class virtualGroundTerminus {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualGroundTerminus.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, crv) {
         const groundTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['groundTerminusOutwardOffset'].value
         const groundTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['groundTerminusUpwardOffset'].value - crv.currentMainRingAltitude
         virtualGroundTerminus.groundTerminusRelativePosition_r = tram.offset_r(groundTerminusOutwardOffset, groundTerminusUpwardOffset, crv.currentEquivalentLatitude)
@@ -33,7 +31,7 @@ export class virtualGroundTerminus {
             console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualGroundTerminus.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + virtualGroundTerminus.groundTerminusRelativePosition_r * Math.cos(angle),

@@ -18,7 +18,6 @@ export class virtualTransitVehicle {
     }
 
     // The following properties are common to all virtual vehicles...
-    static mainRingCurve
     static transitVehicleRelativePosition_r = []
     static transitVehicleRelativePosition_y = []
     static currentEquivalentLatitude
@@ -26,8 +25,7 @@ export class virtualTransitVehicle {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, trackOffsetsList, crv, mainRingCurve) {
-        virtualTransitVehicle.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, trackOffsetsList, crv) {
         for (let trackIndex = 0; trackIndex<trackOffsetsList.length; trackIndex++) {
             const outwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[trackIndex][0]
             const upwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value + trackOffsetsList[trackIndex][1] + dParamWithUnits['transitVehicleUpwardOffset'].value  // Last is half of the track height
@@ -49,7 +47,7 @@ export class virtualTransitVehicle {
             const trackIndex = refFrame.trackIndex
             const r1 = virtualTransitVehicle.transitVehicleRelativePosition_r[trackIndex]
             const y1 = virtualTransitVehicle.transitVehicleRelativePosition_y[trackIndex]
-            const pointOnRingCurve = virtualTransitVehicle.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + r1 * Math.cos(angle),

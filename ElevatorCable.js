@@ -7,7 +7,6 @@ export class virtualElevatorCable {
     }
 
     // The following properties are common to all virtual habitats...
-    static mainRingCurve
     static elevatorCableUpperAttachPnt_dr
     static elevatorCableLowerAttachPnt_dr
     static elevatorCableUpperAttachPnt_dy
@@ -17,8 +16,7 @@ export class virtualElevatorCable {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualElevatorCable.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, crv) {
         const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
         virtualElevatorCable.elevatorCableUpperAttachPnt_dr = tram.offset_r(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
         virtualElevatorCable.elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
@@ -36,7 +34,7 @@ export class virtualElevatorCable {
             console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualElevatorCable.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             const elevatorCableUpperAttachPnt = new THREE.Vector3(
                 virtualElevatorCable.elevatorCableUpperAttachPnt_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),

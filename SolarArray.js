@@ -7,15 +7,13 @@ export class virtualSolarArray {
   }
 
   // The following properties are common to all virtual habitats...
-  static mainRingCurve
   static currentEquivalentLatitude
   static solarArrayRotZ
   static isVisible
   static isDynamic
   static hasChanged
 
-  static update(dParamWithUnits, crv, mainRingCurve) {
-    virtualSolarArray.mainRingCurve = mainRingCurve 
+  static update(dParamWithUnits, crv) {
     const solarArrayOutwardOffset = dParamWithUnits['solarArrayOutwardOffset'].value
     const solarArrayUpwardOffset = dParamWithUnits['solarArrayUpwardOffset'].value
     virtualSolarArray.solarArrayRelativePosition_r = tram.offset_r(solarArrayOutwardOffset, solarArrayUpwardOffset, crv.currentEquivalentLatitude)
@@ -33,7 +31,7 @@ export class virtualSolarArray {
       console.log("error!!!")
     }
     else {
-      const pointOnRingCurve = virtualSolarArray.mainRingCurve.getPoint(modelsTrackPosition)
+      const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
       const angle = 2 * Math.PI * modelsTrackPosition
       om.position.set(
         pointOnRingCurve.x + virtualSolarArray.solarArrayRelativePosition_r * Math.cos(angle),

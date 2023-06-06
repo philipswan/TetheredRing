@@ -15,8 +15,7 @@ export class virtualRingTerminus {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualRingTerminus.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, crv) {
         const ringTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['ringTerminusOutwardOffset'].value
         const ringTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value
         virtualRingTerminus.ringTerminusRelativePosition_r = tram.offset_r(ringTerminusOutwardOffset, ringTerminusUpwardOffset, crv.currentEquivalentLatitude)
@@ -33,7 +32,7 @@ export class virtualRingTerminus {
             console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualRingTerminus.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + virtualRingTerminus.ringTerminusRelativePosition_r * Math.cos(angle),

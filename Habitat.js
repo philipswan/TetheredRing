@@ -7,7 +7,6 @@ export class virtualHabitat {
     }
 
     // The following properties are common to all virtual habitats...
-    static mainRingCurve
     static habitatRelativePosition_r
     static habitatRelativePosition_y
     static habitatOutwardOffset
@@ -18,8 +17,7 @@ export class virtualHabitat {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualHabitat.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, crv) {
         const ringTerminusOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['ringTerminusOutwardOffset'].value
         const ringTerminusUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value
         virtualHabitat.habitatOutwardOffset = dParamWithUnits['habitatOutwardOffset'].value
@@ -39,7 +37,7 @@ export class virtualHabitat {
           console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualHabitat.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + virtualHabitat.habitatRelativePosition_r * Math.cos(angle),

@@ -7,15 +7,13 @@ export class virtualTransitTubeSegment {
     }
   
     // The following properties are common to all tube sections...
-    static mainRingCurve
     static currentEquivalentLatitude
     static transitTubeRotZ
     static isVisible
     static isDynamic
     static hasChanged
   
-    static update(dParamWithUnits, crv, mainRingCurve) {
-      virtualTransitTubeSegment.mainRingCurve = mainRingCurve 
+    static update(dParamWithUnits, crv) {
       const transitTubeOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value
       const transitTubeUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value
       virtualTransitTubeSegment.transitTubeRelativePosition_r = tram.offset_r(transitTubeOutwardOffset, transitTubeUpwardOffset, crv.currentEquivalentLatitude)
@@ -33,7 +31,7 @@ export class virtualTransitTubeSegment {
         console.log("error!!!")
       }
       else {
-        const pointOnRingCurve = virtualTransitTubeSegment.mainRingCurve.getPoint(modelsTrackPosition)
+        const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
         const angle = 2 * Math.PI * modelsTrackPosition
         om.position.set(
           pointOnRingCurve.x + virtualTransitTubeSegment.transitTubeRelativePosition_r * Math.cos(angle),

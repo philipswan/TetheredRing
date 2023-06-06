@@ -339,17 +339,18 @@ export class transitSystem {
 
   update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
 
-    virtualTransitVehicle.update(dParamWithUnits, trackOffsetsList, crv, mainRingCurve)
-    virtualRingTerminus.update(dParamWithUnits, crv, mainRingCurve)
-    virtualGroundTerminus.update(dParamWithUnits, crv, mainRingCurve)
-    virtualElevatorCar.update(dParamWithUnits, crv, mainRingCurve)
-    virtualHabitat.update(dParamWithUnits, crv, mainRingCurve)
-    virtualStationaryRingSegment.update(dParamWithUnits, crv, mainRingCurve)
-    virtualMovingRingSegment.update(dParamWithUnits, crv, mainRingCurve)
-    virtualTransitTubeSegment.update(dParamWithUnits, crv, mainRingCurve)
-    virtualSolarArray.update(dParamWithUnits, crv, mainRingCurve)
-    virtualElevatorCable.update(dParamWithUnits, crv, mainRingCurve)
-    dynamicallyManagedObject.update(dParamWithUnits, crv, mainRingCurve)
+    this.refFrames.forEach(refFrame => {refFrame.update(mainRingCurve)})
+    virtualTransitVehicle.update(dParamWithUnits, trackOffsetsList, crv)
+    virtualRingTerminus.update(dParamWithUnits, crv)
+    virtualGroundTerminus.update(dParamWithUnits, crv)
+    virtualElevatorCar.update(dParamWithUnits, crv)
+    virtualHabitat.update(dParamWithUnits, crv)
+    virtualStationaryRingSegment.update(dParamWithUnits, crv)
+    virtualMovingRingSegment.update(dParamWithUnits, crv)
+    virtualTransitTubeSegment.update(dParamWithUnits, crv)
+    virtualSolarArray.update(dParamWithUnits, crv)
+    virtualElevatorCable.update(dParamWithUnits, crv)
+    dynamicallyManagedObject.update(dParamWithUnits, crv)
  
     function removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
       refFrames.forEach(refFrame => {

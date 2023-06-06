@@ -23,4 +23,8 @@ export class referenceFrame {
 		const makeEmptyArrays = () => { return structuredClone(this.placeholderEntries) }
 		this.wedges = new Array(this.numWedges).fill().map(makeEmptyArrays)
 	}
+
+	update(curve) {
+		this.curve = curve
+	}
 }

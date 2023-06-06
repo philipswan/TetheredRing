@@ -7,7 +7,6 @@ export class virtualElevatorCar {
     }
 
     // The following properties are common to all virtual elevators...
-    static mainRingCurve
     static elevatorCarOutwardOffset
     static elevatorCarUpwardOffset
     static elevatorCarForwardOffset
@@ -18,8 +17,7 @@ export class virtualElevatorCar {
     static isDynamic
     static hasChanged
 
-    static update(dParamWithUnits, crv, mainRingCurve) {
-        virtualElevatorCar.mainRingCurve = mainRingCurve
+    static update(dParamWithUnits, crv) {
         virtualElevatorCar.elevatorCarOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
         virtualElevatorCar.elevatorCarUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value
         virtualElevatorCar.elevatorCarForwardOffset = dParamWithUnits['elevatorCableForwardOffset'].value
@@ -41,7 +39,7 @@ export class virtualElevatorCar {
             console.log("error!!!")
         }
         else {
-            const pointOnRingCurve = virtualElevatorCar.mainRingCurve.getPoint(modelsTrackPosition)
+            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
             om.position.set(
                 pointOnRingCurve.x + virtualElevatorCar.elevatorCarPosition_dr * Math.cos(angle) + virtualElevatorCar.elevatorCarForwardOffset * -Math.sin(angle),
