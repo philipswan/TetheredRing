@@ -53,7 +53,6 @@ const url = new URL(window.location.href)
 // Get the value of the "action" query parameter
 // To enable VR, add "?enableVR=true" to end of url. For example, http://localhost:5173/?enableVR=true
 const enableVR = (url.searchParams.get("enableVR")=="true")
-console.log(enableVR)
 
 let verbose = false
 let fPreset = 0
@@ -76,6 +75,7 @@ let followLaunchVehicles = false
 let lastPointOnLaunchTrajectoryCurve
 let followLaunchVehiclesStartTime
 let flyToLocation = 0
+const enableLaunchSystem = false
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -199,6 +199,17 @@ const guidParamWithUnits = {
   transitTubeUpwardOffset: {value: -100, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeOutwardOffset: {value: -15, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTubeNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+
+  transitTrackWidth: {value: .3, units: 'm', autoMap: true, min: 0, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackHeight: {value: .1, units: 'm', autoMap: true, min: 0, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackUpwardOffset: {value: 2.38125, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackUpwardSpacing: {value: 4.8125, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackOutwardSpacing: {value: 4.575, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTracksNumUpwardTracks: {value: 2, units: '', autoMap: true, min: 1, max: 4, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTracksNumOutwardTracks: {value: 2, units: '', autoMap: true, min: 1, max: 4, updateFunction: updateTransitsystem, folder: folderEngineering},
+
   transitTrackOuterOffset: {value: 2.2875, units: "m", autoMap: true, min: 1.5, max: 2.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTrackUpperOffset1: {value: 4.7875, units: "m", autoMap: true, min: 2.5, max: 3.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTrackUpperOffset2: {value: -0.025, units: "m", autoMap: true, min: -1.0, max: -0.5, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -275,7 +286,7 @@ const guidParamWithUnits = {
   idealGasConstant: {value: 8.3145, units: 'Joules/mole/K', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Solar Arrays
-  numVirtualSolarArrays: {value:100000, units: "", autoMap: true, min: 0, max: 1000000, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numVirtualSolarArrays: {value:1000000, units: "", autoMap: true, min: 0, max: 1000000, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayNumModels: {value:2560, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayWidth: {value: 15, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayHeight: {value: 10, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -454,6 +465,7 @@ const guidParamWithUnits = {
   // Note: The following parameter is not the actual speed of the movng rings, but a lower speed selected to make the moving rings motion more visible 
   movingRingsSpeedForRendering: {value: 100, units: '', autoMap: true, min: 0, max: 100000, updateFunction: updateTransitsystem, folder: folderRendering},
   showTransitTube: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
+  showTransitTrack: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showTransitVehicles: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showRingTerminuses: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showGroundTerminuses: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -462,20 +474,20 @@ const guidParamWithUnits = {
   showHabitats: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showSolarArrays: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchTrajectory: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverRail: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverBracket: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverRail: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverBracket: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverScrews: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showEvacuatedTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showEvacuatedTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchSleds: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchVehiclePointLight: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRingSegments: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
   animateLaunchSleds: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
-  cableVisibility: {value:0.1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustCableOpacity, folder: folderRendering},
+  elevatorCableOpacity: {value:0.3, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: updateTransitsystem, folder: folderRendering},
   tetherVisibility: {value:0.13, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
   tetherColor: {value:0x000000, units: "", autoMap: true, min: 0, max: 0xffffff, tweenable: false, updateFunction: adjustTetherColor, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
@@ -706,7 +718,6 @@ function adjustStarsVisibility() {
 
 function adjustCableOpacity() {
   updatedParam()
-  cableMaterial.opacity = dParamWithUnits['cableVisibility'].value
 }
 
 function adjustTetherOpacity() {
@@ -850,12 +861,13 @@ function createLogoSprite(texture) {
 }
 
 function updateLogoSprite() {
-  updatedParam()
-  const width = simContainer.offsetWidth
-  const height = simContainer.offsetHeight
-  logoSprite.position.set( -width/2 + logoSpriteWidth/2, height/2 - logoSpriteHeight/2, 1 ) // top left  
-  logoSprite.visible = dParamWithUnits['showLogo'].value
-  //logoSprite.position.set( 0, 0, 1 ); // center  
+  if (logoSprite) {
+    updatedParam()
+    const width = simContainer.offsetWidth
+    const height = simContainer.offsetHeight
+    logoSprite.position.set( -width/2 + logoSpriteWidth/2, height/2 - logoSpriteHeight/2, 1 ) // top left  
+    logoSprite.visible = dParamWithUnits['showLogo'].value
+  }
 }
 
 const xyChart = new XYChart(sceneOrtho)
@@ -962,14 +974,14 @@ orbitControls.enableDamping = true
 let planetWidthSegments = 768
 let planetHeightSegments = 192
 
-const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 3)
+const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
 sunLight.name = 'sunlight'
 sunLight.position.set(0, -6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
 sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
 
-const ambientLight = new THREE.AmbientLight(0x4f4f4f, 3)
+const ambientLight = new THREE.AmbientLight(0x4f4f4f, 1)
 ambientLight.name = 'ambientLight'
 scene.add(ambientLight)
 
@@ -991,7 +1003,7 @@ else {
   eightTextureMode = false
   TextureMode24x12 = true
 }
-const useShaders = true
+const useShaders = false
 
 scene.add(planetCoordSys)
 
@@ -1031,10 +1043,10 @@ if (TextureMode24x12) {
       // marker.position.copy(localPoint)
       // tetheredRingRefCoordSys.add(marker.clone())
 
-      // ToDo: The thresholds in teh statement below should be calcualted from the equivalent latitude of the ring
+      // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
       //const farFromRing = (localPoint.y < 0.45 * radiusOfPlanet) || (localPoint.y > 0.7 * radiusOfPlanet)
       // Hack
-      const farFromRing = true //((i!=3) || (j!=2)) && ((i!=1) || (j!=4)) && ((i!=18) || (j!=3)) && ((i!=18) || (j!=4)) && ((i!=23) || (j!=8)) // Just render seattle area in high-res 
+      const farFromRing = ((i!=3) || (j!=2)) && ((i!=1) || (j!=4)) && ((i!=18) || (j!=3)) && ((i!=18) || (j!=4)) && ((i!=23) || (j!=8)) // Just render seattle area in high-res 
 
       if (farFromRing) {
         textureFilename = `./textures/24x12/LR/earth_LR_${w}x${h}_${i}x${j}.jpg`
@@ -1353,7 +1365,7 @@ var cableMaterial = new THREE.LineBasicMaterial({
   vertexColors: false,
   //color: 0x4897f8,
   transparent: true,
-  opacity: dParamWithUnits['cableVisibility'].value
+  opacity: dParamWithUnits['elevatorCableOpacity'].value
 })
 
 
@@ -1624,28 +1636,28 @@ function constructMainRingAndTransitSystem() {
     // }
 
     // Four tracks within outer tube
-    let outwardOffset = [], upwardOffset = []
-    for (let i = 0; i<trackOffsetsList.length; i++) {
-      outwardOffset[i] = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0]
-      upwardOffset[i] = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1]
-    }
-    for (let j = 0; j<numWedges; j++) {
-      start = j / numWedges
-      end = (j+1) / numWedges
-      referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
+    // let outwardOffset = [], upwardOffset = []
+    // for (let i = 0; i<trackOffsetsList.length; i++) {
+    //   outwardOffset[i] = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0]
+    //   upwardOffset[i] = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1]
+    // }
+    // for (let j = 0; j<numWedges; j++) {
+    //   start = j / numWedges
+    //   end = (j+1) / numWedges
+    //   referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
 
-      // Add four tracks inside the transit tube
-      for (let i = 0; i<trackOffsetsList.length; i++) {
-        const trackGeometry = new transitTrackGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, outwardOffset[i], upwardOffset[i], trackHalfWidth, trackHalfHeight)
-        const transitTrackMesh = new THREE.Mesh(trackGeometry, metalicMaterial)
-        transitTrackMesh.name = 'transitTrack'
-        transitTrackMesh.position.copy(referencePoint)
-        transitTrackMesh.matrixValid = false
-        if (guidParam['perfOptimizedThreeJS']) transitTrackMesh.freeze()
-        transitSystemMeshes.push( transitTrackMesh )
-      }
-    }
-    transitSystemMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
+    //   // Add four tracks inside the transit tube
+    //   for (let i = 0; i<trackOffsetsList.length; i++) {
+    //     const trackGeometry = new transitTrackGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, outwardOffset[i], upwardOffset[i], trackHalfWidth, trackHalfHeight)
+    //     const transitTrackMesh = new THREE.Mesh(trackGeometry, metalicMaterial)
+    //     transitTrackMesh.name = 'transitTrack'
+    //     transitTrackMesh.position.copy(referencePoint)
+    //     transitTrackMesh.matrixValid = false
+    //     if (guidParam['perfOptimizedThreeJS']) transitTrackMesh.freeze()
+    //     transitSystemMeshes.push( transitTrackMesh )
+    //   }
+    // }
+    // transitSystemMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
   }
 }
 
@@ -1654,7 +1666,7 @@ const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWit
 const elevatorCableMeshes = []
 constructElevatorCables()
 function constructElevatorCables() {
-  if (dParamWithUnits['showElevatorCables'].value) {
+  if (false && dParamWithUnits['showElevatorCables'].value) {
     //console.log("Constructing Elevator Cables")
     
     // Add elevator cables
@@ -1710,8 +1722,11 @@ function constructElevatorCables() {
 }
 
 // Launch Trajectory Line
-const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
-launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
+// Hack
+if (enableLaunchSystem) {
+  const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
+  launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
+}
 
 //calculateAdditionalSpecs()
 function calculateAdditionalSpecs() {
@@ -1849,8 +1864,10 @@ function updateRing() {
 
   tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)
 
-  updateLauncher()
-  tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
+  if (enableLaunchSystem) {
+    updateLauncher()
+    tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
+  }
 
   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
   //calculateAdditionalSpecs()
@@ -2066,7 +2083,9 @@ function renderFrame() {
   // }
 
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
-  launchSystemObject.animate(timeSinceStart)
+  if (enableLaunchSystem) {
+    launchSystemObject.animate(timeSinceStart)
+  }
 
   let cameraPostition
   if (enableVR) {
@@ -2783,7 +2802,7 @@ function onKeyDown( event ) {
           guidParamWithUnits['tetherEngineeringFactor'].value = 0.6
           //guidParamWithUnits['numElevatorCables'].value = 180
           guidParamWithUnits['moveRing'].value = 0
-          // guidParamWithUnits['cableVisibility'].value = 0.1
+          // guidParamWithUnits['elevatorCableOpacity'].value = 0.1
           guidParamWithUnits['tetherVisibility'].value = 0.8
           guidParamWithUnits['showMainRingCurve'].value = false
           guidParamWithUnits['showTethers'].value = true
@@ -2947,7 +2966,7 @@ function onKeyDown( event ) {
       followTransitVehicles = !followTransitVehicles
       break
     case 74: /*J*/
-      if (followLaunchVehicles==0) {
+      if (enableLaunchSystem && (followLaunchVehicles==0)) {
         lastPointOnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(10/launchSystemObject.durationOfLaunchTrajectory)
         followLaunchVehiclesStartTime = timeSinceStart - 1
         

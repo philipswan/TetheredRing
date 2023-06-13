@@ -29,7 +29,7 @@ export class virtualMovingRingSegment {
         virtualMovingRingSegment.hasChanged = true
     }
 
-    placeAndOrientModel(om, refFrame) {
+    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
         const modelsTrackPosition = (this.p + refFrame.p) % 1 
         if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
             console.log("error!!!")

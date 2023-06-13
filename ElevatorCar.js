@@ -33,7 +33,7 @@ export class virtualElevatorCar {
         virtualElevatorCar.elevatorCarPosition_dy = tram.offset_y(virtualElevatorCar.elevatorCarOutwardOffset, virtualElevatorCar.elevatorCarUpwardOffset + elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
     }
 
-    placeAndOrientModel(om, refFrame) {
+    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
         const modelsTrackPosition = (this.p + refFrame.p) % 1 
         if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
             console.log("error!!!")
@@ -45,7 +45,6 @@ export class virtualElevatorCar {
                 pointOnRingCurve.x + virtualElevatorCar.elevatorCarPosition_dr * Math.cos(angle) + virtualElevatorCar.elevatorCarForwardOffset * -Math.sin(angle),
                 pointOnRingCurve.y + virtualElevatorCar.elevatorCarPosition_dy,
                 pointOnRingCurve.z + virtualElevatorCar.elevatorCarPosition_dr * Math.sin(angle) + virtualElevatorCar.elevatorCarForwardOffset * Math.cos(angle))
-            //console.log('Car ' + virtualElevatorCar.elevatorCableForwardOffset)
             om.rotation.set(0, -angle, virtualElevatorCar.elevatorCarRotZ)
             //om.rotateY(-Math.PI)
             om.visible = virtualElevatorCar.isVisible

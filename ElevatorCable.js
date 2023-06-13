@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import * as tram from './tram.js'
 
 export class virtualElevatorCable {
@@ -18,17 +19,35 @@ export class virtualElevatorCable {
 
     static update(dParamWithUnits, crv) {
         const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
+
         virtualElevatorCable.elevatorCableUpperAttachPnt_dr = tram.offset_r(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-        virtualElevatorCable.elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        //virtualElevatorCable.elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        virtualElevatorCable.elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -300, crv.currentEquivalentLatitude)
         virtualElevatorCable.elevatorCableUpperAttachPnt_dy = tram.offset_y(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-        virtualElevatorCable.elevatorCableLowerAttachPnt_dy = tram.offset_y(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        //virtualElevatorCable.elevatorCableLowerAttachPnt_dy = tram.offset_y(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        virtualElevatorCable.elevatorCableLowerAttachPnt_dy = tram.offset_y(cableOutwardOffset, -300, crv.currentEquivalentLatitude)
+
+        virtualElevatorCable.elevatorCableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
+        virtualElevatorCable.elevatorCableUpwardOffset = dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['ringTerminusUpwardOffset'].value + dParamWithUnits['elevatorCarUpwardOffset'].value
         virtualElevatorCable.elevatorCableForwardOffset = dParamWithUnits['elevatorCableForwardOffset'].value
+        virtualElevatorCable.elevatorCableTopAltitude = crv.currentMainRingAltitude + dParamWithUnits['additionalUpperElevatorCable'].value
+
+        virtualElevatorCable.elevatorCableOpacity = dParamWithUnits['elevatorCableOpacity'].value
+
+        virtualElevatorCable.currentEquivalentLatitude = crv.currentEquivalentLatitude
+        virtualElevatorCable.elevatorCableRotZ = crv.currentEquivalentLatitude - Math.PI/2
         virtualElevatorCable.isVisible = dParamWithUnits['showElevatorCables'].value
-        virtualElevatorCable.isDynamic =  false
+        virtualElevatorCable.isDynamic =  true
         virtualElevatorCable.hasChanged = true
     }
 
-    placeAndOrientModel(om, refFrame) {
+    static animate(elevatorAltitude, crv) {
+        virtualElevatorCable.elevatorCablePosition_dr = tram.offset_r(virtualElevatorCable.elevatorCableOutwardOffset, virtualElevatorCable.elevatorCableUpwardOffset + elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        virtualElevatorCable.elevatorCablePosition_dy = tram.offset_y(virtualElevatorCable.elevatorCableOutwardOffset, virtualElevatorCable.elevatorCableUpwardOffset + elevatorAltitude-crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
+        virtualElevatorCable.elevatorAltitude = elevatorAltitude
+    }
+
+    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
         const modelsTrackPosition = (this.p + refFrame.p) % 1     
         if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
             console.log("error!!!")
@@ -36,24 +55,25 @@ export class virtualElevatorCable {
         else {
             const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
             const angle = 2 * Math.PI * modelsTrackPosition
-            const elevatorCableUpperAttachPnt = new THREE.Vector3(
-                virtualElevatorCable.elevatorCableUpperAttachPnt_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),
-                virtualElevatorCable.elevatorCableUpperAttachPnt_dy,
-                virtualElevatorCable.elevatorCableUpperAttachPnt_dr * Math.sin(angle) + virtualElevatorCable.elevatorCableForwardOffset * Math.cos(angle),
-            )
-            const elevatorCableLowerAttachPnt = new THREE.Vector3(
-                virtualElevatorCable.elevatorCableLowerAttachPnt_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),
-                virtualElevatorCable.elevatorCableLowerAttachPnt_dy,
-                virtualElevatorCable.elevatorCableLowerAttachPnt_dr * Math.sin(angle) + virtualElevatorCable.elevatorCableForwardOffset * Math.cos(angle),
-            )
-            const pointSet = [elevatorCableUpperAttachPnt, elevatorCableLowerAttachPnt]
-            om.geometry.setFromPoints(pointSet)
             om.position.set(
-                pointOnRingCurve.x,
-                pointOnRingCurve.y,
-                pointOnRingCurve.z)
-            //om.rotation.set(0, 0, 0)
-            om.visible = virtualElevatorCable.isVisible
+                pointOnRingCurve.x + virtualElevatorCable.elevatorCablePosition_dr * Math.cos(angle) + virtualElevatorCable.elevatorCableForwardOffset * -Math.sin(angle),
+                pointOnRingCurve.y + virtualElevatorCable.elevatorCablePosition_dy,
+                pointOnRingCurve.z + virtualElevatorCable.elevatorCablePosition_dr * Math.sin(angle) + virtualElevatorCable.elevatorCableForwardOffset * Math.cos(angle))
+            om.rotation.set(0, -angle, virtualElevatorCable.elevatorCableRotZ)
+
+            // Feels a little clunky, but seems to work well enough...
+            const p3 = new THREE.Vector3(0, virtualElevatorCable.elevatorCableTopAltitude - virtualElevatorCable.elevatorAltitude, 0)
+            const p1 = new THREE.Vector3(0, 0, 0)
+            const p2 = new THREE.Vector3(0, 0, 0)
+            const p0 = new THREE.Vector3(0, -virtualElevatorCable.elevatorAltitude, 0)
+            const pointSet = [p0, p1, p2, p3]
+            om.geometry.setFromPoints(pointSet)
+            om.geometry.computeBoundingSphere()
+            // om.geometry.frustumCulled = false
+
+            const opacity = virtualElevatorCable.elevatorCableOpacity * Math.min(1, 10000 / wedgeToCameraDistance)
+            om.material.setValues({color: 0x4897f8, transparent: true, opacity: opacity})
+            om.visible = virtualElevatorCable.isVisible && (opacity > 0.01)
             om.updateMatrix()
             om.matrixValid = false
             if (this.perfOptimizedThreeJS) om.freeze()

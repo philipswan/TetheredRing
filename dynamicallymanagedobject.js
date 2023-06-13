@@ -43,7 +43,7 @@ export class dynamicallyManagedObject {
     
   }
 
-  placeAndOrientModel(om, refFrame) {
+  placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
     const modelsCurvePosition = (this.p + refFrame.p) % 1
     const pointOnCurve = dynamicallyManagedObject.curve.getPoint(modelsCurvePosition)
     const tangentToCurve = dynamicallyManagedObject.curve.getTangent(modelsCurvePosition)
@@ -76,4 +76,4 @@ export class dynamicallyManagedObject {
 // Need to automatically create the right number of needed models instead of having to do it manually
 
 // Object.update(mainRingCurve)
-// Object.placeAndOrientModel(om, refFrame)
+// Object.placeAndOrientModel(om, refFrame, wedgeToCameraDistance)
