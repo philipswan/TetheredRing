@@ -575,6 +575,7 @@ export function generateHabitatMeshes(dParamWithUnits, specs, genSpecs) {
 
 export function makeOffsetCurve(outwardOffset, upwardOffset, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments) {
   // Create a curve to represent the path we want the tube to take
+  console.assert(lengthSegments % 2 == 0, "lengthSegments must be even")
   const tubePoints = []
   const dr = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
   const dy = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)

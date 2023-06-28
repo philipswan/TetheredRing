@@ -19,13 +19,12 @@ export class virtualTransitTubeSegment {
       virtualTransitTubeSegment.transitTubeRelativePosition_r = tram.offset_r(transitTubeOutwardOffset, transitTubeUpwardOffset, crv.currentEquivalentLatitude)
       virtualTransitTubeSegment.transitTubeRelativePosition_y = tram.offset_y(transitTubeOutwardOffset, transitTubeUpwardOffset, crv.currentEquivalentLatitude)
       virtualTransitTubeSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
-      virtualTransitTubeSegment.transitTubeRotZ = crv.currentEquivalentLatitude - Math.PI/2
       virtualTransitTubeSegment.isVisible = dParamWithUnits['showTransitTube'].value
       virtualTransitTubeSegment.isDynamic =  false
       virtualTransitTubeSegment.hasChanged = true
     }
   
-    placeAndOrientModel(om, refFrame) {
+    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
       const modelsTrackPosition = (this.p + refFrame.p) % 1 
       if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
         console.log("error!!!")
@@ -37,7 +36,7 @@ export class virtualTransitTubeSegment {
           pointOnRingCurve.x + virtualTransitTubeSegment.transitTubeRelativePosition_r * Math.cos(angle),
           pointOnRingCurve.y + virtualTransitTubeSegment.transitTubeRelativePosition_y,
           pointOnRingCurve.z + virtualTransitTubeSegment.transitTubeRelativePosition_r * Math.sin(angle))
-        om.rotation.set(0, -angle, virtualTransitTubeSegment.transitTubeRotZ)
+        om.rotation.set(0, -angle, virtualTransitTubeSegment.currentEquivalentLatitude)
         om.visible = virtualTransitTubeSegment.isVisible
         om.matrixValid = false
         if (this.perfOptimizedThreeJS) om.freeze()
