@@ -301,7 +301,7 @@ export class transitSystem {
     const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
     addTransitTubes(transitTubeMesh)
 
-    fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
+    // fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
     
     // Create transit track segments
     const dx = dParamWithUnits['transitTrackWidth'].value / 2
@@ -352,7 +352,7 @@ export class transitSystem {
       }
     }
 
-    fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
+    // fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
     
     // Manually create the solar arrays
     function getSolarArraySegmentCurve() {
