@@ -279,7 +279,7 @@ class virtualLaunchSled {
       let grapplerOffset = []
       let grapplerSwitchoverSignal = []
 
-      const firstGrapplerDistance = 0
+      const firstGrapplerDistance =   0
       const lastGrapplerDistance = bodyLength
       const grapplerSpacing = 1.0 / numGrapplers * bodyLength
 
@@ -299,9 +299,6 @@ class virtualLaunchSled {
         additionalRotation
       )
 
-      if (updateNow) {
-        console.log('updateNow')
-      }
       for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
         info.generatePlacementInfo(grapplerDistance)
         grapplerOffset[i] = info.offset

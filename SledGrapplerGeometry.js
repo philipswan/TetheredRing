@@ -51,12 +51,12 @@ class SledGrapplerPlacementInfo {
 	generatePlacementInfo(grapplerDistance) {
 		const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
 		const betweenGrapplerSpacing = grapplerSpacing * 0.1
-		const midDistance = this.baseDistanceAlongScrew + this.bodyLength/2
+		const midDistance = this.baseDistanceAlongScrew - this.bodyLength/2
 		const cA = 0.5 * this.acceleration
 		const cB = this.initialVelocity
 		const cBSqrd = this.initialVelocity**2
 
-		const gPlus = grapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+		const gPlus = (grapplerDistance) + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
 		const cC = -(midDistance + gPlus)
 		const time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
 		const rotations = this.additionalRotation + this.revolutionsPerSecond * time
@@ -71,13 +71,15 @@ class SledGrapplerPlacementInfo {
 			const rotationsWithTwistFrac = rotationsWithTwist - Math.floor(rotationsWithTwist)
 			// Only need the midRib version of the next two signals, but we'll calculate it for all of them for now.
 			const nearestThread = (this.threadStarts-1) - Math.floor(rotationsWithTwistFrac * this.threadStarts)
-			this.switchoverSignal = Math.max(Math.abs(((rotationsWithTwistFrac * this.threadStarts) % 1) - 0.5) * 8 - 3, 0)
 
 			const rateOfChangeInForwardDisplacement = this.initialVelocity + this.acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
 			const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
             const rateOfChangeInRotationalDistance2 = 2 * Math.PI * this.threadRadius * Math.abs(this.revolutionsPerSecond)
 			const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
 			const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
+
+			const f = 16 * Math.abs(outerThreadPitch)
+			this.switchoverSignal = Math.max(Math.abs(((rotationsWithTwistFrac * this.threadStarts) % 1) - 0.5) * 2 * f - (f-1), 0)
 
 			const shaftRadiusPlus = this.shaftRadius + this.shaftToGrapplerPad
 			const r = (shaftRadiusPlus + this.threadRadius) / 2
@@ -185,7 +187,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 
             const grapplerSpacing = 1.0 / numGrapplers * bodyLength
 			const betweenGrapplerSpacing = grapplerSpacing * 0.1
-            const midDistance = baseDistanceAlongScrew + bodyLength/2
+            const midDistance = baseDistanceAlongScrew - bodyLength/2
             const cA = 0.5 * acceleration
             const cB = initialVelocity
             const cBSqrd = initialVelocity**2

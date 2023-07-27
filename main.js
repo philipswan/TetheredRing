@@ -75,7 +75,7 @@ let followLaunchVehicles = false
 let lastPointOnLaunchTrajectoryCurve
 let followLaunchVehiclesStartTime
 let flyToLocation = 0
-const enableLaunchSystem = false
+const enableLaunchSystem = true
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -323,14 +323,14 @@ const guidParamWithUnits = {
   launchVehicleNumModels: {value: 640, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherCoastTime: {value: 250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherSlowDownPassageOfTime: {value: 0.002, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherSlowDownPassageOfTime: {value: 0.02, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   evacuatedTubeEntrancePositionAroundRing: {value: 0.7607, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverTubeNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeNumModels: {value: 1024, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -478,13 +478,13 @@ const guidParamWithUnits = {
   showElevatorCars: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showHabitats: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showSolarArrays: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
-  showLaunchTrajectory: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverRail: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverBracket: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverScrews: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showEvacuatedTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchSleds: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverRail: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverBracket: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showEvacuatedTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchSleds: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRingSegments: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -2405,13 +2405,15 @@ function onKeyDown( event ) {
       }
       if (objectIntersects.length>0) {
         objectIntersects.forEach(intersect => {
+          // A bit hacky - there's no guatentee that immediate parent of the object we interceted with is the 'launchVehicle' object that we want to track.
+          // If the model becomes more cpmplicated, then we might need to search further up the heirarchy of objects to find it.
           if (intersect.object.parent.name=='launchVehicle') {
             trackingPoint = intersect.object.parent.position
           }
         })
         if (trackingPoint) {
           trackingPointMarkerMesh.position.copy(trackingPoint)
-          trackingPointMarkerMesh.visible = true
+          trackingPointMarkerMesh.visible = false
         }
         intersectionPoint = objectIntersects[0].point
         targetPoint = intersectionPoint
@@ -2428,29 +2430,8 @@ function onKeyDown( event ) {
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
       if ((planetIntersects.length>0) || (objectIntersects.length>0)) {
-        orbitControlsTargetPoint.copy(targetPoint.clone())
-        setOrbitControlsTargetUpVector()
-        new TWEEN.Tween(orbitControls.target)
-          .to(orbitControlsTargetPoint, 1000)
-          .easing(TWEEN.Easing.Cubic.InOut)
-          .start(timeSinceStart*1000)
-        new TWEEN.Tween(orbitControls.upDirection)
-          .to(orbitControlsTargetUpVector, 1000)
-          .easing(TWEEN.Easing.Cubic.InOut)
-          .start(timeSinceStart*1000)
-        new TWEEN.Tween(camera.up)
-          .to(orbitControlsTargetUpVector, 1000)
-          .easing(TWEEN.Easing.Cubic.InOut)
-          .start(timeSinceStart*1000)
-        // new TWEEN.Tween(orbitControlsUpVector)
-        // .to(orbitControlsTargetUpVector, 1000)
-        // .easing(TWEEN.Easing.Cubic.InOut)
-        // .start(timeSinceStart*1000)
-
-        camera.up.copy(orbitControlsUpVector.clone())
-        orbitControls.upDirection.copy(orbitControlsUpVector.clone())
+        setupTweeningOperation()
         
-
         // previousTargetPoint.copy(orbitControls.target.clone())
         // previousUpVector.copy(orbitControls.upDirection.clone())
         // orbitControlsTargetPoint.copy(targetPoint.clone())
@@ -2460,11 +2441,33 @@ function onKeyDown( event ) {
         // orbitControlsEarthRingLerpSpeed = 1/32
         // orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
       }
-      break;
+      break
+    case 48: /*0*/
+      // Search for the object with name=='launchVehicle'
+      let closestSoFar = -1
+      let closestObject = null
+      scene.traverse(child => {
+        if (child.name=='launchVehicle') {
+          if (child.visible) {
+            // Look for the closest launch vehicle to the camera
+            const distanceAway = child.position.distanceTo(camera.position)
+            if ((closestSoFar==-1) || (distanceAway<closestSoFar)) {
+              closestObject = child
+              closestSoFar = distanceAway
+            }
+          }
+        }
+      })
+      trackingPoint = closestObject.position
+      if (closestObject!==null) {
+        targetPoint = closestObject.position.clone()
+        setupTweeningOperation()
+      }
+      break
     case 81: /*Q*/
       orbitControls.autoRotate ^= true
       orbitControls.rotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
-      break;
+      break
     // case 82: /*R*/
     //   dParamWithUnits['ringCenterLongitude'].value -= 0.1
     //   updateRing()
@@ -2483,7 +2486,7 @@ function onKeyDown( event ) {
         animateRingMovingOut = !animateRingMovingOut
         animateRingMovingBack = false
       }
-      break;
+      break
     case 76: /*L*/
       // Lower the Ring
       if (RaiseLowerMode) {
@@ -2618,11 +2621,17 @@ function onKeyDown( event ) {
 
       switch (flyToLocation) {
       case 0:
-        // Close to Ring at 22 km altitude
-        orbitControls.target.set(-3643532.0765374135, 4778082.993834642, -2232448.894907217)
-        orbitControls.upDirection.set(-0.5684119480549809, 0.7453922243304064, -0.3482790393005452)
-        orbitControls.object.position.set(-3643700.804177911, 4778060.86894906, -2232401.882164564)
-        camera.up.set(-0.5684119480549809, 0.7453922243304064, -0.3482790393005452)
+        // Near start of mass driver
+        if (launchSystemObject) {
+          orbitControls.target.set(1085224.4975082357, -3894426.0153227467, -4933142.570191025)
+          orbitControls.upDirection.set(0.17014972014773194, -0.6105930877519445, -0.7734501625335628)
+          orbitControls.object.position.set(1085232.440484533, -3894434.50494758, -4933140.279781671)
+          camera.up.set(0.17014972014773194, -0.6105930877519445, -0.7734501625335628)
+          // orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
+          // orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
+          // orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+          // camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+        }
         break
       case 1:
         orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
@@ -2631,13 +2640,11 @@ function onKeyDown( event ) {
         camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
         break
       case 2:
-        // Near start of mass driver
-        if (launchSystemObject) {
-          orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
-          orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
-          orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-          camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-        }
+        // Close to Ring at 22 km altitude
+        orbitControls.target.set(-3643532.0765374135, 4778082.993834642, -2232448.894907217)
+        orbitControls.upDirection.set(-0.5684119480549809, 0.7453922243304064, -0.3482790393005452)
+        orbitControls.object.position.set(-3643700.804177911, 4778060.86894906, -2232401.882164564)
+        camera.up.set(-0.5684119480549809, 0.7453922243304064, -0.3482790393005452)
         break
       case 3:
         // Near Mount Rainier
@@ -3015,6 +3022,30 @@ function onKeyDown( event ) {
   }
 }
 
+function setupTweeningOperation() {
+  orbitControlsTargetPoint.copy(targetPoint.clone())
+  setOrbitControlsTargetUpVector()
+  new TWEEN.Tween(orbitControls.target)
+    .to(orbitControlsTargetPoint, 1000)
+    .easing(TWEEN.Easing.Cubic.InOut)
+    .start(timeSinceStart*1000)
+  new TWEEN.Tween(orbitControls.upDirection)
+    .to(orbitControlsTargetUpVector, 1000)
+    .easing(TWEEN.Easing.Cubic.InOut)
+    .start(timeSinceStart*1000)
+  new TWEEN.Tween(camera.up)
+    .to(orbitControlsTargetUpVector, 1000)
+    .easing(TWEEN.Easing.Cubic.InOut)
+    .start(timeSinceStart*1000)
+  // new TWEEN.Tween(orbitControlsUpVector)
+  // .to(orbitControlsTargetUpVector, 1000)
+  // .easing(TWEEN.Easing.Cubic.InOut)
+  // .start(timeSinceStart*1000)
+
+  camera.up.copy(orbitControlsUpVector.clone())
+  orbitControls.upDirection.copy(orbitControlsUpVector.clone())
+}
+
 function orbitControlsEventHandler() {
   //if (verbose) console.log("recomputing near/far")
   recomputeNearFarClippingPlanes()
@@ -3030,7 +3061,7 @@ function recomputeNearFarClippingPlanes() {
   // Note: Assumes the planet is centered on the origin!!!
   camera.near = Math.max(10, camera.position.length() - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Hack
-  //camera.near = 0.1
+  camera.near = 0.1
 
   // camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,
