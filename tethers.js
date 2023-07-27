@@ -5,10 +5,11 @@ import {
 //} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
 import * as tram from './tram.js'
+import * as kmlutils from './kmlutils.js'
 
 class TetherGeometry extends BufferGeometry {
 
-	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs) {
+	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys) {
 		super();
 
     const tetherPoints = []
@@ -646,24 +647,30 @@ class TetherGeometry extends BufferGeometry {
       })
       
       // Add tether points to KML file
+      let overflow = 0
       if (genKMLFile) {
         planetCoordSys.updateWorldMatrix(true)
-        tetheredRingLonCoordSys.updateMatrixWorld(true)
-        tetheredRingLatCoordSys.updateMatrixWorld(true)
         tetheredRingRefCoordSys.updateMatrixWorld(true)
   
+        console.log(tetherStrips.length + ' tether strips')
         tetherStrips.forEach(strip => {
-          kmlFile = kmlFile.concat(kmlutils.kmlTetherPlacemarkHeader)
-          strip.forEach((point) => {
-            const xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
-            const xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
-            const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
-            //const coordString = '          ' + lla.lon + ',' + lla.lat + ',' + lla.alt + '\n'
-            const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
-            kmlFile = kmlFile.concat(coordString)
-          })
-          kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+          if (kmlFile.length<1000000) {   // Don't let the file get too big
+            kmlFile = kmlFile.concat(kmlutils.kmlTetherPlacemarkHeader)
+            strip.forEach((point) => {
+              const xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
+              const xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
+              const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+              //const coordString = '          ' + lla.lon + ',' + lla.lat + ',' + lla.alt + '\n'
+              const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+              kmlFile = kmlFile.concat(coordString)
+            })
+            kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+          }
+          else {
+            overflow++
+          }
         })
+        console.log('KML file too big by ' + overflow + ' strips')
       }
     }
   

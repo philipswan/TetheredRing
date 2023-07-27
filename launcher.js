@@ -4,7 +4,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import { Quaternion } from 'three/src/math/Quaternion.js'
 //import { XYChart } from './XYChart.js'
 import { ScrewGeometry } from './ScrewGeometry.js'
-import { SledGrapplerGeometry } from './SledGrapplerGeometry.js'
+import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerGeometry.js'
 import { CatmullRomSuperCurve3 } from './SuperCurves'
 import { CircleSuperCurve3 } from './SuperCurves'
 import { LineSuperCurve3 } from './SuperCurves'
@@ -163,6 +163,7 @@ class launchSledModel {
 
     // Create the sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
     const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
+    launchSledBodyGeometry.translate(0, bodyLength/2, 0)
     const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
     const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
     launchSledBodyMesh.name = 'body'
@@ -171,12 +172,19 @@ class launchSledModel {
 
     // Create the sled's grapplers
     const baseDistanceAlongScrew = 0
-    const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, massDriverScrewTexture)
-    launchSledGrapplerMesh.name = 'leftGrapplers'
-    launchSledMesh.add(launchSledGrapplerMesh.clone())
-    launchSledGrapplerMesh.name = 'rightGrapplers'
-    launchSledGrapplerMesh.scale.set(-1, 1, 1)
-    launchSledMesh.add(launchSledGrapplerMesh.clone())
+    const firstGrapplerDistance = 0
+    const lastGrapplerDistance = bodyLength
+    const grapplerSpacing = 1.0 / numGrapplers * bodyLength
+    for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+      const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, grapplerDistance, massDriverScrewTexture)
+      launchSledGrapplerMesh.name = 'leftGrappler'
+      launchSledGrapplerMesh.userData = i
+      launchSledMesh.add(launchSledGrapplerMesh.clone())
+      launchSledGrapplerMesh.name = 'rightGrappler'
+      launchSledGrapplerMesh.userData = i
+      launchSledGrapplerMesh.scale.set(-1, 1, 1)
+      launchSledMesh.add(launchSledGrapplerMesh.clone())
+    }
     return launchSledMesh
   }
 }
@@ -189,7 +197,11 @@ class virtualLaunchSled {
     this.unallocatedModels = unallocatedModelsArray
   }
 
-  static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene) {
+  static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene, clock) {
+    virtualLaunchSled.clock = clock
+    virtualLaunchSled.updatePeriod = 3  // seconds
+
+    virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
     virtualLaunchSled.massDriverSuperCurve = massDriverSuperCurve
     virtualLaunchSled.launcherMassDriverLength = launcherMassDriverLength
     virtualLaunchSled.launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
@@ -198,6 +210,8 @@ class virtualLaunchSled {
     virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
     virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+    virtualLaunchSled.magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
+    virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
     virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
     virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
 
@@ -209,6 +223,9 @@ class virtualLaunchSled {
     virtualLaunchSled.launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
     virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
     virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
+    virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftRadius
+    virtualLaunchSled.padYActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
+    
 
     virtualLaunchSled.isDynamic =  true
     virtualLaunchSled.hasChanged = true
@@ -218,9 +235,9 @@ class virtualLaunchSled {
   placeAndOrientModel(om, refFrame) {
     if (virtualLaunchSled.isVisible) {
       const deltaT = refFrame.timeSinceStart * virtualLaunchSled.slowDownPassageOfTime - this.timeLaunched
-      const a = virtualLaunchSled.launcherMassDriverForwardAcceleration
-      const v0 = virtualLaunchSled.launcherMassDriverInitialVelocity
-      const sledBackDistance = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, v0, a)
+      const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
+      const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
+      const sledBackDistance = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
       const bodyLength = virtualLaunchSled.launchSledBodyLength
       const d = (sledBackDistance + bodyLength/2) / virtualLaunchSled.launcherMassDriverLength
       const pointOnMassDriverCurve = virtualLaunchSled.massDriverSuperCurve.getPointAt(d)
@@ -235,8 +252,6 @@ class virtualLaunchSled {
       // First, working from the back of the launch sled towards the front, we need to virtually recreate the back face of the screw thread, but only the 
       // parts of the that back face that are within the reach of the launch sled's legs.
 
-      const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
-      const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
       const screwRevolutionsPerSecond = virtualLaunchSled.screwRevolutionsPerSecond
       const threadRadius = virtualLaunchSled.launcherMassDriverScrewThreadRadius
       const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
@@ -246,13 +261,29 @@ class virtualLaunchSled {
       const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
       const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
       const numGrapplers = virtualLaunchSled.launchSledNumGrapplers
+      const magnetThickness = virtualLaunchSled.magnetThickness
+      const shaftToGrapplerPad = virtualLaunchSled.shaftToGrapplerPad
       const grapplersSidewaysOffset = screwSidewaysOffset
       const grapplerUpwardsOffset = screwUpwardsOffset
       const grapplerRadius = (shaftRadius + threadRadius)/2
 
       // Create a new screw geometry to represent the adaptive nut
       const additionalRotation = (deltaT * virtualMassDriverScrew.screwRevolutionsPerSecond) % 1
-      const grapplerGeometry = createSledGrapplerGeometry(
+      const timeNow = virtualLaunchSled.clock.getElapsedTime()
+      const updateNow = (timeNow>virtualLaunchSled.timeOfLastUpdate+virtualLaunchSled.updatePeriod)
+      if (updateNow) {
+        virtualLaunchSled.timeOfLastUpdate += virtualLaunchSled.updatePeriod
+      }
+
+      let grapplerGeometry = []
+      let grapplerOffset = []
+      let grapplerSwitchoverSignal = []
+
+      const firstGrapplerDistance = 0
+      const lastGrapplerDistance = bodyLength
+      const grapplerSpacing = 1.0 / numGrapplers * bodyLength
+
+      const info = new SledGrapplerPlacementInfo(
         shaftRadius,
         threadRadius,
         threadThickness,
@@ -263,25 +294,87 @@ class virtualLaunchSled {
         sledBackDistance,
         bodyLength,
         numGrapplers,
+        magnetThickness,
+        shaftToGrapplerPad,
         additionalRotation
       )
-  
-      om.children.forEach(child => {
-        if (child.name=='launchSled_leftGrapplers') {
-          child.geometry.dispose()
-          child.geometry = grapplerGeometry
-          child.position.copy(pointOnMassDriverCurve)
-            .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset)) // ToDo: This should be a parameter
-            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset))
-          child.setRotationFromQuaternion(orientation)
+
+      if (updateNow) {
+        console.log('updateNow')
+      }
+      for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+        info.generatePlacementInfo(grapplerDistance)
+        grapplerOffset[i] = info.offset
+        grapplerSwitchoverSignal[i] = info.switchoverSignal
+        if (updateNow) {
+          grapplerGeometry[i] = new SledGrapplerGeometry(
+            shaftRadius,
+            threadRadius,
+            threadThickness,
+            threadStarts,
+            screwRevolutionsPerSecond,
+            acceleration,
+            initialVelocity,
+            sledBackDistance,
+            bodyLength,
+            numGrapplers,
+            magnetThickness,
+            shaftToGrapplerPad,
+            additionalRotation,
+            grapplerDistance,
+            info.offset
+          )
         }
-        if (child.name=='launchSled_rightGrapplers') {
-          child.geometry.dispose()
-          child.geometry = grapplerGeometry
+      }
+
+      om.children.forEach(child => {
+        if (child.name=='launchSled_leftGrappler') {
+          if (updateNow) {
+            child.geometry.dispose()
+            child.geometry = grapplerGeometry[child.userData]
+          }
+          const offset = grapplerOffset[child.userData]
+          const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+          const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
+          const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
+          const padYActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padYActuation
+          const rOffset = offset.x + padRActuation
+          const rawTheta = offset.z
+          const thetaOffset = Math.atan2(Math.sin(rawTheta), Math.cos(rawTheta)) * padThetaFactor
+          const xOffset = rOffset * -Math.sin(thetaOffset)
+          const zOffset = rOffset * Math.cos(thetaOffset)
+          const yOffset = offset.y - padYActuation
           child.position.copy(pointOnMassDriverCurve)
-            .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset)) // ToDo: This should be a parameter
-            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset))
-          child.setRotationFromQuaternion(orientation)
+            .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset - xOffset)) // ToDo: This should be a parameter
+            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+            .add(forward.clone().multiplyScalar(yOffset))
+          const combinedOrientation = orientation.clone() //.multiply(child.geometry.userData.orientation)
+          child.setRotationFromQuaternion(combinedOrientation)
+          child.rotateY(-thetaOffset)
+        }
+        else if (child.name=='launchSled_rightGrappler') {
+          if (updateNow) {
+            child.geometry.dispose()
+            child.geometry = grapplerGeometry[child.userData]
+          }
+          const offset = grapplerOffset[child.userData]
+          const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+          const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
+          const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
+          const padYActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padYActuation
+          const rOffset = offset.x + padRActuation
+          const rawTheta = offset.z
+          const thetaOffset = Math.atan2(Math.sin(rawTheta), Math.cos(rawTheta)) * padThetaFactor
+          const xOffset = rOffset * -Math.sin(thetaOffset)
+          const zOffset = rOffset * Math.cos(thetaOffset)
+          const yOffset = offset.y - padYActuation
+          child.position.copy(pointOnMassDriverCurve)
+            .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset + xOffset)) // ToDo: This should be a parameter
+            .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+            .add(forward.clone().multiplyScalar(yOffset))
+          const combinedOrientation = orientation.clone() //.multiply(child.geometry.userData.orientation)
+          child.setRotationFromQuaternion(combinedOrientation)
+          child.rotateY(thetaOffset)
         }
         else if (child.name=='launchSled_body') {
           child.position.copy(pointOnMassDriverCurve)
@@ -315,8 +408,11 @@ class virtualLaunchVehicle {
   static isDynamic
   static hasChanged
 
-  static update(dParamWithUnits, launchTrajectoryCurve, durationOfLaunchTrajectory, timeWithinMassDriver, curveUpTime, timeWithinEvacuatedTube) {
+  static update(dParamWithUnits, launchTrajectoryCurve, massDriverSuperCurve, launcherMassDriverLength, durationOfLaunchTrajectory, timeWithinMassDriver, curveUpTime, timeWithinEvacuatedTube) {
     virtualLaunchVehicle.launchTrajectoryCurve = launchTrajectoryCurve
+    virtualLaunchVehicle.massDriverSuperCurve = massDriverSuperCurve
+    virtualLaunchVehicle.launcherMassDriverLength = launcherMassDriverLength
+
     virtualLaunchVehicle.durationOfLaunchTrajectory = durationOfLaunchTrajectory
     virtualLaunchVehicle.timeInsideLaunchSystem = timeWithinMassDriver + curveUpTime + timeWithinEvacuatedTube
     //const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
@@ -324,9 +420,14 @@ class virtualLaunchVehicle {
     //virtualLaunchVehicle.launchVehicleRelativePosition_r = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     //virtualLaunchVehicle.launchVehicleRelativePosition_y  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
     //virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
+    virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
+    virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
+    virtualLaunchVehicle.bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
     virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
     virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    virtualLaunchVehicle.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+    virtualLaunchVehicle.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
     virtualLaunchVehicle.isDynamic =  true
     virtualLaunchVehicle.hasChanged = true
     //virtualLaunchVehicle.ringSouthernMostPosition = ringSouthernMostPosition
@@ -334,43 +435,36 @@ class virtualLaunchVehicle {
 
   placeAndOrientModel(om, refFrame) {
     const deltaT = refFrame.timeSinceStart * virtualLaunchVehicle.slowDownPassageOfTime - this.timeLaunched
-    const modelsCurvePosition = deltaT / virtualLaunchVehicle.durationOfLaunchTrajectory
-    
-    if (modelsCurvePosition==='undefined' || (modelsCurvePosition<0)) {
-      console.log("error!!!")
+    const acceleration = virtualLaunchVehicle.launcherMassDriverForwardAcceleration
+    const initialVelocity = virtualLaunchVehicle.launcherMassDriverInitialVelocity
+    const vehicleBackDistance = virtualLaunchVehicle.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
+    const bodyLength = virtualLaunchVehicle.bodyLength
+    const d = (vehicleBackDistance + bodyLength/2) / virtualLaunchVehicle.launcherMassDriverLength
+    const pointOnMassDriverCurve = virtualLaunchVehicle.massDriverSuperCurve.getPointAt(d)
+    const forward = virtualLaunchVehicle.massDriverSuperCurve.getTangentAt(d)
+    const upward = virtualLaunchVehicle.massDriverSuperCurve.getNormalAt(d)
+    const rightward = virtualLaunchVehicle.massDriverSuperCurve.getBinormalAt(d)
+    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+    const orientation = virtualLaunchVehicle.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+  
+    om.position.copy(pointOnMassDriverCurve)
+      .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
+      .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
+    om.setRotationFromQuaternion(orientation)
+
+    om.visible = virtualLaunchVehicle.isVisible
+
+    // Turn on the flame at the exit of the launch tube
+    // ToDo: Using hard coded indicies for parts of the model is not good for code maintainability - improve this but without degrading performance.
+    if (deltaT > virtualLaunchVehicle.timeInsideLaunchSystem) {
+      om.children[1].visible = true
     }
-    // ToDo: we should be removing the model before we get to the point where it has travelled beyond the end of the launch tragectory
-    else if (modelsCurvePosition<=1) {
-      const pointOnLaunchTrajectoryCurve = virtualLaunchVehicle.launchTrajectoryCurve.getPoint(modelsCurvePosition)
-      const tangentToLaunchTrajectoryCurve = virtualLaunchVehicle.launchTrajectoryCurve.getTangent(modelsCurvePosition)
-      const normalToLaunchTrajectoryCurve = pointOnLaunchTrajectoryCurve.clone().normalize() // This is a bit of a hack - it assumes the curve hugs the surface of the planet
-
-      om.position.set(
-        pointOnLaunchTrajectoryCurve.x,
-        pointOnLaunchTrajectoryCurve.y,
-        pointOnLaunchTrajectoryCurve.z)
-      const straightUpVector = new THREE.Vector3(0, 1, 0)
-      const q = new THREE.Quaternion().setFromUnitVectors(straightUpVector, tangentToLaunchTrajectoryCurve)
-      om.rotation.setFromQuaternion(q)
-      om.rotateY(-om.getWorldDirection(new THREE.Vector3()).angleTo(normalToLaunchTrajectoryCurve))
-
-      om.visible = virtualLaunchVehicle.isVisible
-
-      // Turn on the flame at the exit of the launch tube
-      // ToDo: Using hard coded indicies for parts of the model is not good for code maintainability - improve this but without degrading performance.
-      if (deltaT > virtualLaunchVehicle.timeInsideLaunchSystem) {
-        om.children[1].visible = true
-      }
-      else {
-        om.children[1].visible = false
-      }
-      om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
-      om.matrixValid = false
-    }
-    // ToDo: we should be removing the model before we get to the point where it has travelled beyond the end of the launch tragectory
     else {
-      om.visible = false
+      om.children[1].visible = false
     }
+    om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
+    om.matrixValid = false
   }
 }
 
@@ -548,7 +642,7 @@ class massDriverScrewModel {
   }
 }
 
-function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, massDriverScrewTexture) {
+function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, grapplerDistance, massDriverScrewTexture) {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
@@ -561,9 +655,11 @@ function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLen
   const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
   const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
   const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+  const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
+  const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
   const additionalRotation = 0
 
-  const sledGrapplerGeometry = createSledGrapplerGeometry(
+  const info = new SledGrapplerPlacementInfo(
     shaftRadius,
     threadRadius,
     threadThickness,
@@ -574,38 +670,35 @@ function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLen
     baseDistanceAlongScrew,
     bodyLength,
     numGrapplers,
-    additionalRotation)
+    magnetThickness,
+    shaftToGrapplerPad,
+    additionalRotation
+  )
+  info.generatePlacementInfo(grapplerDistance)
+
+  const sledGrapplerGeometry = new SledGrapplerGeometry(
+    shaftRadius,
+    threadRadius,
+    threadThickness,
+    threadStarts,
+    launcherMassDriverScrewRevolutionsPerSecond,
+    launcherMassDriverForwardAcceleration,
+    launcherMassDriverInitialVelocity,
+    baseDistanceAlongScrew,
+    bodyLength,
+    numGrapplers,
+    magnetThickness,
+    shaftToGrapplerPad,
+    additionalRotation,
+    grapplerDistance,
+    info.offset
+  )
+
   const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f})
   //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({map: massDriverScrewTexture})
   return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
 }
 
-function createSledGrapplerGeometry(
-  shaftRadius,
-  threadRadius,
-  threadThickness,
-  threadStarts,
-  launcherMassDriverScrewRevolutionsPerSecond,
-  launcherMassDriverForwardAcceleration,
-  launcherMassDriverInitialVelocity,
-  baseDistanceAlongScrew,
-  bodyLength,
-  numGrapplers,
-  additionalRotation) {
-  
-  return new SledGrapplerGeometry(
-    shaftRadius,
-    threadRadius,
-    threadThickness,
-    threadStarts,
-    launcherMassDriverScrewRevolutionsPerSecond,
-    launcherMassDriverForwardAcceleration,
-    launcherMassDriverInitialVelocity,
-    baseDistanceAlongScrew,
-    bodyLength,
-    numGrapplers,
-    additionalRotation)
-}
 class evacuatedTubeModel {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
@@ -953,7 +1046,7 @@ export class launcher {
       wedgeIndex = 0
       const refFrame = this.refFrames[0]
       // Hack - remove "&& (n<150)"
-      for (t = -.02, n = 0; (t<this.durationOfLaunchTrajectory) && (n<150); t += tInc, n++) {
+      for (t = -.02, n = 0; (t<this.durationOfLaunchTrajectory) && (n<50); t += tInc, n++) {
         refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
         refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
       }
@@ -1027,7 +1120,7 @@ export class launcher {
       n = this.massDriverScrewSegments
       const halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / this.launcherMassDriverLength
       // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
-      this.nLimit = 600
+      this.nLimit = 20
 
       for (let i = 0; i < Math.min(this.nLimit, n); i++) {
         const d = (i+0.5)/n - halfBracketThickness
@@ -1070,8 +1163,8 @@ export class launcher {
       virtualMassDriverBracket.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualMassDriverScrew.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
-      virtualLaunchSled.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.scene)
-      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.durationOfLaunchTrajectory, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
+      virtualLaunchSled.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.scene, this.clock)
+      virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.massDriverSuperCurve, this.launcherMassDriverLength, this.durationOfLaunchTrajectory, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
       this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
 

@@ -286,7 +286,7 @@ const guidParamWithUnits = {
   idealGasConstant: {value: 8.3145, units: 'Joules/mole/K', autoMap: true, min: 0, max: 10000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // Solar Arrays
-  numVirtualSolarArrays: {value:1000000, units: "", autoMap: true, min: 0, max: 1000000, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numVirtualSolarArrays: {value: 100000, units: "", autoMap: true, min: 0, max: 1000000, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayNumModels: {value:2560, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayWidth: {value: 15, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayHeight: {value: 10, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -311,6 +311,8 @@ const guidParamWithUnits = {
   launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleUpwardsOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
@@ -358,7 +360,10 @@ const guidParamWithUnits = {
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledNumModels: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   // Hack - should be 128
-  launchSledNumGrapplers: {value: 12, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledNumGrapplers: {value: 128, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledGrapplerMagnetThickness: {value: 0.05, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherGrapplerPadLiftAwayDistance: {value: 0.05, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   // ToDo: Values for launchVehicleEmptyMass and launchVehiclePropellantMass will be calculated later from other parameters 
   launcherFlywheelRadius: {value: 0.225, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1530,7 +1535,7 @@ constructTethers()
 function constructTethers() {
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs)
+    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     if (fastTetherRender) {
       const n = dParamWithUnits['numTethers'].value
@@ -1722,9 +1727,9 @@ function constructElevatorCables() {
 }
 
 // Launch Trajectory Line
-// Hack
+let launchSystemObject = null
 if (enableLaunchSystem) {
-  const launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
+  launchSystemObject = new Launcher.launcher(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
 }
 
@@ -1996,11 +2001,20 @@ function renderFrame() {
     // }
   }
   
+  const delta = clock.getDelta()
+  timeSinceStart += delta
+
+  if (enableLaunchSystem) {
+    launchSystemObject.animate(timeSinceStart)
+  }
+  transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
+
   if (trackingPoint) {
     if (lastTrackingPoint) {
       const offset = trackingPoint.clone().sub(lastTrackingPoint)
       orbitControls.target.add(offset)
       orbitControls.object.position.add(offset)
+      trackingPointMarkerMesh.position.add(offset)
     }
     lastTrackingPoint = trackingPoint.clone()
   }
@@ -2017,9 +2031,6 @@ function renderFrame() {
     orbitControls.object.position.copy( orbitControls.target ).add( offset )
   }
   orbitControls.update()
-
-  const delta = clock.getDelta()
-  timeSinceStart += delta
 
   if (animateRingRaising || animateRingLowering) {
     if (verbose) console.log('Raise/Lower Start ' + clock.getDelta())
@@ -2081,11 +2092,6 @@ function renderFrame() {
   //     cameraSpeed = 0
   //   }
   // }
-
-  transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
-  if (enableLaunchSystem) {
-    launchSystemObject.animate(timeSinceStart)
-  }
 
   let cameraPostition
   if (enableVR) {
@@ -2165,15 +2171,15 @@ function renderFrame() {
     camera.position.applyAxisAngle(axis, angle)
     orbitControls.target.applyAxisAngle(axis, angle)
   }
-  if (followLaunchVehicles==2) {
-    const pointOnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint((timeSinceStart - followLaunchVehiclesStartTime)/launchSystemObject.durationOfLaunchTrajectory)
-    const trackingOffset = pointOnLaunchTrajectoryCurve.clone().sub(lastPointOnLaunchTrajectoryCurve)
-    lastPointOnLaunchTrajectoryCurve = pointOnLaunchTrajectoryCurve.clone()
-    camera.position.add(trackingOffset)
-    orbitControls.target.add(trackingOffset)
-    orbitControlsTargetPoint.add(trackingOffset)
-    setOrbitControlsTargetUpVector()
-  }
+  // if (followLaunchVehicles==2) {
+  //   const pointOnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint((timeSinceStart - followLaunchVehiclesStartTime)/launchSystemObject.durationOfLaunchTrajectory)
+  //   const trackingOffset = pointOnLaunchTrajectoryCurve.clone().sub(lastPointOnLaunchTrajectoryCurve)
+  //   lastPointOnLaunchTrajectoryCurve = pointOnLaunchTrajectoryCurve.clone()
+  //   camera.position.add(trackingOffset)
+  //   orbitControls.target.add(trackingOffset)
+  //   orbitControlsTargetPoint.add(trackingOffset)
+  //   setOrbitControlsTargetUpVector()
+  // }
   orbitControls.enabled = true
   orbitControls.update()
 
@@ -2383,31 +2389,31 @@ function onKeyDown( event ) {
           planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(child))
         }
       })
-      let tubeIntersects = []
+      let objectIntersects = []
       if (dParamWithUnits['showTransitSystem'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showEvacuatedTube'].value || dParamWithUnits['showLaunchVehicle'].value) {
         planetCoordSys.children.forEach(mesh => {
           //console.log(mesh.name)
           if ((mesh.name==='massDriverTube') || (mesh.name==='evacuatedTube') || (mesh.name==='launchVehicle')) {
-            tubeIntersects.push.apply(tubeIntersects, raycaster.intersectObject(mesh))
+            objectIntersects.push.apply(objectIntersects, raycaster.intersectObject(mesh))
           }
         })
         tetheredRingRefCoordSys.children.forEach(mesh => {
           if (mesh.name==='transitTube') {
-            tubeIntersects.push.apply(tubeIntersects, raycaster.intersectObject(mesh))
+            objectIntersects.push.apply(objectIntersects, raycaster.intersectObject(mesh))
           }
         })
       }
-      if (tubeIntersects.length>0) {
-        tubeIntersects.forEach(intersect => {
+      if (objectIntersects.length>0) {
+        objectIntersects.forEach(intersect => {
           if (intersect.object.parent.name=='launchVehicle') {
             trackingPoint = intersect.object.parent.position
           }
         })
         if (trackingPoint) {
           trackingPointMarkerMesh.position.copy(trackingPoint)
-          trackingPointMarkerMesh.visible = false
+          trackingPointMarkerMesh.visible = true
         }
-        intersectionPoint = tubeIntersects[0].point
+        intersectionPoint = objectIntersects[0].point
         targetPoint = intersectionPoint
         extraDistanceForCamera = 100
         orbitControls.rotateSpeed = 0.9
@@ -2421,7 +2427,7 @@ function onKeyDown( event ) {
         // Uncomment this line if you want to print lat, lon, and alt to console
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
-      if ((planetIntersects.length>0) || (tubeIntersects.length>0)) {
+      if ((planetIntersects.length>0) || (objectIntersects.length>0)) {
         orbitControlsTargetPoint.copy(targetPoint.clone())
         setOrbitControlsTargetUpVector()
         new TWEEN.Tween(orbitControls.target)
@@ -2626,10 +2632,12 @@ function onKeyDown( event ) {
         break
       case 2:
         // Near start of mass driver
-        orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
-        orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
-        orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
-        camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+        if (launchSystemObject) {
+          orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
+          orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
+          orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+          camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
+        }
         break
       case 3:
         // Near Mount Rainier
