@@ -18,6 +18,7 @@ class ScrewGeometry extends BufferGeometry {
 		threadStarts = 2,
 		baseDistanceAlongScrew = 0,
 		initialVelocity = 1,
+		initialDistance = 5,
 		revolutionsPerSecond = 1,
 		acceleration = 0,
 		radialSegments = 8) {
@@ -35,6 +36,7 @@ class ScrewGeometry extends BufferGeometry {
 			threadStarts: threadStarts,
 			baseDistanceAlongScrew: baseDistanceAlongScrew,  // This the distance from the start of the mass driver to the start of this segment of the screw.
 			initialVelocity: initialVelocity,
+			initialDistance: initialDistance, 
 			revolutionsPerSecond: revolutionsPerSecond,
 			acceleration: acceleration,
 			radialSegments: radialSegments,
@@ -121,12 +123,8 @@ class ScrewGeometry extends BufferGeometry {
 			//0 = 0.5 * a * t**2 + v0 * t - d
 			const cA = 0.5 * acceleration
 			const cB = initialVelocity
-			const cC = -distanceAlongScrew
+			const cC = initialDistance - distanceAlongScrew
 			const time = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
-			// const dCheck = time * initialVelocity + 0.5 * acceleration * time**2
-			// if (Math.abs(distanceAlongScrew - dCheck)>0.00001) {
-			// 	console.log(distanceAlongScrew, dCheck)
-			// }
 
 			const rotations = revolutionsPerSecond * time
 			const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)

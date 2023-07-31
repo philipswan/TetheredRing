@@ -1,4 +1,51 @@
 import * as THREE from 'three'
+import { ScrewGeometry } from './ScrewGeometry.js'
+
+export class massDriverScrewModel {
+    // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+    // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+    // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+    // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewTexture) {
+
+        const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+        const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+        const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+        const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
+        const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
+        const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+        const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+        const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
+        
+        // The point of breaking the screw into segments relates to the need to display the brackets.
+        const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when the pitch is finer
+        const modelRadialSegments = 24 / Math.min(threadStarts, 4)
+
+        const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
+        const baseDistanceAlongScrew = segmentIndex * segmentSpacing
+        const screwLength = segmentSpacing - bracketThickness
+        const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
+
+        const massDriverScrewGeometry = new ScrewGeometry(
+        screwLength,
+        modelLengthSegments,
+        shaftRadius,
+        threadRadius,
+        threadThickness,
+        threadStarts,
+        baseDistanceAlongScrew,
+        launcherMassDriverInitialVelocity,
+        initialDistance,
+        launcherMassDriverScrewRevolutionsPerSecond,
+        launcherMassDriverForwardAcceleration,
+        modelRadialSegments)
+        const massDriverScrewMaterial = new THREE.MeshPhongMaterial()
+        //const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
+        const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterial)
+
+        return massDriverScrewMesh
+    }
+}
 
 export class virtualMassDriverScrew {
     constructor(d, lr) {
@@ -43,7 +90,8 @@ export class virtualMassDriverScrew {
 
                 om.position.copy(this.position)
                 om.setRotationFromQuaternion(this.orientation)
-                const deltaT = refFrame.timeSinceStart * virtualMassDriverScrew.slowDownPassageOfTime
+                const slowDownPassageOfTime = Math.min(1, virtualMassDriverScrew.slowDownPassageOfTime + Math.min(1, 2**(Math.max(0, refFrame.timeSinceStart-20)-60)))
+                const deltaT = refFrame.timeSinceStart * slowDownPassageOfTime
                 om.rotateY(((-this.lr * deltaT * virtualMassDriverScrew.screwRevolutionsPerSecond) % 1) * 2 * Math.PI)
             }
             om.visible = virtualMassDriverScrew.isVisible
@@ -52,5 +100,5 @@ export class virtualMassDriverScrew {
         }
     }
 
-    }
+}
   

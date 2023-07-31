@@ -1,12 +1,111 @@
 import * as THREE from 'three'
 import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerGeometry.js'
 
+export class launchSledModel {
+  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
+    // Manually Create the Launch Vehicle
+    const width = dParamWithUnits['launchSledWidth'].value
+    const height = dParamWithUnits['launchSledHeight'].value
+    const radialSegments = 32
+    const bodyLength = dParamWithUnits['launchSledBodyLength'].value
+    const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+
+    // Create the sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+    const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
+    launchSledBodyGeometry.translate(0, bodyLength/2, 0)
+    const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
+    const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
+    launchSledBodyMesh.name = 'body'
+    const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
+    launchSledMesh.name = 'launchSled'
+
+    // Create the sled's grapplers
+    const distanceToSledAft = 0
+    const firstGrapplerDistance = 0
+    const lastGrapplerDistance = bodyLength
+    const grapplerSpacing = 1.0 / numGrapplers * bodyLength
+    for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+      const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
+      launchSledGrapplerMesh.name = 'leftGrappler'
+      launchSledGrapplerMesh.userData = i
+      launchSledMesh.add(launchSledGrapplerMesh.clone())
+      launchSledGrapplerMesh.name = 'rightGrappler'
+      launchSledGrapplerMesh.userData = i
+      launchSledGrapplerMesh.scale.set(-1, 1, 1)
+      launchSledMesh.add(launchSledGrapplerMesh.clone())
+    }
+    return launchSledMesh
+
+    function createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture) {
+      // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
+      // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
+      // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
+      // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
+      const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+      const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+      const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+      const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
+      const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
+      const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+      const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+      const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
+      const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+      const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
+      const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
+      const additionalRotation = 0
+    
+      const info = new SledGrapplerPlacementInfo(
+        shaftRadius,
+        threadRadius,
+        threadThickness,
+        threadStarts,
+        launcherMassDriverScrewRevolutionsPerSecond,
+        launcherMassDriverForwardAcceleration,
+        launcherMassDriverInitialVelocity,
+        initialDistance,
+        distanceToSledAft,
+        bodyLength,
+        numGrapplers,
+        magnetThickness,
+        shaftToGrapplerPad,
+        additionalRotation
+      )
+      info.generatePlacementInfo(grapplerDistance)
+    
+      const sledGrapplerGeometry = new SledGrapplerGeometry(
+        shaftRadius,
+        threadRadius,
+        threadThickness,
+        threadStarts,
+        launcherMassDriverScrewRevolutionsPerSecond,
+        launcherMassDriverForwardAcceleration,
+        launcherMassDriverInitialVelocity,
+        initialDistance,
+        distanceToSledAft,
+        bodyLength,
+        numGrapplers,
+        magnetThickness,
+        shaftToGrapplerPad,
+        additionalRotation,
+        grapplerDistance,
+        info.offset
+      )
+    
+      const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f})
+      //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({map: massDriverScrewTexture})
+      return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
+    }
+    
+  }
+  
+}
+
 export class virtualLaunchSled {
     constructor(timeLaunched, unallocatedModelsArray) {
-      // The virtual vehicle has a position along the launch trajectory curve.
-      // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
-      this.timeLaunched = timeLaunched
-      this.unallocatedModels = unallocatedModelsArray
+        // The virtual vehicle has a position along the launch trajectory curve.
+        // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
+        this.timeLaunched = timeLaunched
+        this.unallocatedModels = unallocatedModelsArray
     }
   
     static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene, clock) {
@@ -26,6 +125,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+      virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
   
       // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
       virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
@@ -46,12 +146,14 @@ export class virtualLaunchSled {
   
     placeAndOrientModel(om, refFrame) {
       if (virtualLaunchSled.isVisible) {
-        const deltaT = refFrame.timeSinceStart * virtualLaunchSled.slowDownPassageOfTime - this.timeLaunched
+        const slowDownPassageOfTime = Math.min(1, virtualLaunchSled.slowDownPassageOfTime + Math.min(1, 2**(Math.max(0, refFrame.timeSinceStart-20)-60)))
+        const deltaT = refFrame.timeSinceStart * slowDownPassageOfTime - this.timeLaunched
         const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
         const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
-        const sledBackDistance = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
+        const initialDistance = virtualLaunchSled.initialDistance
+        const distanceToSledAft = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
         const bodyLength = virtualLaunchSled.launchSledBodyLength
-        const d = (sledBackDistance + bodyLength/2) / virtualLaunchSled.launcherMassDriverLength
+        const d = distanceToSledAft / virtualLaunchSled.launcherMassDriverLength
         const pointOnMassDriverCurve = virtualLaunchSled.massDriverSuperCurve.getPointAt(d)
         const forward = virtualLaunchSled.massDriverSuperCurve.getTangentAt(d)
         const upward = virtualLaunchSled.massDriverSuperCurve.getNormalAt(d)
@@ -103,7 +205,8 @@ export class virtualLaunchSled {
           screwRevolutionsPerSecond,
           acceleration,
           initialVelocity,
-          sledBackDistance,
+          initialDistance,
+          distanceToSledAft,
           bodyLength,
           numGrapplers,
           magnetThickness,
@@ -124,7 +227,8 @@ export class virtualLaunchSled {
               screwRevolutionsPerSecond,
               acceleration,
               initialVelocity,
-              sledBackDistance,
+              initialDistance,
+              distanceToSledAft,
               bodyLength,
               numGrapplers,
               magnetThickness,
@@ -198,4 +302,5 @@ export class virtualLaunchSled {
       om.visible = virtualLaunchSled.isVisible
     }
   }
+  
   

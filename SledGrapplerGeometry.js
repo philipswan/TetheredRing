@@ -19,7 +19,8 @@ class SledGrapplerPlacementInfo {
 		revolutionsPerSecond = 1,
 		acceleration = 0,
 		initialVelocity = 1,
-		baseDistanceAlongScrew = 0,
+		initialDistance = 0,
+		distanceToSledAft = 0,
 		bodyLength = 1,
         numGrapplers = 10,
 		magnetThickness = 0.05,
@@ -33,7 +34,8 @@ class SledGrapplerPlacementInfo {
 		this.revolutionsPerSecond = revolutionsPerSecond
 		this.acceleration = acceleration
 		this.initialVelocity = initialVelocity
-		this.baseDistanceAlongScrew = baseDistanceAlongScrew
+		this.initialDistance = initialDistance
+		this.distanceToSledAft = distanceToSledAft
 		this.bodyLength = bodyLength
         this.numGrapplers = numGrapplers
 		this.magnetThickness = magnetThickness
@@ -51,13 +53,12 @@ class SledGrapplerPlacementInfo {
 	generatePlacementInfo(grapplerDistance) {
 		const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
 		const betweenGrapplerSpacing = grapplerSpacing * 0.1
-		const midDistance = this.baseDistanceAlongScrew - this.bodyLength/2
 		const cA = 0.5 * this.acceleration
 		const cB = this.initialVelocity
 		const cBSqrd = this.initialVelocity**2
 
-		const gPlus = (grapplerDistance) + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
-		const cC = -(midDistance + gPlus)
+		const gPlus = grapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+		const cC = this.initialDistance - (this.distanceToSledAft + gPlus)
 		const time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
 		const rotations = this.additionalRotation + this.revolutionsPerSecond * time
 		const rotationsTimesThreadStarts = rotations * this.threadStarts
@@ -109,7 +110,8 @@ class SledGrapplerGeometry extends BufferGeometry {
 		revolutionsPerSecond = 1,
 		acceleration = 0,
 		initialVelocity = 1,
-		baseDistanceAlongScrew = 0,
+		initialDistance = 0,
+		distanceToSledAft = 0,
 		bodyLength = 1,
         numGrapplers = 10,
 		magnetThickness = 0.05, // m
@@ -130,7 +132,8 @@ class SledGrapplerGeometry extends BufferGeometry {
 			revolutionsPerSecond: revolutionsPerSecond,
 			acceleration: acceleration,
 			initialVelocity: initialVelocity,
-			baseDistanceAlongScrew: baseDistanceAlongScrew,  // This the distance from the start of the mass driver to the start of this segment of the screw.
+			initialDistance: initialDistance,
+			distanceToSledAft: distanceToSledAft,  // This the distance from the start of the mass driver to the start of this segment of the screw.
 			bodyLength: bodyLength,
             numGrapplers: numGrapplers,
 			magnetThickness: magnetThickness,
@@ -187,7 +190,6 @@ class SledGrapplerGeometry extends BufferGeometry {
 
             const grapplerSpacing = 1.0 / numGrapplers * bodyLength
 			const betweenGrapplerSpacing = grapplerSpacing * 0.1
-            const midDistance = baseDistanceAlongScrew - bodyLength/2
             const cA = 0.5 * acceleration
             const cB = initialVelocity
             const cBSqrd = initialVelocity**2
@@ -215,7 +217,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 				// Figure out the screw's rotation at the locaton of each grappler
 				//0 = 0.5 * a * t**2 + v0 * t - d
 				const gPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
-				const cC = -(midDistance + gPlus)
+				const cC = initialDistance - (distanceToSledAft + gPlus)
 				const time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
 				rotations[i] = additionalRotation + revolutionsPerSecond * time
 				const rotationsTimesThreadStarts = rotations[i] * threadStarts
@@ -240,7 +242,6 @@ class SledGrapplerGeometry extends BufferGeometry {
 		}
 
         function generateGrapplerMagneticPad(g, nearestThread, rotations, innerThreadPitch, outerThreadPitch, magnetThickness) {
-			const newCode = false
 			let l
 			let rib
 			const vertexArray = []
@@ -317,20 +318,16 @@ class SledGrapplerGeometry extends BufferGeometry {
 
 			for (let i = 0; i<=numGrapplerSegments; i++) {
 				for (let j = 0; j<4; j++) {
-					if (!newCode) {
-						const r = vertexArrayCylindrical[i*4+j].x  // We won't subtract the 'r' offset as this would distort the geometry of the pad.
-						const theta = vertexArrayCylindrical[i*4+j].z - offset.z
-						const z = vertexArrayCylindrical[i*4+j].y - offset.y
-						const sin = Math.sin(theta)
-						const cos = Math.cos(theta)
-						const vertex = new Vector3()
-						vertex.x = r * (cos * B.x + sin * N.x) + z * T.x
-						vertex.y = r * (cos * B.y + sin * N.y) + z * T.y
-						vertex.z = r * (cos * B.z + sin * N.z) + z * T.z - offset.x
-						vertexArray[i*4+j] = vertex
-					}
-					else {
-					}
+					const r = vertexArrayCylindrical[i*4+j].x  // We won't subtract the 'r' offset as this would distort the geometry of the pad.
+					const theta = vertexArrayCylindrical[i*4+j].z - offset.z
+					const z = vertexArrayCylindrical[i*4+j].y - offset.y
+					const sin = Math.sin(theta)
+					const cos = Math.cos(theta)
+					const vertex = new Vector3()
+					vertex.x = r * (cos * B.x + sin * N.x) + z * T.x
+					vertex.y = r * (cos * B.y + sin * N.y) + z * T.y
+					vertex.z = r * (cos * B.z + sin * N.z) + z * T.z - offset.x
+					vertexArray[i*4+j] = vertex
 				}
 			}
 

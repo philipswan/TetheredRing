@@ -1,470 +1,22 @@
 import * as THREE from 'three'
 import { BoxGeometry } from 'three'
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Quaternion } from 'three/src/math/Quaternion.js'
 //import { XYChart } from './XYChart.js'
-import { ScrewGeometry } from './ScrewGeometry.js'
-import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerGeometry.js'
 import { CatmullRomSuperCurve3 } from './SuperCurves'
 import { CircleSuperCurve3 } from './SuperCurves'
-import { LineSuperCurve3 } from './SuperCurves'
 import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
-import { virtualLaunchVehicle } from './LaunchVehicle.js'
-import { virtualLaunchSled } from './LaunchSled.js'
-import { virtualMassDriverTube } from './MassDriverTube.js'
-import { virtualMassDriverRail } from './MassDriverRail.js'
-import { virtualMassDriverBracket } from './MassDriverBracket.js'
-import { virtualMassDriverScrew } from './MassDriverScrew.js'
-import { virtualEvacuatedTube } from './EvacuatedTube.js'
+import { referenceFrame } from './ReferenceFrame.js'
+import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
+import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
+import { massDriverTubeModel, virtualMassDriverTube } from './MassDriverTube.js'
+import { massDriverRailModel, virtualMassDriverRail } from './MassDriverRail.js'
+import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBracket.js'
+import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.js'
+import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
-
-//import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
-
-class referenceFrame {
-  constructor(numWedges) {
-    this.timeSinceStart = 0
-    this.startWedgeIndex = -1
-    this.finishWedgeIndex = -1
-    this.prevStartWedgeIndex = -1
-    this.prevFinishWedgeIndex = -1
-    const makePlaceHolderEntry = () => ({
-      'virtualLaunchVehicles': [],
-      'virtualLaunchSleds': [],
-      'virtualMassDriverTubes': [],
-      'virtualMassDriverRails': [],
-      'virtualMassDriverBrackets': [],
-      'virtualMassDriverScrews': [],
-      'virtualEvacuatedTubes': [],
-    })
-    this.wedges = new Array(numWedges).fill().map( makePlaceHolderEntry )
-  }
-}
-
-class FacesGeometry extends THREE.BufferGeometry {
-  constructor(
-    inputVertices = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
-    inputIndices = [
-      0, 1, 2,
-      0, 2, 3,
-      0, 3, 1,
-      3, 2, 1]
-    ) {
-    super();
-    this.type = 'FacesGeometry';
-		this.parameters = {
-			inputVertices: inputVertices,
-			inputIndices: inputIndices
-		};
-
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-    const indices = [];
-    for (let i = 0; i<inputIndices.length/3; i++) {
-      vertices.push(inputVertices[inputIndices[i*3+0]].x, inputVertices[inputIndices[i*3+0]].y, inputVertices[inputIndices[i*3+0]].z);
-      vertices.push(inputVertices[inputIndices[i*3+1]].x, inputVertices[inputIndices[i*3+1]].y, inputVertices[inputIndices[i*3+1]].z);
-      vertices.push(inputVertices[inputIndices[i*3+2]].x, inputVertices[inputIndices[i*3+2]].y, inputVertices[inputIndices[i*3+2]].z);
-      const normal = new THREE.Vector3().crossVectors(inputVertices[inputIndices[i*3+0]].clone().sub(inputVertices[inputIndices[i*3+1]]), inputVertices[inputIndices[i*3+0]].clone().sub(inputVertices[inputIndices[i*3+2]])).normalize();
-      normals.push(normal.x, normal.y, normal.z);
-      normals.push(normal.x, normal.y, normal.z);
-      normals.push(normal.x, normal.y, normal.z);
-      uvs.push(0, 0, 0, 0, 0, 0);
-      indices.push(i*3+0, i*3+1, i*3+2);
-    }
-    this.setIndex(indices);
-    this.setAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
-    this.setAttribute( 'normal', new THREE.Float32BufferAttribute( normals, 3 ) );
-    this.setAttribute( 'uv', new THREE.Float32BufferAttribute( uvs, 2 ) );
-  }
-  copy( source ) {
-		super.copy( source );
-		this.parameters = Object.assign( {}, source.parameters );
-		return this;
-	}
-
-}
-
-class launchVehicleModel {
-  constructor(dParamWithUnits) {
-    // Manually Create the Launch Vehicle
-
-    const lengthSegments = 2
-    const radius = dParamWithUnits['launchVehicleRadius'].value
-    const radialSegments = 32
-    const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-    const noseConeLength = dParamWithUnits['launchVehicleNoseConeLength'].value
-    const flameLength = bodyLength * 1.5
-
-    // Create the vehicle's body
-    const launchVehicleBodyGeometry = new THREE.CylinderGeometry(radius, radius, bodyLength, radialSegments, lengthSegments, false)
-    launchVehicleBodyGeometry.name = "body"
-    launchVehicleBodyGeometry.translate(0, bodyLength/2, 0)
-    // Create the nose cone
-    const launchVehicleNoseConeGeometry = new THREE.ConeGeometry(radius, noseConeLength, radialSegments, lengthSegments, true)
-    launchVehicleNoseConeGeometry.name = "noseCone"
-    launchVehicleNoseConeGeometry.translate(0, (bodyLength+noseConeLength)/2 + bodyLength/2, 0)
-    // Create the fins
-    const finLength = bodyLength * 0.5
-    const finThickness = 0.2
-    const finHeight = radius * 0.5
-    const finVertices = [
-      new THREE.Vector3(0, finLength, radius),   // Leading edge of fin
-      new THREE.Vector3(finThickness/2, 0.1, radius),  // Left trailing edge of fin
-      new THREE.Vector3(-finThickness/2, 0.1, radius),  // Right trailing edge of fin
-      new THREE.Vector3(0, 0, radius+finHeight)  // Back trailing edge of fin
-    ]
-    const finIndices = [
-      0, 1, 2,
-      0, 2, 3,
-      0, 3, 1,
-      3, 2, 1
-    ]
-    const launchVehicleFin0Geometry = new FacesGeometry(finVertices, finIndices)
-
-    launchVehicleFin0Geometry.name = "fin0"
-    const launchVehicleFin1Geometry = launchVehicleFin0Geometry.clone()
-    launchVehicleFin1Geometry.name = "fin1"
-    launchVehicleFin1Geometry.rotateY(Math.PI*2/3)
-    const launchVehicleFin2Geometry = launchVehicleFin0Geometry.clone()
-    launchVehicleFin2Geometry.name = "fin2"
-    launchVehicleFin2Geometry.rotateY(-Math.PI*2/3)
-
-    // Create the vehicle's flame
-    const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*.9, radius*0.4, flameLength, radialSegments, lengthSegments, false)
-    launchVehicleFlameGeometry.name = "rocketEngine"
-    launchVehicleFlameGeometry.translate(0, -(bodyLength+flameLength)/2 + bodyLength/2, 0)
-
-    // Merge the nosecone into the body
-    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleBodyGeometry, launchVehicleNoseConeGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry])
-
-    const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
-    const launchVehicleFlameMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, emissive: 0xdfa0df, emissiveIntensity: 1.25, transparent: true, opacity: 0.5})
-    const launchVehicleBodyMesh = new THREE.Mesh(launchVehicleGeometry, launchVehicleMaterial)
-    launchVehicleBodyMesh.name = 'body'
-    const launchVehicleFlameMesh = new THREE.Mesh(launchVehicleFlameGeometry, launchVehicleFlameMaterial)
-    launchVehicleFlameMesh.name = 'flame'
-    const launchVehiclePointLightMesh = new THREE.Points(
-      new THREE.BufferGeometry().setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3) ),
-      new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
-    launchVehiclePointLightMesh.name = 'pointLight'
-    const launchVehicleMesh = new THREE.Group().add(launchVehicleBodyMesh).add(launchVehicleFlameMesh)
-    launchVehicleMesh.name = 'launchVehicle'
-    launchVehiclePointLightMesh.visible = dParamWithUnits['showLaunchVehiclePointLight'].value
-    launchVehicleMesh.add(launchVehiclePointLightMesh)
-    return launchVehicleMesh
-  }
-}
-class launchSledModel {
-  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
-    // Manually Create the Launch Vehicle
-
-    const lengthSegments = 2
-    const width = dParamWithUnits['launchSledWidth'].value
-    const height = dParamWithUnits['launchSledHeight'].value
-    const radialSegments = 32
-    const bodyLength = dParamWithUnits['launchSledBodyLength'].value
-    const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
-
-    // Create the sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
-    const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
-    launchSledBodyGeometry.translate(0, bodyLength/2, 0)
-    const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
-    const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
-    launchSledBodyMesh.name = 'body'
-    const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
-    launchSledMesh.name = 'launchSled'
-
-    // Create the sled's grapplers
-    const baseDistanceAlongScrew = 0
-    const firstGrapplerDistance = 0
-    const lastGrapplerDistance = bodyLength
-    const grapplerSpacing = 1.0 / numGrapplers * bodyLength
-    for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-      const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, grapplerDistance, massDriverScrewTexture)
-      launchSledGrapplerMesh.name = 'leftGrappler'
-      launchSledGrapplerMesh.userData = i
-      launchSledMesh.add(launchSledGrapplerMesh.clone())
-      launchSledGrapplerMesh.name = 'rightGrappler'
-      launchSledGrapplerMesh.userData = i
-      launchSledGrapplerMesh.scale.set(-1, 1, 1)
-      launchSledMesh.add(launchSledGrapplerMesh.clone())
-    }
-    return launchSledMesh
-  }
-}
-
-
-
-class massDriverTubeModel {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverSuperCurve, segmentIndex) {
-
-    const massDriverTubeSegments = dParamWithUnits['launcherMassDriverTubeNumModels'].value
-    const radius = dParamWithUnits['launcherMassDriverTubeRadius'].value
-    const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    const modelRadialSegments = 32
-    const tubePoints = []
-
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverTubeSegments
-    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
-    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverTubeSegments
-      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
-    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
-    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
-    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
-    const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
-    return massDriverTubeMesh
-  }
-}
-class massDriverRailModel {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverSuperCurve, segmentIndex) {
-
-    const massDriverRailSegments = dParamWithUnits['launcherMassDriverTubeNumModels'].value
-    const width = dParamWithUnits['launcherMassDriverRailWidth'].value
-    const height = dParamWithUnits['launcherMassDriverRailHeight'].value
-    const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    const modelRadialSegments = 32
-    const tubePoints = []
-    const shape = new THREE.Shape()
-    shape.moveTo( width/2 , height/2 )
-    shape.lineTo( width/2 , -height/2 )
-    shape.lineTo( -width/2 , -height/2 )
-    shape.lineTo( -width/2 , height/2 )
-    shape.lineTo( width/2 , height/2 )
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverRailSegments
-    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
-    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverRailSegments
-      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
-    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
-    const extrudeSettings = {
-      steps: 2,
-      depth: 1,
-      extrudePath: massDriverSegementCurve
-    }
-    const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
-    const massDriverRailMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E })
-    const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
-    return massDriverRailMesh
-  }
-}
-class massDriverBracketModel {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex) {
-
-    const width = dParamWithUnits['launcherMassDriverBracketWidth'].value
-    const height = dParamWithUnits['launcherMassDriverBracketHeight'].value
-    const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-    const bracketUpwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
-    const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
-    const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-    const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
-
-    const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
-
-    const modelLengthSegments = 1    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    const modelRadialSegments = 32
-    const shape = new THREE.Shape()
-    shape.moveTo( 0 , height/2 )
-    shape.lineTo( -width/2 , height/2 )
-    for (let a = 8; a<=24; a++) {
-      shape.lineTo( -screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
-    }
-    for (let a = 24; a<=40; a++) {
-      shape.lineTo( +screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
-    }
-    shape.lineTo( width/2 , height/2 )
-    shape.lineTo( 0 , height/2 )
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
-    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
-    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    const tubePoints = []
-    for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + (i-0.5) * bracketThickness/segmentSpacing) / massDriverScrewSegments
-      tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
-    const upDirection = new THREE.Vector3(-1, 0, 0)
-    const massDriverSegementCurve = new LineSuperCurve3(tubePoints[0], tubePoints[1], upDirection, upDirection)
-    const extrudeSettings = {
-      steps: 2,
-      depth: 1,
-      extrudePath: massDriverSegementCurve
-    }
-    const massDriverBracketGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
-    const massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
-    const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, massDriverBracketMaterial)
-    return massDriverBracketMesh
-  }
-}
-class massDriverScrewModel {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewTexture) {
-
-    const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
-    const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
-    const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
-    const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
-    const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-    const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-    const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
-    const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-    
-    // The point of breaking the screw into segments relates to the need to display the brackets.
-    const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when the pitch is finer
-    const modelRadialSegments = 24 / Math.min(threadStarts, 4)
-
-    const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
-    const baseDistanceAlongScrew = segmentIndex * segmentSpacing
-    const screwLength = segmentSpacing - bracketThickness
-
-    const massDriverScrewGeometry = new ScrewGeometry(
-      screwLength,
-      modelLengthSegments,
-      shaftRadius,
-      threadRadius,
-      threadThickness,
-      threadStarts,
-      baseDistanceAlongScrew,
-      launcherMassDriverInitialVelocity,
-      launcherMassDriverScrewRevolutionsPerSecond,
-      launcherMassDriverForwardAcceleration,
-      modelRadialSegments)
-    const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
-    const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterial)
-
-    return massDriverScrewMesh
-  }
-}
-
-function createSledGrapplerMesh(dParamWithUnits, baseDistanceAlongScrew, bodyLength, grapplerDistance, massDriverScrewTexture) {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
-  const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
-  const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
-  const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
-  const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-  const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-  const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
-  const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
-  const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
-  const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
-  const additionalRotation = 0
-
-  const info = new SledGrapplerPlacementInfo(
-    shaftRadius,
-    threadRadius,
-    threadThickness,
-    threadStarts,
-    launcherMassDriverScrewRevolutionsPerSecond,
-    launcherMassDriverForwardAcceleration,
-    launcherMassDriverInitialVelocity,
-    baseDistanceAlongScrew,
-    bodyLength,
-    numGrapplers,
-    magnetThickness,
-    shaftToGrapplerPad,
-    additionalRotation
-  )
-  info.generatePlacementInfo(grapplerDistance)
-
-  const sledGrapplerGeometry = new SledGrapplerGeometry(
-    shaftRadius,
-    threadRadius,
-    threadThickness,
-    threadStarts,
-    launcherMassDriverScrewRevolutionsPerSecond,
-    launcherMassDriverForwardAcceleration,
-    launcherMassDriverInitialVelocity,
-    baseDistanceAlongScrew,
-    bodyLength,
-    numGrapplers,
-    magnetThickness,
-    shaftToGrapplerPad,
-    additionalRotation,
-    grapplerDistance,
-    info.offset
-  )
-
-  const sledGrapplerMaterial = new THREE.MeshPhongMaterial({wireframe: false, color: 0x3f7f3f})
-  //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({map: massDriverScrewTexture})
-  return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
-}
-
-class evacuatedTubeModel {
-  // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
-  // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
-  // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
-  // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, evacuatedTubeCurve, segmentIndex) {
-
-    const evacuatedTubeSegments = dParamWithUnits['launcherEvacuatedTubeNumModels'].value
-    const radius = dParamWithUnits['launcherEvacuatedTubeRadius'].value
-    const modelLengthSegments = 32
-    const modelRadialSegments = 32
-    const tubePoints = []
-
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / evacuatedTubeSegments
-    const refPoint = evacuatedTubeCurve.getPoint(modelsCurvePosition)
-    const orientation = new THREE.Quaternion()
-    orientation.setFromUnitVectors(evacuatedTubeCurve.getTangent(modelsCurvePosition), new THREE.Vector3(0, 1, 0))
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / evacuatedTubeSegments
-      tubePoints.push(evacuatedTubeCurve.getPoint(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
-
-    const evacuatedTubeSegementCurve = new CatmullRomSuperCurve3(tubePoints)
-    const evacuatedTubeTubeGeometry = new THREE.TubeGeometry(evacuatedTubeSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
-    const evacuatedTubeTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
-    const evacuatedTubeTubeMesh = new THREE.Mesh(evacuatedTubeTubeGeometry, evacuatedTubeTubeMaterial)
-
-    return evacuatedTubeTubeMesh
-  }
-}
-
-
-
 
 export class launcher {
 
@@ -532,10 +84,35 @@ export class launcher {
       this.numWedges = 1
       this.unallocatedLaunchVehicleModels = []
       this.unallocatedLaunchSledModels = []
-      this.refFrames = [
-        // For vehicles cruising at a steady speed...
-        new referenceFrame(this.numWedges)
-      ]
+      this.cameraRange = 10000
+
+      this.refFrames = []
+      const rf0 = new referenceFrame(this.massDriverSuperCurve, this.numWedges, this.cameraRange, 0, 0, 0, 'staticLaunchVehicleReferenceFrame')
+      rf0.addVirtualObject('virtualLaunchVehicles')
+      rf0.addVirtualObject('virtualLaunchSleds')
+      rf0.addVirtualObject('virtualMassDriverTubes')
+      rf0.addVirtualObject('virtualMassDriverRails')
+      rf0.addVirtualObject('virtualMassDriverBrackets')
+      rf0.addVirtualObject('virtualMassDriverScrews')
+      rf0.addVirtualObject('virtualEvacuatedTubes')
+      rf0.initialize()
+      this.refFrames.push(rf0)
+
+      this.numVirtualLaunchVehicles = 0
+      this.numVirtualLaunchSleds = 0
+      this.numVirtualMassDriverTubes = 0
+      this.numVirtualMassDriverRails = 0
+      this.numVirtualMassDriverBrackets = 0
+      this.numVirtualMassDriverScrews = 0
+      this.numVirtualEvacuatedTubes = 0
+
+      // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
+      // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
+      // const rf1 = new referenceFrame(launchCurve, this.numWedges, this.cameraRange, 0, 0, 0, 'staticLaunchSledReferenceFrame')
+      // rf1.addVirtualObject('virtualLaunchSleds')
+      // rf1.addVirtualObject('virtualMassDriverRails')
+      // this.refFrames.push(rf1)
+      
       this.actionFlags = new Array(this.numWedges).fill(0)
       this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
 
@@ -551,10 +128,11 @@ export class launcher {
       // Put all of the virtual launch vehicles into the same wedge for now
       wedgeIndex = 0
       const refFrame = this.refFrames[0]
+      
       // Hack - remove "&& (n<150)"
-      for (t = -.02, n = 0; (t<this.durationOfLaunchTrajectory) && (n<50); t += tInc, n++) {
-        refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
-        refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
+      for (t = 0, n = 0; (t<this.durationOfLaunchTrajectory) && (n<500); t += tInc, n++) {
+        //refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
+        //refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
       }
 
       // Create and add the launch sleds
@@ -607,38 +185,38 @@ export class launcher {
 
       // ToDo: Since there's a one-to-one mapping between real and virtual components here, consider whether virtual components are really needed.
       
-      wedgeIndex = 0
-      n = dParamWithUnits['launcherMassDriverTubeNumModels'].value
-      for (let i = 0; i < n; i++) {
-        const d = (i+0.5)/n
-        const vmdt = new virtualMassDriverTube(d)
-        refFrame.wedges[wedgeIndex]['virtualMassDriverTubes'].push(vmdt)
-        vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverSuperCurve, i)
-        vmdt.model.name = 'massDriverTube'
-        this.scene.add(vmdt.model)
-        const vmdr = new virtualMassDriverRail(d)
-        refFrame.wedges[wedgeIndex]['virtualMassDriverRails'].push(vmdr)
-        vmdr.model = new massDriverRailModel(dParamWithUnits, this.massDriverSuperCurve, i)
-        vmdr.model.name = 'massDriverRail'
-        this.scene.add(vmdr.model)
-      }
+      // wedgeIndex = 0
+      // n = dParamWithUnits['numVirtualMassDriverTubes'].value
+      // for (let i = 0; i < n; i++) {
+      //   const d = (i+0.5)/n
+      //   const vmdt = new virtualMassDriverTube(d)
+      //   refFrame.wedges[wedgeIndex]['virtualMassDriverTubes'].push(vmdt)
+      //   vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverSuperCurve, i)
+      //   vmdt.model.name = 'massDriverTube'
+      //   this.scene.add(vmdt.model)
+      //   const vmdr = new virtualMassDriverRail(d)
+      //   refFrame.wedges[wedgeIndex]['virtualMassDriverRails'].push(vmdr)
+      //   vmdr.model = new massDriverRailModel(dParamWithUnits, this.massDriverSuperCurve, i)
+      //   vmdr.model.name = 'massDriverRail'
+      //   this.scene.add(vmdr.model)
+      // }
 
       n = this.massDriverScrewSegments
       const halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / this.launcherMassDriverLength
       // Hack: Until we figure out a more efficient way to generate screw models for large numbers of screws
-      this.nLimit = 20
+      this.nLimit = 500
 
       for (let i = 0; i < Math.min(this.nLimit, n); i++) {
         const d = (i+0.5)/n - halfBracketThickness
-        const leftmodel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, i, this.massDriverScrewTexture)
-        leftmodel.name = 'massDriverScrew'
-        for (let lr = -1; lr < 2; lr+=2) {
-          const vmds = new virtualMassDriverScrew(d, lr)
-          refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
-          vmds.model = leftmodel.clone()
-          vmds.model.scale.set(lr, 1, 1)
-          this.scene.add(vmds.model)
-        }
+        // const leftmodel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, i, this.massDriverScrewTexture)
+        // leftmodel.name = 'massDriverScrew'
+        // for (let lr = -1; lr < 2; lr+=2) {
+        //   const vmds = new virtualMassDriverScrew(d, lr)
+        //   refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
+        //   vmds.model = leftmodel.clone()
+        //   vmds.model.scale.set(lr, 1, 1)
+        //   this.scene.add(vmds.model)
+        // }
         const vmdb = new virtualMassDriverBracket(d)
         refFrame.wedges[wedgeIndex]['virtualMassDriverBrackets'].push(vmdb)
         vmdb.model = new massDriverBracketModel(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.massDriverScrewSegments, i)
@@ -664,6 +242,8 @@ export class launcher {
 
     update(dParamWithUnits) {
       this.versionNumber++
+
+      this.refFrames.forEach(refFrame => {refFrame.update(this.massDriverSuperCurve)})
       virtualMassDriverTube.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualMassDriverRail.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
       virtualMassDriverBracket.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
@@ -673,6 +253,164 @@ export class launcher {
       virtualLaunchVehicle.update(dParamWithUnits, this.launchTrajectoryCurve, this.massDriverSuperCurve, this.launcherMassDriverLength, this.durationOfLaunchTrajectory, this.timeWithinMassDriver, this.curveUpTime, this.timeWithinEvacuatedTube)
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
       this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
+
+
+      function removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
+        refFrames.forEach(refFrame => {
+          for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
+            if (objectName in refFrame.wedges[wedgeIndex]) {
+              const wedgeList = refFrame.wedges[wedgeIndex][objectName]
+              wedgeList.forEach(vobj => {
+                if (vobj.model) {
+                  vobj.model.visible = false
+                  unallocatedModelsArray.push(vobj.model)
+                }
+              })
+              wedgeList.splice(0, wedgeList.length)
+            }
+            else {
+              console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
+            }
+          }
+        })
+      }
+      
+      // Shared values...
+      const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
+      const staticLaunchVehicleRefFrame = [this.refFrames[0]]
+      const nLimit = 500
+      const halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / this.launcherMassDriverLength
+      const tStart = -0.1 // sec
+
+      let changeOccured
+
+      // Update the number of launch vehicles
+      const newNumVirtualLaunchVehicles = dParamWithUnits['showLaunchVehicles'].value ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
+      // Remove old virtual launch vehicles
+      changeOccured = (this.numVirtualLaunchVehicles != newNumVirtualLaunchVehicles)
+      if (changeOccured && (this.numVirtualLaunchVehicles > 0)) {
+        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualLaunchVehicles', this.unallocatedLaunchVehicleModels)
+      }
+
+      if (changeOccured && (newNumVirtualLaunchVehicles > 0)) {
+        // Add new virtual launch vehicles onto the launch system
+        const n1 = newNumVirtualLaunchVehicles
+        const step1 = 1.0 / n1
+        staticLaunchVehicleRefFrame.forEach(refFrame => {
+          for (let t = tStart, n = 0; (t<tStart+this.durationOfLaunchTrajectory) && (n<500); t += tInc, n++) {
+            const wedgeIndex = 0 // Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+            refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
+          }
+          refFrame.prevStartWedgeIndex = -1
+        })
+      }
+      this.numVirtualLaunchVehicles = newNumVirtualLaunchVehicles
+
+      // Update the number of launch sleds
+      const newNumVirtualLaunchSleds = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
+      // Remove old virtual launch sleds
+      changeOccured = (this.numVirtualLaunchSleds != newNumVirtualLaunchSleds)
+      if (changeOccured && (this.numVirtualLaunchSleds > 0)) {
+        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualLaunchSleds', this.unallocatedLaunchSledModels)
+      }
+
+      if (changeOccured && (newNumVirtualLaunchSleds > 0)) {
+        // Add new virtual launch sleds onto the launch system
+        const n1 = newNumVirtualLaunchSleds
+        const step1 = 1.0 / n1
+        staticLaunchVehicleRefFrame.forEach(refFrame => {
+          for (let t = tStart, n = 0; (t<tStart+this.durationOfLaunchTrajectory) && (n<500); t += tInc, n++) {
+            const wedgeIndex = 0 // Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+            refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
+          }
+          refFrame.prevStartWedgeIndex = -1
+        })
+      }
+      this.numVirtualLaunchSleds = newNumVirtualLaunchSleds
+      
+      // Update the number of mass driver tubes
+      const newNumVirtualMassDriverTubes = dParamWithUnits['showMassDriverTube'].value ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
+      // Remove old virtual mass driver tubes
+      changeOccured = (this.numVirtualMassDriverTubes != newNumVirtualMassDriverTubes)
+      if (changeOccured && (this.numVirtualMassDriverTubes > 0)) {
+        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverTubes', this.unallocatedMassDriverTubeModels)
+      }
+
+      if (changeOccured && (newNumVirtualMassDriverTubes > 0)) {
+        // Add new mass driver tubes to the launch system
+        const n = newNumVirtualMassDriverTubes
+        staticLaunchVehicleRefFrame.forEach(refFrame => {
+          for (let i = 0; i < n; i++) {
+            const d = (i+0.5)/n
+            const vmdt = new virtualMassDriverTube(d)
+            const wedgeIndex = 0 // Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+            refFrame.wedges[wedgeIndex]['virtualMassDriverTubes'].push(vmdt)
+            vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverSuperCurve, i)
+            vmdt.model.name = 'massDriverTube'
+            this.scene.add(vmdt.model)
+          }
+          refFrame.prevStartWedgeIndex = -1
+        })
+      }
+      this.numVirtualMassDriverTubes = newNumVirtualMassDriverTubes
+
+
+      // Update the number of mass driver rails
+      const newNumVirtualMassDriverRails = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRails'].value : 0
+      // Remove old virtual mass driver rails
+      changeOccured = (this.numVirtualMassDriverRails != newNumVirtualMassDriverRails)
+      if (changeOccured && (this.numVirtualMassDriverRails > 0)) {
+        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverRails', this.unallocatedMassDriverRailModels)
+      }
+
+      if (changeOccured && (newNumVirtualMassDriverRails > 0)) {
+        // Add new mass driver rails to the launch system
+        const n = newNumVirtualMassDriverRails
+        staticLaunchVehicleRefFrame.forEach(refFrame => {
+          for (let i = 0; i < n; i++) {
+            const d = (i+0.5)/n
+            const vmdr = new virtualMassDriverRail(d)
+            const wedgeIndex = 0 // Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+            refFrame.wedges[wedgeIndex]['virtualMassDriverRails'].push(vmdr)
+            vmdr.model = new massDriverRailModel(dParamWithUnits, this.massDriverSuperCurve, i)
+            vmdr.model.name = 'MassDriverRail'
+            this.scene.add(vmdr.model)
+          }
+          refFrame.prevStartWedgeIndex = -1
+        })
+      }
+      this.numVirtualMassDriverRails = newNumVirtualMassDriverRails
+
+      // Update the number of mass driver screws
+      const newNumVirtualMassDriverScrews = dParamWithUnits['showMassDriverScrews'].value ? this.massDriverScrewSegments : 0
+      // Remove old virtual mass driver screws
+      changeOccured = (this.numVirtualMassDriverScrews != newNumVirtualMassDriverScrews)
+      if (changeOccured && (this.numVirtualMassDriverScrews > 0)) {
+        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverScrews', this.unallocatedMassDriverScrewModels)
+      }
+
+      if (changeOccured && (newNumVirtualMassDriverScrews > 0)) {
+        // Add new mass driver screws to the launch system
+        const n = newNumVirtualMassDriverScrews
+        staticLaunchVehicleRefFrame.forEach(refFrame => {
+          for (let i = 0; i < Math.min(nLimit, n); i++) {
+            const wedgeIndex = 0
+            const d = (i+0.5)/n - halfBracketThickness
+            const leftmodel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, i, this.massDriverScrewTexture)
+            leftmodel.name = 'massDriverScrew'
+            for (let lr = -1; lr < 2; lr+=2) {
+              const vmds = new virtualMassDriverScrew(d, lr)
+              refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
+              vmds.model = leftmodel.clone()
+              vmds.model.scale.set(lr, 1, 1)
+              this.scene.add(vmds.model)
+            }
+          }
+          refFrame.prevStartWedgeIndex = -1
+        })
+      }
+      this.numVirtualMassDriverScrews = newNumVirtualMassDriverScrews
+
 
       const wedgeIndex = 0
       const n = this.massDriverScrewSegments
