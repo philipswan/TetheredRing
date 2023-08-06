@@ -35,8 +35,9 @@ export class massDriverTubeModel {
 }
 
 export class virtualMassDriverTube {
-    constructor(d) {
+    constructor(d, unallocatedModelsArray) {
       this.d = d
+      this.unallocatedModels = unallocatedModelsArray
       this.model = null
     }
   

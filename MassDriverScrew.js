@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import { ScrewGeometry } from './ScrewGeometry.js'
+import * as tram from './tram.js'
 
 export class massDriverScrewModel {
     // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
     // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
     // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewTexture) {
+    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials) {
 
         const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
@@ -18,7 +19,6 @@ export class massDriverScrewModel {
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
         // The point of breaking the screw into segments relates to the need to display the brackets.
-        const modelLengthSegments = 256 // this needs to be related to the number of turns per segment, and more segments are needed when the pitch is finer
         const modelRadialSegments = 24 / Math.min(threadStarts, 4)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
@@ -27,44 +27,58 @@ export class massDriverScrewModel {
         const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
 
         const massDriverScrewGeometry = new ScrewGeometry(
-        screwLength,
-        modelLengthSegments,
-        shaftRadius,
-        threadRadius,
-        threadThickness,
-        threadStarts,
-        baseDistanceAlongScrew,
-        launcherMassDriverInitialVelocity,
-        initialDistance,
-        launcherMassDriverScrewRevolutionsPerSecond,
-        launcherMassDriverForwardAcceleration,
-        modelRadialSegments)
-        const massDriverScrewMaterial = new THREE.MeshPhongMaterial()
-        //const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
-        const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterial)
+            screwLength,
+            shaftRadius,
+            threadRadius,
+            threadThickness,
+            threadStarts,
+            baseDistanceAlongScrew,
+            launcherMassDriverInitialVelocity,
+            initialDistance,
+            launcherMassDriverScrewRevolutionsPerSecond,
+            launcherMassDriverForwardAcceleration,
+            modelRadialSegments)
+        const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterials[segmentIndex%2])
 
         return massDriverScrewMesh
     }
 }
 
 export class virtualMassDriverScrew {
-    constructor(d, lr) {
+    constructor(d, index, unallocatedModelsArray) {
         this.d = d
+        this.index = index
+        this.unallocatedModels = unallocatedModelsArray
         this.model = null
-        this.lr = lr    // left or right screw
         this.versionNumber = 0
+        this.position = []
     }
 
-    static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
+    static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewMaterials, versionNumber) {
         virtualMassDriverScrew.massDriverSuperCurve = massDriverSuperCurve
+        virtualMassDriverScrew.launcherMassDriverLength = launcherMassDriverLength
+        virtualMassDriverScrew.massDriverScrewSegments = massDriverScrewSegments
+        virtualMassDriverScrew.massDriverScrewMaterials = massDriverScrewMaterials
+        virtualMassDriverScrew.shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+        virtualMassDriverScrew.threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+        virtualMassDriverScrew.threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+        virtualMassDriverScrew.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
+        virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
+        virtualMassDriverScrew.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+        virtualMassDriverScrew.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+        
+        virtualMassDriverScrew.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
+        virtualMassDriverScrew.numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value
+        virtualMassDriverScrew.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
+
         virtualMassDriverScrew.isVisible = dParamWithUnits['showMassDriverScrews'].value
-        virtualMassDriverScrew.isDynamic =  false
+        virtualMassDriverScrew.isDynamic =  true
         virtualMassDriverScrew.hasChanged = true
         virtualMassDriverScrew.sidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
         virtualMassDriverScrew.upwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-        virtualMassDriverScrew.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         virtualMassDriverScrew.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
         virtualMassDriverScrew.versionNumber = versionNumber
+        
     }
 
     placeAndOrientModel(om, refFrame) {
@@ -81,18 +95,63 @@ export class virtualMassDriverScrew {
                     const forward = virtualMassDriverScrew.massDriverSuperCurve.getTangentAt(d)
                     const upward = virtualMassDriverScrew.massDriverSuperCurve.getNormalAt(d)
                     const rightward = virtualMassDriverScrew.massDriverSuperCurve.getBinormalAt(d)
-                    this.position = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
-                        .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverScrew.sidewaysOffset))
+                    this.position[0] = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
+                        .add(rightward.clone().multiplyScalar(virtualMassDriverScrew.sidewaysOffset))
+                        .add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
+                    this.position[1] = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
+                        .add(rightward.clone().multiplyScalar(-virtualMassDriverScrew.sidewaysOffset))
                         .add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
                     this.orientation = virtualMassDriverScrew.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
                     this.versionNumber = virtualMassDriverScrew.versionNumber
                 }
 
-                om.position.copy(this.position)
-                om.setRotationFromQuaternion(this.orientation)
-                const slowDownPassageOfTime = Math.min(1, virtualMassDriverScrew.slowDownPassageOfTime + Math.min(1, 2**(Math.max(0, refFrame.timeSinceStart-20)-60)))
-                const deltaT = refFrame.timeSinceStart * slowDownPassageOfTime
-                om.rotateY(((-this.lr * deltaT * virtualMassDriverScrew.screwRevolutionsPerSecond) % 1) * 2 * Math.PI)
+                // Check that we have the correct model for this position. If we don't, regenerate the model.
+                if (om.userData!=this.index) {
+                    // Assigned model's geometry is the wrong shape and needs to be regenerated
+                    // Check that the geometries for left and right screws are the same
+                    console.log('Regenerating Screw Geometry')
+                    const segmentSpacing = virtualMassDriverScrew.launcherMassDriverLength / virtualMassDriverScrew.massDriverScrewSegments
+                    const baseDistanceAlongScrew = this.index * segmentSpacing
+                    let screwLength
+                    if (this.index<virtualMassDriverScrew.numBrackets) {
+                        screwLength = segmentSpacing - virtualMassDriverScrew.bracketThickness
+                    }
+                    else {
+                        screwLength = segmentSpacing
+                    }
+                    const modelRadialSegments = 24 / Math.min(virtualMassDriverScrew.threadStarts, 4)
+                    // Get rid of the previous geometries...
+                    om.children[0].geometry.dispose()
+                    om.children[1].geometry.dispose()
+                    // Generate new geometries
+                    om.children[0].geometry = new ScrewGeometry(
+                        screwLength,
+                        virtualMassDriverScrew.shaftRadius,
+                        virtualMassDriverScrew.threadRadius,
+                        virtualMassDriverScrew.threadThickness,
+                        virtualMassDriverScrew.threadStarts,
+                        baseDistanceAlongScrew,
+                        virtualMassDriverScrew.launcherMassDriverInitialVelocity,
+                        virtualMassDriverScrew.initialDistance,
+                        virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond,
+                        virtualMassDriverScrew.launcherMassDriverForwardAcceleration,
+                        modelRadialSegments)
+                    om.children[1].geometry = om.children[0].geometry
+                    const select = (((this.index % 256) <= 16) && (this.index<256*256)) ? 1 : 0
+                    om.children[0].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
+                    om.children[1].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
+                    om.userData = this.index
+                }
+
+                const deltaT = tram.adjustedTimeSinceStart(virtualMassDriverScrew.slowDownPassageOfTime, refFrame.timeSinceStart)
+  
+                om.children.forEach(child => {
+                    const index = child.userData
+                    const lr = 1 - index*2
+                    child.position.copy(this.position[index])
+                    child.setRotationFromQuaternion(this.orientation)
+                    child.rotateY(((-lr * deltaT * virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond) % 1) * 2 * Math.PI)
+                })                
             }
             om.visible = virtualMassDriverScrew.isVisible
             om.matrixValid = false

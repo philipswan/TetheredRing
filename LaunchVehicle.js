@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { FacesGeometry } from './FacesGeometry.js'
+import * as tram from './tram.js'
 
 export class launchVehicleModel {
     constructor(dParamWithUnits) {
@@ -81,6 +82,7 @@ export class virtualLaunchVehicle {
         // 0 represents the beginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
         this.timeLaunched = timeLaunched
         this.unallocatedModels = unallocatedModelsArray
+        this.model = null
     }
     
     // The following properties are common to all virtual vehicles...
@@ -119,8 +121,8 @@ export class virtualLaunchVehicle {
     }
     
     placeAndOrientModel(om, refFrame) {
-        const slowDownPassageOfTime = Math.min(1, virtualLaunchVehicle.slowDownPassageOfTime + Math.min(1, 2**(Math.max(0, refFrame.timeSinceStart-20)-60)))
-        const deltaT = refFrame.timeSinceStart * slowDownPassageOfTime - this.timeLaunched
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const acceleration = virtualLaunchVehicle.launcherMassDriverForwardAcceleration
         const initialVelocity = virtualLaunchVehicle.launcherMassDriverInitialVelocity
         const distanceToVehicleAft = virtualLaunchVehicle.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
@@ -151,6 +153,18 @@ export class virtualLaunchVehicle {
         }
         om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
         om.matrixValid = false
+    }
+
+    getFuturePosition(refFrame, timeDeltaInSeconds) {
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+        const deltaT = adjustedTimeSinceStart - this.timeLaunched
+        const acceleration = virtualLaunchVehicle.launcherMassDriverForwardAcceleration
+        const initialVelocity = virtualLaunchVehicle.launcherMassDriverInitialVelocity
+        const distanceToVehicleAft = virtualLaunchVehicle.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
+        const bodyLength = virtualLaunchVehicle.bodyLength
+        const d = distanceToVehicleAft / virtualLaunchVehicle.launcherMassDriverLength
+        const pointOnMassDriverCurve = virtualLaunchVehicle.massDriverSuperCurve.getPointAt(d)
+        return pointOnMassDriverCurve
     }
       
 }

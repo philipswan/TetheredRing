@@ -37,9 +37,10 @@ export class evacuatedTubeModel {
   
   
 export class virtualEvacuatedTube {
-    constructor(positionInFrameOfReference, orientation) {
+    constructor(positionInFrameOfReference, orientation, unallocatedModelsArray) {
       this.p = positionInFrameOfReference
       this.orientation = orientation
+      this.unallocatedModels = unallocatedModelsArray
       this.model = null
     }
   

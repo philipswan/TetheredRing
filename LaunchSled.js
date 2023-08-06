@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerGeometry.js'
+import * as tram from './tram.js'
 
 export class launchSledModel {
   constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
@@ -106,11 +107,12 @@ export class virtualLaunchSled {
         // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
         this.timeLaunched = timeLaunched
         this.unallocatedModels = unallocatedModelsArray
+        this.model = null
     }
   
     static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene, clock) {
       virtualLaunchSled.clock = clock
-      virtualLaunchSled.updatePeriod = 3  // seconds
+      virtualLaunchSled.updatePeriod = .5  // seconds
   
       virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
       virtualLaunchSled.massDriverSuperCurve = massDriverSuperCurve
@@ -146,8 +148,8 @@ export class virtualLaunchSled {
   
     placeAndOrientModel(om, refFrame) {
       if (virtualLaunchSled.isVisible) {
-        const slowDownPassageOfTime = Math.min(1, virtualLaunchSled.slowDownPassageOfTime + Math.min(1, 2**(Math.max(0, refFrame.timeSinceStart-20)-60)))
-        const deltaT = refFrame.timeSinceStart * slowDownPassageOfTime - this.timeLaunched
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchSled.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
         const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
         const initialDistance = virtualLaunchSled.initialDistance

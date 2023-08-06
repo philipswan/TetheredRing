@@ -59,14 +59,15 @@ export class massDriverBracketModel {
 }
 
 export class virtualMassDriverBracket {
-    constructor(d) {
+    constructor(d, unallocatedModelsArray) {
         this.d = d
+        this.unallocatedModels = unallocatedModelsArray
         this.model = null
     }
 
     static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
         virtualMassDriverBracket.massDriverSuperCurve = massDriverSuperCurve
-        virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBracket'].value
+        virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBrackets'].value
         virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         virtualMassDriverBracket.isDynamic =  false
         virtualMassDriverBracket.hasChanged = true

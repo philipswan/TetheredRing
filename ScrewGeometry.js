@@ -11,7 +11,6 @@ class ScrewGeometry extends BufferGeometry {
 
 	constructor(
 		screwLength = 1,
-		tubularSegments = 128,
 		shaftRadius = 1,
 		threadRadius = 2,
 		threadThickness = .2,
@@ -28,8 +27,7 @@ class ScrewGeometry extends BufferGeometry {
 		this.type = 'ScrewGeometry';
 
 		this.parameters = {
-			screwLength: screwLength, 
-			tubularSegments: tubularSegments,
+			screwLength: screwLength,
 			shaftRadius: shaftRadius,
 			threadRadius: threadRadius,
 			threadThickness: threadThickness,
@@ -42,16 +40,7 @@ class ScrewGeometry extends BufferGeometry {
 			radialSegments: radialSegments,
 		};
 
-		// const frames = path.computeFrenetFrames( tubularSegments, closed );
-
-		// expose internals
-
-		// this.tangents = frames.tangents;
-		// this.normals = frames.normals;
-		// this.binormals = frames.binormals;
-
 		// helper variables
-
 		const vertex = new Vector3();
 		const normal = new Vector3();
 		const uv = new Vector2();
@@ -61,14 +50,28 @@ class ScrewGeometry extends BufferGeometry {
 		let P = new Vector3();
 
 		// buffer
-
 		const vertices = [];
 		const normals = [];
 		const uvs = [];
 		const indices = [];
 
-		// create buffer data
+		// Estimate how many length segments we will need to properly represent the screw
+		const distanceAlongScrew = baseDistanceAlongScrew + 0.5 * screwLength
+		//0 = 0.5 * a * t**2 + v0 * t - d
+		const cA = 0.5 * acceleration
+		const cB = initialVelocity
+		const cC = initialDistance - distanceAlongScrew
+		const time0 = (-cB + Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+		const time1 = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+		const time = Math.max(time0, time1)
+		const rotations = revolutionsPerSecond * time
+		const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
+		const rateOfChangeInForwardDisplacement = initialVelocity + acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
 
+		const minimumTubularSegments = Math.floor(4 * screwLength)
+		const tubularSegments = Math.ceil(Math.sqrt(rateOfChangeInRotationalDistance**2 + rateOfChangeInForwardDisplacement**2) / rateOfChangeInForwardDisplacement * minimumTubularSegments)
+
+		// create buffer data
 		generateBufferData();
 
 		// build geometry
@@ -125,7 +128,10 @@ class ScrewGeometry extends BufferGeometry {
 			const cB = initialVelocity
 			const cC = initialDistance - distanceAlongScrew
 			const time = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
-
+			// const time0 = (-cB + Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+			// const time1 = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+			// const time = Math.max(time0, time1)
+	
 			const rotations = revolutionsPerSecond * time
 			const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
 			const rateOfChangeInForwardDisplacement = initialVelocity + acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.

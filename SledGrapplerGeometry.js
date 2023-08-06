@@ -260,8 +260,8 @@ class SledGrapplerGeometry extends BufferGeometry {
 				const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations[i] + nearestThread[midRib] / threadStarts) % 1)
 				const outerThreadPitchAngle = Math.atan(outerThreadPitch[i])
 				const innerThreadPitchAngle = Math.atan(innerThreadPitch[i])
-				const precomputedPartOfAngle2 = precomputedPartOfAngle1 + magnetThickness * Math.sin(outerThreadPitchAngle)
-				const precomputedPartOfAngle3 = precomputedPartOfAngle1 + magnetThickness * Math.sin(innerThreadPitchAngle)
+				const precomputedPartOfAngle2 = precomputedPartOfAngle1 + magnetThickness/threadRadius * Math.sin(outerThreadPitchAngle)
+				const precomputedPartOfAngle3 = precomputedPartOfAngle1 + magnetThickness/shaftRadiusPlus * Math.sin(innerThreadPitchAngle)
 
 				// Create four verticies initially in cylindrical coordinates (r, theta, z), but then convert to cartisian coordinates
 				const theta = []

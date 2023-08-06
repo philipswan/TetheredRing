@@ -46,8 +46,9 @@ export class massDriverRailModel {
 }
 
 export class virtualMassDriverRail {
-    constructor(d) {
+    constructor(d, unallocatedModelsArray) {
       this.d = d
+      this.unallocatedModels = unallocatedModelsArray
       this.model = null
     }
   
