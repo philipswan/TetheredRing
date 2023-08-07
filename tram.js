@@ -77,8 +77,12 @@ export class Vector3 {
     this.y = y
     this.z = z            // altitude in meters
   }
-
 }
+
+// Helper function to calculate the magnitude squared of a vector.
+Vector3.prototype.magnitudeSquared = function () {
+  return this.x * this.x + this.y * this.y + this.z * this.z;
+};
 
 export function airDensityAtAltitude(a) {
   const c_4	= -3.957854E-19
@@ -1256,4 +1260,61 @@ export function interplanetaryDeltaV() {
   const velocityOfMars = Math.sqrt(G * massOfTheSun / marsOrbitRadius)
   const deltaVAtEarth = Math.sqrt(G * massOfTheSun / earthOrbitRadius) * (Math.sqrt(2 * marsOrbitRadius / (earthOrbitRadius+marsOrbitRadius)) - 1)
   const deltaVAtMars = Math.sqrt(G * massOfTheSun / marsOrbitRadius) * (1 - Math.sqrt(2 * earthOrbitRadius / (earthOrbitRadius+marsOrbitRadius)))
+}
+
+export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
+  return Math.max(0, timeSinceStart - 20) * slowDownPassageOfTime
+}
+
+export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {
+  // Step 2: Find the intersection of the circle plane and the sphere (a circle on the sphere's surface).
+  // Project the sphere center onto the circle plane.
+  const circleCenterToSphereCenter = new THREE.Vector3(sphereCenter.x - circleCenter.x, sphereCenter.y - circleCenter.y, sphereCenter.z - circleCenter.z);
+  const projectionLength = circleCenterToSphereCenter.x * circleNormal.x + circleCenterToSphereCenter.y * circleNormal.y + circleCenterToSphereCenter.z * circleNormal.z;
+  if (Math.abs(projectionLength)>sphereRadius) {
+    // Sphere too far away...
+    return [null, null];
+  }
+  else {
+    const projection = new THREE.Vector3(circleNormal.x * projectionLength, circleNormal.y * projectionLength, circleNormal.z * projectionLength);
+    const projectedSphereCenterOnCirclePlane = new THREE.Vector3(sphereCenter.x - projection.x, sphereCenter.y - projection.y, sphereCenter.z - projection.z);
+    const radiusOfCircleOfIntercetion = Math.sin(Math.acos(projectionLength/sphereRadius)) * sphereRadius 
+
+    let c1, r1, c2, r2
+    if (circleRadius>=radiusOfCircleOfIntercetion) {
+      c1 = projectedSphereCenterOnCirclePlane
+      r1 = radiusOfCircleOfIntercetion
+      c2 = circleCenter
+      r2 = circleRadius
+    }
+    else {
+      c1 = circleCenter
+      r1 = circleRadius
+      c2 = projectedSphereCenterOnCirclePlane
+      r2 = radiusOfCircleOfIntercetion
+    }
+    const cdiff = c1.clone().sub(c2)
+    const cdifflen = cdiff.length()
+    if ((cdifflen+r1<=r2) || (cdifflen-r1>=r2)) {
+      // Sphere too far away...
+      return [null, null];
+    }
+    else {
+      const cdiffnorm = cdiff.clone().normalize() //unit vector
+      const cdiffperp = cdiffnorm.clone().cross(circleNormal)
+      const q = cdifflen**2 + r2**2 - r1**2
+      const dx = 1/2 * q / cdifflen
+      const dy = 1/2 * Math.sqrt(4 * cdifflen**2 * r2**2 - q**2) / cdifflen
+      const dxvect = cdiffnorm.clone().multiplyScalar(dx)
+      const dyvect = cdiffperp.clone().multiplyScalar(dy)
+      const intersection1 = c2.clone().add(dxvect).add(dyvect)
+      const intersection2 = c2.clone().add(dxvect).sub(dyvect)
+
+      if (Number.isNaN(dy)) {
+        console.log("Nan Error")
+      }
+
+      return [intersection1, intersection2];
+    }
+  }
 }
