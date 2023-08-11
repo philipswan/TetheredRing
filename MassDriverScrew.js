@@ -109,7 +109,7 @@ export class virtualMassDriverScrew {
                 if (om.userData!=this.index) {
                     // Assigned model's geometry is the wrong shape and needs to be regenerated
                     // Check that the geometries for left and right screws are the same
-                    console.log('Regenerating Screw Geometry')
+                    // console.log('Regenerating Screw Geometry')
                     const segmentSpacing = virtualMassDriverScrew.launcherMassDriverLength / virtualMassDriverScrew.massDriverScrewSegments
                     const baseDistanceAlongScrew = this.index * segmentSpacing
                     let screwLength

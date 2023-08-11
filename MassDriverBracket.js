@@ -11,7 +11,7 @@ export class massDriverBracketModel {
         const width = dParamWithUnits['launcherMassDriverBracketWidth'].value
         const height = dParamWithUnits['launcherMassDriverBracketHeight'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-        const bracketUpwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        const bracketUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
         const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
         const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
@@ -68,7 +68,7 @@ export class virtualMassDriverBracket {
     static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
         virtualMassDriverBracket.massDriverSuperCurve = massDriverSuperCurve
         virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBrackets'].value
-        virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         virtualMassDriverBracket.isDynamic =  false
         virtualMassDriverBracket.hasChanged = true
         virtualMassDriverBracket.versionNumber = versionNumber

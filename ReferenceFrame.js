@@ -15,17 +15,40 @@ export class referenceFrame {
 		this.placeholderEntries = {}
 	}
 
+	initialize() {
+
+		// We need a rapid wedge to curve mapping
+		// We need a rapid time to wedge mapping
+
+		// In each frame-of-reference, create an array of wedges. In each wedge, create an empty array for storing the virtual objects in that wedge
+		const makeEmptyArrays = () => { return structuredClone(this.placeholderEntries) }
+		this.wedges = new Array(this.numWedges).fill().map(makeEmptyArrays)
+
+	}
+
 	addVirtualObject( virtualObjectName ) {
 		this.placeholderEntries[virtualObjectName] = []
 	}
 
-	initialize() {
-		// In each frame-of-reference, create an array of wedges. In each wedge, create an empty array for storing the virtual objects in that wedge
-		const makeEmptyArrays = () => { return structuredClone(this.placeholderEntries) }
-		this.wedges = new Array(this.numWedges).fill().map(makeEmptyArrays)
-	}
+	update() {
 
-	update(curve) {
-		this.curve = curve
+		// We need to map the wedges to the individual curves in the list of curves
+		if (Array.isArray(this.curve)) {
+			if (this.curve.length==0) console.log("Error: Array length cannot be zero")
+			this.numWedgesPerCurve = []
+			let curvesTotalLength = 0
+			this.curve.forEach(subCurve => { curvesTotalLength += subCurve.getLength() })
+			const wedgeRoughLength = curvesTotalLength / this.numWedges
+			const numCurveSegments = this.curve.length
+			// Make sure that every curve gets assigned at least one segment
+			let newNumWedges = 0
+			const numWedgesPerCurve = []
+			this.curve.forEach((subCurve, index) => {
+				this.numWedgesPerCurve[index] = 1 + Math.max(0, Math.round((this.numWedges - numCurveSegments) * (subCurve.length - wedgeRoughLength) / (curvesTotalLength - numCurveSegments * wedgeRoughLength)))
+				newNumWedges += this.numWedgesPerCurve[index]
+			})
+			this.numWedges = newNumWedges
+		}
+
 	}
 }

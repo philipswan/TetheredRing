@@ -1,41 +1,83 @@
 import * as THREE from 'three'
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerGeometry.js'
 import * as tram from './tram.js'
 
 export class launchSledModel {
-  constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
+  constructor(dParamWithUnits, myScene, unallocatedModelsList, perfOptimizedThreeJS, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
     // Manually Create the Launch Vehicle
     const width = dParamWithUnits['launchSledWidth'].value
     const height = dParamWithUnits['launchSledHeight'].value
     const radialSegments = 32
     const bodyLength = dParamWithUnits['launchSledBodyLength'].value
     const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+    const objName = 'launchSled'
+    const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
 
-    // Create the sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
-    const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
-    launchSledBodyGeometry.translate(0, bodyLength/2, 0)
-    const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
-    const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
-    launchSledBodyMesh.name = 'body'
-    const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
-    launchSledMesh.name = 'launchSled'
-
-    // Create the sled's grapplers
-    const distanceToSledAft = 0
-    const firstGrapplerDistance = 0
-    const lastGrapplerDistance = bodyLength
-    const grapplerSpacing = 1.0 / numGrapplers * bodyLength
-    for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-      const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
-      launchSledGrapplerMesh.name = 'leftGrappler'
-      launchSledGrapplerMesh.userData = i
-      launchSledMesh.add(launchSledGrapplerMesh.clone())
-      launchSledGrapplerMesh.name = 'rightGrappler'
-      launchSledGrapplerMesh.userData = i
-      launchSledGrapplerMesh.scale.set(-1, 1, 1)
-      launchSledMesh.add(launchSledGrapplerMesh.clone())
+    if (false) {
+      // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+      const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
+      launchSledBodyGeometry.translate(0, bodyLength/2, 0)
+      const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
+      const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
+      launchSledBodyMesh.name = 'body'
+      const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
+      addGrapplers(launchSledMesh)
+      launchSledMesh.name = 'launchSled'
+      const scaleFactor = 1
+      decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
     }
-    return launchSledMesh
+    else {
+      // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
+      function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+        // This is the additional work we want to do later, after the loader get's around to loading our model...
+        return function(object) {
+            object.scale.set(scaleFactor*0.7, scaleFactor, scaleFactor)  // A bit hacky - Alastair's sled model is too wide
+            object.name = 'body'
+            object.children[0].material.color.setHex(0x2f1f50)
+            const launchSledBodyMesh = object
+            const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
+            addGrapplers(launchSledMesh)
+            decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, 1, n, perfOptimizedThreeJS)
+            return launchSledMesh
+        }
+      }
+
+      const loader = new OBJLoader();
+
+      const scaleFactor = 0.001 // Because Alastair's launch sled model used mm instead of meters
+      const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
+      
+      loader.load('models/launchSled.obj',
+        // called when resource is loaded
+        addLaunchSleds,
+        // called when loading is in progresses
+        function ( xhr ) {
+            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
+        },
+        // called when loading has errors
+        function ( error ) {console.log( 'Error loading launch sled model')}
+      )
+    }
+
+    function addGrapplers(launchSledMesh) {
+      // Create the sled's grapplers
+      const distanceToSledAft = 0
+      const firstGrapplerDistance = 0
+      const lastGrapplerDistance = bodyLength
+      const grapplerSpacing = 1.0 / numGrapplers * bodyLength
+      
+      for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+        const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
+        launchSledGrapplerMesh.name = 'leftGrappler'
+        launchSledGrapplerMesh.userData = i
+        launchSledMesh.add(launchSledGrapplerMesh.clone())
+        launchSledGrapplerMesh.name = 'rightGrappler'
+        launchSledGrapplerMesh.userData = i
+        launchSledGrapplerMesh.scale.set(-1, 1, 1)
+        launchSledMesh.add(launchSledGrapplerMesh.clone())
+      }
+    }
 
     function createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture) {
       // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
@@ -96,7 +138,26 @@ export class launchSledModel {
       //const sledGrapplerMaterial = new THREE.MeshStandardMaterial({map: massDriverScrewTexture})
       return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
     }
-    
+
+    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+      object.updateMatrixWorld()
+      object.visible = false
+      object.name = objName
+      object.traverse(child => {
+      if (child!==object) {
+          child.name = objName+'_'+child.name
+      }
+      })
+      if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
+      object.scale.set(scaleFactor, scaleFactor, scaleFactor)
+      for (let i=0; i<n; i++) {
+          const tempModel = object.clone()
+          myScene.add(tempModel)
+          unallocatedModelsList.push(tempModel)
+      }
+  }
+
+
   }
   
 }
@@ -120,6 +181,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
       virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
+      virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
       virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
       virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
       virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
@@ -140,7 +202,6 @@ export class virtualLaunchSled {
       virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftRadius
       virtualLaunchSled.padYActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
       
-  
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
       virtualLaunchSled.scene = scene
@@ -295,6 +356,7 @@ export class virtualLaunchSled {
             child.position.copy(pointOnMassDriverCurve)
               .add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
               .add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))
+              .add(forward.clone().multiplyScalar(virtualLaunchSled.forwardsOffset))
             child.setRotationFromQuaternion(orientation)
           }
           child.visible = true

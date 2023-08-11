@@ -410,7 +410,10 @@ export class transitSystem {
     const nh = dParamWithUnits['numVirtualHabitats'].value
     const numTransitStops = nt + nh
 
-    this.refFrames.forEach(refFrame => {refFrame.update(mainRingCurve)})
+    this.refFrames.forEach(refFrame => {refFrame.update()})
+    // ToDo: Updating the curve will leave some models it the wrong positions or worse. We need to
+    // call placeAndOrient and possibly reassign all of the virtual models to wedges.
+
     virtualTransitVehicle.update(dParamWithUnits, trackOffsetsList, crv)
     virtualRingTerminus.update(dParamWithUnits, crv)
     virtualGroundTerminus.update(dParamWithUnits, crv)

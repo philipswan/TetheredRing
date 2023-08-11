@@ -299,7 +299,7 @@ const guidParamWithUnits = {
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitAltitude: {value: 15000, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverInitialVelocity: {value: 200, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -312,7 +312,8 @@ const guidParamWithUnits = {
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleUpwardsOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleUpwardsOffset: {value: 0.2, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
@@ -320,10 +321,10 @@ const guidParamWithUnits = {
   launchVehicleNoseConeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleNumModels: {value: 640, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherCoastTime: {value: 250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherSlowDownPassageOfTime: {value: 0.1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
@@ -333,6 +334,7 @@ const guidParamWithUnits = {
   numVirtualMassDriverTubes: {value: 1024, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchRailUpwardsOffset: {value: -1.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverRails: {value: 4096, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketWidth: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -356,7 +358,8 @@ const guidParamWithUnits = {
   launchSledHeight: {value: .25, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledUpwardsOffset: {value: -1.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledUpwardsOffset: {value: 0.2, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledNumModels: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   // Hack - should be 128
@@ -448,12 +451,12 @@ const guidParamWithUnits = {
 
   // Rendering Parameters
   parameterPresetNumber: {value: 1, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showLogo: {value: false, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
+  showLogo: {value: defaultShows, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
   showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
 
   // Hack
-  showEarthsSurface: {value: true, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
-  showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
+  showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
+  showEarthsAtmosphere: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
@@ -501,7 +504,7 @@ const guidParamWithUnits = {
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
-  orbitControlsRotateSpeed: {value: 0.01, units: '', autoMap: true, min: -10, max: 10, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
+  orbitControlsRotateSpeed: {value: 0.1, units: '', autoMap: true, min: -10, max: 10, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   logZoomRate: {value: -2, units: '', autoMap: true, min: -5, max: -1, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
@@ -1278,8 +1281,7 @@ atmosphereMesh.scale.set(1.1, 1.1 * (1.0 - 1.0/WGS84FlattenningFactor), 1.1)
 //atmosphereMesh.receiveShadow = true
 atmosphereMesh.visible = guidParamWithUnits['showEarthsAtmosphere'].value
 
-// Hack
-//planetCoordSys.add(atmosphereMesh)
+planetCoordSys.add(atmosphereMesh)
 
 // const water = new Water(
 //   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
@@ -2408,7 +2410,7 @@ function onKeyDown( event ) {
         }
       })
       let objectIntersects = []
-      if (dParamWithUnits['showTransitSystem'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showEvacuatedTube'].value || dParamWithUnits['showLaunchVehicle'].value) {
+      if (dParamWithUnits['showTransitSystem'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showEvacuatedTube'].value || dParamWithUnits['showLaunchVehicles'].value) {
         planetCoordSys.children.forEach(mesh => {
           //console.log(mesh.name)
           if ((mesh.name==='massDriverTube') || (mesh.name==='evacuatedTube') || (mesh.name==='launchVehicle')) {
@@ -2649,10 +2651,17 @@ function onKeyDown( event ) {
       case 0:
         // Near start of mass driver
         if (launchSystemObject) {
-          orbitControls.target.set(1084962.2914258041, -3894529.251775749, -4933143.66910176)
-          orbitControls.upDirection.set(0.17010784156003436, -0.6106075825441394, -0.7734479312658278)
-          orbitControls.object.position.set(1085096.7294502635, -3894649.5721744383, -4933113.863818314)
-          camera.up.set(0.17010784156003436, -0.6106075825441394, -0.7734479312658278)
+          // Start of full length launcher
+          orbitControls.target.set(1085370.432176167, -3902836.946537032, -4926553.676662945)
+          orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+          orbitControls.object.position.set(1085509.7410396067, -3902936.495991087, -4926533.095674201)
+          camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+
+          // Start of short launcher
+          // orbitControls.target.set(434514.45891003695, -4028501.989482331, -4927000.863631674)
+          // orbitControls.upDirection.set(0.06811542145116224, -0.6315145154674571, -0.7723663030676787)
+          // orbitControls.object.position.set(434528.8682449743, -4028502.9988102354, -4927000.408542797)
+          // camera.up.set(0.06811542145116224, -0.6315145154674571, -0.7723663030676787)
 
           // orbitControls.target.set(1085272.9620155653, -3894412.8556745816, -4933140.481168342)
           // orbitControls.upDirection.set(0.17015900275988693, -0.6105907848756152, -0.773449938395977)
@@ -2664,12 +2673,14 @@ function onKeyDown( event ) {
           // orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
           // camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
         }
+        camera.near = 0.1
         break
       case 1:
         orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
         orbitControls.upDirection.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
         orbitControls.object.position.set(462644.614909767, -4035553.341659306, -4920607.446758332)
         camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
+        camera.near = 0.1
         break
       case 2:
         // Close to Ring at 22 km altitude
@@ -3093,7 +3104,7 @@ function recomputeNearFarClippingPlanes() {
   // Note: Assumes the planet is centered on the origin!!!
   camera.near = Math.max(10, camera.position.length() - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Hack
-  camera.near = 0.1
+  //camera.near = 0.1
 
   // camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,

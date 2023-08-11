@@ -55,7 +55,7 @@ export class virtualMassDriverRail {
     static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
       virtualMassDriverRail.massDriverSuperCurve = massDriverSuperCurve
       virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value
-      virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
+      virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
       virtualMassDriverRail.isDynamic =  false
       virtualMassDriverRail.hasChanged = true
       virtualMassDriverRail.versionNumber = versionNumber

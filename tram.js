@@ -1263,7 +1263,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  return Math.max(0, timeSinceStart - 20) * slowDownPassageOfTime
+  return Math.max(0, timeSinceStart - 40) * slowDownPassageOfTime
 }
 
 export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {

@@ -9,21 +9,26 @@ class CircleSuperCurve3 extends SuperCurve {
 		super();
 		this.isCircleSuperCurve3 = true;
 		this.type = 'CircleSuperCurve3';
-		this.radius = pointOnCircle.clone().sub(centerPoint).length()
 		this.centerPoint = centerPoint
-		this.axisOfRotation = axisOfRotation
+		this.axisOfRotation = axisOfRotation // Perhaps this should be called "circleNormal"
 		this.pointOnCircle = pointOnCircle
-		this.normalizedPointOnCircle = pointOnCircle.clone().normalize()
 		this.length = length
+		this.centerToPointOnCircle = pointOnCircle.clone().sub(centerPoint)
+		this.radius = this.centerToPointOnCircle.length()
+		this.normalizedCenterToPointOnCircle = this.centerToPointOnCircle.clone().normalize()
 		this.binormal = this.axisOfRotation.normalize()
 	}
 
+	getLength() {
+		return this.length
+	}
+	
 	getPointAt(d, optionalTarget) {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
 		const point = optionalTarget || new Vector3();
 		const angle = (this.length>0) ? d * this.length / this.radius : (1-d) * this.length / this.radius
-		point.copy(this.pointOnCircle)
-		point.applyAxisAngle(this.axisOfRotation, angle)
+		point.copy(this.centerToPointOnCircle)
+		point.applyAxisAngle(this.axisOfRotation, angle).add(this.centerPoint)
 		return point
 	}
 
@@ -31,7 +36,7 @@ class CircleSuperCurve3 extends SuperCurve {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
 		const vector = optionalTarget || new Vector3();
 		const angle = (this.length>0) ? d * this.length / this.radius : (1-d) * this.length / this.radius
-		vector.copy(this.normalizedPointOnCircle)
+		vector.copy(this.normalizedCenterToPointOnCircle)
 		vector.applyAxisAngle(this.axisOfRotation, angle + Math.PI/2)
 		return vector
 	}
@@ -40,7 +45,7 @@ class CircleSuperCurve3 extends SuperCurve {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
 		const vector = optionalTarget || new Vector3();
 		const angle = (this.length>0) ? d * this.length / this.radius : (1-d) * this.length / this.radius
-		vector.copy(this.normalizedPointOnCircle)
+		vector.copy(this.normalizedCenterToPointOnCircle)
 		vector.applyAxisAngle(this.axisOfRotation, angle)
 		return vector
 	}
@@ -51,6 +56,10 @@ class CircleSuperCurve3 extends SuperCurve {
 		return vector
 	}
 	
+	addtTosConvertor(tTosConvertor) {
+		this.tTos = tTosConvertor
+	}
+
 	addtTodConvertor(tTodConvertor) {
 		this.tTod = tTodConvertor
 	}

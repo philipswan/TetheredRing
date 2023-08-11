@@ -1,4 +1,5 @@
 import { Vector3 } from 'three/src/math/Vector3.js';
+import { Quaternion } from 'three/src/math/Quaternion.js';
 import { SuperCurve } from './SuperCurve.js';
 
 /**
@@ -68,7 +69,20 @@ function CubicPoly() {
 
 			const t2 = t * t;
 			const t3 = t2 * t;
-			return c0 + c1 * t + c2 * t2 + c3 * t3;
+			return c3 * t3 + c2 * t2 + c1 * t + c0;
+
+		},
+
+		calcFirstDerivative: function ( t ) {
+
+			const t2 = t * t;
+			return 3 * c3 * t2 + 2 * c2 * t + c1;
+
+		},
+
+		calcSecondDerivative: function ( t ) {
+
+			return 6 * c3 * t + 2 * c2;
 
 		}
 
@@ -90,7 +104,6 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		super();
 
 		this.isCatmullRomSuperCurve3 = true;
-
 		this.type = 'CatmullRomSuperCurve3';
 
 		this.points = points;
@@ -100,9 +113,7 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 	}
 
-	getPoint( t, optionalTarget = new Vector3() ) {
-
-		const point = optionalTarget;
+	prepareInterpolator(t) {
 
 		const points = this.points;
 		const l = points.length;
@@ -175,6 +186,17 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 			pz.initCatmullRom( p0.z, p1.z, p2.z, p3.z, this.tension );
 
 		}
+		return weight;
+
+	}
+
+	// No overload needed for now, base class implementation is sufficient
+	// getLength() {}
+
+	getPoint( t, optionalTarget = new Vector3() ) {
+
+		const point = optionalTarget;
+		const weight = this.prepareInterpolator( t );
 
 		point.set(
 			px.calc( weight ),
@@ -184,6 +206,210 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 		return point;
 
+	}
+
+	getTangent( t, optionalTarget = new Vector3() ) {
+
+		const tangent = optionalTarget;
+		const weight = this.prepareInterpolator( t );
+
+		tangent.set(
+			px.calcFirstDerivative( weight ),
+			py.calcFirstDerivative( weight ),
+			pz.calcFirstDerivative( weight )
+		);
+		tangent.normalize();
+
+		return tangent;
+
+	}
+
+	getRawNormal( t, optionalTarget = new Vector3() ) {
+
+		const rawNormal = optionalTarget;
+		const weight = this.prepareInterpolator( t );
+
+		const firstDerivative = new Vector3(
+			px.calcFirstDerivative( weight ),
+			py.calcFirstDerivative( weight ),
+			pz.calcFirstDerivative( weight )
+		); 
+		const secondDerivative = new Vector3(
+			px.calcSecondDerivative( weight ),
+			py.calcSecondDerivative( weight ),
+			pz.calcSecondDerivative( weight )
+		);
+		const sum = firstDerivative.clone().add(secondDerivative);
+		const axisOfRotation = sum.cross(firstDerivative);
+		rawNormal.copy(firstDerivative).cross(axisOfRotation);
+
+		return rawNormal;
+
+	}
+
+	getNormal( t, optionalTarget = new Vector3() ) {
+	
+		return this.getRawNormal(t, optionalTarget).normalize();
+
+	}
+	
+	getRawBinormal( t, optionalTarget = new Vector3() ) {
+
+		const rawBinormal = optionalTarget;
+		const rawNormal = this.getRawNormal(t);
+		const tangent = this.getTangent(t);
+		rawBinormal.copy(tangent).cross(rawNormal);
+
+		return rawBinormal;
+	}
+
+	getBinormal( t, optionalTarget = new Vector3() ) {
+
+		return this.getRawBinormal(t, optionalTarget).normalize();		
+
+	}
+	
+	getUtoTmapping( u, distance ) {
+
+		const arcLengths = this.getLengths();
+
+		let i = 0;
+		const il = arcLengths.length;
+
+		let targetArcLength; // The targeted u distance value to get
+
+		if ( distance ) {
+
+			targetArcLength = distance;
+
+		} else {
+
+			targetArcLength = u * arcLengths[ il - 1 ];
+
+		}
+
+		// binary search for the index with largest value smaller than target u distance
+
+		let low = 0, high = il - 1, comparison;
+
+		while ( low <= high ) {
+
+			i = Math.floor( low + ( high - low ) / 2 ); // less likely to overflow, though probably not issue here, JS doesn't really have integers, all numbers are floats
+
+			comparison = arcLengths[ i ] - targetArcLength;
+
+			if ( comparison < 0 ) {
+
+				low = i + 1;
+
+			} else if ( comparison > 0 ) {
+
+				high = i - 1;
+
+			} else {
+
+				high = i;
+				break;
+
+				// DONE
+
+			}
+
+		}
+
+		i = high;
+
+		if ( arcLengths[ i ] === targetArcLength ) {
+
+			return i / ( il - 1 );
+
+		}
+
+		// we could get finer grain at lengths, or use simple interpolation between two points
+
+		const lengthBefore = arcLengths[ i ];
+		const lengthAfter = arcLengths[ i + 1 ];
+
+		const segmentLength = lengthAfter - lengthBefore;
+
+		// determine where we are between the 'before' and 'after' points
+
+		const segmentFraction = ( targetArcLength - lengthBefore ) / segmentLength;
+
+		// add that fractional amount to t
+
+		const t = ( i + segmentFraction ) / ( il - 1 );
+
+		return t;
+
+	}
+
+	getPointAt(u, optionalTarget = new Vector3() ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getPoint( t, optionalTarget );
+
+	}
+
+	getTangentAt(u, optionalTarget = new Vector3() ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getTangent( t, optionalTarget );
+
+	}
+
+	getRawNormalAt(u, optionalTarget = new Vector3() ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getRawNormal( t, optionalTarget );
+
+	}
+
+	getNormalAt(u, optionalTarget = new Vector3() ) {
+
+		return this.getRawNormalAt(u, optionalTarget).normalize();
+	
+	}
+
+	getRawBinormalAt(u, optionalTarget = new Vector3() ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getRawBinormal( t, optionalTarget );
+
+	}
+	
+	getBinormalAt(u, optionalTarget = new Vector3() ) {
+
+		return this.getRawBinormalAt(u, optionalTarget).normalize();
+	
+	}
+
+	getQuaternion( t, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+
+		const q1 = optionalTarget
+		const tangent = this.getTangent(t)
+		const normal = this.getNormal(t)
+        q1.setFromUnitVectors(objectForward, tangent)
+		const rotatedObjectUpwardVector = objectUpward.clone().applyQuaternion(q1)
+		const q2 = new Quaternion
+		q2.setFromUnitVectors(rotatedObjectUpwardVector, normal)
+		q2.multiply(q1)
+		return q2
+	}
+
+	getQuaternionAt(u, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getQuaternion( t, objectForward, objectUpward, optionalTarget );
+	
+	}
+
+	addtTosConvertor( tTosConvertor ) {
+		this.tTos = tTosConvertor
+	}
+
+	addtTodConvertor( tTodConvertor ) {
+		this.tTod = tTodConvertor
 	}
 
 	copy( source ) {
