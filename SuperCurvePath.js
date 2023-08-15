@@ -1,5 +1,6 @@
 import { SuperCurve } from './SuperCurve.js';
-import * as SuperCurves from '.SuperCurves.js';
+import * as SuperCurves from './SuperCurves.js';
+import { Quaternion } from 'three/src/math/Quaternion.js';
 
 /**************************************************************
  *	SuperCurved Path - a SuperCurve path is simply a array of connected
@@ -15,6 +16,9 @@ class SuperCurvePath extends SuperCurve {
 		this.type = 'SuperCurvePath';
 
 		this.superCurves = [];
+		this.numZones = [];
+		this.startZone = [];
+
 		this.autoClose = false; // Automatically closes the path
 
 	}
@@ -103,7 +107,7 @@ class SuperCurvePath extends SuperCurve {
 	// Compute lengths and cache them
 	// We cannot overwrite getLengths() because UtoT mapping uses it.
 
-	getCurveLengths() {
+	getSuperCurveLengths() {
 
 		// We use cache values if superCurves and cache array are same length
 
@@ -187,6 +191,167 @@ class SuperCurvePath extends SuperCurve {
 		}
 
 		return points;
+
+	}
+
+	subdivide(totalNumZones) {
+
+		// Distibute the specified number of zones across the set of superCurves so that each curve receives
+		// an integer number of zones and all zones represent roughly the same length of curve
+
+		const numSubCurves = this.superCurves.length
+		if (numSubCurves==0) console.log("Error: Array length cannot be zero")
+		this.numZones = []
+		let curvesTotalLength = 0
+		this.superCurves.forEach(subCurve => { curvesTotalLength += Math.abs(subCurve.getLength()) })
+		const zoneRoughLength = curvesTotalLength / totalNumZones
+		// Make sure that every curve gets assigned at least one segment
+		let newTotalNumZones = 0
+		this.superCurves.forEach((subCurve, index) => {
+			const subCurveLength = Math.abs(subCurve.getLength())
+			this.numZones[index] = 1 + Math.max(0, Math.round((totalNumZones - numSubCurves) * (subCurveLength - zoneRoughLength) / (curvesTotalLength - numSubCurves * zoneRoughLength)))
+			newTotalNumZones += this.numZones[index]
+		})
+		// Hacky...
+		// Adjust the number of zones assigned to the last curve so that the total number of zones is unchanged
+		this.numZones[numSubCurves-1] += totalNumZones - newTotalNumZones
+
+		let startDiv = 0
+		this.superCurves.forEach((subCurve, index) => {
+			this.startZone[index] = startDiv
+			startDiv += this.numZones[index]
+		})
+
+	}
+
+	findRelevantCurve(deltaT) {
+
+		const curveList = this.superCurves
+		// Determine which element of the curve deltaT maps to
+        let relevantCurve
+        let relevantCurveIndex
+        let relevantCurveDuration
+        let relevantCurveStartTime
+        let relevantCurveLength
+
+		let curveStartTime = 0
+		for (let i = 0; i<curveList.length; i++) {
+			const duration = curveList[i].getDuration()
+			// ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
+			if ((deltaT<curveStartTime+duration) || (i==curveList.length-1)) {
+				relevantCurve = curveList[i]
+				relevantCurveIndex = i 
+				relevantCurveStartTime = curveStartTime
+				relevantCurveDuration = duration
+				relevantCurveLength = relevantCurve.getLength()
+				break
+			}
+			else {
+				curveStartTime += duration
+			}
+		}
+		return {relevantCurve, relevantCurveIndex, relevantCurveStartTime, relevantCurveDuration, relevantCurveLength}
+
+	}
+
+	findRelevantCurveAt(d) {
+
+		const curveList = this.superCurves
+		// Determine which element of the curve deltaT maps to
+        let relevantCurve
+        let relevantCurveIndex
+        let relevantCurveStartPosition
+		let relevantCurveStartD
+        let relevantCurveLength
+
+		let curveStartPosition = 0
+		const distance = d * this.getLength()
+
+		for (let i = 0; i<curveList.length; i++) {
+			const length = curveList[i].getLength()
+			// ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
+			if ((distance<curveStartPosition+length) || (i==curveList.length-1)) {
+				relevantCurve = curveList[i]
+				relevantCurveIndex = i 
+				relevantCurveStartPosition = curveStartPosition
+				relevantCurveStartD = curveStartPosition / this.getLength()
+				relevantCurveLength = length
+				break
+			}
+			else {
+				curveStartPosition += length
+			}
+		}
+		return {relevantCurve, relevantCurveIndex, relevantCurveStartPosition, relevantCurveStartD, relevantCurveLength}
+
+	}
+
+	getSubcurveD(d, subCurveStartPosition, subCurveLength) {
+
+		const totalLength = this.getLength()
+		const subCurveD = Math.max(0, Math.min(1, (d - subCurveStartPosition / totalLength ) * totalLength / subCurveLength))
+		return subCurveD
+
+	}
+
+	getPointAt(d) {
+
+		const res = this.findRelevantCurveAt(d)
+		return res.relevantCurve.getPointAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+
+	}
+
+	getTangentAt(d) {
+
+		const res = this.findRelevantCurveAt(d)
+		return res.relevantCurve.getTangentAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+
+	}
+
+	getNormalAt(d) {
+
+		const res = this.findRelevantCurveAt(d)
+		return res.relevantCurve.getNormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+
+	}
+
+	getBinormalAt(d) {
+
+		const res = this.findRelevantCurveAt(d)
+		return res.relevantCurve.getBinormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+
+	}
+
+	getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+
+		const res = this.findRelevantCurveAt(d)
+		const subCurveD = this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength)
+		return res.relevantCurve.getQuaternionAt(subCurveD, objectForward, objectUpward, optionalTarget)
+
+	}
+
+	getZoneIndex(deltaT) {
+
+		const result = this.findRelevantCurve(deltaT)
+		const numZones = this.numZones[result.relevantCurveIndex]
+		const startZone = this.startZone[result.relevantCurveIndex]
+		const length = result.relevantCurve.getLength()
+		const d = result.relevantCurve.tTod(deltaT - result.relevantCurveStartTime) / length
+		const zoneIndex = startZone + Math.floor(d * numZones)
+		return zoneIndex
+
+	}
+
+	getZoneIndexAt(d) {
+
+		const result = this.findRelevantCurveAt(d)
+		const numZones = this.numZones[result.relevantCurveIndex]
+		const startZone = this.startZone[result.relevantCurveIndex]
+		const length = result.relevantCurve.getLength()
+		const totalLength = this.getLength()
+		const subCurveD = (d - result.relevantCurveStartPosition / totalLength ) * totalLength / length
+		const zoneIndex = startZone + Math.max(0, Math.min(numZones-1, Math.floor(subCurveD * numZones)))
+		return zoneIndex
 
 	}
 

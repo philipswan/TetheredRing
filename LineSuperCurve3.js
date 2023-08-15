@@ -71,8 +71,9 @@ class LineSuperCurve3 extends SuperCurve {
 		this.tTod = tTodConvertor
 	}
 
-	getQuaternionAt(objectForward, objectUpward, d, optionalTarget) {
-		const q1 = optionalTarget || new Quaternion
+	getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+
+		const q1 = optionalTarget
 		const tangent = this.getTangentAt(d)
 		const normal = this.getNormalAt(d)
         q1.setFromUnitVectors(objectForward, tangent)
@@ -80,6 +81,7 @@ class LineSuperCurve3 extends SuperCurve {
 		const q2 = new Quaternion.setFromUnitVectors(rotatedObjectUpwardVector, normal)
 		q2.multiply(q1)
 		return q2
+		
 	}
 }
 

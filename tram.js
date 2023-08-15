@@ -122,7 +122,9 @@ export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlan
 }
 
 export class commonRingVariables {
-  constructor(radiusOfPlanet, ringFinalAltitude, equivalentLatitude, ringAmountRaisedFactor) {
+  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, ringFinalAltitude, equivalentLatitude, ringAmountRaisedFactor) {
+    this.gravitationalConstant = gravitationalConstant
+    this.massOfPlanet = massOfPlanet
     this.radiusOfPlanet = radiusOfPlanet
     this.ringFinalAltitude = ringFinalAltitude
     this.equivalentLatitude = equivalentLatitude
@@ -1263,7 +1265,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  return Math.max(0, timeSinceStart - 40) * slowDownPassageOfTime
+  return Math.max(0, timeSinceStart - 30) * slowDownPassageOfTime
 }
 
 export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {
@@ -1273,7 +1275,7 @@ export function findCircleSphereIntersections(circleCenter, circleNormal, circle
   const projectionLength = circleCenterToSphereCenter.x * circleNormal.x + circleCenterToSphereCenter.y * circleNormal.y + circleCenterToSphereCenter.z * circleNormal.z;
   if (Math.abs(projectionLength)>sphereRadius) {
     // Sphere too far away...
-    return [null, null];
+    return [];
   }
   else {
     const projection = new THREE.Vector3(circleNormal.x * projectionLength, circleNormal.y * projectionLength, circleNormal.z * projectionLength);
@@ -1297,7 +1299,7 @@ export function findCircleSphereIntersections(circleCenter, circleNormal, circle
     const cdifflen = cdiff.length()
     if ((cdifflen+r1<=r2) || (cdifflen-r1>=r2)) {
       // Sphere too far away...
-      return [null, null];
+      return [];
     }
     else {
       const cdiffnorm = cdiff.clone().normalize() //unit vector

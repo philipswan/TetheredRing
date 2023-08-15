@@ -37,17 +37,20 @@ export class referenceFrame {
 			if (this.curve.length==0) console.log("Error: Array length cannot be zero")
 			this.numWedgesPerCurve = []
 			let curvesTotalLength = 0
-			this.curve.forEach(subCurve => { curvesTotalLength += subCurve.getLength() })
+			this.curve.forEach(subCurve => { curvesTotalLength += Math.abs(subCurve.getLength()) })
 			const wedgeRoughLength = curvesTotalLength / this.numWedges
 			const numCurveSegments = this.curve.length
 			// Make sure that every curve gets assigned at least one segment
 			let newNumWedges = 0
 			const numWedgesPerCurve = []
 			this.curve.forEach((subCurve, index) => {
-				this.numWedgesPerCurve[index] = 1 + Math.max(0, Math.round((this.numWedges - numCurveSegments) * (subCurve.length - wedgeRoughLength) / (curvesTotalLength - numCurveSegments * wedgeRoughLength)))
+				const subCurveLength = Math.abs(subCurve.getLength())
+				this.numWedgesPerCurve[index] = 1 + Math.max(0, Math.round((this.numWedges - numCurveSegments) * (subCurveLength - wedgeRoughLength) / (curvesTotalLength - numCurveSegments * wedgeRoughLength)))
 				newNumWedges += this.numWedgesPerCurve[index]
 			})
-			this.numWedges = newNumWedges
+			// Hack
+			// Adjust the number of wedges assigned to the last curve so that the total number of wedges is unchanged
+			this.numWedgesPerCurve[-1] += this.numWedges - newNumWedges
 		}
 
 	}

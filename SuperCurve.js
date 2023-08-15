@@ -3,6 +3,7 @@ import { Vector2 } from 'three/src/math/Vector2.js';
 import { Vector3 } from 'three/src/math/Vector3.js';
 import { Matrix4 } from 'three/src/math/Matrix4.js';
 
+
 /**
  * Extensible superCurve object.
  *
@@ -43,7 +44,7 @@ class SuperCurve {
 	constructor() {
 
 		this.type = 'SuperCurve';
-
+		this.name = ""
 		this.arcLengthDivisions = 200;
 
 	}

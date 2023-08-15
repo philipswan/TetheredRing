@@ -87,16 +87,17 @@ export class launchVehicleModel {
             const scaleFactor = 0.001 // Because Alastair's launch vehicle model used mm instead of meters
             const addLaunchVehicles = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, launchVehicleNumModels, perfOptimizedThreeJS)
             
-            loader.load('models/launchVehicle.obj',
-                // called when resource is loaded
-                addLaunchVehicles,
-                // called when loading is in progresses
-                function ( xhr ) {
-                    console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
-                },
-                // called when loading has errors
-                function ( error ) {console.log( 'Error loading launch vehicle model')}
-            )
+            loader.loadAsync('models/launchVehicle.obj').then(addLaunchVehicles)
+            // loader.load('models/launchVehicle.obj',
+            //     // called when resource is loaded
+            //     addLaunchVehicles,
+            //     // called when loading is in progresses
+            //     function ( xhr ) {
+            //         console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
+            //     },
+            //     // called when loading has errors
+            //     function ( error ) {console.log( 'Error loading launch vehicle model')}
+            // )
         }
 
         function makeFlame() {
@@ -166,29 +167,14 @@ export class virtualLaunchVehicle {
     
     static update(
         dParamWithUnits,
-        massDriverSuperCurve,
-        launchRampSuperCurve,
-        freeFlightSuperCurve,
-        launcherMassDriverLength,
         timeWithinMassDriver,
         curveUpTime,
-        launcherRampLength,
         timeWithinEvacuatedTube) {
 
-        virtualLaunchVehicle.massDriverSuperCurve = massDriverSuperCurve
-        virtualLaunchVehicle.launchRampSuperCurve = launchRampSuperCurve
-        virtualLaunchVehicle.freeFlightSuperCurve = freeFlightSuperCurve
-        virtualLaunchVehicle.launcherMassDriverLength = launcherMassDriverLength
         virtualLaunchVehicle.timeWithinMassDriver = timeWithinMassDriver
         virtualLaunchVehicle.curveUpTime = curveUpTime
-        virtualLaunchVehicle.launcherRampLength = launcherRampLength
         virtualLaunchVehicle.timeWithinEvacuatedTube = timeWithinEvacuatedTube
     
-        //const outwardOffset = dParamWithUnits['launcherOutwardOffset'].value
-        //const upwardOffset = dParamWithUnits['launcherUpwardOffset'].value
-        //virtualLaunchVehicle.launchVehicleRelativePosition_r = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-        //virtualLaunchVehicle.launchVehicleRelativePosition_y  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-        //virtualLaunchVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
         virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
         virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
         virtualLaunchVehicle.forwardsOffset = dParamWithUnits['launchVehicleForwardsOffset'].value
@@ -201,72 +187,38 @@ export class virtualLaunchVehicle {
         virtualLaunchVehicle.launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
         virtualLaunchVehicle.isDynamic =  true
         virtualLaunchVehicle.hasChanged = true
-        //virtualLaunchVehicle.ringSouthernMostPosition = ringSouthernMostPosition
-    }
-    
-    determineCurveAndD(deltaT) {
-        // Figure out which curve we're on
-        const t1 = virtualLaunchVehicle.timeWithinMassDriver
-        const t2 = t1 + virtualLaunchVehicle.curveUpTime
-        const t3 = t2 + virtualLaunchVehicle.timeWithinEvacuatedTube
-        const t4 = t3 + virtualLaunchVehicle.timeInFreeFlight
-        const onMassDriverSuperCurve = (deltaT <= t1)
-        const onLaunchRampSuperCurve = ((deltaT > t1) && (deltaT <= t2))
-        const onEvacuatedTubeCurve = ((deltaT > t2) && (deltaT <= t3))
-        const onFreeFlightCurve = ((deltaT > t3) && (deltaT <= t4))
-        let relevantCurve
-        let d  // This is a distance-from-start fraction for the relevant curve
-
-        if (onMassDriverSuperCurve) {
-            relevantCurve = virtualLaunchVehicle.massDriverSuperCurve
-            const acceleration = virtualLaunchVehicle.launcherMassDriverForwardAcceleration
-            const initialVelocity = virtualLaunchVehicle.launcherMassDriverInitialVelocity
-            const distanceToVehicleAft = relevantCurve.tTod(deltaT, initialVelocity, acceleration)
-            d = distanceToVehicleAft / virtualLaunchVehicle.launcherMassDriverLength
-        }
-        else if (onLaunchRampSuperCurve) {
-            relevantCurve = virtualLaunchVehicle.launchRampSuperCurve
-            const initialVelocity = virtualLaunchVehicle.launcherMassDriverExitVelocity
-            const distanceToVehicleAft = relevantCurve.tTod(deltaT - t1, initialVelocity)
-            d = distanceToVehicleAft / virtualLaunchVehicle.launcherRampLength
-        }
-        // else if (onEvacuatedTubeCurve) {
-        //     relevantCurve = virtualLaunchVehicle.evacuatdTubeSuperCurve
-        //     const initialVelocity = virtualLaunchVehicle.launcherMassDriverExitVelocity
-        //     const distanceToVehicleAft = relevantCurve.tTod(deltaT - t2, initialVelocity) // Hack - need proper parameters
-        //     d = distanceToVehicleAft / virtualLaunchVehicle.launcherRampLength
-        // }
-        // else {
-        //     // Assume that the vehicle is on the free flight curve
-        //     relevantCurve = virtualLaunchVehicle.freeFlightSuperCurve
-        //     const initialVelocity = virtualLaunchVehicle.launcherMassDriverExitVelocity
-        //     const distanceToVehicleAft = relevantCurve.tTod(deltaT - t2, initialVelocity) // Hack - need proper parameters
-        //     d = distanceToVehicleAft / virtualLaunchVehicle.launcherRampLength
-        // }
-        return {relevantCurve, d}
     }
 
     placeAndOrientModel(om, refFrame) {
+
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart)
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
+        const res = refFrame.curve.findRelevantCurve(deltaT)
+        const relevantCurve = res.relevantCurve
+        const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+
         const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
-        const res = this.determineCurveAndD(deltaT)
-        const relevantCurve = res.relevantCurve
-        const d = res.d
-
-        const pointOnRelevantCurve = relevantCurve.getPointAt(d)
-        const forward = relevantCurve.getTangentAt(d)
-        const upward = relevantCurve.getNormalAt(d)
-        const rightward = relevantCurve.getBinormalAt(d)
-        const orientation = relevantCurve.getQuaternionAt(modelForward, modelUpward, d)
+        // Debug code for tracking first vehicle
+        // if (this.timeLaunched==0.1) {
+        //     console.log(d)
+        // }
+        try {
+            const pointOnRelevantCurve = relevantCurve.getPointAt(d)
+            const forward = relevantCurve.getTangentAt(d)
+            const upward = relevantCurve.getNormalAt(d)
+            const rightward = relevantCurve.getBinormalAt(d)
+            const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
     
-        om.position.copy(pointOnRelevantCurve)
-            .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
-            .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
-            .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
-        om.setRotationFromQuaternion(orientation)
+            om.position.copy(pointOnRelevantCurve)
+                .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
+                .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
+                .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
+            om.setRotationFromQuaternion(orientation)
+        } catch (e) {
+            console.log(e)
+        }
     
         om.visible = virtualLaunchVehicle.isVisible
     
@@ -278,17 +230,17 @@ export class virtualLaunchVehicle {
         om.children[1].visible = (deltaT > t3)
         om.children[2].visible = virtualLaunchVehicle.showLaunchVehiclePointLight
         om.matrixValid = false
+
     }
 
     getFuturePosition(refFrame, timeDeltaInSeconds) {
+
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
-
-        const res = this.determineCurveAndD(deltaT)
+        const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
-        const d = res.d
-
-        const pointOnRelevantCurve = relevantCurve.getPointAt(d)
+        const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
+        const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, Math.min(1, d)))
         return pointOnRelevantCurve
     }
       

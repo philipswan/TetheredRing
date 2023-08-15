@@ -111,6 +111,8 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		this.curveType = curveType;
 		this.tension = tension;
 
+		this.duration = 0;
+
 	}
 
 	prepareInterpolator(t) {
@@ -193,6 +195,14 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 	// No overload needed for now, base class implementation is sufficient
 	// getLength() {}
 
+	setDuration(duration) {
+		this.duration = duration
+	}
+
+	getDuration() {
+		return this.duration
+	}
+
 	getPoint( t, optionalTarget = new Vector3() ) {
 
 		const point = optionalTarget;
@@ -207,6 +217,72 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		return point;
 
 	}
+
+	// Aborted attempt to solve a bug by recoding the getPoint function...
+	// getPoint( t, optionalTarget = new Vector3() ) {
+	// 	const points = this.points
+	// 	const l = points.length
+	// 	let indexP1, weight
+	// 	if (t == 1) {
+	// 		indexP1 = l - 2
+	// 		weight = 1
+	// 	}
+	// 	else {
+	// 		indexP1 = Math.floor( t * ( l - 1 ) )
+	// 		weight = t * ( l - 1 ) - indexP1
+	// 	}
+	// 	let p0, p1, p2, p3
+	// 	if (indexP1>0) {
+	// 		p0 = points[ indexP1 - 1 ].clone();
+	// 	}
+	// 	else {
+	// 		p0 = points[indexP1].clone().multiplyScalar(2).sub(points[indexP1+1]);
+	// 	}
+	// 	p1 = points[ indexP1 ].clone();
+	// 	p2 = points[ indexP1 + 1 ].clone();
+	// 	if (indexP1 + 2 < l) {
+	// 		p3 = points[ indexP1 + 2 ].clone();
+	// 	}
+	// 	else {
+	// 		p3 = points[indexP1 + 1].clone().multiplyScalar(2).sub(points[indexP1]);
+	// 	}
+
+	// 	const t2 = weight * weight;
+	// 	const t3 = t2 * weight;
+
+	// 	const pow = this.curveType === 'chordal' ? 0.5 : 0.25;
+	// 	let dt0 = Math.pow( p0.distanceToSquared( p1 ), pow );
+	// 	let dt1 = Math.pow( p1.distanceToSquared( p2 ), pow );
+	// 	let dt2 = Math.pow( p2.distanceToSquared( p3 ), pow );
+
+	// 	let c0, c1, c2, c3; // coefficients of the cubic polynomial
+	// 	const outPoint = optionalTarget;
+
+	// 	outPoint.x = nonuniformCatmullRom( p0.x, p1.x, p2.x, p3.x, dt0, dt1, dt2 );
+	// 	outPoint.y = nonuniformCatmullRom( p0.y, p1.y, p2.y, p3.y, dt0, dt1, dt2 );
+	// 	outPoint.z = nonuniformCatmullRom( p0.z, p1.z, p2.z, p3.z, dt0, dt1, dt2 );
+
+	// 	function nonuniformCatmullRom( x0, x1, x2, x3, dt0, dt1, dt2 ) {
+
+	// 		// compute tangents when parameterized in [t1,t2]
+	// 		let t1 = ( x1 - x0 ) / dt0 - ( x2 - x0 ) / ( dt0 + dt1 ) + ( x2 - x1 ) / dt1;
+	// 		let t2 = ( x2 - x1 ) / dt1 - ( x3 - x1 ) / ( dt1 + dt2 ) + ( x3 - x2 ) / dt2;
+
+	// 		// rescale tangents for parametrization in [0,1]
+	// 		t1 *= dt1;
+	// 		t2 *= dt1;
+
+	// 		const c0 = x1;
+	// 		const c1 = t1;
+	// 		const c2 = -3 * x1 + 3 * x2 - 2 * t1 - t2;
+	// 		const c3 = 2 * x1 - 2 * x2 + t1 + t2;
+	// 		return c3 * t3 + c2 * t2 + c1 * t + c0;
+
+	// 	}
+
+	// 	return outPoint;
+
+	// }
 
 	getTangent( t, optionalTarget = new Vector3() ) {
 
@@ -395,6 +471,7 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		q2.setFromUnitVectors(rotatedObjectUpwardVector, normal)
 		q2.multiply(q1)
 		return q2
+		
 	}
 
 	getQuaternionAt(u, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
@@ -402,6 +479,30 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		const t = this.getUtoTmapping( u );
 		return this.getQuaternion( t, objectForward, objectUpward, optionalTarget );
 	
+	}
+
+	getStartFinishZoneIndices( sphereCenter, sphereRadius ) {
+
+		let startDValue = null
+		let finishDValue = null
+		// ToDo: Need a more efficient and reliable algorithm here...
+		for (let d = 0; d<=1; d+=0.001) {
+			const point = this.getPointAt(d)
+			const distance = point.distanceTo(sphereCenter)
+			if (distance < sphereRadius) {
+				if (startDValue === null) {
+					startDValue = d
+				}
+				finishDValue = d
+			}
+		}
+		if ((startDValue === null) || (finishDValue === null)) {
+			return []
+		}
+		else {
+			return [startDValue, finishDValue]
+		}
+
 	}
 
 	addtTosConvertor( tTosConvertor ) {

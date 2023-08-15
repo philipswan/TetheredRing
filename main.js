@@ -79,7 +79,7 @@ const enableLaunchSystem = true
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
-const gravitationalConstant = 0.0000000000667408
+const gravitationalConstant = 0.0000000000667408   // ToDo: Should add units here...
 let massOfPlanet = 5.97E+24   // kg   using mass of Earth for now
 let radiusOfPlanet = 6378100 // m   using radius of Earth for now
 const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
@@ -299,6 +299,7 @@ const guidParamWithUnits = {
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitAltitude: {value: 15000, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -324,18 +325,18 @@ const guidParamWithUnits = {
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherCoastTime: {value: 250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherSlowDownPassageOfTime: {value: 0.1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   evacuatedTubeEntrancePositionAroundRing: {value: 0.7607, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualMassDriverTubes: {value: 1024, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualMassDriverTubes: {value: 16, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launchRailUpwardsOffset: {value: -1.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualMassDriverRails: {value: 4096, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualMassDriverRails: {value: 1024, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketWidth: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -351,7 +352,7 @@ const guidParamWithUnits = {
   launcherMassDriverScrewBracketThickness: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewNumBrackets: {value: 800, units: "", autoMap: true, min: 0, max: 20000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMarkerRadius: {value: 500, units: "m", autoMap: true, min: 1, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMarkerRadius: {value: 50, units: "m", autoMap: true, min: 1, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchSledSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
@@ -451,7 +452,7 @@ const guidParamWithUnits = {
 
   // Rendering Parameters
   parameterPresetNumber: {value: 1, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showLogo: {value: defaultShows, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
+  showLogo: {value: true, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
   showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
 
   // Hack
@@ -484,7 +485,7 @@ const guidParamWithUnits = {
   showHabitats: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showSolarArrays: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverRail: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverBrackets: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -664,7 +665,7 @@ updatedParam()
 
 function updateTransitsystem() {
   updatedParam()
-  crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
   constructMainRingCurve()
 
@@ -677,8 +678,8 @@ function updateTransitsystem() {
 
 function updateLauncher() {
   updatedParam()
-  crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
-  launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+  launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
   launchSystemObject.update(dParamWithUnits, timeSinceStart)
   console.log(`renderer.info.memory: ${JSON.stringify(renderer.info.memory)}`)
@@ -1264,7 +1265,7 @@ if (dParamWithUnits['showEarthsSurface'].value) {
 planetCoordSys.add(planetMeshes)
 
 const atmosphereMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
+  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/4, planetHeightSegments/4),
   new THREE.ShaderMaterial({
     //vertexShader: atmosphereVertexShader,
     //fragmentShader: atmosphereFragmentShader,
@@ -1442,7 +1443,7 @@ starsMesh.name = 'stars'
 planetCoordSys.add(starsMesh)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
 // Generate the main ring
-let crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+let crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
 let ctv = new tram.commonTetherVariables()
 let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
@@ -1745,7 +1746,7 @@ function constructElevatorCables() {
 let launchSystemObject = null
 if (enableLaunchSystem) {
   const timeSinceStart = 0
-  launchSystemObject = new Launcher.launcher(dParamWithUnits, timeSinceStart, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
+  launchSystemObject = new Launcher.launcher(dParamWithUnits, timeSinceStart, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
 }
 
@@ -1846,7 +1847,7 @@ function updateRing() {
   updatedParam()
 
   // Reconstruction Section
-  crv = new tram.commonRingVariables(radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
   // ToDo, need to add crv parameters to the specs file. Specifically: crv.mainRingRadius, crv.mainRingCircumference, crv.mainRingMassPerMeter, 
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
  
@@ -2019,6 +2020,10 @@ function renderFrame() {
   
   const delta = clock.getDelta()
   timeSinceStart += delta
+  if (timeSinceStart>28) {
+    guidParam['showLogo'] = false
+    updateLogoSprite()
+  }
 
   if (enableLaunchSystem) {
     launchSystemObject.animate(timeSinceStart, camera.position.clone())
@@ -2472,11 +2477,13 @@ function onKeyDown( event ) {
             if (objectKey=='virtualLaunchVehicles') {
               objectValue.forEach(launchVehicle => {
                 const tmpPosition = launchVehicle.getFuturePosition(refFrame, tweeningTime/1000)
-                const distanceAway = tmpPosition.distanceTo(camera.position)
-                if ((closestSoFar==-1) || (distanceAway<closestSoFar)) {
-                  closestVirtualLaunchVehicle = {launchVehicle, refFrame}
-                  closestLaunchVehiclePosition = tmpPosition
-                  closestSoFar = distanceAway
+                if ((tmpPosition.x!=="NaN") && (tmpPosition.y!=="NaN") && (tmpPosition.z!=="NaN")) {
+                  const distanceAway = camera.position.distanceTo(tmpPosition)
+                  if ((closestSoFar==-1) || (distanceAway<closestSoFar)) {
+                    closestVirtualLaunchVehicle = {launchVehicle, refFrame}
+                    closestLaunchVehiclePosition = tmpPosition
+                    closestSoFar = distanceAway
+                  }
                 }
               })
             }
@@ -2652,16 +2659,28 @@ function onKeyDown( event ) {
         // Near start of mass driver
         if (launchSystemObject) {
           // Start of full length launcher
-          orbitControls.target.set(1085370.432176167, -3902836.946537032, -4926553.676662945)
+          // At 150m
+          // orbitControls.target.set(1084693.2068705305, -3903242.00193271, -4926488.919130496)
+          // orbitControls.upDirection.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
+          // orbitControls.object.position.set(1084756.9000704621, -3903240.4953234727, -4926485.709430022)
+          // camera.up.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
+          // At 100m
+          orbitControls.target.set(1085408.7079911088, -3902883.3998442916, -4926548.893294112)
           orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
-          orbitControls.object.position.set(1085509.7410396067, -3902936.495991087, -4926533.095674201)
+          orbitControls.object.position.set(1085463.215633545, -3902889.599048284, -4926536.032567127)
           camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+          
+          // Start of short launcher (exit velocity = 1000)
+          // orbitControls.target.set(397938.59305886156, -4034234.6848072577, -4924228.909297606)
+          // orbitControls.upDirection.set(0.062390422751488345, -0.6325036371292896, -0.7720405327229334)
+          // orbitControls.object.position.set(397962.5308820797, -4034241.1083797477, -4924224.965650333)
+          // camera.up.set(0.062390422751488345, -0.6325036371292896, -0.7720405327229334)
 
-          // Start of short launcher
-          // orbitControls.target.set(434514.45891003695, -4028501.989482331, -4927000.863631674)
-          // orbitControls.upDirection.set(0.06811542145116224, -0.6315145154674571, -0.7723663030676787)
-          // orbitControls.object.position.set(434528.8682449743, -4028502.9988102354, -4927000.408542797)
-          // camera.up.set(0.06811542145116224, -0.6315145154674571, -0.7723663030676787)
+          // Side on view for test
+          // orbitControls.target.set(380077.1301223017, -4037757.386365768, -4924067.123090019)
+          // orbitControls.upDirection.set(0.05958033013042138, -0.6329922223483165, -0.7718620541962725)
+          // orbitControls.object.position.set(380560.3319892748, -4040818.2235583924, -4923345.919434847)
+          // camera.up.set(0.05958033013042138, -0.6329922223483165, -0.7718620541962725)
 
           // orbitControls.target.set(1085272.9620155653, -3894412.8556745816, -4933140.481168342)
           // orbitControls.upDirection.set(0.17015900275988693, -0.6105907848756152, -0.773449938395977)

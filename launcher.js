@@ -2,8 +2,9 @@ import * as THREE from 'three'
 import { BoxGeometry } from 'three'
 import { Quaternion } from 'three/src/math/Quaternion.js'
 //import { XYChart } from './XYChart.js'
-import { CatmullRomSuperCurve3 } from './SuperCurves'
-import { CircleSuperCurve3 } from './SuperCurves'
+import { CatmullRomSuperCurve3 } from './SuperCurves.js'
+import { CircleSuperCurve3 } from './SuperCurves.js'
+import { SuperCurvePath } from './SuperCurves.js'
 import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import { referenceFrame } from './ReferenceFrame.js'
@@ -14,13 +15,14 @@ import { massDriverRailModel, virtualMassDriverRail } from './MassDriverRail.js'
 import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBracket.js'
 import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.js'
 import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
+//import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
 
 export class launcher {
 
-    constructor(dParamWithUnits, timeSinceStart, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
+    constructor(dParamWithUnits, timeSinceStart, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
       this.const_G = 0.0000000000667408;
       this.clock = clock
       this.versionNumber = 0
@@ -69,10 +71,12 @@ export class launcher {
       this.LaunchTrajectoryMarker3 = this.LaunchTrajectoryMarker1.clone()
       this.LaunchTrajectoryMarker3.material = blueMaterial
       this.LaunchTrajectoryMarker4 = this.LaunchTrajectoryMarker1.clone()
+      this.LaunchTrajectoryMarker5 = this.LaunchTrajectoryMarker1.clone()
       planetCoordSys.add(this.LaunchTrajectoryMarker1)
       planetCoordSys.add(this.LaunchTrajectoryMarker2)
       planetCoordSys.add(this.LaunchTrajectoryMarker3)
       planetCoordSys.add(this.LaunchTrajectoryMarker4)
+      planetCoordSys.add(this.LaunchTrajectoryMarker5)
 
       this.wedgeMarker0 = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), redMaterial)
       this.wedgeMarker1 = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), blueMaterial)
@@ -95,24 +99,60 @@ export class launcher {
       this.unallocatedMassDriverScrewModels = []
       this.unallocatedEvacuatedTubeModels = []
 
-      this.cameraRange = 500
+      this.cameraRange = 2000
 
-      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
       this.refFrames = []
-      const numWedges = 1000
-      this.polyCurveForrf0 = this.massDriverSuperCurve
-      //this.polyCurveForrf0 = [this.massDriverSuperCurve, this.launchRampSuperCurve, this.evacuatedTubeCurve, this.freeFlightSuperCurve]
-      const rf0 = new referenceFrame(this.polyCurveForrf0, numWedges, this.cameraRange, 0, 0, 0, 'staticLaunchVehicleReferenceFrame')
-      rf0.addVirtualObject('virtualLaunchVehicles')
+      const numWedges = 200
+      const numZones = 200 // We're going to switch terminology from "Wedges" to "Zones"...
+      //this.polyCurveForrf0 = this.massDriverCurve
+      // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into teh screws from
+      this.polyCurveForrf0 = new SuperCurvePath()
+      this.polyCurveForrf0.name = "massDriverPath"
+      this.polyCurveForrf0.add(this.massDriverCurve)
+      this.polyCurveForrf0.subdivide(numZones)
+      const rf0 = new referenceFrame(this.polyCurveForrf0, numWedges, this.cameraRange, 0, 0, 0, 'massDriverRefFrame')
+
+      this.polyCurveForrf1 = new SuperCurvePath()
+      this.polyCurveForrf1.name = "launchSledPath"
+      this.polyCurveForrf1.add(this.massDriverCurve)
+      this.polyCurveForrf1.add(this.launchRampCurve)
+      this.polyCurveForrf1.add(this.launchSledReturnCurve)
+      this.polyCurveForrf1.subdivide(numZones)
+      const rf1 = new referenceFrame(this.polyCurveForrf1, numWedges, this.cameraRange, 0, 0, 0, 'launchSledRefFrame')
+
+      this.polyCurveForrf2 = new SuperCurvePath()
+      this.polyCurveForrf2.name = "launchVehicleInTubePath"
+      this.polyCurveForrf2.add(this.massDriverCurve)
+      this.polyCurveForrf2.add(this.launchRampCurve)
+      this.polyCurveForrf2.add(this.evacuatedTubeCurve)
+      //this.polyCurveForrf2.add(this.launchSledReturnCurve)
+      this.polyCurveForrf2.subdivide(numZones)
+      const rf2 = new referenceFrame(this.polyCurveForrf2, numWedges, this.cameraRange * 20, 0, 0, 0, 'launchVehicleInTubeRefFrame')
+
+      this.polyCurveForrf3 = new SuperCurvePath()
+      this.polyCurveForrf3.name = "launchVehiclePath"
+      this.polyCurveForrf3.add(this.massDriverCurve)
+      this.polyCurveForrf3.add(this.launchRampCurve)
+      this.polyCurveForrf3.add(this.evacuatedTubeCurve)
+      this.polyCurveForrf3.add(this.freeFlightCurve)
+      this.polyCurveForrf3.subdivide(numZones)
+      const rf3 = new referenceFrame(this.polyCurveForrf3, numWedges, this.cameraRange * 10, 0, 0, 0, 'launchVehicleRefFrame')
+
+      rf3.addVirtualObject('virtualLaunchVehicles')
       rf0.addVirtualObject('virtualLaunchSleds')
-      rf0.addVirtualObject('virtualMassDriverTubes')
-      rf0.addVirtualObject('virtualMassDriverRails')
+      rf2.addVirtualObject('virtualMassDriverTubes')
+      rf1.addVirtualObject('virtualMassDriverRails')
       rf0.addVirtualObject('virtualMassDriverBrackets')
       rf0.addVirtualObject('virtualMassDriverScrews')
-      rf0.addVirtualObject('virtualEvacuatedTubes')
+      //rf2.addVirtualObject('virtualEvacuatedTubes')
+
       rf0.initialize()
-      this.refFrames.push(rf0)
+      rf1.initialize()
+      rf2.initialize()
+      rf3.initialize()
+      this.refFrames.push(rf0, rf1, rf2, rf3)
 
       this.numVirtualLaunchVehicles = 0
       this.numVirtualLaunchSleds = 0
@@ -120,7 +160,7 @@ export class launcher {
       this.numVirtualMassDriverRails = 0
       this.numVirtualMassDriverBrackets = 0
       this.numVirtualMassDriverScrews = 0
-      this.numVirtualEvacuatedTubes = 0
+      //this.numVirtualEvacuatedTubes = 0
 
       // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
       // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
@@ -154,33 +194,13 @@ export class launcher {
         this.scene,
         this.unallocatedLaunchSledModels,
         this.perfOptimizedThreeJS,
-        this.massDriverSuperCurve,
+        this.massDriverCurve,
         this.launcherMassDriverLength,
         this.massDriverScrewSegments,
         this.massDriverScrewTexture)
 
       // Create and add the launch vechicle models
       const launchVehicleMesh = new launchVehicleModel(dParamWithUnits, this.scene, this.unallocatedLaunchVehicleModels, this.perfOptimizedThreeJS)
-      // n = dParamWithUnits['launchVehicleNumModels'].value
-      // addLaunchVehicles(launchVehicleMesh, this.scene, this.unallocatedLaunchVehicleModels, 'launchVehicle', 1, n, this.perfOptimizedThreeJS)
-
-      // function addLaunchVehicles(object, myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
-      //   object.updateMatrixWorld()
-      //   object.visible = false
-      //   object.name = objName
-      //   object.traverse(child => {
-      //     if (child!==object) {
-      //       child.name = objName+'_'+child.name
-      //     }
-      //   })
-      //   if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
-      //   object.scale.set(scaleFactor, scaleFactor, scaleFactor)
-      //   for (let i=0; i<n; i++) {
-      //     const tempModel = object.clone()
-      //     myScene.add(tempModel)
-      //     unallocatedModelsList.push(tempModel)
-      //   }
-      // }
 
       // Create a placeholder screw model (these models need to be generated on the fly though)
       this.massDriverScrewMaterials = []
@@ -204,7 +224,7 @@ export class launcher {
 
       // Create bracket models
       for (let i = 0; i<1; i++) {
-        const tempModel = new massDriverBracketModel(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, (this.massDriverScrewSegments+1), i)
+        const tempModel = new massDriverBracketModel(dParamWithUnits, this.massDriverCurve, this.launcherMassDriverLength, (this.massDriverScrewSegments+1), i)
         tempModel.name = 'massDriverBracket'
         this.unallocatedMassDriverBracketModels.push(tempModel)
         this.scene.add(tempModel)
@@ -217,7 +237,7 @@ export class launcher {
       this.versionNumber++
 
       // Todo: We should detect whether an update of the curves is called for as it's a time consuming operation...
-      //this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+      //this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
       this.refFrames.forEach(refFrame => {
         // ToDo: We should detect whether we need to call update - this is a potentially time consuming operation
@@ -225,21 +245,16 @@ export class launcher {
         refFrame.timeSinceStart = timeSinceStart
       })
 
-      virtualMassDriverTube.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
-      virtualMassDriverRail.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
-      virtualMassDriverBracket.update(dParamWithUnits, this.massDriverSuperCurve, this.versionNumber)
-      virtualMassDriverScrew.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.massDriverScrewSegments, this.massDriverScrewMaterials, this.versionNumber)
+      virtualMassDriverTube.update(dParamWithUnits, this.versionNumber)
+      virtualMassDriverRail.update(dParamWithUnits, this.versionNumber)
+      virtualMassDriverBracket.update(dParamWithUnits, this.massDriverCurve, this.versionNumber)
+      virtualMassDriverScrew.update(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, this.massDriverScrewMaterials, this.versionNumber)
       virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
-      virtualLaunchSled.update(dParamWithUnits, this.massDriverSuperCurve, this.launcherMassDriverLength, this.scene, this.clock)
+      virtualLaunchSled.update(dParamWithUnits, this.launcherMassDriverLength, this.scene, this.clock)
       virtualLaunchVehicle.update(
         dParamWithUnits, 
-        this.massDriverSuperCurve,
-        this.launchRampSuperCurve,
-        this.freeFlightSuperCurve,
-        this.launcherMassDriverLength,
         this.timeWithinMassDriver,
         this.curveUpTime, 
-        this.launcherRampLength,
         this.timeWithinEvacuatedTube)
 
       this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
@@ -271,183 +286,204 @@ export class launcher {
       
       // Shared values...
       const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
-      const staticLaunchVehicleRefFrame = [this.refFrames[0]]
       const halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / this.launcherMassDriverLength
       const numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value  // This is a limit to the number of bracket we'll render. After this number they will be moving too fast to bee seen.
-      const tStart = 0.1 // sec
+      const tStart = 0 // sec
 
       let changeOccured
 
       // Update the number of launch vehicles
       const newNumVirtualLaunchVehicles = dParamWithUnits['showLaunchVehicles'].value ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
-      // Remove old virtual launch vehicles
       changeOccured = (this.numVirtualLaunchVehicles != newNumVirtualLaunchVehicles)
-      if (changeOccured && (this.numVirtualLaunchVehicles > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualLaunchVehicles', this.unallocatedLaunchVehicleModels)
-      }
-
-      if (changeOccured && (newNumVirtualLaunchVehicles > 0)) {
-        // Add new virtual launch vehicles onto the launch system
-        virtualLaunchVehicle.hasChanged = true
-        const n1 = newNumVirtualLaunchVehicles
-        const step1 = 1.0 / n1
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
-          const massDriverLength = Math.abs(refFrame.curve.length)
+      if (changeOccured) {
+        const refFrame = this.refFrames[3]
+        if (this.numVirtualLaunchVehicles > 0) {
+          // Remove old virtual launch vehicles
+          removeOldVirtualObjects(refFrame, 'virtualLaunchVehicles', this.unallocatedLaunchVehicleModels)
+        }
+        if (newNumVirtualLaunchVehicles > 0) {
+          // Add new virtual launch vehicles onto the launch system
+          virtualLaunchVehicle.hasChanged = true
+          const n1 = newNumVirtualLaunchVehicles
+          
           const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
           // Going backwards in time since we want to add vehicles that were launched in the past.
           for (let t = tStart, i = 0; (t>-(tStart+this.durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
-            // Calculate where along the launcher to place the vehicle. 
+            // Calculate where along the launcher to place the vehicle.
             const deltaT = adjustedTimeSinceStart - t
-            const d = refFrame.curve.tTod(deltaT, this.initialVelocity, this.acceleration) / massDriverLength
-            if ((d>=-0.01) && (d<=1)) {
-              // Put the vehicle in the correct wedge based on it's position.
-              const wedgeIndex = Math.max(0, Math.min(refFrame.numWedges-1, Math.floor(d * refFrame.numWedges) % refFrame.numWedges))
-              refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t, this.unallocatedLaunchVehicleModels))
+            const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t, this.unallocatedLaunchVehicleModels))
+            }
+            else {
+              console.log('Error')
             }
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualLaunchVehicles = newNumVirtualLaunchVehicles
 
       // Update the number of launch sleds
       const newNumVirtualLaunchSleds = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
-      // Remove old virtual launch sleds
       changeOccured = (this.numVirtualLaunchSleds != newNumVirtualLaunchSleds)
-      if (changeOccured && (this.numVirtualLaunchSleds > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualLaunchSleds', this.unallocatedLaunchSledModels)
-      }
-
-      if (changeOccured && (newNumVirtualLaunchSleds > 0)) {
-        virtualLaunchSled.hasChanged = true
-        // Add new virtual launch sleds onto the launch system
-        const n1 = newNumVirtualLaunchSleds
-        const step1 = 1.0 / n1
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
+      if (changeOccured) {
+        const refFrame = this.refFrames[0]
+        if (this.numVirtualLaunchSleds > 0) {
+          // Remove old virtual launch sleds
+          removeOldVirtualObjects(refFrame, 'virtualLaunchSleds', this.unallocatedLaunchSledModels)
+        }
+        if (newNumVirtualLaunchSleds > 0) {
+          virtualLaunchSled.hasChanged = true
+          // Add new virtual launch sleds onto the launch system
+          const n1 = newNumVirtualLaunchSleds
           const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
-          const massDriverLength = Math.abs(refFrame.curve.length)
           // Going backwards in time since we want to add vehicles that were launched in the past.
           for (let t = tStart, i = 0; (t>-(tStart+this.durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
             // Calculate where along the launcher to place the vehicle. 
             const deltaT = adjustedTimeSinceStart - t
-            const d = refFrame.curve.tTod(deltaT, this.initialVelocity, this.acceleration) / massDriverLength
-            if ((d>=-0.01) && (d<=1)) {
-              // Put the vehicle in the correct wedge based on it's position.
-              const wedgeIndex = Math.max(0, Math.min(refFrame.numWedges-1, Math.floor(d * refFrame.numWedges) % refFrame.numWedges))
-              refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t, this.unallocatedLaunchSledModels))
+            const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t, this.unallocatedLaunchSledModels))
+            }
+            else {
+              console.log('Error')
             }
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualLaunchSleds = newNumVirtualLaunchSleds
       
       // Update the number of mass driver tubes
       const newNumVirtualMassDriverTubes = dParamWithUnits['showMassDriverTube'].value ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
-      // Remove old virtual mass driver tubes
       changeOccured = (this.numVirtualMassDriverTubes != newNumVirtualMassDriverTubes)
-      if (changeOccured && (this.numVirtualMassDriverTubes > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverTubes', this.unallocatedMassDriverTubeModels)
-      }
-
-      if (changeOccured && (newNumVirtualMassDriverTubes > 0)) {
-        virtualMassDriverTube.hasChanged = true
-        // Add new mass driver tubes to the launch system
-        const n = newNumVirtualMassDriverTubes
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
+      if (changeOccured) {
+        const refFrame = this.refFrames[2]
+        if (this.numVirtualMassDriverTubes > 0) {
+          // Remove old virtual mass driver tubes
+          removeOldVirtualObjects(refFrame, 'virtualMassDriverTubes', this.unallocatedMassDriverTubeModels)
+        }
+        if (newNumVirtualMassDriverTubes > 0) {
+          virtualMassDriverTube.hasChanged = true
+          // Add new mass driver tubes to the launch system
+          const n = newNumVirtualMassDriverTubes
           for (let i = 0; i < n; i++) {
             const d = (i+0.5)/n
-            const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
             const vmdt = new virtualMassDriverTube(d, this.unallocatedMassDriverTubeModels)
-            refFrame.wedges[wedgeIndex]['virtualMassDriverTubes'].push(vmdt)
-            vmdt.model = new massDriverTubeModel(dParamWithUnits, this.massDriverSuperCurve, i)
+            vmdt.model = new massDriverTubeModel(dParamWithUnits, refFrame.curve, i)
             vmdt.model.name = 'massDriverTube'
+            const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualMassDriverTubes'].push(vmdt)
+            }
+            else {
+              console.log('Error')
+            }
             this.scene.add(vmdt.model)
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualMassDriverTubes = newNumVirtualMassDriverTubes
 
       // Update the number of mass driver rails
       const newNumVirtualMassDriverRails = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRails'].value : 0
-      // Remove old virtual mass driver rails
       changeOccured = (this.numVirtualMassDriverRails != newNumVirtualMassDriverRails)
-      if (changeOccured && (this.numVirtualMassDriverRails > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverRails', this.unallocatedMassDriverRailModels)
-      }
-
-      if (changeOccured && (newNumVirtualMassDriverRails > 0)) {
-        virtualMassDriverRail.hasChanged = true
-        // Add new mass driver rails to the launch system
-        const n = newNumVirtualMassDriverRails
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
+      if (changeOccured) {
+        const refFrame = this.refFrames[1]
+        if (this.numVirtualMassDriverRails > 0) {
+          // Remove old virtual mass driver rails
+          removeOldVirtualObjects(refFrame, 'virtualMassDriverRails', this.unallocatedMassDriverRailModels)
+        }
+        if (newNumVirtualMassDriverRails > 0) {
+          virtualMassDriverRail.hasChanged = true
+          // Add new mass driver rails to the launch system
+          const n = newNumVirtualMassDriverRails
           for (let i = 0; i < n; i++) {
             const d = (i+0.5)/n
             const vmdr = new virtualMassDriverRail(d, this.unallocatedMassDriverRailModels)
-            const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
-            refFrame.wedges[wedgeIndex]['virtualMassDriverRails'].push(vmdr)
-            vmdr.model = new massDriverRailModel(dParamWithUnits, this.massDriverSuperCurve, i)
-            //vmdr.model.scale.set(30,1,30)
+            const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualMassDriverRails'].push(vmdr)
+            }
+            else {
+              console.log('Error')
+            }
+            vmdr.model = new massDriverRailModel(dParamWithUnits, refFrame.curve, i)
+            //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
             vmdr.model.name = 'MassDriverRail'
             this.scene.add(vmdr.model)
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualMassDriverRails = newNumVirtualMassDriverRails
 
       // Update the number of mass driver screws
       const newNumVirtualMassDriverScrews = dParamWithUnits['showMassDriverScrews'].value ? this.massDriverScrewSegments : 0
-      // Remove old virtual mass driver screws
       changeOccured = (this.numVirtualMassDriverScrews != newNumVirtualMassDriverScrews)
-      if (changeOccured && (this.numVirtualMassDriverScrews > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverScrews', this.unallocatedMassDriverScrewModels)
-      }
-
-      if (changeOccured && (newNumVirtualMassDriverScrews > 0)) {
-        virtualMassDriverScrew.hasChanged = true
-        // Add new mass driver screws to the launch system
-        const n = newNumVirtualMassDriverScrews
-        let d
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
+      if (changeOccured) {
+        const refFrame = this.refFrames[0]
+        if (this.numVirtualMassDriverScrews > 0) {
+          // Remove old virtual mass driver screws
+          removeOldVirtualObjects(refFrame, 'virtualMassDriverScrews', this.unallocatedMassDriverScrewModels)
+        }
+        if (newNumVirtualMassDriverScrews > 0) {
+          virtualMassDriverScrew.hasChanged = true
+          // Add new mass driver screws to the launch system
+          const n = newNumVirtualMassDriverScrews
+          let d
           for (let i = 0; i < n; i++) {
+            // This if statement is part of a solution to make the brackets disappear a certain distance down
+            // the track. At high speeds they temporally alias and this makes it harder to figure out what's going on.
             if (i<numBrackets) {
               d = (i+0.5)/n - halfBracketThickness
             }
             else {
               d = (i+0.5)/n
             }
-            const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
             const vmds = new virtualMassDriverScrew(d, i, this.unallocatedMassDriverScrewModels)
-            refFrame.wedges[wedgeIndex]['virtualMassDriverScrews'].push(vmds)
+            const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualMassDriverScrews'].push(vmds)
+            }
+            else {
+              console.log('Error')
+            }
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualMassDriverScrews = newNumVirtualMassDriverScrews
 
       // Update the number of mass driver brackets
       const newNumVirtualMassDriverBrackets = dParamWithUnits['showMassDriverBrackets'].value ? (this.massDriverScrewSegments+1) : 0
-      // Remove old virtual mass driver brackets
       changeOccured = (this.numVirtualMassDriverBrackets != newNumVirtualMassDriverBrackets)
-      if (changeOccured && (this.numVirtualMassDriverBrackets > 0)) {
-        removeOldVirtualObjects(staticLaunchVehicleRefFrame, 'virtualMassDriverBrackets', this.unallocatedMassDriverBracketModels)
-      }
-
-      if (changeOccured && (newNumVirtualMassDriverBrackets > 0)) {
-        virtualMassDriverBracket.hasChanged = true
-        // Add new mass driver brackets to the launch system
-        const n = newNumVirtualMassDriverBrackets
-        staticLaunchVehicleRefFrame.forEach(refFrame => {
+      if (changeOccured) {
+        const refFrame = this.refFrames[0]
+        if (this.numVirtualMassDriverBrackets > 0) {
+          // Remove old virtual mass driver brackets
+          removeOldVirtualObjects(refFrame, 'virtualMassDriverBrackets', this.unallocatedMassDriverBracketModels)
+        }
+        if (newNumVirtualMassDriverBrackets > 0) {
+          virtualMassDriverBracket.hasChanged = true
+          // Add new mass driver brackets to the launch system
+          const n = newNumVirtualMassDriverBrackets
           for (let i = 0; i < numBrackets; i++) {
             const d = (i+0.5)/n - halfBracketThickness
-            const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
+            //const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
             const vmdb = new virtualMassDriverBracket(d, this.unallocatedMassDriverBracketModels)
-            refFrame.wedges[wedgeIndex]['virtualMassDriverBrackets'].push(vmdb)
+            const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+            if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+              refFrame.wedges[zoneIndex]['virtualMassDriverBrackets'].push(vmdb)
+            }
+            else {
+              console.log('Error')
+            }
           }
           refFrame.prevStartWedgeIndex = -1
-        })
+        }
       }
       this.numVirtualMassDriverBrackets = newNumVirtualMassDriverBrackets
 
@@ -456,13 +492,17 @@ export class launcher {
       this.LaunchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
       this.LaunchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
       this.LaunchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+      this.LaunchTrajectoryMarker5.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
 
       // Update 2D chart
       this.xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
 
     }
 
-    updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, radiusOfPlanet, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
+    updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
+
+      // LaunchTrajectoryUtils.updateLaunchTrajectory(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+
       // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
       // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of the mass driver,
       // follows a hyperbolic trajectory away from the earth.
@@ -498,8 +538,9 @@ export class launcher {
       const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
       const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
       const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
+      const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
 
-      forwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+      forwardAcceleration = launcherMassDriverForwardAcceleration
 
       // Determine the time in the mass driver from acceleration, initial velocity, and final velocity
       // vf = v0 + at, therefore t = (vf-v0)/a
@@ -519,12 +560,13 @@ export class launcher {
       // Clamp the altitude of the ramp to be between the altitude of the launcher and the altitude of the main ring.
       const launcherRampExitAltitude = Math.max(launcherMassDriverAltitude, Math.min(dParamWithUnits['launcherRampExitAltitude'].value, launcherEvacuatedTubeExitAltitude))
       const launcherMassDriverUpwardAcceleration = dParamWithUnits['launcherMassDriverUpwardAcceleration'].value
+      const launcherSledDownwardAcceleration = dParamWithUnits['launcherSledDownwardAcceleration'].value
       const accelerationOfGravity = 9.8 // m/s2 // ToDo: Should make this a function of the selected planet
       const allowableUpwardTurningRadius = launcherMassDriverExitVelocity**2 / (launcherMassDriverUpwardAcceleration - accelerationOfGravity)
 
-      // Make a triangle ABC where A is the center of the planet, B is the end of the ramp, and C is the center of the circle that defines the allowable turning radius
-      const triangleSideAB = radiusOfPlanet + launcherRampExitAltitude
-      const triangleSideAC = radiusOfPlanet + launcherMassDriverAltitude + allowableUpwardTurningRadius
+      // For the launchRamp, make a triangle ABC where A is the center of the planet, B is the end of the ramp, and C is the center of the circle that defines the allowable turning radius
+      const triangleSideAB = crv.radiusOfPlanet + launcherRampExitAltitude
+      const triangleSideAC = crv.radiusOfPlanet + launcherMassDriverAltitude + allowableUpwardTurningRadius
       const triangleSideBC = allowableUpwardTurningRadius
       // Use law of cosines to find the angles at C and B
       const angleACB = Math.acos((triangleSideAC**2 + triangleSideBC**2 - triangleSideAB**2) / (2*triangleSideAC*triangleSideBC))
@@ -532,7 +574,7 @@ export class launcher {
       const angleBAC = Math.PI - angleACB - angleABC
       const upwardAngleAtEndOfRamp = Math.PI - angleABC
 
-      const rampBaseLength = angleBAC * (radiusOfPlanet + launcherMassDriverAltitude) // This is the length along the base of the ramp, measured at ground level, assuming the altitude of the ground is the same as the altitude of the launcher
+      const rampBaseLength = angleBAC * (crv.radiusOfPlanet + launcherMassDriverAltitude) // This is the length along the base of the ramp, measured at ground level, assuming the altitude of the ground is the same as the altitude of the launcher
 
       // console.log('triangleSideAB', triangleSideAB)
       // console.log('triangleSideAC', triangleSideAC)
@@ -541,7 +583,7 @@ export class launcher {
       // console.log('upwardAngleAtEndOfRamp', upwardAngleAtEndOfRamp, upwardAngleAtEndOfRamp*180/Math.PI)
 
       this.launcherRampLength = angleACB * allowableUpwardTurningRadius
-      this.curveUpTime = this.launcherRampLength / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
+      this.curveUpTimeOld = this.launcherRampLength / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
 
       // Let's define the end of the ramp as the launcher's exit position, since from that point on the vehicles will either be coasting or accelerating under their own power.
       // Also, it's a position that we can stick at the top of a mountain ridge and from their adjust parameters like launcer accelleration, etc.
@@ -549,14 +591,14 @@ export class launcher {
       const evacuatedTubeEntrancePositionAroundRing = dParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value
       const evacuatedTubeEntrancePositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeEntrancePositionAroundRing)
       // Adjust the altitude of the positions to place it the correct distance above the earth's surface
-      evacuatedTubeEntrancePositionInRingRefCoordSys.multiplyScalar((radiusOfPlanet + launcherRampExitAltitude) / (radiusOfPlanet + crv.currentMainRingAltitude))
+      evacuatedTubeEntrancePositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherRampExitAltitude) / (crv.radiusOfPlanet + crv.currentMainRingAltitude))
       const evacuatedTubeEntrancePosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeEntrancePositionInRingRefCoordSys.clone()))
 
       // ***************************************************************
       // Now design the evacuated tube that the vehicles will travel within from the end of the ramp to the altitude of the main ring.  
       // ***************************************************************
 
-      const R0 = new THREE.Vector3(radiusOfPlanet + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
+      const R0 = new THREE.Vector3(crv.radiusOfPlanet + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
       
       // for (let launcherMassDriverExitVelocity = 100; launcherMassDriverExitVelocity<8000; launcherMassDriverExitVelocity+=100) {
       //   const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
@@ -568,10 +610,10 @@ export class launcher {
       //   const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
       //   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
       //   const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
-      //   console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - radiusOfPlanet), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
+      //   console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - crv.radiusOfPlanet), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
       // }
 
-      const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
+      let V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
       const coe = this.orbitalElementsFromStateVector(R0, V0)
       const c = coe.semimajorAxis * coe.eccentricity
       const apogeeDistance = coe.semimajorAxis + c
@@ -582,7 +624,7 @@ export class launcher {
       const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
       //console.log(coe)
       console.log('speedAtApogee', speedAtApogee)
-      console.log('apogeeAltitude', apogeeDistance - radiusOfPlanet)
+      console.log('apogeeAltitude', apogeeDistance - crv.radiusOfPlanet)
       console.log('deltaVNeededToCircularizeOrbit', deltaVNeededToCircularizeOrbit)
       console.log('m0Overmf', m0Overmf)
 
@@ -604,8 +646,8 @@ export class launcher {
         console.log("Error: rampExitAltitude too high")
       }
       // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
-      const maxOrbitalR = tram.lerp(radiusOfPlanet + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
-      const evacuatedTubeExitR = Math.min(maxOrbitalR , radiusOfPlanet + crv.currentMainRingAltitude)
+      const maxOrbitalR = tram.lerp(crv.radiusOfPlanet + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
+      const evacuatedTubeExitR = Math.min(maxOrbitalR , crv.radiusOfPlanet + crv.currentMainRingAltitude)
       const evacuatedTubeExitRSquared = evacuatedTubeExitR ** 2
 
       for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
@@ -627,8 +669,8 @@ export class launcher {
         if (gotStuckCheck(this.clock, timeNow, t, 'the downrange distance calculation')) break
       }
 
-      // const planetRadiusSquared = radiusOfPlanet**2
-      // const ringDistSquared = (radiusOfPlanet + launcherEvacuatedTubeExitAltitude)**2
+      // const planetRadiusSquared = crv.radiusOfPlanet**2
+      // const ringDistSquared = (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)**2
       // //console.log('Calculating downrange distance from end of ramp to a point on the hyperbolic trajectory at the ring\'s altitude')
       // for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
       //   RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t)
@@ -663,27 +705,111 @@ export class launcher {
       // so that the lightweight evacuated tube that the launched vehicles will inititially coast through can be suspended from the ring.
 
       // Convert the angle relative to the center of the Earth to an angle relative to the center of the ring 
-      const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (radiusOfPlanet + crv.currentMainRingAltitude)
+      const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (crv.radiusOfPlanet + crv.currentMainRingAltitude)
       const evacuatedTubeRingAngle = Math.asin(straightLineHalfDistance / crv.mainRingRadius) * 2
 
       const evacuatedTubeExitPositionAroundRing = (1 + evacuatedTubeEntrancePositionAroundRing - evacuatedTubeRingAngle / (2*Math.PI)) % 1
       const evacuatedTubeExitPositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeExitPositionAroundRing)
       // Adjust the altitude of the positions to place it the correct distance above the earth's surface
-      evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (radiusOfPlanet + crv.currentMainRingAltitude))
+      evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (crv.radiusOfPlanet + crv.currentMainRingAltitude))
       // Convert thes positions into the planet's coordinate system 
       const evacuatedTubeExitPosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeExitPositionInRingRefCoordSys.clone()))
 
       // Generate an axis of rotation for define the curvatures of the mass driver and the ramp
       this.axisOfRotation = new THREE.Vector3().crossVectors(evacuatedTubeEntrancePosition, evacuatedTubeExitPosition.clone().sub(evacuatedTubeEntrancePosition)).normalize()
 
-      // Calculate a vector that points to the exit of teh mass drive (and the entrance to the ramp)
-      const massDriverExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (radiusOfPlanet + launcherMassDriverAltitude))
-      massDriverExitPosition.multiplyScalar((radiusOfPlanet + launcherMassDriverAltitude) / (radiusOfPlanet + launcherRampExitAltitude))
+      // Calculate a vector that points to the exit of the mass drive (and the entrance to the ramp)
+      const massDriverExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+      massDriverExitPosition.multiplyScalar((crv.radiusOfPlanet + launcherMassDriverAltitude) / (crv.radiusOfPlanet + launcherRampExitAltitude))
 
       // Position markers at the end of the mass driver and at entrance and exit positions of the evacuated tube
       this.LaunchTrajectoryMarker1.position.copy(massDriverExitPosition)
       this.LaunchTrajectoryMarker2.position.copy(evacuatedTubeEntrancePosition)
       this.LaunchTrajectoryMarker3.position.copy(evacuatedTubeExitPosition)
+
+      // Calculate parameters for the circle that defines the upward arcing launch ramp
+      const l1 = massDriverExitPosition.length()   // Distance from the center of the planet to the end of the mass driver
+      const rampCircleCenter = massDriverExitPosition.clone().multiplyScalar((allowableUpwardTurningRadius + l1) / l1)  // Points to the center of the circle that defines the ramp's curve
+      const rampCircleVector = massDriverExitPosition.clone().multiplyScalar(-allowableUpwardTurningRadius / l1)     // A vector from the center of the circle that defines the ramp back to the mass driver's exit position.
+      const rampCircleVectorRotated = rampCircleVector.clone().applyAxisAngle(this.axisOfRotation, -angleACB)
+      const rampEndPoint = rampCircleCenter.clone().add(rampCircleVectorRotated)
+
+      this.LaunchTrajectoryMarker4.position.copy(rampCircleCenter)
+
+      // We have the shape of the mass driver and ramp, but we need to get some more information about the vehicle's speed and distance versus time while on the ramp.... 
+      // In support of the curve for the ramp, we need to create a lookup table that converts time to speed and distance travelled...
+      // Assuming a frictionless ramp with a circular profile, we can calculate the vehicle's speed and position as a function of time and initial velocity.
+      let speed = launcherMassDriverExitVelocity
+      const unitMass = 1
+      const initialKineticEnergy = 0.5 * unitMass * speed**2
+      // Add the potential energy...
+      const initialPotentialEnergy = -crv.gravitationalConstant * crv.massOfPlanet * unitMass / (crv.radiusOfPlanet + launcherMassDriverAltitude) 
+      const minAllowableRampSpeed = 10 // m/s
+      let deltaT = 0.1
+      let angle = 0
+      let lastAngle = 0
+      let distance = 0
+      let kineticEnergy = initialKineticEnergy
+      let potentialEnergy = initialPotentialEnergy
+      const rampConversionCurvePoints = []
+      for (let t = 0; (lastAngle<angleACB) && (speed>minAllowableRampSpeed); t+=deltaT) {
+        rampConversionCurvePoints.push(new THREE.Vector3(speed, distance, t))
+        //console.log(t, kineticEnergy, potentialEnergy, speed, angle)
+        // Change in angular position...
+        const deltaAngle = speed * deltaT / allowableUpwardTurningRadius
+        lastAngle = angle
+        angle += deltaAngle
+        distance = allowableUpwardTurningRadius * angle
+        const dValue = distance / this.launcherRampLength 
+        const newR = crv.radiusOfPlanet + launcherMassDriverAltitude + allowableUpwardTurningRadius * (1 - Math.cos(angle))
+        const newPotentialEnergy = -crv.gravitationalConstant * crv.massOfPlanet * unitMass / newR
+        const deltaPE = newPotentialEnergy - potentialEnergy
+        // This change in potential energy results in a corresponding loss of kinetic energy... 
+        const deltaKE = -deltaPE
+        const newKineticEnergy = kineticEnergy + deltaKE
+        speed = Math.sqrt(2 * newKineticEnergy / unitMass)
+        potentialEnergy = newPotentialEnergy
+        kineticEnergy = newKineticEnergy
+        // Special check to calculate the curveUp time accurately
+        if (angle>=angleACB) {
+          const remainingDeltaT = deltaT * (angleACB - lastAngle) / deltaAngle
+          this.curveUpTime = t + remainingDeltaT
+        }
+      }
+      if (speed<=minAllowableRampSpeed) {
+        console.log('Warning: The vehicle is not going fast enough to make it up the ramp.')
+      }
+      const rampConversionCurve = new THREE.CatmullRomCurve3(rampConversionCurvePoints)
+
+      const launchRamptTosConvertor = function tTos(t) {
+        const tForLookup = t / ((rampConversionCurvePoints.length-1) * deltaT)
+        const interpolatedPoint = rampConversionCurve.getPoint(tForLookup)
+        const speed = interpolatedPoint.x
+        return speed
+      }
+      const launchRamptTodConvertor = function(t) {
+        const tForLookup = t / ((rampConversionCurvePoints.length-1) * deltaT)
+        const interpolatedPoint = rampConversionCurve.getPoint(tForLookup)
+        const distance = interpolatedPoint.y
+        return distance
+      }
+      const launchRampExitVelocity = launchRamptTosConvertor(this.curveUpTime)
+
+      console.log('launcherRampLength', this.launcherRampLength, 'curveUpTime', this.curveUpTime, this.curveUpTimeOld)
+      console.log("launcherMassDriverExitVelocity", launcherMassDriverExitVelocity)
+      console.log("launchRampExitVelocity", launchRampExitVelocity)
+      // Next design the downward arcing part of the sled's return path
+
+      const allowableDownwardTurningRadius = launchRampExitVelocity**2 / (launcherSledDownwardAcceleration - accelerationOfGravity)
+      // For the downward arcing part of the sled's return path we need the rampEndPoint from above and
+      // a circle center point that's allowableDownwardTurningRadius further away from the center of the ramp's curve.
+      const sledReturnCircleStartPoint = rampEndPoint
+      const sledReturnScaleFactor = (allowableUpwardTurningRadius + allowableDownwardTurningRadius) / allowableUpwardTurningRadius
+      const sledReturnCircleCenter = rampCircleCenter.clone().add(rampCircleVectorRotated.clone().multiplyScalar(sledReturnScaleFactor))
+      const sledReturnCircleLength = Math.PI * 2 * 0.125 * allowableDownwardTurningRadius // The 0.125 fator is just an rough estimate - we'll need to calculated it later.
+      this.curveDownTime = sledReturnCircleLength / launchRampExitVelocity // ToDo: This is inaccurate as it does not take into account the increase in speed due to coasting down the ramp.
+
+      this.LaunchTrajectoryMarker5.position.copy(sledReturnCircleCenter)
 
       // ***************************************************************
       // Next we need to capture some curves and data sets for plotting
@@ -691,7 +817,6 @@ export class launcher {
 
       const launchTrajectoryCurveControlPoints = []
       const freeFlightCurveControlPoints = []
-      const massDriverCurveControlPoints = []
       const evacuatedTubeCurveControlPoints = []
 
       const altitudeVesusTimeData = []
@@ -724,17 +849,17 @@ export class launcher {
       // ***************************************************************
       // Create the part of the trajectory where the vehicle is within mass driver near the planet's surface
       // ***************************************************************
-      this.massDriverSuperCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriverExitPosition, -launcherMassDriverLength)
-      {
-        function tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration) {
-          return launcherMassDriverInitialVelocity + forwardAcceleration * t  // 1/2 at^2
-        }
-        this.massDriverSuperCurve.addtTosConvertor(tTos)
-        function tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration) {
-          return launcherMassDriverInitialVelocity * t + 0.5 * forwardAcceleration * t * t  // v0*t + 1/2 at^2
-        }
-        this.massDriverSuperCurve.addtTodConvertor(tTod)
+      this.massDriverCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriverExitPosition, -launcherMassDriverLength, false)
+      const massDrivertTosConvertor = function tTos(t) {
+        return launcherMassDriverInitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
       }
+      this.massDriverCurve.addtTosConvertor(massDrivertTosConvertor)
+      const massDrivertTodConvertor = function(t) {
+        return launcherMassDriverInitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+      }
+      this.massDriverCurve.addtTodConvertor(massDrivertTodConvertor)
+      this.massDriverCurve.setDuration(this.timeWithinMassDriver)
+      this.massDriverCurve.name = "massDriverCurve"
 
       // Start the launch trajectory curve at the beginning of the mass driver.
       //console.log('Creating mass driver part of trajectory.')
@@ -742,12 +867,12 @@ export class launcher {
       altitude = launcherMassDriverAltitude
 
       for (t = 0; t < this.timeWithinMassDriver; t += tStep) {
-        vehicleAirSpeed = this.massDriverSuperCurve.tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration)
-        distanceTravelled = this.massDriverSuperCurve.tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration)
+        vehicleAirSpeed = this.massDriverCurve.tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration)
+        distanceTravelled = this.massDriverCurve.tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration)
         // Rotate the massDriverExitPosition around the axisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, (distanceTravelled - launcherMassDriverLength) / (radiusOfPlanet + launcherMassDriverAltitude))
-        //console.log('old angle', (distanceTravelled - launcherMassDriverLength) / (radiusOfPlanet + launcherMassDriverAltitude))
-        const vp2 = this.massDriverSuperCurve.getPointAt(distanceTravelled/launcherMassDriverLength)
+        vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, (distanceTravelled - launcherMassDriverLength) / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+        //console.log('old angle', (distanceTravelled - launcherMassDriverLength) / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+        const vp2 = this.massDriverCurve.getPointAt(distanceTravelled/launcherMassDriverLength)
         if (t==0) {
           this.startOfMassDriverPosition = vp2.clone()
         }
@@ -765,37 +890,74 @@ export class launcher {
       // ***************************************************************
       // Create the part of the trajectory where the vehicle is travelling along the upward curving ramp
       // ***************************************************************
-      const l1 = massDriverExitPosition.length()   // Distance from the center of the planet to the end of the mass driver
-      const v1 = massDriverExitPosition.clone().multiplyScalar((allowableUpwardTurningRadius + l1) / l1)  // Points to the center of the circle that defines the ramp's curve
-      const v2 = massDriverExitPosition.clone().multiplyScalar(-allowableUpwardTurningRadius / l1)     // A vector from the center of the circle that defines the ramp back to the mass driver's exit position.
-      //const pivotPoint = massDriverExitPosition.clone().multiplyScalar((l1+allowableUpwardTurningRadius)/l1)
-      this.LaunchTrajectoryMarker4.position.copy(v1)
+      this.launchRampCurve = new CircleSuperCurve3(rampCircleCenter.clone(), this.axisOfRotation.clone().negate(), massDriverExitPosition.clone(), this.launcherRampLength, true)
+      this.launchRampCurve.addtTosConvertor(launchRamptTosConvertor)
+      this.launchRampCurve.addtTodConvertor(launchRamptTodConvertor)
+      this.launchRampCurve.setDuration(this.curveUpTime)
+      this.launchRampCurve.name = "launchRampCurve"
 
-      this.launchRampSuperCurve = new CircleSuperCurve3(v1.clone(), this.axisOfRotation.clone().negate(), massDriverExitPosition.clone(), this.launcherRampLength)
-      {
-        function tTos(t, launcherMassDriverExitVelocity) {
-          return launcherMassDriverExitVelocity
-        }
-        this.launchRampSuperCurve.addtTosConvertor(tTos)
-        function tTod(t, launcherMassDriverExitVelocity) {
-          // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-          return launcherMassDriverExitVelocity * t
-        }
-        this.launchRampSuperCurve.addtTodConvertor(tTod)
+      // Test the convertors...
+      // angle = 0
+      // lastAngle = 0
+      // distance = 0
+      // kineticEnergy = initialKineticEnergy
+      // potentialEnergy = initialPotentialEnergy
+      // for (let t = 0; lastAngle<angleACB; t+=deltaT) {
+      //   const lutSpeed = launchRamptTosConvertor(t)
+      //   const lutDistance = launchRamptTodConvertor(t)
+      //   console.print(t, speed, lutSpeed, distance, lutDistance)
+      //   // Change in angular position...
+      //   const deltaAngle = speed * deltaT / allowableUpwardTurningRadius
+      //   lastAngle = angle
+      //   angle += deltaAngle
+      //   distance = allowableUpwardTurningRadius * angle
+      //   const dValue = distance / this.launcherRampLength 
+      //   const newR = crv.radiusOfPlanet + launcherMassDriverAltitude + allowableUpwardTurningRadius * (1 - Math.cos(angle))
+      //   const newPotentialEnergy = -crv.gravitationalConstant * crv.massOfPlanet * m0 / newR
+      //   const deltaPE = newPotentialEnergy - potentialEnergy
+      //   // This change in potential energy results in a corresponding loss of kinetic energy... 
+      //   const deltaKE = -deltaPE
+      //   const newKineticEnergy = kineticEnergy + deltaKE
+      //   speed = Math.sqrt(2 * newKineticEnergy / m0)
+      //   potentialEnergy = newPotentialEnergy
+      //   kineticEnergy = newKineticEnergy
+      // }
+
+
+
+      // ***************************************************************
+      // Create a downward arching curve for the launch sled to travel on after the vehicle detaches.
+      // ***************************************************************
+
+      this.launchSledReturnCurve = new CircleSuperCurve3(sledReturnCircleCenter.clone(), this.axisOfRotation.clone(), sledReturnCircleStartPoint.clone(), sledReturnCircleLength, false)
+      const launchSledReturntTosConvertor = function tTos(t) {
+        // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+        return launcherMassDriverExitVelocity
       }
+      this.launchSledReturnCurve.addtTosConvertor(launchSledReturntTosConvertor)
+      const launchSledReturntTodConvertor = function(t) {
+        // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+        return launcherMassDriverExitVelocity * t
+      }
+      this.launchSledReturnCurve.addtTodConvertor(launchSledReturntTodConvertor)
+      this.launchSledReturnCurve.setDuration(this.curveDownTime)
+      this.launchSledReturnCurve.name = "launchSledReturnCurve"
 
       forwardAcceleration = 0
       upwardAcceleration = launcherMassDriverUpwardAcceleration
 
       //console.log('Creating ramp part of trajectory.')
+
+      // Totally incorrect code inside this for loop!!!
+
       for (; t<Math.min(t2, 10000); t+=tStep) {   // Hack - Min function added to prevent endless loop in case of bug
-        const distanceTravelled = this.launchRampSuperCurve.tTod(t - this.timeWithinMassDriver, launcherMassDriverExitVelocity)
+        const distanceTravelled = this.launchRampCurve.tTod(t - this.timeWithinMassDriver)
         const d = distanceTravelled / this.launcherRampLength
-        vehiclePosition = this.launchRampSuperCurve.getPointAt(d)
-        vehicleAirSpeed = launcherMassDriverExitVelocity  // ToDo: This assumes that somehow we maintain speed on the ramp, but really need a better formula here.
-        altitude = vehiclePosition.length() - radiusOfPlanet
+        vehiclePosition = this.launchRampCurve.getPointAt(d)
+        vehicleAirSpeed = this.launchRampCurve.tTos(t - this.timeWithinMassDriver)
+        altitude = vehiclePosition.length() - crv.radiusOfPlanet
         const downrangeAngle = massDriverExitPosition.angleTo(vehiclePosition)
-        const downrangeDistance = launcherMassDriverLength + downrangeAngle * (radiusOfPlanet + launcherMassDriverAltitude)
+        const downrangeDistance = launcherMassDriverLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
         altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
@@ -808,10 +970,9 @@ export class launcher {
       }
       //console.log('done')
 
-      vehiclePosition = v1.clone().add(v2.clone().applyAxisAngle(this.axisOfRotation, -angleACB))
-      //this.LaunchTrajectoryMarker2.position.copy(vehiclePosition)
-      const downrangeAngle = massDriverExitPosition.angleTo(vehiclePosition)
-      const downrangeDistanceTravelledOnRamp = downrangeAngle * radiusOfPlanet
+      //this.LaunchTrajectoryMarker2.position.copy(rampEndPoint)
+      const downrangeAngle = massDriverExitPosition.angleTo(rampEndPoint)
+      const downrangeDistanceTravelledOnRamp = downrangeAngle * crv.radiusOfPlanet
       distanceTravelled += angleACB * allowableUpwardTurningRadius
 
       // ***************************************************************
@@ -819,6 +980,9 @@ export class launcher {
       // ***************************************************************
       let distanceTravelledWithinEvacuatedTube = 0
       let lastR = R0
+      V0 = new THREE.Vector3(launchRampExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launchRampExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
+
+      const evacuatedTubeConversionCurvePoints = []
       const l2 = evacuatedTubeEntrancePosition.length()
       const totalSplinePoints = Math.floor((t4-t2)/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
       const numEvacuatedTubeSplinePoints = Math.floor(totalSplinePoints * (t3-t2) / (t4-t2))
@@ -830,12 +994,14 @@ export class launcher {
         // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
         vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
         vehicleAirSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
-        altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - radiusOfPlanet
+        altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - crv.radiusOfPlanet
         const aerodynamicDrag = 0
         const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
         distanceTravelledWithinEvacuatedTube += deltaDistanceTravelled
-        const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (radiusOfPlanet + launcherMassDriverAltitude)
+
+        const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
         // Collect control points for curves
+        evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledWithinEvacuatedTube, t5))
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
         evacuatedTubeCurveControlPoints.push(vehiclePosition)
         // Save telemery...
@@ -846,10 +1012,28 @@ export class launcher {
         lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
         aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
         totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
+        lastR = RV.R
       }
       this.launcherEvacuatedTubeLength = distanceTravelledWithinEvacuatedTube
       distanceTravelled += distanceTravelledWithinEvacuatedTube
       const totalLengthOfLaunchSystem = distanceTravelled
+
+      const evacuatedTubeConversionCurve = new THREE.CatmullRomCurve3(evacuatedTubeConversionCurvePoints)
+
+      const evacuatedTubetTosConvertor = function tTos(t) {
+        const tForLookup = t / ((evacuatedTubeConversionCurvePoints.length-1) * tStep1)
+        const interpolatedPoint = evacuatedTubeConversionCurve.getPoint(tForLookup)
+        const speed = interpolatedPoint.x
+        return speed
+      }
+      const evacuatedTubetTodConvertor = function(t) {
+        const tForLookup = t / ((evacuatedTubeConversionCurvePoints.length-1) * tStep1)
+        const interpolatedPoint = evacuatedTubeConversionCurve.getPoint(tForLookup)
+        const distance = interpolatedPoint.y
+        return distance
+      }
+      const evacuatedTubeExitVelocity = evacuatedTubetTosConvertor(this.curveUpTime)
+
 
       // ***************************************************************
       // Create the part of the trajectory where the vehicle coasts on an eliptical or hyperbolic trajectory after it leaves the evacuated tube
@@ -859,7 +1043,7 @@ export class launcher {
       const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
       const launchVehicleNoseConeLength = dParamWithUnits['launchVehicleNoseConeLength'].value
       const noseConeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseConeLength)
-      
+      const freeFlightConversionCurvePoints = []
       const numFreeFlightSplinePoints = totalSplinePoints - numEvacuatedTubeSplinePoints
       const tStep2 = (t4 - t3) / (numFreeFlightSplinePoints - 1)
       let distanceTravelledOutsideLaunchSystem = 0
@@ -873,9 +1057,9 @@ export class launcher {
         // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
         vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
         vehicleAirSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
-        altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - radiusOfPlanet
+        altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - crv.radiusOfPlanet
         const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
-        const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (radiusOfPlanet + launcherMassDriverAltitude)
+        const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
         distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
         const aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseConeAngle, launchVehicleRadius, launchVehicleBodyLength)
         const fuelFlowRate = aerodynamicDrag / launchVehicleRocketExhaustVelocity
@@ -887,6 +1071,7 @@ export class launcher {
         m0 = mVehicle + mPayload + mPropellant
 
         // Collect control points for curves
+        freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, t5))
         if (i!=0) {
           // ToDo: This is a bit inaccurate because the temporal spacing of these points differs slightly from that of the points we added earlier
           launchTrajectoryCurveControlPoints.push(vehiclePosition)
@@ -907,25 +1092,21 @@ export class launcher {
       this.durationOfFreeFlight = t4 - t3
       distanceTravelled += distanceTravelledOutsideLaunchSystem
 
-      // Now create a curve consisting of equally spaced points to be the backbone of the mass driver object
-      const numMassDriverCurveSegments = 128
-      for (let i = 0; i <= numMassDriverCurveSegments; i++) {
-        const d = i / numMassDriverCurveSegments * launcherMassDriverLength
-        // Rotate the massDriverExitPosition around the axisOfRotation using the angle derived from the distance travelled
-        vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, (d - launcherMassDriverLength)  / l1)
-        massDriverCurveControlPoints.push(vehiclePosition)
+      const freeFlightConversionCurve = new THREE.CatmullRomCurve3(freeFlightConversionCurvePoints)
+
+      const freeFlighttTosConvertor = function tTos(t) {
+        const tForLookup = t / ((freeFlightConversionCurvePoints.length-1) * tStep2)
+        const interpolatedPoint = freeFlightConversionCurve.getPoint(tForLookup)
+        const speed = interpolatedPoint.x
+        return speed
+      }
+      const freeFlighttTodConvertor = function(t) {
+        const tForLookup = t / ((freeFlightConversionCurvePoints.length-1) * tStep2)
+        const interpolatedPoint = freeFlightConversionCurve.getPoint(tForLookup)
+        const distance = interpolatedPoint.y
+        return distance
       }
 
-      // Create a curve along the part of the trajectory where the vehicle coasts on a hyperbolic trajectory within the evacuated tube
-      const numEvacuatedTubeCurveSegments = 128
-      for (let i = 0; i <= numEvacuatedTubeCurveSegments; i++) {
-        const t5 = i / numEvacuatedTubeCurveSegments * this.timeWithinEvacuatedTube
-        const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t5)
-        const downrangeAngle = downrangeDistanceTravelledOnRamp/radiusOfPlanet + Math.atan2(RV.R.y, RV.R.x)
-        vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l1)
-        evacuatedTubeCurveControlPoints.push(vehiclePosition)
-      }
-      //this.LaunchTrajectoryMarker3.position.copy(vehiclePosition)
 
       // Make a curve for the entire start-to-finish launch trajectory
       this.launchTrajectoryCurve = new CatmullRomSuperCurve3(launchTrajectoryCurveControlPoints)
@@ -939,36 +1120,39 @@ export class launcher {
       this.evacuatedTubeCurve.closed = false
       this.evacuatedTubeCurve.tension = 0
 
-      {
-        function tTos(t, launcherMassDriverExitVelocity) {
-          return launcherMassDriverExitVelocity
-        }
-        this.evacuatedTubeCurve.addtTosConvertor(tTos)
-        function tTod(t, launcherMassDriverExitVelocity) {
-          // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-          return launcherMassDriverExitVelocity * t
-        }
-        this.evacuatedTubeCurve.addtTodConvertor(tTod)
-      }
+      // const evacuatedTubetTosConvertor = function tTos(t) {
+      //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      //   return launcherMassDriverExitVelocity
+      // }
+      this.evacuatedTubeCurve.addtTosConvertor(evacuatedTubetTosConvertor)
+      // const evacuatedTubetTodConvertor = function(t) {
+      //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      //   return Math.min(distanceTravelledWithinEvacuatedTube, launcherMassDriverExitVelocity * t)
+      // }
+      this.evacuatedTubeCurve.addtTodConvertor(evacuatedTubetTodConvertor)
+
+      this.evacuatedTubeCurve.setDuration(this.timeWithinEvacuatedTube)
+      this.evacuatedTubeCurve.name = "evacuatedTubeCurve"
 
       // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
-      this.freeFlightSuperCurve = new CatmullRomSuperCurve3(freeFlightCurveControlPoints)
-      this.freeFlightSuperCurve.curveType = 'centripetal'
-      this.freeFlightSuperCurve.closed = false
-      this.freeFlightSuperCurve.tension = 0
+      this.freeFlightCurve = new CatmullRomSuperCurve3(freeFlightCurveControlPoints)
+      this.freeFlightCurve.curveType = 'centripetal'
+      this.freeFlightCurve.closed = false
+      this.freeFlightCurve.tension = 0
 
-      {
-        function tTos(t, launcherMassDriverExitVelocity) {
-          return launcherMassDriverExitVelocity
-        }
-        this.freeFlightSuperCurve.addtTosConvertor(tTos)
-        function tTod(t, launcherMassDriverExitVelocity) {
-          // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-          return launcherMassDriverExitVelocity * t
-        }
-        this.freeFlightSuperCurve.addtTodConvertor(tTod)
-      }
+      // const freeFlighttTosConvertor = function tTos(t) {
+      //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      //   return launcherMassDriverExitVelocity
+      // }
+      this.freeFlightCurve.addtTosConvertor(freeFlighttTosConvertor)
+      // const freeFlighttTodConvertor = function(t) {
+      //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      //   return Math.min(distanceTravelledOutsideLaunchSystem, launcherMassDriverExitVelocity * t)
+      // }
+      this.freeFlightCurve.addtTodConvertor(freeFlighttTodConvertor)
 
+      this.freeFlightCurve.setDuration(this.durationOfFreeFlight)
+      this.freeFlightCurve.name = "freeFlightCurve"
 
       this.xyChart.drawAxes()
       this.xyChart.labelAxes()
@@ -1001,14 +1185,71 @@ export class launcher {
       console.print('========================================')
 
       if (genLauncherKMLFile) {
+        // Start a polyline...
         kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
-        launchTrajectoryCurveControlPoints.forEach(point => {
-          const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
+
+        // launchTrajectoryCurveControlPoints.forEach(point => {
+        //   const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
+        //   const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+        //   const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+        //   kmlFile = kmlFile.concat(coordString)
+        // })
+        const numSupports = 100
+        // To make the line for the mass driver... 
+        for (let i = 0; i<numSupports; i++) {
+          const d = i / (numSupports-1)
+          const pointOnCurve = this.massDriverCurve.getPointAt(d)
+          // You'll need to convert each point to lla with this code...
+          const xyzPlanet = planetCoordSys.worldToLocal(pointOnCurve.clone())
           const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
           const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
           kmlFile = kmlFile.concat(coordString)
-        })
+        }
+
+        // Extend the line for the ramp...
+        for (let i = 1; i<numSupports; i++) {
+          const d = i / (numSupports-1)
+          const pointOnCurve = this.launchRampCurve.getPointAt(d)
+          // You'll need to convert each point to lla with this code...
+          const xyzPlanet = planetCoordSys.worldToLocal(pointOnCurve.clone())
+          const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+          const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+          kmlFile = kmlFile.concat(coordString)
+        }
+
+        // Finish the poly line...
         kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+
+        // To make the supports...
+        for (let i = 0; i<numSupports; i++) {
+          const d = i / (numSupports-1)
+          const pointOnCurve = this.launchRampCurve.getPointAt(d)
+          const tanget = this.launchRampCurve.getTangentAt(d)
+          const normal = this.launchRampCurve.getNormalAt(d)
+          const binormal = this.launchRampCurve.getBinormalAt(d)
+          const pointOnCurveAltitude = pointOnCurve.length() - crv.radiusOfPlanet
+          const pointOnGround = pointOnCurve.clone().multiplyScalar(crv.radiusOfPlanet / pointOnCurve.length())
+          const pointToLeft = pointOnGround.clone().sub(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
+          const pointToRight = pointOnGround.clone().add(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
+
+          // To make the support, draw polyline from pointToLeft to pointOnCurve to pointToRight...
+          const pointList = [pointToLeft, pointOnCurve, pointToRight]
+
+          // Start a polyline
+          kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+
+          // You'll need to convert each point to lla with this code...
+          pointList.forEach(point => {
+            const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
+            const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+            const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+            kmlFile = kmlFile.concat(coordString)
+          })
+
+          // End the polyline
+          kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+        }
+
       }
     }
 
@@ -1065,9 +1306,9 @@ export class launcher {
       const removeModelList = []
       const updateModelList = []
   
-      const launcherRefFrame = this.refFrames[0]
 
       // Debug printout
+      const launcherRefFrame = this.refFrames[3]
       launcherRefFrame.wedges.forEach((wedge, wedgeIndex) => {
         if (wedgeIndex<10) {
           Object.entries(wedge).forEach(([objectKey, objectValue]) => {
@@ -1081,111 +1322,107 @@ export class launcher {
       })
       //console.log("")
 
-      // For objects that are moving within the reference frame, we need to check whether they are still in the correct wedge and reassign them if they are not.
+      // For objects that are moving around within their reference frame, we need to check whether they are still in the correct zone and reassign them if they are not.
       const movingObjects = ['virtualLaunchVehicles', 'virtualLaunchSleds']
 
-      const massDriverLength = Math.abs(launcherRefFrame.curve.length)
-
-      movingObjects.forEach(movingObject => {
-        const reassignList = []
-        for (let wedgeIndex = 0; wedgeIndex < launcherRefFrame.numWedges; wedgeIndex++) {
-          const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, launcherRefFrame.timeSinceStart)
-          const keepList = []
-          launcherRefFrame.wedges[wedgeIndex][movingObject].forEach(object => {
-            // Calculate where along the launcher to place the vehicle. 
-            const deltaT = adjustedTimeSinceStart - object.timeLaunched
-            const d = launcherRefFrame.curve.tTod(deltaT, this.initialVelocity, this.acceleration) / massDriverLength
-            if ((d>=-0.01) && (d<1)) {
-              const correctWedgeIndex = Math.max(0, Math.min(launcherRefFrame.numWedges-1, Math.floor(d * launcherRefFrame.numWedges)))
-              if (wedgeIndex==correctWedgeIndex) {
-                keepList.push(object)
-              }
-              else {
-                reassignList.push({correctWedgeIndex, object})
-              }
+      this.refFrames.forEach(refFrame => {
+        Object.entries(refFrame.placeholderEntries).forEach(([objectKey, objectValue]) => {
+          if (movingObjects.includes(objectKey)) {
+            const movingObject = objectKey
+            const reassignList = []
+            for (let zoneIndex = 0; zoneIndex < refFrame.numWedges; zoneIndex++) {
+              const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+              const keepList = []
+              refFrame.wedges[zoneIndex][movingObject].forEach(object => {
+                // Calculate where along the launcher to place the vehicle.
+                const deltaT = adjustedTimeSinceStart - object.timeLaunched
+                // Convert deltaT to a zoneIndex along the curveList.
+                const correctZoneIndex = refFrame.curve.getZoneIndex(deltaT)
+                if ((correctZoneIndex>=0) && (correctZoneIndex<refFrame.numWedges)) {
+                  // if ((objectKey=='virtualLaunchVehicles') && (object.timeLaunched==0.1)) {
+                  //   console.log(correctZoneIndex)
+                  // }
+                  if (zoneIndex==correctZoneIndex) {
+                    keepList.push(object)
+                  }
+                  else {
+                    reassignList.push({correctZoneIndex, object})
+                  }
+                }
+                else {
+                  // Object has travelled out of the linear range of the curve. Discard it.
+                  console.log("Discarding object")
+                  if (object.model) {
+                    object.model.visible = false
+                    object.unallocatedModels.push(object.model)
+                    object.model = null
+                  }
+                  // To discard the virtual object we simply do not assign it to either keepList or reassignList 
+                }
+              })
+              const pntrToArray = refFrame.wedges[zoneIndex][movingObject]
+              pntrToArray.splice(0, pntrToArray.length)  // Delete the entire old list of items
+              pntrToArray.push(...keepList)
             }
-          })
-          const pntrToArray = launcherRefFrame.wedges[wedgeIndex][movingObject]
-          pntrToArray.splice(0, pntrToArray.length)  // Delete the entire old list of items
-          pntrToArray.push(...keepList)
-        }
 
-        // Reassign the rest of the sleds to the correct wedges
-        reassignList.forEach(reassignedObject => {
-          const wedgeIndex = reassignedObject['correctWedgeIndex']
-          launcherRefFrame.wedges[wedgeIndex][movingObject].push(reassignedObject['object'])
+            // Reassign the rest of the sleds to the correct wedges
+            reassignList.forEach(reassignedObject => {
+              const zoneIndex = reassignedObject['correctZoneIndex']
+              refFrame.wedges[zoneIndex][movingObject].push(reassignedObject['object'])
+            })
+          }
         })
       })
 
       // let plot = ""
-      // for (let wedgeIndex = 0; wedgeIndex < 130; wedgeIndex++) {
-      //   plot += launcherRefFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].length
+      // for (let zoneIndex = 0; zoneIndex < 130; zoneIndex++) {
+      //   plot += launcherRefFrame.wedges[zoneIndex]['virtualLaunchVehicles'].length
       // }
       // console.log(plot)
 
-      // End of moving object wedge reassignment
-
-      const circleCenter = launcherRefFrame.curve.centerPoint.clone()
-      const circleNormal = launcherRefFrame.curve.axisOfRotation.clone().normalize()
-      const circleRadius = launcherRefFrame.curve.radius
-      const sphereCenter = cameraPosition.clone()
-      const sphereRadius = launcherRefFrame.cameraRange
-      const intersections = tram.findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius)
-
-      let lowerCurveDistance
-      let upperCurveDistance
-      if ((intersections[0]!==null) && (intersections[1]!==null)) {
-        const zeroAngleVector = launcherRefFrame.curve.getPointAt(0).sub(launcherRefFrame.curve.centerPoint)
-        const firstAngleVector = intersections[0].clone().sub(launcherRefFrame.curve.centerPoint)
-        const secondAngleVector = intersections[1].clone().sub(launcherRefFrame.curve.centerPoint)
-        const firstAngle = Math.asin(zeroAngleVector.clone().cross(firstAngleVector).dot(launcherRefFrame.curve.axisOfRotation)/zeroAngleVector.length()/firstAngleVector.length())
-        const secondAngle = Math.asin(zeroAngleVector.clone().cross(secondAngleVector).dot(launcherRefFrame.curve.axisOfRotation)/zeroAngleVector.length()/secondAngleVector.length())
-        const positiveCurveLength = Math.abs(launcherRefFrame.curve.length)
-        const curveAngle = positiveCurveLength / launcherRefFrame.curve.radius
-        const lowerAngleBound = Math.min(0, curveAngle)
-        const upperAngleBound = Math.max(0, curveAngle)
-        const lowerWedgeAngle = Math.max(lowerAngleBound, Math.min(upperAngleBound, Math.min(firstAngle, secondAngle)))
-        const upperWedgeAngle = Math.max(lowerAngleBound, Math.min(upperAngleBound, Math.max(firstAngle, secondAngle)))
-        lowerCurveDistance = lowerWedgeAngle * launcherRefFrame.curve.radius / positiveCurveLength
-        upperCurveDistance = upperWedgeAngle * launcherRefFrame.curve.radius / positiveCurveLength
-        launcherRefFrame.startWedgeIndex = Math.max(0, (Math.min(launcherRefFrame.numWedges-1, Math.floor(lowerCurveDistance * launcherRefFrame.numWedges))))
-        launcherRefFrame.finishWedgeIndex = Math.max(0, (Math.min(launcherRefFrame.numWedges-1, Math.floor(upperCurveDistance * launcherRefFrame.numWedges))))
-
-        // Final Safety check. Should be unneccesary...
-        if (Number.isNaN(launcherRefFrame.startWedgeIndex) || Number.isNaN(launcherRefFrame.finishWedgeIndex)) {
-          console.log("NaN Error")
-          launcherRefFrame.startWedgeIndex = -1
-          launcherRefFrame.finishWedgeIndex = -1
-        }
-
-      }
-      else {
-        launcherRefFrame.startWedgeIndex = -1
-        launcherRefFrame.finishWedgeIndex = -1
-      }
-
-      // Debug visualization code...
-      if (intersections[0]!==null) {
-        this.wedgeMarker0.position.copy(launcherRefFrame.curve.getPointAt(lowerCurveDistance))
-        this.wedgeMarker0.visible = this.showMarkers
-      }
-      else {
-        this.wedgeMarker0.visible = false
-      }
-
-      if (intersections[1]!==null) {
-        this.wedgeMarker1.position.copy(launcherRefFrame.curve.getPointAt(upperCurveDistance))
-        this.wedgeMarker1.visible = this.showMarkers
-      }
-      else {
-        this.wedgeMarker1.visible = false
-      }
-
-      this.wedgeMarker2.position.copy(launcherRefFrame.curve.getPointAt(0))
-      this.wedgeMarker2.visible = this.showMarkers
-      // End debug visualization code
+      // End of moving object zone reassignment
 
       this.refFrames.forEach((refFrame, index) => {
+
+        // Determine a start zone and finish zone along the curve for the launcher.
+        // Note that this code assumes a fairly continuous path. It can't yet handle a more loopy path that enters the camera's range sphere more than once.
+        let startZoneIndex = -1
+        let finishZoneIndex = -1
+
+        refFrame.curve.superCurves.forEach((superCurve, index) => {
+          const cameraPos = cameraPosition.clone()
+          const zoneStartFinishDValues = superCurve.getStartFinishZoneIndices( cameraPos, refFrame.cameraRange )
+          const zoneStartFinishDValues2 = superCurve.getStartFinishZoneIndices( cameraPos, refFrame.cameraRange )
+          const numZones = refFrame.curve.numZones[index]
+          const startZone = refFrame.curve.startZone[index]
+          if (zoneStartFinishDValues.length==2) {
+            const szi = startZone + Math.max(0, (Math.min(numZones-1, Math.floor(zoneStartFinishDValues[0] * numZones))))
+            const fzi = startZone + Math.max(0, (Math.min(numZones-1, Math.floor(zoneStartFinishDValues[1] * numZones))))
+      
+            // Seek the smallest zone index that is not -1
+            startZoneIndex = (startZoneIndex==-1) ? szi : Math.min(startZoneIndex, szi)
+            finishZoneIndex = (finishZoneIndex==-1) ? fzi : Math.max(finishZoneIndex, fzi)
+          }
+
+          // Debug visualization code...
+          // if (index==0) {
+          //   if (zoneStartFinishDValues.length==2) {
+          //     this.wedgeMarker0.position.copy(superCurve.getPointAt(zoneStartFinishDValues[0]))
+          //     this.wedgeMarker0.visible = this.showMarkers
+          //     this.wedgeMarker1.position.copy(superCurve.getPointAt(zoneStartFinishDValues[1]))
+          //     this.wedgeMarker1.visible = this.showMarkers
+          //   }
+          //   else {
+          //     this.wedgeMarker0.visible = false
+          //     this.wedgeMarker1.visible = false
+          //   }
+          // }
+          // End debug visualization code
+
+        })
+
+        refFrame.startWedgeIndex = startZoneIndex
+        refFrame.finishWedgeIndex = finishZoneIndex
         //console.log(refFrame.startWedgeIndex, refFrame.finishWedgeIndex)
 
         // ToDo: Why check the flags for this?
@@ -1299,9 +1536,9 @@ export class launcher {
           if (objectValue.length>0) {
             objectValue.forEach(object => {
               if (!object.model) {
-                if (objectKey=='virtualLaunchVehicles') {
-                  console.log("")
-                }
+                // if (objectKey=='virtualLaunchVehicles') {
+                //   console.log("")
+                // }
                 if (object.unallocatedModels.length==1) {
                   // if (objectKey=='virtualLaunchVehicles') {
                   //   console.log("")
@@ -1364,6 +1601,9 @@ export class launcher {
   
       updateModelList.forEach(entry => {
         Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+          // if ((objectKey=='virtualLaunchVehicles') && (objectValue.length>0) && (entry['wedgeIndex']>91)) {
+          //   console.log("")
+          // }
           if (objectValue.length>0) {
             const classIsDynamic = objectValue[0].constructor.isDynamic
             const classHasChanged = objectValue[0].constructor.hasChanged

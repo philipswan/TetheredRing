@@ -36,7 +36,7 @@ export class massDriverBracketModel {
         const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
         const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-        const orientation = massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, modelsCurvePosition).invert()
+        const orientation = massDriverSuperCurve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
 
         // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
         const tubePoints = []
@@ -91,7 +91,7 @@ export class virtualMassDriverBracket {
                     this.position = virtualMassDriverBracket.massDriverSuperCurve.getPointAt(d)
                         // .add(rightward.clone().multiplyScalar(this.lr*virtualMassDriverBracket.sidewaysOffset))
                         .add(upward.clone().multiplyScalar(virtualMassDriverBracket.upwardsOffset))
-                    this.orientation = virtualMassDriverBracket.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+                    this.orientation = virtualMassDriverBracket.massDriverSuperCurve.getQuaternionAt(d, modelForward, modelUpward)
                     this.versionNumber = virtualMassDriverBracket.versionNumber
                 }
 

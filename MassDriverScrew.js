@@ -54,8 +54,7 @@ export class virtualMassDriverScrew {
         this.position = []
     }
 
-    static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewMaterials, versionNumber) {
-        virtualMassDriverScrew.massDriverSuperCurve = massDriverSuperCurve
+    static update(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewMaterials, versionNumber) {
         virtualMassDriverScrew.launcherMassDriverLength = launcherMassDriverLength
         virtualMassDriverScrew.massDriverScrewSegments = massDriverScrewSegments
         virtualMassDriverScrew.massDriverScrewMaterials = massDriverScrewMaterials
@@ -83,7 +82,7 @@ export class virtualMassDriverScrew {
 
     placeAndOrientModel(om, refFrame) {
         const d = this.d 
-        if (d==='undefined' || (d<0) || (d>1)) {
+        if (d===undefined || (d<0) || (d>1)) {
             console.log("error!!!")
         }
         else {
@@ -92,16 +91,16 @@ export class virtualMassDriverScrew {
                     // Something about the design has been updated so this instance also needs to be updated
                     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
                     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-                    const forward = virtualMassDriverScrew.massDriverSuperCurve.getTangentAt(d)
-                    const upward = virtualMassDriverScrew.massDriverSuperCurve.getNormalAt(d)
-                    const rightward = virtualMassDriverScrew.massDriverSuperCurve.getBinormalAt(d)
-                    this.position[0] = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
+                    const forward = refFrame.curve.getTangentAt(d)
+                    const upward = refFrame.curve.getNormalAt(d)
+                    const rightward = refFrame.curve.getBinormalAt(d)
+                    this.position[0] = refFrame.curve.getPointAt(d)
                         .add(rightward.clone().multiplyScalar(virtualMassDriverScrew.sidewaysOffset))
                         .add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
-                    this.position[1] = virtualMassDriverScrew.massDriverSuperCurve.getPointAt(d)
+                    this.position[1] = refFrame.curve.getPointAt(d)
                         .add(rightward.clone().multiplyScalar(-virtualMassDriverScrew.sidewaysOffset))
                         .add(upward.clone().multiplyScalar(virtualMassDriverScrew.upwardsOffset))
-                    this.orientation = virtualMassDriverScrew.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
+                    this.orientation = refFrame.curve.getQuaternionAt(d, modelForward, modelUpward)
                     this.versionNumber = virtualMassDriverScrew.versionNumber
                 }
 
@@ -137,7 +136,7 @@ export class virtualMassDriverScrew {
                         virtualMassDriverScrew.launcherMassDriverForwardAcceleration,
                         modelRadialSegments)
                     om.children[1].geometry = om.children[0].geometry
-                    const select = (((this.index % 256) <= 16) && (this.index<256*256)) ? 1 : 0
+                    const select = (((this.index % 1024) <= 32) && (this.index<256*128)) ? 1 : 0
                     om.children[0].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
                     om.children[1].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
                     om.userData = this.index

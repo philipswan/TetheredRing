@@ -155,8 +155,7 @@ export class launchSledModel {
           myScene.add(tempModel)
           unallocatedModelsList.push(tempModel)
       }
-  }
-
+    }
 
   }
   
@@ -171,12 +170,11 @@ export class virtualLaunchSled {
         this.model = null
     }
   
-    static update(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, scene, clock) {
+    static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
       virtualLaunchSled.clock = clock
       virtualLaunchSled.updatePeriod = .5  // seconds
   
       virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
-      virtualLaunchSled.massDriverSuperCurve = massDriverSuperCurve
       virtualLaunchSled.launcherMassDriverLength = launcherMassDriverLength
       virtualLaunchSled.launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
@@ -211,19 +209,24 @@ export class virtualLaunchSled {
       if (virtualLaunchSled.isVisible) {
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchSled.slowDownPassageOfTime, refFrame.timeSinceStart)
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
+        const res = refFrame.curve.findRelevantCurve(deltaT)
+        const relevantCurve = res.relevantCurve
+        const distanceToSledAft = relevantCurve.tTod(deltaT - res.relevantCurveStartTime)
+        const d = distanceToSledAft / res.relevantCurveLength
+
+        const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+        const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+
+        const pointOnRelevantCurve = relevantCurve.getPointAt(d)
+        const forward = relevantCurve.getTangentAt(d)
+        const upward = relevantCurve.getNormalAt(d)
+        const rightward = relevantCurve.getBinormalAt(d)
+        const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
+
         const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
         const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
         const initialDistance = virtualLaunchSled.initialDistance
-        const distanceToSledAft = virtualLaunchSled.massDriverSuperCurve.tTod(deltaT, initialVelocity, acceleration)
         const bodyLength = virtualLaunchSled.launchSledBodyLength
-        const d = distanceToSledAft / virtualLaunchSled.launcherMassDriverLength
-        const pointOnMassDriverCurve = virtualLaunchSled.massDriverSuperCurve.getPointAt(d)
-        const forward = virtualLaunchSled.massDriverSuperCurve.getTangentAt(d)
-        const upward = virtualLaunchSled.massDriverSuperCurve.getNormalAt(d)
-        const rightward = virtualLaunchSled.massDriverSuperCurve.getBinormalAt(d)
-        const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-        const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-        const orientation = virtualLaunchSled.massDriverSuperCurve.getQuaternionAt(modelForward, modelUpward, d)
   
         // Next we need to position the launch sled's legs so that they interface with the screws
         // First, working from the back of the launch sled towards the front, we need to virtually recreate the back face of the screw thread, but only the 
@@ -320,7 +323,7 @@ export class virtualLaunchSled {
             const xOffset = rOffset * -Math.sin(thetaOffset)
             const zOffset = rOffset * Math.cos(thetaOffset)
             const yOffset = offset.y - padYActuation
-            child.position.copy(pointOnMassDriverCurve)
+            child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset - xOffset)) // ToDo: This should be a parameter
               .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
               .add(forward.clone().multiplyScalar(yOffset))
@@ -344,7 +347,7 @@ export class virtualLaunchSled {
             const xOffset = rOffset * -Math.sin(thetaOffset)
             const zOffset = rOffset * Math.cos(thetaOffset)
             const yOffset = offset.y - padYActuation
-            child.position.copy(pointOnMassDriverCurve)
+            child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset + xOffset)) // ToDo: This should be a parameter
               .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
               .add(forward.clone().multiplyScalar(yOffset))
@@ -353,7 +356,7 @@ export class virtualLaunchSled {
             child.rotateY(thetaOffset)
           }
           else if (child.name=='launchSled_body') {
-            child.position.copy(pointOnMassDriverCurve)
+            child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
               .add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))
               .add(forward.clone().multiplyScalar(virtualLaunchSled.forwardsOffset))
