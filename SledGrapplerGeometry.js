@@ -24,6 +24,7 @@ class SledGrapplerPlacementInfo {
 		bodyLength = 1,
         numGrapplers = 10,
 		magnetThickness = 0.05,
+		betweenGrapplerFactor = 0.1,
 		shaftToGrapplerPad = 0.01, // m
         additionalRotation  = 0) {
 
@@ -39,6 +40,7 @@ class SledGrapplerPlacementInfo {
 		this.bodyLength = bodyLength
         this.numGrapplers = numGrapplers
 		this.magnetThickness = magnetThickness
+		this.betweenGrapplerFactor = betweenGrapplerFactor
 		this.shaftToGrapplerPad = shaftToGrapplerPad
 		this.additionalRotation = additionalRotation
 
@@ -47,12 +49,13 @@ class SledGrapplerPlacementInfo {
 		this.offset = null // Later will be new Vector3()
 		this.orientation = null // Later will be new Quaternion()
 		this.switchoverSignal = null // Later will be an number from 0 to 1
+		this.screwPitch = null // Later will be a number from 0 to 1
 
 	}
 
 	generatePlacementInfo(grapplerDistance) {
 		const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
-		const betweenGrapplerSpacing = grapplerSpacing * 0.1
+		const betweenGrapplerSpacing = grapplerSpacing * this.betweenGrapplerFactor
 		const cA = 0.5 * this.acceleration
 		const cB = this.initialVelocity
 		const cBSqrd = this.initialVelocity**2
@@ -81,6 +84,7 @@ class SledGrapplerPlacementInfo {
 
 			const f = 16 * Math.abs(outerThreadPitch)
 			this.switchoverSignal = Math.max(Math.abs(((rotationsWithTwistFrac * this.threadStarts) % 1) - 0.5) * 2 * f - (f-1), 0)
+			this.threadPitch = (innerThreadPitch + outerThreadPitch) / 2
 
 			const shaftRadiusPlus = this.shaftRadius + this.shaftToGrapplerPad
 			const r = (shaftRadiusPlus + this.threadRadius) / 2
@@ -95,6 +99,7 @@ class SledGrapplerPlacementInfo {
 		}
 		else {
 			this.switchoverSignal = 0
+			this.threadPitch = 0
 			this.offset = new Vector3(0, 0, 0)
 		}
 	}
@@ -115,6 +120,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 		bodyLength = 1,
         numGrapplers = 10,
 		magnetThickness = 0.05, // m
+		betweenGrapplerFactor = 0.1,
 		shaftToGrapplerPad = 0.01, // m
         additionalRotation  = 0,
 		grapplerDistance = 0,
@@ -137,6 +143,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 			bodyLength: bodyLength,
             numGrapplers: numGrapplers,
 			magnetThickness: magnetThickness,
+			betweenGrapplerFactor: betweenGrapplerFactor,
 			shaftToGrapplerPad: shaftToGrapplerPad,
 			additionalRotation : additionalRotation,
 			grapplerDistance : grapplerDistance
@@ -182,14 +189,14 @@ class SledGrapplerGeometry extends BufferGeometry {
 		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) )
 		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) )
 		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) )
-		this.userData = {offset: new Vector3(), switchoverSignal: 0}
+		this.userData = {offset: new Vector3(), switchoverSignal: 0, threadPitch: 0}
 
 		// functions
 
 		function generateBufferData() {
 
             const grapplerSpacing = 1.0 / numGrapplers * bodyLength
-			const betweenGrapplerSpacing = grapplerSpacing * 0.1
+			const betweenGrapplerSpacing = grapplerSpacing * betweenGrapplerFactor
             const cA = 0.5 * acceleration
             const cB = initialVelocity
             const cBSqrd = initialVelocity**2
@@ -198,7 +205,6 @@ class SledGrapplerGeometry extends BufferGeometry {
             const rateOfChangeInRotationalDistance2 = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
 			const gList = []
 			const nearestThread = []
-			const threadSwitchoverSignal = []
 			const rotations = []
 			const rotationsFrac = []
 			const innerThreadPitch = []

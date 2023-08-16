@@ -141,7 +141,7 @@ export class launcher {
       const rf3 = new referenceFrame(this.polyCurveForrf3, numWedges, this.cameraRange * 10, 0, 0, 0, 'launchVehicleRefFrame')
 
       rf3.addVirtualObject('virtualLaunchVehicles')
-      rf0.addVirtualObject('virtualLaunchSleds')
+      rf1.addVirtualObject('virtualLaunchSleds')
       rf2.addVirtualObject('virtualMassDriverTubes')
       rf1.addVirtualObject('virtualMassDriverRails')
       rf0.addVirtualObject('virtualMassDriverBrackets')
@@ -328,7 +328,7 @@ export class launcher {
       const newNumVirtualLaunchSleds = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
       changeOccured = (this.numVirtualLaunchSleds != newNumVirtualLaunchSleds)
       if (changeOccured) {
-        const refFrame = this.refFrames[0]
+        const refFrame = this.refFrames[1]
         if (this.numVirtualLaunchSleds > 0) {
           // Remove old virtual launch sleds
           removeOldVirtualObjects(refFrame, 'virtualLaunchSleds', this.unallocatedLaunchSledModels)

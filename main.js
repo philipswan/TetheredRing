@@ -366,8 +366,9 @@ const guidParamWithUnits = {
   // Hack - should be 128
   launchSledNumGrapplers: {value: 128, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledGrapplerMagnetThickness: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledBetweenGrapplerFactor: {value: 0.01, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherGrapplerPadLiftAwayDistance: {value: 0.05, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherGrapplerPadLiftAwayDistance: {value: 0.15, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   // ToDo: Values for launchVehicleEmptyMass and launchVehiclePropellantMass will be calculated later from other parameters 
   launcherFlywheelRadius: {value: 0.225, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1265,7 +1266,7 @@ if (dParamWithUnits['showEarthsSurface'].value) {
 planetCoordSys.add(planetMeshes)
 
 const atmosphereMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/4, planetHeightSegments/4),
+  new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
   new THREE.ShaderMaterial({
     //vertexShader: atmosphereVertexShader,
     //fragmentShader: atmosphereFragmentShader,
@@ -2020,7 +2021,7 @@ function renderFrame() {
   
   const delta = clock.getDelta()
   timeSinceStart += delta
-  if (timeSinceStart>28) {
+  if (timeSinceStart>18) {
     guidParam['showLogo'] = false
     updateLogoSprite()
   }
@@ -2664,6 +2665,7 @@ function onKeyDown( event ) {
           // orbitControls.upDirection.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
           // orbitControls.object.position.set(1084756.9000704621, -3903240.4953234727, -4926485.709430022)
           // camera.up.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
+
           // At 100m
           orbitControls.target.set(1085408.7079911088, -3902883.3998442916, -4926548.893294112)
           orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)

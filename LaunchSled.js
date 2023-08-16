@@ -94,6 +94,7 @@ export class launchSledModel {
       const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
       const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
       const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
+      const betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
       const additionalRotation = 0
     
@@ -110,6 +111,7 @@ export class launchSledModel {
         bodyLength,
         numGrapplers,
         magnetThickness,
+        betweenGrapplerFactor,
         shaftToGrapplerPad,
         additionalRotation
       )
@@ -128,6 +130,7 @@ export class launchSledModel {
         bodyLength,
         numGrapplers,
         magnetThickness,
+        betweenGrapplerFactor,
         shaftToGrapplerPad,
         additionalRotation,
         grapplerDistance,
@@ -184,6 +187,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
       virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
       virtualLaunchSled.magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
+      virtualLaunchSled.betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
@@ -198,7 +202,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
       virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
       virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftRadius
-      virtualLaunchSled.padYActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
+      virtualLaunchSled.padLiftActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
       
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
@@ -242,6 +246,7 @@ export class virtualLaunchSled {
         const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
         const numGrapplers = virtualLaunchSled.launchSledNumGrapplers
         const magnetThickness = virtualLaunchSled.magnetThickness
+        const betweenGrapplerFactor = virtualLaunchSled.betweenGrapplerFactor
         const shaftToGrapplerPad = virtualLaunchSled.shaftToGrapplerPad
         const grapplersSidewaysOffset = screwSidewaysOffset
         const grapplerUpwardsOffset = screwUpwardsOffset
@@ -258,6 +263,7 @@ export class virtualLaunchSled {
         let grapplerGeometry = []
         let grapplerOffset = []
         let grapplerSwitchoverSignal = []
+        let grapplerThreadPitch = []
   
         const firstGrapplerDistance =   0
         const lastGrapplerDistance = bodyLength
@@ -276,6 +282,7 @@ export class virtualLaunchSled {
           bodyLength,
           numGrapplers,
           magnetThickness,
+          betweenGrapplerFactor,
           shaftToGrapplerPad,
           additionalRotation
         )
@@ -284,6 +291,7 @@ export class virtualLaunchSled {
           info.generatePlacementInfo(grapplerDistance)
           grapplerOffset[i] = info.offset
           grapplerSwitchoverSignal[i] = info.switchoverSignal
+          grapplerThreadPitch[i] = info.threadPitch
           if (updateNow) {
             grapplerGeometry[i] = new SledGrapplerGeometry(
               shaftRadius,
@@ -298,6 +306,7 @@ export class virtualLaunchSled {
               bodyLength,
               numGrapplers,
               magnetThickness,
+              betweenGrapplerFactor,
               shaftToGrapplerPad,
               additionalRotation,
               grapplerDistance,
@@ -314,15 +323,19 @@ export class virtualLaunchSled {
             }
             const offset = grapplerOffset[child.userData]
             const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+            const threadPitch = grapplerThreadPitch[child.userData]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
-            const padYActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padYActuation
+            const padLiftActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padLiftActuation
+            const grapplerScrewAngle = Math.atan(threadPitch)
+            const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
+            const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
             const rOffset = offset.x + padRActuation
             const rawTheta = offset.z
-            const thetaOffset = Math.atan2(Math.sin(rawTheta), Math.cos(rawTheta)) * padThetaFactor
+            const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
             const xOffset = rOffset * -Math.sin(thetaOffset)
             const zOffset = rOffset * Math.cos(thetaOffset)
-            const yOffset = offset.y - padYActuation
+            const yOffset = offset.y - padLiftActuationYComponent
             child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset - xOffset)) // ToDo: This should be a parameter
               .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
@@ -338,15 +351,24 @@ export class virtualLaunchSled {
             }
             const offset = grapplerOffset[child.userData]
             const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+            const threadPitch = grapplerThreadPitch[child.userData]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
-            const padYActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padYActuation
+            const padLiftActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padLiftActuation
+            const grapplerScrewAngle = Math.atan(threadPitch)
+            const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
+            const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
             const rOffset = offset.x + padRActuation
             const rawTheta = offset.z
-            const thetaOffset = Math.atan2(Math.sin(rawTheta), Math.cos(rawTheta)) * padThetaFactor
+            const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
             const xOffset = rOffset * -Math.sin(thetaOffset)
             const zOffset = rOffset * Math.cos(thetaOffset)
-            const yOffset = offset.y - padYActuation
+            const yOffset = offset.y - padLiftActuationYComponent
+            // if (child.userData==0) {
+            //   const plotTheta = Math.floor(thetaOffset/(2*Math.PI)*100)
+            //   const printValue = Math.floor(thetaOffset/(2*Math.PI)*10000)/100
+            //   console.log(' '.repeat(50+plotTheta)+'*'+'    '+printValue)
+            // }
             child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset + xOffset)) // ToDo: This should be a parameter
               .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
