@@ -322,7 +322,7 @@ export class virtualLaunchSled {
               child.geometry = grapplerGeometry[child.userData]
             }
             const offset = grapplerOffset[child.userData]
-            const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[child.userData]: 1
             const threadPitch = grapplerThreadPitch[child.userData]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
@@ -350,7 +350,7 @@ export class virtualLaunchSled {
               child.geometry = grapplerGeometry[child.userData]
             }
             const offset = grapplerOffset[child.userData]
-            const switchoverSignal = grapplerSwitchoverSignal[child.userData]
+            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[child.userData]: 1
             const threadPitch = grapplerThreadPitch[child.userData]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))

@@ -63,6 +63,13 @@ class SledGrapplerPlacementInfo {
 		const gPlus = grapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
 		const cC = this.initialDistance - (this.distanceToSledAft + gPlus)
 		const time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
+
+		// Code to calculate how rapidly the graplers are moving at the given grapplerDistance
+		const midGrapplerDistance = this.bodyLength / 2
+		const gPlus_Mid = midGrapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+		const cC_Mid = this.initialDistance - (this.distanceToSledAft + gPlus_Mid)
+		const deltaAngle = ( -Math.sqrt(cBSqrd - 4*cA*cC)  + Math.sqrt(cBSqrd - 4*cA*cC_Mid)) / (2*cA) * this.revolutionsPerSecond
+
 		const rotations = this.additionalRotation + this.revolutionsPerSecond * time
 		const rotationsTimesThreadStarts = rotations * this.threadStarts
 		const rotationsFrac = rotationsTimesThreadStarts - Math.floor(rotationsTimesThreadStarts)
@@ -83,7 +90,13 @@ class SledGrapplerPlacementInfo {
 			const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
 
 			const f = 16 * Math.abs(outerThreadPitch)
-			this.switchoverSignal = Math.max(Math.abs(((rotationsWithTwistFrac * this.threadStarts) % 1) - 0.5) * 2 * f - (f-1), 0)
+      // If the grappler's rate of motion will be slow enough, direct it to move as needed. Otherwise, park it.
+			if (Math.abs(deltaAngle) < 0.5) {
+				this.switchoverSignal = Math.max(Math.abs(((rotationsWithTwistFrac * this.threadStarts) % 1) - 0.5) * 2 * f - (f-1), 0)
+			}
+			else {
+				this.switchoverSignal = 1
+			}
 			this.threadPitch = (innerThreadPitch + outerThreadPitch) / 2
 
 			const shaftRadiusPlus = this.shaftRadius + this.shaftToGrapplerPad
