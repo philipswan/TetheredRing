@@ -944,6 +944,7 @@
 
             if (!callback) {
                 callback = function(blob) {
+                    _encoder.filename = _encoder.baseFilename + '_part_' + pad(globalPartCount);
                     download(blob, _encoder.filename + _encoder.extension, _encoder.mimeType);
                     return false;
                 }

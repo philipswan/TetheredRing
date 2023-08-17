@@ -14,51 +14,50 @@ export class launchSledModel {
     const objName = 'launchSled'
     const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
 
-    if (false) {
-      // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
-      const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
-      launchSledBodyGeometry.translate(0, bodyLength/2, 0)
-      const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
-      const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
-      launchSledBodyMesh.name = 'body'
-      const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
-      addGrapplers(launchSledMesh)
-      launchSledMesh.name = 'launchSled'
-      const scaleFactor = 1
-      decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
-    }
-    else {
-      // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
-      function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
-        // This is the additional work we want to do later, after the loader get's around to loading our model...
-        return function(object) {
-            object.scale.set(scaleFactor*0.7, scaleFactor, scaleFactor)  // A bit hacky - Alastair's sled model is too wide
-            object.name = 'body'
-            object.children[0].material.color.setHex(0x2f1f50)
-            const launchSledBodyMesh = object
-            const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
-            addGrapplers(launchSledMesh)
-            decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, 1, n, perfOptimizedThreeJS)
-            return launchSledMesh
-        }
+    // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+    const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
+    launchSledBodyGeometry.translate(0, bodyLength/2, 0)
+    const launchSledBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
+    const launchSledBodyMesh = new THREE.Mesh(launchSledBodyGeometry, launchSledBodyMaterial)
+    launchSledBodyMesh.name = 'body'
+    const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
+    addGrapplers(launchSledMesh)
+    launchSledMesh.name = 'launchSled'
+    const scaleFactor = dParamWithUnits['launchSledScaleFactor'].value
+    decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
+
+    // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
+    function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+      // This is the additional work we want to do later, after the loader get's around to loading our model...
+      return function(object) {
+          object.scale.set(scaleFactor*0.7, scaleFactor, scaleFactor)  // A bit hacky - Alastair's sled model is too wide
+          object.name = 'launchSled_bodyFromModel'
+          object.children[0].material.color.setHex(0x2f1f50)
+          myScene.traverse(child=> {
+            if (child.name=='launchSled_body') {
+              const parent = child.parent
+              parent.remove(child)
+              parent.add(object)
+            }
+          })
       }
-
-      const loader = new OBJLoader();
-
-      const scaleFactor = 0.001 // Because Alastair's launch sled model used mm instead of meters
-      const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
-      
-      loader.load('models/launchSled.obj',
-        // called when resource is loaded
-        addLaunchSleds,
-        // called when loading is in progresses
-        function ( xhr ) {
-            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
-        },
-        // called when loading has errors
-        function ( error ) {console.log( 'Error loading launch sled model')}
-      )
     }
+
+    const loader = new OBJLoader();
+
+    const modelScaleFactor = 0.001 // Because Alastair's launch sled model used mm instead of meters
+    const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchSledNumModels, perfOptimizedThreeJS)
+    
+    loader.load('models/launchSled.obj',
+      // called when resource is loaded
+      addLaunchSleds,
+      // called when loading is in progresses
+      function ( xhr ) {
+          console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
+      },
+      // called when loading has errors
+      function ( error ) {console.log( 'Error loading launch sled model')}
+    )
 
     function addGrapplers(launchSledMesh) {
       // Create the sled's grapplers
@@ -316,7 +315,7 @@ export class virtualLaunchSled {
         }
   
         om.children.forEach(child => {
-          if (child.name=='launchSled_leftGrappler') {
+          if (child.name==='launchSled_leftGrappler') {
             if (updateNow) {
               child.geometry.dispose()
               child.geometry = grapplerGeometry[child.userData]
@@ -344,7 +343,7 @@ export class virtualLaunchSled {
             child.setRotationFromQuaternion(combinedOrientation)
             child.rotateY(-thetaOffset)
           }
-          else if (child.name=='launchSled_rightGrappler') {
+          else if (child.name==='launchSled_rightGrappler') {
             if (updateNow) {
               child.geometry.dispose()
               child.geometry = grapplerGeometry[child.userData]
@@ -377,7 +376,7 @@ export class virtualLaunchSled {
             child.setRotationFromQuaternion(combinedOrientation)
             child.rotateY(thetaOffset)
           }
-          else if (child.name=='launchSled_body') {
+          else if ((child.name==='launchSled_body') || (child.name==='launchSled_bodyFromModel')) {
             child.position.copy(pointOnRelevantCurve)
               .add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
               .add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))

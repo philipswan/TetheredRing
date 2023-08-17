@@ -40,6 +40,7 @@ import * as tram from './tram.js'
 import * as Launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
+import * as CapturePresets from './CapturePresets.js'
 
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
@@ -174,12 +175,14 @@ const guidParamWithUnits = {
   defaultcapitalCostPerKgSupported: {value: 100.0, units: "USD/kg", autoMap: true, min: 1, max: 1000, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Stationary Rings
-  numMainRings: {value: 3, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering}, // ToDo - Retire this parameter
-  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numMainRings2: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
-  numMainRings2: {value: 3, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering}, // ToDo - Retire this parameter
+
+  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: adjustRingDesign, folder: folderEngineering},
   mainRingSpacing2: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
+
   mainRingUpwardOffset: {value: 0, units: "m", autoMap: true, min: -100, max: 100, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   mainRingOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -10, max: 10, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   stationaryRingTubeRadius: {value: 0.5, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -302,7 +305,7 @@ const guidParamWithUnits = {
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherEvacuatedTubeExitAltitude: {value: 15000, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverInitialVelocity: {value: 200, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitVelocity: {value: 8000, units: 'm*s-1', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -320,7 +323,8 @@ const guidParamWithUnits = {
   // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
   //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNoseConeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
@@ -331,7 +335,7 @@ const guidParamWithUnits = {
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   evacuatedTubeEntrancePositionAroundRing: {value: 0.7607, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverTubeRadius: {value: 5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeRadius: {value: 50, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverTubes: {value: 16, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -361,6 +365,7 @@ const guidParamWithUnits = {
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledUpwardsOffset: {value: 0.2, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledNumModels: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   // Hack - should be 128
@@ -395,6 +400,11 @@ const guidParamWithUnits = {
   launcherMassDriverConcreteTubeInnerRadius: {value: 1, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverConcreteTubeOuterRadius: {value: 1.125, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverConcreteTubeJacketThickness: {value: 0.002, units: 'm', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+
+  massDriverCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  vehicleInTubeCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
 
   // Engineering Parameters - Power
   powerRequirement: {value: 1000, units: "W/m", autoMap: true, min: 1, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},   // This is the power that is consumed by the rings maglev systems and all equipment supported by the ring, per meter length of the ring.
@@ -458,7 +468,7 @@ const guidParamWithUnits = {
 
   // Hack
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
-  showEarthsAtmosphere: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
+  showEarthsAtmosphere: {value: false, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
@@ -545,6 +555,9 @@ const guidParam = {}
 Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   guidParam[k] = v.value
 })
+
+const nonGUIParams = {}
+CapturePresets.applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams)
 
 // Add sliders for each entry in guidParamWithUnits to the gui...
 
@@ -985,6 +998,12 @@ orbitControls.enableDamping = true
 //orbitControls.dampingFactor *= 0.1 
 //orbitControls.enablePan = true
 
+
+orbitControls.target.copy(nonGUIParams['orbitControlsTarget'])
+orbitControls.upDirection.copy(nonGUIParams['orbitControlsUpDirection'])
+orbitControls.object.position.copy(nonGUIParams['orbitControlsObjectPosition'])
+camera.up.copy(nonGUIParams['cameraUp'])
+
 let planetWidthSegments = 768
 let planetHeightSegments = 192
 
@@ -1061,7 +1080,14 @@ if (dParamWithUnits['showEarthsSurface'].value) {
         // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
         //const farFromRing = (localPoint.y < 0.45 * radiusOfPlanet) || (localPoint.y > 0.7 * radiusOfPlanet)
         // Hack
-        const farFromRing = ((i!=3) || (j!=2)) && ((i!=1) || (j!=4)) && ((i!=18) || (j!=3)) && ((i!=18) || (j!=4)) && ((i!=23) || (j!=8)) // Just render seattle area in high-res 
+        const farFromRing = // Just render these regions area in high-res 
+          // ((i!=3) || (j!=2)) &&
+          // ((i!=1) || (j!=4)) &&
+          // ((i!=18) || (j!=3)) &&
+          // ((i!=18) || (j!=4)) &&
+          // ((i!=23) || (j!=8)) &&  // New Zealand North Island
+          // ((i!=0) || (j!=8)) &&  // Ocean east of New Zealand North Island
+          nonGUIParams['getCapturePresetRegions'](i, j)
 
         if (farFromRing) {
           textureFilename = `./textures/24x12/LR/earth_LR_${w}x${h}_${i}x${j}.jpg`
@@ -2651,6 +2677,7 @@ function onKeyDown( event ) {
 
       // Print out the current location of the camera
       console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
+      console.log('\n\nnonGUIParams[\'orbitControlsTarget\'] = new THREE.Vector3(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\nnonGUIParams[\'orbitControlsUpDirection\'] = new THREE.Vector3(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\nnonGUIParams[\'orbitControlsObjectPosition\'] = new THREE.Vector3(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\nnonGUIParams[\'cameraUp\'] = new THREE.Vector3(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
 
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
@@ -2697,11 +2724,11 @@ function onKeyDown( event ) {
         camera.near = 0.1
         break
       case 1:
-        orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
-        orbitControls.upDirection.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
-        orbitControls.object.position.set(462644.614909767, -4035553.341659306, -4920607.446758332)
-        camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
-        camera.near = 0.1
+        // Near the end of the launcher's evacuated tube
+        orbitControls.target.set(-64116.82692233341, -4116054.3628965816, -4913457.139967706)
+        orbitControls.upDirection.set(-0.01000280458757129, -0.642130285605539, -0.7665302604649942)
+        orbitControls.object.position.set(-66322.1417664079, -4117102.1433902932, -4913316.0184534425)
+        camera.up.set(-0.01000280458757129, -0.642130285605539, -0.7665302604649942)
         break
       case 2:
         // Close to Ring at 22 km altitude
@@ -2724,8 +2751,15 @@ function onKeyDown( event ) {
         orbitControls.object.position.set(485208.18016969785, -4054566.8461120585, -4916664.678552242)
         camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
         break
+      case 5:
+        orbitControls.target.set(462625.6559485008, -4035549.3714889227, -4920605.758009831)
+        orbitControls.upDirection.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)
+        orbitControls.object.position.set(462644.614909767, -4035553.341659306, -4920607.446758332)
+        camera.up.set(0.07250474189605663, -0.6324721569775834, -0.7711822307669628)        
+        camera.near = 0.1
+        break
       }
-      flyToLocation = (flyToLocation+1)%5
+      flyToLocation = (flyToLocation+1)%6
 
       orbitControlsTargetPoint.copy(orbitControls.target.clone())
       setOrbitControlsTargetUpVector()
@@ -2785,7 +2819,7 @@ function onKeyDown( event ) {
         v.value = guidParam[k]
       })
       switch(fPreset) {
-        case 0: 
+        case 0:
           // Solar panels on the ring for ring-based solar
           guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
           guidParamWithUnits['numTethers'].value = 1300
@@ -2804,8 +2838,8 @@ function onKeyDown( event ) {
           guidParamWithUnits['showGyroscopicForceArrows'].value = false
           guidParamWithUnits['showTethers'].value = true
           guidParamWithUnits['showTransitSystem'].value = true
-          guidParamWithUnits['showStationaryRing'].value = true
-          guidParamWithUnits['showMovingRing'].value = false
+          guidParamWithUnits['showStationaryRings'].value = true
+          guidParamWithUnits['showMovingRings'].value = false
           guidParamWithUnits['showTransitTube'].value = true
           guidParamWithUnits['showTransitVehicles'].value = false
           guidParamWithUnits['showRingTerminuses'].value = true
@@ -2846,8 +2880,8 @@ function onKeyDown( event ) {
           guidParamWithUnits['showGyroscopicForceArrows'].value = false
           guidParamWithUnits['showTethers'].value = false
           guidParamWithUnits['showTransitSystem'].value = false
-          guidParamWithUnits['showStationaryRing'].value = false
-          guidParamWithUnits['showMovingRing'].value = false
+          guidParamWithUnits['showStationaryRings'].value = false
+          guidParamWithUnits['showMovingRings'].value = false
           guidParamWithUnits['showTransitTube'].value = false
           guidParamWithUnits['showTransitVehicles'].value = false
           guidParamWithUnits['showRingTerminuses'].value = false
@@ -3153,6 +3187,11 @@ function recomputeNearFarClippingPlanes() {
   if (enableVR) {
     camera.near = 0.1 // 0.00001 * radiusOfPlanet
     camera.far = 100 * radiusOfPlanet
+  }
+  else {
+    camera.near = nonGUIParams['nearClip']
+    camera.far = nonGUIParams['farClip']
+    
   }
   //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)
   camera.updateProjectionMatrix()

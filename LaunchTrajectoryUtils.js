@@ -97,7 +97,7 @@ export function defineUpdateTrajectoryCurves () {
     const evacuatedTubeEntrancePositionAroundRing = dParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value
     const evacuatedTubeEntrancePositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeEntrancePositionAroundRing)
     // Adjust the altitude of the positions to place it the correct distance above the earth's surface
-    evacuatedTubeEntrancePositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherRampExitAltitude) / (crv.radiusOfPlanet + crv.currentMainRingAltitude))
+    evacuatedTubeEntrancePositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherRampExitAltitude) / (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude))
     const evacuatedTubeEntrancePosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeEntrancePositionInRingRefCoordSys.clone()))
 
     // ***************************************************************
@@ -153,7 +153,7 @@ export function defineUpdateTrajectoryCurves () {
     }
     // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
     const maxOrbitalR = tram.lerp(crv.radiusOfPlanet + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
-    const evacuatedTubeExitR = Math.min(maxOrbitalR , crv.radiusOfPlanet + crv.currentMainRingAltitude)
+    const evacuatedTubeExitR = Math.min(maxOrbitalR , crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)
     const evacuatedTubeExitRSquared = evacuatedTubeExitR ** 2
 
     for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
@@ -211,13 +211,13 @@ export function defineUpdateTrajectoryCurves () {
     // so that the lightweight evacuated tube that the launched vehicles will inititially coast through can be suspended from the ring.
 
     // Convert the angle relative to the center of the Earth to an angle relative to the center of the ring 
-    const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (crv.radiusOfPlanet + crv.currentMainRingAltitude)
+    const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)
     const evacuatedTubeRingAngle = Math.asin(straightLineHalfDistance / crv.mainRingRadius) * 2
 
     const evacuatedTubeExitPositionAroundRing = (1 + evacuatedTubeEntrancePositionAroundRing - evacuatedTubeRingAngle / (2*Math.PI)) % 1
     const evacuatedTubeExitPositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeExitPositionAroundRing)
     // Adjust the altitude of the positions to place it the correct distance above the earth's surface
-    evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (crv.radiusOfPlanet + crv.currentMainRingAltitude))
+    evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude))
     // Convert thes positions into the planet's coordinate system 
     const evacuatedTubeExitPosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeExitPositionInRingRefCoordSys.clone()))
 
@@ -334,6 +334,7 @@ export function defineUpdateTrajectoryCurves () {
     const totalMassVerusTimeData = []
 
     const t1 = this.timeWithinMassDriver
+    console.log("timeWithinMassDriver", this.timeWithinMassDriver)
     const t2 = t1 + this.curveUpTime
     const t3 = t2 + this.timeWithinEvacuatedTube
     const t4 = t3 + dParamWithUnits['launcherCoastTime'].value

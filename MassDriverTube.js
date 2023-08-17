@@ -44,6 +44,7 @@ export class massDriverTubeModel {
     }
     const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
     const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
+    // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
     const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.25})
     const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
 
