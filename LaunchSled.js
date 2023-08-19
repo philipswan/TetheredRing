@@ -11,6 +11,7 @@ export class launchSledModel {
     const radialSegments = 32
     const bodyLength = dParamWithUnits['launchSledBodyLength'].value
     const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
+    const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
     const objName = 'launchSled'
     const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
 
@@ -27,33 +28,34 @@ export class launchSledModel {
     decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
 
     // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
-    function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+    function prepareACallbackFunctionForFBXLoader (myScene, scaleFactor) {
       // This is the additional work we want to do later, after the loader get's around to loading our model...
       return function(object) {
-          object.scale.set(scaleFactor*0.7, scaleFactor, scaleFactor)  // A bit hacky - Alastair's sled model is too wide
-          object.name = 'launchSled_bodyFromModel'
-          object.children[0].material.color.setHex(0x2f1f50)
-          myScene.traverse(child=> {
-            if (child.name=='launchSled_body') {
-              const parent = child.parent
-              parent.remove(child)
-              parent.add(object)
-            }
-          })
+        object.children[0].scale.set(scaleFactor*0.6, scaleFactor, scaleFactor*2)  // A bit hacky - Alastair's sled model is too wide
+        object.children[0].position.set(0, 0, 1.4)
+        object.name = 'launchSled_bodyFromModel'
+        object.children[0].material.color.setHex(0x2f1f50)
+        myScene.traverse(child=> {
+          if (child.name=='launchSled_body') {
+            const parent = child.parent
+            parent.remove(child)
+            parent.add(object)
+          }
+        })
       }
     }
 
     const loader = new OBJLoader();
 
     const modelScaleFactor = 0.001 // Because Alastair's launch sled model used mm instead of meters
-    const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchSledNumModels, perfOptimizedThreeJS)
+    const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, modelScaleFactor)
     
     loader.load('models/launchSled.obj',
       // called when resource is loaded
       addLaunchSleds,
       // called when loading is in progresses
       function ( xhr ) {
-          console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
+        console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' )
       },
       // called when loading has errors
       function ( error ) {console.log( 'Error loading launch sled model')}
@@ -67,14 +69,41 @@ export class launchSledModel {
       const grapplerSpacing = 1.0 / numGrapplers * bodyLength
       
       for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-        const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
-        launchSledGrapplerMesh.name = 'leftGrappler'
-        launchSledGrapplerMesh.userData = i
-        launchSledMesh.add(launchSledGrapplerMesh.clone())
-        launchSledGrapplerMesh.name = 'rightGrappler'
-        launchSledGrapplerMesh.userData = i
-        launchSledGrapplerMesh.scale.set(-1, 1, 1)
-        launchSledMesh.add(launchSledGrapplerMesh.clone())
+        const grapplerGroup = new THREE.Group()
+        grapplerGroup.name = 'grappler'
+        grapplerGroup.userData = i  // Save the index of the grappler here
+        launchSledMesh.add(grapplerGroup)
+        for (let leftRight = -1; leftRight<=1; leftRight+=2) {
+          const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
+          launchSledGrapplerMesh.name = 'grappler'
+          launchSledGrapplerMesh.userData = leftRight
+          launchSledGrapplerMesh.scale.set(leftRight, 1, 1)
+          grapplerGroup.add(launchSledGrapplerMesh.clone())
+        }
+        const launchSledPivotGeometry = new THREE.SphereGeometry(shaftToGrapplerPad/2, 16, 8)
+        const launchSledPivotMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+        const launchSledPivot = new THREE.Mesh(launchSledPivotGeometry, launchSledPivotMaterial)
+        // Hack - need to calculate the length properly...
+        const strutLength = 1.5
+        const launchSledStrutGeometry = new THREE.CylinderGeometry(shaftToGrapplerPad/4, shaftToGrapplerPad/4, strutLength, 16, 1)
+        launchSledStrutGeometry.translate(0, strutLength/2, 0)
+        const launchSledStrutMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+        const launchSledStrut = new THREE.Mesh(launchSledStrutGeometry, launchSledStrutMaterial)
+        const leftRightList = ['left', 'right']
+        const innerOuterList = ['Inner', 'Middle', 'Outer']
+        const anchorPointList = ['front', 'back']
+        leftRightList.forEach(leftRight => {
+          innerOuterList.forEach(innerOuter => {
+            const tempPivot = launchSledPivot.clone()
+            tempPivot.name = 'pivot'
+            tempPivot.userData = {leftRightSign: (leftRight==='left') ? -1 : 1, innerMiddleOuterSign: (innerOuter==='Inner') ? -1 : (innerOuter==='Middle') ? 0 : 1}  
+            grapplerGroup.add(tempPivot)
+            const tempStrut = launchSledStrut.clone()
+            tempStrut.name = 'strut'
+            tempStrut.userData = {leftRightSign: (leftRight==='left') ? -1 : 1, innerMiddleOuterSign: (innerOuter==='Inner') ? -1 : (innerOuter==='Middle') ? 0 : 1}
+            grapplerGroup.add(tempStrut)
+          })
+        })
       }
     }
 
@@ -96,6 +125,7 @@ export class launchSledModel {
       const betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
       const additionalRotation = 0
+      const grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
     
       const info = new SledGrapplerPlacementInfo(
         shaftRadius,
@@ -112,9 +142,11 @@ export class launchSledModel {
         magnetThickness,
         betweenGrapplerFactor,
         shaftToGrapplerPad,
-        additionalRotation
+        additionalRotation,
+        grapplerMaxRangeOfMotion,
+        virtualLaunchSled.minMaxArray
       )
-      info.generatePlacementInfo(grapplerDistance)
+      info.generatePlacementInfo(grapplerDistance, 1)
     
       const sledGrapplerGeometry = new SledGrapplerGeometry(
         shaftRadius,
@@ -191,7 +223,8 @@ export class virtualLaunchSled {
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
       virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
-  
+      virtualLaunchSled.grapplerFactor = dParamWithUnits['grapplerFactor'].value
+
       // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
       virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
       virtualLaunchSled.launcherMassDriverScrewShaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
@@ -202,6 +235,9 @@ export class virtualLaunchSled {
       virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
       virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftRadius
       virtualLaunchSled.padLiftActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
+      virtualLaunchSled.launchSledWidth = dParamWithUnits['launchSledWidth'].value
+      virtualLaunchSled.grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
+      virtualLaunchSled.minMaxArray = [0, 0]
       
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
@@ -230,6 +266,7 @@ export class virtualLaunchSled {
         const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
         const initialDistance = virtualLaunchSled.initialDistance
         const bodyLength = virtualLaunchSled.launchSledBodyLength
+        const launchSledWidthDiv2 = virtualLaunchSled.launchSledWidth / 2
   
         // Next we need to position the launch sled's legs so that they interface with the screws
         // First, working from the back of the launch sled towards the front, we need to virtually recreate the back face of the screw thread, but only the 
@@ -240,17 +277,19 @@ export class virtualLaunchSled {
         const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
         const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
         const shaftRadius = virtualLaunchSled.launcherMassDriverScrewShaftRadius
-        const upwardsOffset = virtualLaunchSled.upwardsOffset
+        const upwardsOffsetToAnchors = virtualLaunchSled.upwardsOffset - 1.45
+        const anchorUpwardsSeparation = 0.1 //virtualLaunchSled.anchorUpwardsSeparation
         const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
         const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
         const numGrapplers = virtualLaunchSled.launchSledNumGrapplers
         const magnetThickness = virtualLaunchSled.magnetThickness
         const betweenGrapplerFactor = virtualLaunchSled.betweenGrapplerFactor
         const shaftToGrapplerPad = virtualLaunchSled.shaftToGrapplerPad
+        const grapplerMaxRangeOfMotion = virtualLaunchSled.grapplerMaxRangeOfMotion
         const grapplersSidewaysOffset = screwSidewaysOffset
         const grapplerUpwardsOffset = screwUpwardsOffset
-        const grapplerRadius = (shaftRadius + threadRadius)/2
-  
+        const padCenterToPivotPoint = (threadRadius - (shaftRadius + shaftToGrapplerPad))/2 + shaftToGrapplerPad / 2
+
         // Create a new screw geometry to represent the adaptive nut
         const additionalRotation = (deltaT * screwRevolutionsPerSecond) % 1
         const timeNow = virtualLaunchSled.clock.getElapsedTime()
@@ -261,6 +300,7 @@ export class virtualLaunchSled {
   
         let grapplerGeometry = []
         let grapplerOffset = []
+        let grapplerPivotPoints = []
         let grapplerSwitchoverSignal = []
         let grapplerThreadPitch = []
   
@@ -283,12 +323,15 @@ export class virtualLaunchSled {
           magnetThickness,
           betweenGrapplerFactor,
           shaftToGrapplerPad,
-          additionalRotation
+          additionalRotation,
+          grapplerMaxRangeOfMotion,
+          virtualLaunchSled.minMaxArray
         )
   
         for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-          info.generatePlacementInfo(grapplerDistance)
+          info.generatePlacementInfo(grapplerDistance, virtualLaunchSled.grapplerFactor)
           grapplerOffset[i] = info.offset
+          grapplerPivotPoints[i] = info.pivotPoints
           grapplerSwitchoverSignal[i] = info.switchoverSignal
           grapplerThreadPitch[i] = info.threadPitch
           if (updateNow) {
@@ -315,14 +358,11 @@ export class virtualLaunchSled {
         }
   
         om.children.forEach(child => {
-          if (child.name==='launchSled_leftGrappler') {
-            if (updateNow) {
-              child.geometry.dispose()
-              child.geometry = grapplerGeometry[child.userData]
-            }
-            const offset = grapplerOffset[child.userData]
-            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[child.userData]: 1
-            const threadPitch = grapplerThreadPitch[child.userData]
+          if (child.name==='launchSled_grappler') {
+            const grapplerIndex = child.userData
+            const offset = grapplerOffset[grapplerIndex]
+            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[grapplerIndex]: 1
+            const threadPitch = grapplerThreadPitch[grapplerIndex]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
             const padLiftActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padLiftActuation
@@ -330,51 +370,77 @@ export class virtualLaunchSled {
             const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
             const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
             const rOffset = offset.x + padRActuation
+
             const rawTheta = offset.z
             const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
-            const xOffset = rOffset * -Math.sin(thetaOffset)
-            const zOffset = rOffset * Math.cos(thetaOffset)
-            const yOffset = offset.y - padLiftActuationYComponent
-            child.position.copy(pointOnRelevantCurve)
-              .add(rightward.clone().multiplyScalar(grapplersSidewaysOffset - xOffset)) // ToDo: This should be a parameter
-              .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
-              .add(forward.clone().multiplyScalar(yOffset))
-            const combinedOrientation = orientation.clone() //.multiply(child.geometry.userData.orientation)
-            child.setRotationFromQuaternion(combinedOrientation)
-            child.rotateY(-thetaOffset)
-          }
-          else if (child.name==='launchSled_rightGrappler') {
-            if (updateNow) {
-              child.geometry.dispose()
-              child.geometry = grapplerGeometry[child.userData]
-            }
-            const offset = grapplerOffset[child.userData]
-            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[child.userData]: 1
-            const threadPitch = grapplerThreadPitch[child.userData]
-            const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
-            const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
-            const padLiftActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padLiftActuation
-            const grapplerScrewAngle = Math.atan(threadPitch)
-            const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
-            const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
-            const rOffset = offset.x + padRActuation
-            const rawTheta = offset.z
-            const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
-            const xOffset = rOffset * -Math.sin(thetaOffset)
-            const zOffset = rOffset * Math.cos(thetaOffset)
-            const yOffset = offset.y - padLiftActuationYComponent
-            // if (child.userData==0) {
-            //   const plotTheta = Math.floor(thetaOffset/(2*Math.PI)*100)
-            //   const printValue = Math.floor(thetaOffset/(2*Math.PI)*10000)/100
-            //   console.log(' '.repeat(50+plotTheta)+'*'+'    '+printValue)
-            // }
-            child.position.copy(pointOnRelevantCurve)
-              .add(rightward.clone().multiplyScalar(-grapplersSidewaysOffset + xOffset)) // ToDo: This should be a parameter
-              .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
-              .add(forward.clone().multiplyScalar(yOffset))
-            const combinedOrientation = orientation.clone() //.multiply(child.geometry.userData.orientation)
-            child.setRotationFromQuaternion(combinedOrientation)
-            child.rotateY(thetaOffset)
+            const sinThetaOffset = Math.sin(thetaOffset)
+            const cosThetaOffset = Math.cos(thetaOffset)
+
+            // Precalculated values for all pivot points...
+            const rOffsetPlus = rOffset + padCenterToPivotPoint*1.75
+            const pivotPointThetaComponent = 0.8 * magnetThickness * Math.sin(grapplerScrewAngle)
+            const pivotPointYComponent = 0.8 * magnetThickness * Math.cos(grapplerScrewAngle)
+            const thetaOffsetPlus = thetaOffset + pivotPointThetaComponent
+            const sinThetaOffsetPlus = Math.sin(thetaOffsetPlus)
+            const cosThetaOffsetPlus = Math.cos(thetaOffsetPlus)
+
+            child.children.forEach(grapplerComponent => {
+              if (grapplerComponent.name==='launchSled_grappler') {
+                const leftRightSign = grapplerComponent.userData
+                if (updateNow) {
+                  grapplerComponent.geometry.dispose()
+                  grapplerComponent.geometry = grapplerGeometry[grapplerIndex]
+                }
+                const xOffset = rOffset * -sinThetaOffset
+                const zOffset = rOffset * cosThetaOffset
+                const yOffset = offset.y - padLiftActuationYComponent
+                grapplerComponent.position.copy(pointOnRelevantCurve)
+                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
+                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(forward.clone().multiplyScalar(yOffset))
+                grapplerComponent.setRotationFromQuaternion(orientation)
+                grapplerComponent.rotateY(-leftRightSign*thetaOffset)
+              }
+              else if (grapplerComponent.name==='launchSled_pivot') {
+                // Update the positions of the ends of the struts that are attached to the grapplers
+                const leftRightSign = grapplerComponent.userData.leftRightSign
+                const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*padCenterToPivotPoint*.75
+                const xOffset = rOffsetPlusMinus * -sinThetaOffsetPlus
+                const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
+                const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
+
+                grapplerComponent.position.copy(pointOnRelevantCurve)
+                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
+                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(forward.clone().multiplyScalar(yOffset))
+              }
+              else if (grapplerComponent.name==='launchSled_strut') {
+                // Update the positions of the ends of the struts that are attached to the grapplers
+                const leftRightSign = grapplerComponent.userData.leftRightSign
+                const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*padCenterToPivotPoint*.75
+                const xOffset = rOffsetPlusMinus * -sinThetaOffsetPlus
+                const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
+                const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
+
+                grapplerComponent.position.copy(pointOnRelevantCurve)
+                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
+                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(forward.clone().multiplyScalar(yOffset))
+
+                const forwardAnchorOffset = (innerMiddleOuterSign==0) ? grapplerSpacing/2 : 0
+                const anchorPoint = pointOnRelevantCurve.clone()
+                  .add(rightward.clone().multiplyScalar(leftRightSign*launchSledWidthDiv2))
+                  .add(upward.clone().multiplyScalar(upwardsOffsetToAnchors + innerMiddleOuterSign*anchorUpwardsSeparation))
+                  .add(forward.clone().multiplyScalar(offset.y + forwardAnchorOffset))
+                // Create a unit vector towards the anchorPoint
+                const q1 = new THREE.Quaternion
+                const tangent = anchorPoint.clone().sub(grapplerComponent.position).normalize()
+                q1.setFromUnitVectors(grapplerComponent.up, tangent)
+                grapplerComponent.setRotationFromQuaternion(q1)
+              }
+            })
           }
           else if ((child.name==='launchSled_body') || (child.name==='launchSled_bodyFromModel')) {
             child.position.copy(pointOnRelevantCurve)
