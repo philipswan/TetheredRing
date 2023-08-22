@@ -689,7 +689,7 @@ export function defineUpdateTrajectoryCurves () {
 
     if (genLauncherKMLFile) {
       // Start a polyline...
-      kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+      kmlFile = kmlutils.kmlMainRingPlacemarkHeader
 
       // launchTrajectoryCurveControlPoints.forEach(point => {
       //   const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
@@ -752,7 +752,7 @@ export function defineUpdateTrajectoryCurves () {
         // End the polyline
         kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
       }
-
+      this.kmlFile = kmlFile;
     }
   }
 }

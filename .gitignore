@@ -6,3 +6,5 @@ dist
 dist-ssr
 *.local
 *.swp
+.vscode/settings.json
+tethered_ring.kml
