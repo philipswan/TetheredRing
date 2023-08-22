@@ -12,46 +12,46 @@ import * as Curves from 'three/src/extras/curves/Curves.js';
 
 class SledGrapplerPlacementInfo {
 	constructor(
-		shaftRadius = 1,
-		threadRadius = 2,
-		threadThickness = .2,
-		threadStarts = 2,
-		revolutionsPerSecond = 1,
-		acceleration = 0,
-		initialVelocity = 1,
-		initialDistance = 0,
-		distanceToSledAft = 0,
-		bodyLength = 1,
+    shaftRadius = 1,
+    threadRadius = 2,
+    threadThickness = .2,
+    threadStarts = 2,
+    revolutionsPerSecond = 1,
+    acceleration = 0,
+    initialVelocity = 1,
+    initialDistance = 0,
+    distanceToSledAft = 0,
+    bodyLength = 1,
     numGrapplers = 10,
-		magnetThickness = 0.05,
-		betweenGrapplerFactor = 0.1,
-		shaftToGrapplerPad = 0.01, // m
+    magnetThickness = 0.05,
+    betweenGrapplerFactor = 0.1,
+    shaftToGrapplerPad = 0.01, // m
     additionalRotation = 0,
     grapplerMaxRangeOfMotion = 0.5, // Full range of motion is (+/-) 0.5
     minMaxArray = [0, 0]) {
 
-		this.shaftRadius = shaftRadius
-		this.threadRadius = threadRadius
-		this.threadThickness = threadThickness
-		this.threadStarts = threadStarts
-		this.revolutionsPerSecond = revolutionsPerSecond
-		this.acceleration = acceleration
-		this.initialVelocity = initialVelocity
-		this.initialDistance = initialDistance
-		this.distanceToSledAft = distanceToSledAft
-		this.bodyLength = bodyLength
-        this.numGrapplers = numGrapplers
-		this.magnetThickness = magnetThickness
-		this.betweenGrapplerFactor = betweenGrapplerFactor
-		this.shaftToGrapplerPad = shaftToGrapplerPad
-		this.additionalRotation = additionalRotation
+    this.shaftRadius = shaftRadius
+    this.threadRadius = threadRadius
+    this.threadThickness = threadThickness
+    this.threadStarts = threadStarts
+    this.revolutionsPerSecond = revolutionsPerSecond
+    this.acceleration = acceleration
+    this.initialVelocity = initialVelocity
+    this.initialDistance = initialDistance
+    this.distanceToSledAft = distanceToSledAft
+    this.bodyLength = bodyLength
+    this.numGrapplers = numGrapplers
+    this.magnetThickness = magnetThickness
+    this.betweenGrapplerFactor = betweenGrapplerFactor
+    this.shaftToGrapplerPad = shaftToGrapplerPad
+    this.additionalRotation = additionalRotation
 
-		this.numGrapplerSegments = 4 // Must be an even number
-		this.midRib = this.numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
-		this.offset = null // Later will be new Vector3()
-		this.orientation = null // Later will be new Quaternion()
-		this.switchoverSignal = null // Later will be an number from 0 to 1
-		this.screwPitch = null // Later will be a number from 0 to 1
+    this.numGrapplerSegments = 4 // Must be an even number
+    this.midRib = this.numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
+    this.offset = null // Later will be new Vector3()
+    this.orientation = null // Later will be new Quaternion()
+    this.switchoverSignal = null // Later will be an number from 0 to 1
+    this.screwPitch = null // Later will be a number from 0 to 1
     this.grapplerMaxRangeOfMotion = grapplerMaxRangeOfMotion
     this.minMaxArray = minMaxArray
 
@@ -165,12 +165,12 @@ class SledGrapplerGeometry extends BufferGeometry {
 		initialVelocity = 1,
 		initialDistance = 0,
 		distanceToSledAft = 0,
-		bodyLength = 1,
-        numGrapplers = 10,
+    bodyLength = 1,
+    numGrapplers = 10,
 		magnetThickness = 0.05, // m
 		betweenGrapplerFactor = 0.1,
 		shaftToGrapplerPad = 0.01, // m
-        additionalRotation  = 0,
+    additionalRotation  = 0,
 		grapplerDistance = 0,
 		offset = new Vector3(0, 0, 0)) {
 
@@ -189,7 +189,7 @@ class SledGrapplerGeometry extends BufferGeometry {
 			initialDistance: initialDistance,
 			distanceToSledAft: distanceToSledAft,  // This the distance from the start of the mass driver to the start of this segment of the screw.
 			bodyLength: bodyLength,
-            numGrapplers: numGrapplers,
+      numGrapplers: numGrapplers,
 			magnetThickness: magnetThickness,
 			betweenGrapplerFactor: betweenGrapplerFactor,
 			shaftToGrapplerPad: shaftToGrapplerPad,

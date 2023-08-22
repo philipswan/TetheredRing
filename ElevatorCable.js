@@ -71,7 +71,17 @@ export class virtualElevatorCable {
             om.geometry.computeBoundingSphere()
             // om.geometry.frustumCulled = false
 
-            const opacity = virtualElevatorCable.elevatorCableOpacity * Math.min(1, 10000 / wedgeToCameraDistance)
+            // Hack
+            let opacity
+            if (Math.abs(this.p - 0.3477777777777778) < 0.0001) {
+              //console.log(wedgeToCameraDistance)
+              opacity = 1
+            }
+            else {
+              opacity = virtualElevatorCable.elevatorCableOpacity * Math.min(1, 20000 / wedgeToCameraDistance)
+            }
+
+            opacity = virtualElevatorCable.elevatorCableOpacity
             om.material.setValues({color: 0x4897f8, transparent: true, opacity: opacity})
             om.visible = virtualElevatorCable.isVisible && (opacity > 0.01)
             om.updateMatrix()
@@ -79,5 +89,15 @@ export class virtualElevatorCable {
             if (this.perfOptimizedThreeJS) om.freeze()
         }
     }
+
+    getFuturePosition(refFrame, timeDeltaInSeconds) {
+
+      // timeDeltaInSeconds is not supported yet...
+      const modelsTrackPosition = (this.p + refFrame.p) % 1
+      const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
+      return pointOnRingCurve
+
+    }
+
 }
   

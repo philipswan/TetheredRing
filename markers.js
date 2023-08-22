@@ -122,6 +122,14 @@ export class gyroscopicForceArrowsObject {
   }
 
   update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
+
+    this.gyroscopicForceArrowMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      this.planetCoordSys.remove(mesh)
+    })
+    this.gyroscopicForceArrowMeshes.splice(0, this.gyroscopicForceArrowMeshes.length)
+
     if (dParamWithUnits['showGyroscopicForceArrows'].value) {
       const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
       const lengthOfSiderealDay = 86160 // s

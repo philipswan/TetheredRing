@@ -26,6 +26,10 @@ export function sign(num) {
   }
 }
 
+export function posFrac(num) {
+  return num - Math.floor(num)
+}
+
 // Returns a "delta r" in the ring-centered cylindrical coordinate space relative to the middlemost main ring  
 export function offset_r(outwardOffset, upwardOffset, currentEquivalentLatitude) {
   return outwardOffset * Math.sin(currentEquivalentLatitude) + upwardOffset * Math.cos(currentEquivalentLatitude)
@@ -175,7 +179,7 @@ export class elevatorCarVariables {
   }
   update() {
     // Not verified yet!!!
-    this.waitTime = 20 // seconds - a bit short for people to disembark/embark but will suffice for now
+    this.waitTime = 40 // seconds - a bit short for people to disembark/embark but will suffice for now
     this.energyRequirementPerKg = (this.gravitationalConstant * 1 * this.massOfPlanet) * (1/this.radiusOfPlanet - 1/(this.radiusOfPlanet+this.crv.currentMainRingAltitude))
     this.batterySpecificEnergy = 265 // Wh/kg
     this.driveSystemEfficiency = 0.8
@@ -263,6 +267,12 @@ class accellerationProfile {
     [d, v, a] = this.getDVAAtTime(t)
     return d
   }
+
+  getSpeedAtTime(t) {
+    let d, v, a
+    [d, v, a] = this.getDVAAtTime(t)
+    return v
+  }
 }
 
 export class elevatorPositionCalculator {
@@ -291,11 +301,11 @@ export class vehicleReferenceFrameTrackPositionCalculator {
   constructor(dParamWithUnits, mainRingCurve, crv) {
     this.accProfile = new accellerationProfile()
     const accellerationTime = dParamWithUnits['transitVehicleCruisingSpeed'].value / dParamWithUnits['transitVehicleMaxAcceleration'].value
-    this.accProfile.addElement("V", dParamWithUnits['transitVehicleCruisingSpeed'].value, dParamWithUnits['transitVehicleMergeTime'].value)
-    this.accProfile.addElement("A", -dParamWithUnits['transitVehicleMaxAcceleration'].value, accellerationTime)
     this.accProfile.addElement("V", 0, dParamWithUnits['transitVehicleStopDuration'].value)
     this.accProfile.addElement("A", dParamWithUnits['transitVehicleMaxAcceleration'].value, accellerationTime)
     this.accProfile.addElement("V", dParamWithUnits['transitVehicleCruisingSpeed'].value, dParamWithUnits['transitVehicleMergeTime'].value)
+    this.accProfile.addElement("V", dParamWithUnits['transitVehicleCruisingSpeed'].value, dParamWithUnits['transitVehicleMergeTime'].value)
+    this.accProfile.addElement("A", -dParamWithUnits['transitVehicleMaxAcceleration'].value, accellerationTime)
     this.cycleTime = this.accProfile.getTotalTime()
     this.cycleDistance = this.accProfile.getDistanceTraveledAtTime(this.cycleTime)
 
@@ -327,6 +337,14 @@ export class vehicleReferenceFrameTrackPositionCalculator {
     const trackPosition = ( (tAtCycleStart * this.cycleDistance + this.accProfile.getDistanceTraveledAtTime(tWithinCycle)) / this.transitTubeCircumference ) % 1
     return trackPosition
   }
+
+  calcTrackSpeed(t) {
+    const tAtCycleStart = Math.floor(t/this.cycleTime)
+    const tWithinCycle = t % this.cycleTime
+    const trackSpeed = this.accProfile.getSpeedAtTime(tWithinCycle)
+    return trackSpeed
+  }
+
 }
 
 export class transitVehicleVariables {
@@ -1265,7 +1283,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  return Math.max(0, timeSinceStart - 20) * slowDownPassageOfTime
+  return Math.max(0, timeSinceStart - 50) * slowDownPassageOfTime
 }
 
 export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {

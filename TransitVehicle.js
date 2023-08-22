@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import * as tram from './tram.js'
 
 export class virtualTransitVehicle {
@@ -32,14 +33,17 @@ export class virtualTransitVehicle {
             virtualTransitVehicle.transitVehicleRelativePosition_r[trackIndex] = tram.offset_r(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
             virtualTransitVehicle.transitVehicleRelativePosition_y[trackIndex]  = tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
         }
+        virtualTransitVehicle.systemForwardOffset = dParamWithUnits['transitSystemForwardOffset'].value / crv.mainRingRadius
+        virtualTransitVehicle.forwardOffset = dParamWithUnits['transitVehicleForwardOffset'].value / crv.mainRingRadius
         virtualTransitVehicle.currentEquivalentLatitude = crv.currentEquivalentLatitude
+        virtualTransitVehicle.ringCircumference = crv.mainRingRadius * Math.PI * 2
         virtualTransitVehicle.isVisible = dParamWithUnits['showTransitVehicles'].value
         virtualTransitVehicle.isDynamic =  true
         virtualTransitVehicle.hasChanged = true
     }
 
-    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
-        const modelsTrackPosition = (this.p + refFrame.p) % 1
+    placeAndOrientModel(om, refFrame) {
+        const modelsTrackPosition = tram.posFrac(this.p + refFrame.p + virtualTransitVehicle.systemForwardOffset + refFrame.direction * virtualTransitVehicle.forwardOffset)
         if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
             console.log("error!!!")
         }
@@ -61,4 +65,22 @@ export class virtualTransitVehicle {
             om.matrixValid = false
         }
     }
+
+    getFuturePosition(refFrame, timeDeltaInSeconds) {
+
+      // Ideally we should account for accelleration when calculating the future position.
+      // This simplified calculation assumes the vehicle is travelling at a steady speed.
+      // As it is, the calculation leaves the camera a little bit off target at the end of the tweening opertion.
+      const offsetToFuturePosition = (timeDeltaInSeconds * refFrame.v * -refFrame.direction) / virtualTransitVehicle.ringCircumference
+      const modelsTrackPosition = tram.posFrac(this.p + refFrame.p + offsetToFuturePosition)
+      const trackIndex = refFrame.trackIndex
+      const r1 = virtualTransitVehicle.transitVehicleRelativePosition_r[trackIndex]
+      const y1 = virtualTransitVehicle.transitVehicleRelativePosition_y[trackIndex]
+      const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
+      const angle = 2 * Math.PI * modelsTrackPosition
+      pointOnRingCurve.add(new THREE.Vector3(r1 * Math.cos(angle), y1, r1 * Math.sin(angle) ))
+      return pointOnRingCurve
+
+    }
+
 }

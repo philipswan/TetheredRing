@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import * as tram from './tram.js'
 
 export class virtualElevatorCar {
@@ -52,6 +53,21 @@ export class virtualElevatorCar {
             if (this.perfOptimizedThreeJS) om.freeze()
         }
     }
+
+    getFuturePosition(refFrame, timeDeltaInSeconds) {
+
+      // timeDeltaInSeconds is not supported yet...
+      const modelsTrackPosition = (this.p + refFrame.p) % 1
+      const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
+      const angle = 2 * Math.PI * modelsTrackPosition
+      pointOnRingCurve.add(new THREE.Vector3(
+          virtualElevatorCar.elevatorCarPosition_dr * Math.cos(angle) + virtualElevatorCar.elevatorCarForwardOffset * -Math.sin(angle),
+          virtualElevatorCar.elevatorCarPosition_dy,
+          virtualElevatorCar.elevatorCarPosition_dr * Math.sin(angle) + virtualElevatorCar.elevatorCarForwardOffset * Math.cos(angle)))
+      return pointOnRingCurve
+
+    }
+
 
 }
   

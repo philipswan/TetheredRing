@@ -122,6 +122,7 @@ export class transitSystem {
     rf6.addVirtualObject('virtualElevatorCables')
     rf6.initialize()
     this.refFrames.push(rf6)
+    this.invalidateWedgeHistory = [false]
 
     this.eventList = []
 
@@ -137,7 +138,7 @@ export class transitSystem {
     this.numVirtualStationaryRingSegments = 0
     this.numVirtualMovingRingSegments = 0
 
-    function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, perfOptimizedThreeJS) {
+    function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, invalidateWedgeHistory, perfOptimizedThreeJS) {
       return function( {scene} ) {
         const object = scene.children[0]
         object.visible = false
@@ -154,10 +155,11 @@ export class transitSystem {
           myScene.add(tempModel)
           myList.push(tempModel)
         }
-      } 
+        invalidateWedgeHistory[0] = true
+      }
     }
 
-    function prepareACallbackFunctionForFBXLoader(myScene, myList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+    function prepareACallbackFunctionForFBXLoader(myScene, myList, objName, scaleFactor, n, invalidateWedgeHistory, perfOptimizedThreeJS) {
       return function( object ) {
         if (objName == 'ringTerminus') {
           // Delete the tube and tracks from the model
@@ -201,22 +203,26 @@ export class transitSystem {
           myScene.add(tempModel)
           myList.push(tempModel)
         }
+        // Since the dynamic model engine may have already started, we need force it to
+        // reallocate models to all virtual objects by invalidating the wedge
+        // history for all of the reference frames.
+        invalidateWedgeHistory[0] = true
       }
     }
 
-    const addTransitVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle', 1, dParamWithUnits['transitVehicleNumModels'].value, this.perfOptimizedThreeJS)
-    const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    //const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.perfOptimizedThreeJS)
-    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
-    //const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.perfOptimizedThreeJS)
-    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.perfOptimizedThreeJS)
-    const addStationaryRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingSegmentModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.perfOptimizedThreeJS)
-    const addMovingRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingSegmentModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.perfOptimizedThreeJS)
-    const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeSegmentModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.perfOptimizedThreeJS)
-    //const addTransitTracks = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTrackSegmentModels, 'transitTrack', 1, dParamWithUnits['transitTrackNumModels'].value, this.perfOptimizedThreeJS)
-    const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['numVirtualSolarArrays'].value, this.perfOptimizedThreeJS)
-    //const addDynamicallyManagedObjects = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedDynamicallyManagedObjects, 'dynamicallyManagedObject', 1, dParamWithUnits['dynamicallyManagedObjectNumModels'].value, this.perfOptimizedThreeJS)
+    const addTransitVehicles = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitVehicleModels, 'transitVehicle', 1, dParamWithUnits['transitVehicleNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addRingTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedRingTerminusModels, 'ringTerminus', 1.25, dParamWithUnits['ringTerminusNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addGroundTerminuses = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    //const addGroundTerminuses = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedGroundTerminusModels, 'groundTerminus', 1.25, dParamWithUnits['groundTerminusNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addElevatorCars = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    //const addElevatorCars = prepareACallbackFunctionForGLTFLoader(this.scene, this.unallocatedElevatorCarModels,'elevatorCar', 1.04, dParamWithUnits['elevatorCarNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addStationaryRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingSegmentModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addMovingRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingSegmentModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeSegmentModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    //const addTransitTracks = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTrackSegmentModels, 'transitTrack', 1, dParamWithUnits['transitTrackNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['numVirtualSolarArrays'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    //const addDynamicallyManagedObjects = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedDynamicallyManagedObjects, 'dynamicallyManagedObject', 1, dParamWithUnits['dynamicallyManagedObjectNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
     }
@@ -297,8 +303,10 @@ export class transitSystem {
     radius = dParamWithUnits['transitTubeTubeRadius'].value
     radialSegments = 32
     const transitTubeGeometry = new THREE.TubeGeometry(getTransitTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    const transitTubeMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
+    //const transitTubeMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
+    const transitTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: dParamWithUnits['transitTubeOpacity'].value})
     const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
+    transitTubeMesh.renderOrder = 999
     addTransitTubes(transitTubeMesh)
 
     // fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
@@ -336,7 +344,7 @@ export class transitSystem {
         }
         const transitTrackGeometry = new THREE.ExtrudeGeometry(trackShape, trackExtrudeSettings)
         //const transitTrackMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
-        const transitTrackMaterial = new THREE.MeshPhongMaterial( {color: 0xffff00})
+        const transitTrackMaterial = new THREE.MeshPhongMaterial( {color: 0x3f3f3f})
         const transitTrackMesh = new THREE.Mesh(transitTrackGeometry, transitTrackMaterial)
         transitTrackMesh.userData.upwardIndex = j
         transitTrackMesh.userData.outwardIndex = i
@@ -385,6 +393,7 @@ export class transitSystem {
       const elevatorCableModel = new THREE.LineSegments(elevatorCableGeometry, elevatorCableMaterial.clone())
       elevatorCableModel.visible = false
       elevatorCableModel.name = 'elevatorCable'
+      elevatorCableModel.renderOrder = 999
       this.unallocatedElevatorCableModels.push(elevatorCableModel)
       this.scene.add(elevatorCableModel)
     }
@@ -462,12 +471,13 @@ export class transitSystem {
 
     if (changeOccured && (newNumVirtualTransitVehicles > 0)) {
       // Add new virtual transit vehicles to express lane tracks
-      const n1 = newNumVirtualTransitVehicles * 10 / 40
+      const randOn = (dParamWithUnits['transitVehicleRandomizeStartPositions'].value) ? 1 : 0;
+      const n1 = newNumVirtualTransitVehicles * 1 / 40
       const step1 = 1.0 / n1
       outerTracks.forEach(refFrame => {
         for (let i = 0; i < n1; i++) {
           const positionInFrameOfReference = i * step1
-          const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step1 * 0.8 * Math.random())
+          const randomizedPositionInFrameOfReference = positionInFrameOfReference + randOn*(step1 * 0.8 * Math.random())
           const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
           refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
         }
@@ -480,7 +490,7 @@ export class transitSystem {
       innerTracks.forEach(refFrame => {
         for (let i = 0; i < n2; i++) {
           const positionInFrameOfReference = i * step2
-          const randomizedPositionInFrameOfReference = positionInFrameOfReference + (step2 * 0.8 * Math.random())
+          const randomizedPositionInFrameOfReference = positionInFrameOfReference + randOn*(step2 * 0.8 * Math.random())
           const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
           refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
         }
@@ -776,11 +786,17 @@ export class transitSystem {
     const timePerCompleteRevolution0 = 2 * Math.PI * this.crv.mainRingRadius / this.refFrames[0].v
     this.refFrames[0].p = (this.animateTransitVehicles * timeSinceStart / timePerCompleteRevolution0) % 1
     this.refFrames[1].p = 1 - this.refFrames[0].p
-    // TBD - need a more sophisticated motion profile... 
+
+    // The collector lanes require a more sophisticated motion profile... 
     const trackDistance = this.refFrameCalculator.calcTrackPosition(this.animateTransitVehicles * timeSinceStart)
     this.refFrames[2].p = trackDistance
     this.refFrames[3].p = 1 - trackDistance
-    this.refFrames[4].p = 0 // This is the stationary reference frame 
+
+    const trackSpeed = this.refFrameCalculator.calcTrackSpeed(this.animateTransitVehicles * timeSinceStart)
+    this.refFrames[2].v = trackSpeed
+    this.refFrames[3].v = -trackSpeed
+
+    this.refFrames[4].p = 0 // Just to emphsize that this is the stationary reference frame...
 
     const timePerCompleteRevolution6 = 2 * Math.PI * this.crv.mainRingRadius / this.refFrames[5].v
     this.refFrames[5].p = (this.animateMovingRingSegments * timeSinceStart / timePerCompleteRevolution6) % 1 // This is the stationary reference frame 
@@ -829,8 +845,16 @@ export class transitSystem {
     const removeModelList = []
     const updateModelList = []
 
-    // First we determine which wedges in each of the reference frames are entering and leaving the proximity of the camera
+    // Late-arriving models from teh loaders trigger a clearing of wedge history.
+    // This forces all active wedges to be checked to see if the virtual objects need models to be assigned
+    if (this.invalidateWedgeHistory[0]) {
+      this.refFrames.forEach(refFrame => {
+        refFrame.prevStartWedgeIndex = -1
+      })
+      this.invalidateWedgeHistory[0] = false
+    }
 
+    // First we determine which wedges in each of the reference frames are entering and leaving the proximity of the camera
     this.refFrames.forEach((refFrame, index) => {
       const clearFlagsList = []
 

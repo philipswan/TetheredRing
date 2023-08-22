@@ -469,7 +469,6 @@ export function defineUpdateTrajectoryCurves () {
       lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, upwardAcceleration, 0))
       aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
       totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
-
     }
     //console.log('done')
 
@@ -491,6 +490,7 @@ export function defineUpdateTrajectoryCurves () {
     const numEvacuatedTubeSplinePoints = Math.floor(totalSplinePoints * (t3-t2) / (t4-t2))
     const tStep1 = (t3 - t2) / (numEvacuatedTubeSplinePoints - 1)
     for (let i = 0; i<numEvacuatedTubeSplinePoints; i++ ) {
+      const t = t2 + i * tStep1
       const t5 = i * tStep1  // t5 is the time from the end of the ramp
       const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t5)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
@@ -554,6 +554,7 @@ export function defineUpdateTrajectoryCurves () {
 
     //console.log('Creating hyprebolic part of trajectory.')
     for (let i = 0; i<numFreeFlightSplinePoints; i++ ) {
+      const t = t3 + i * tStep2
       const t5 = t3 - t2 + i * tStep2  // t5 is the time from the end of the ramp
       const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t5)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
@@ -591,7 +592,7 @@ export function defineUpdateTrajectoryCurves () {
       lastR = RV.R
     }
     //console.log('done')
-          this.durationOfLaunchTrajectory = t4
+    this.durationOfLaunchTrajectory = t4
     this.durationOfFreeFlight = t4 - t3
     distanceTravelled += distanceTravelledOutsideLaunchSystem
 
@@ -623,17 +624,8 @@ export function defineUpdateTrajectoryCurves () {
     this.evacuatedTubeCurve.closed = false
     this.evacuatedTubeCurve.tension = 0
 
-    // const evacuatedTubetTosConvertor = function tTos(t) {
-    //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-    //   return launcherMassDriverExitVelocity
-    // }
     this.evacuatedTubeCurve.addtTosConvertor(evacuatedTubetTosConvertor)
-    // const evacuatedTubetTodConvertor = function(t) {
-    //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-    //   return Math.min(distanceTravelledWithinEvacuatedTube, launcherMassDriverExitVelocity * t)
-    // }
     this.evacuatedTubeCurve.addtTodConvertor(evacuatedTubetTodConvertor)
-
     this.evacuatedTubeCurve.setDuration(this.timeWithinEvacuatedTube)
     this.evacuatedTubeCurve.name = "evacuatedTubeCurve"
 
@@ -643,17 +635,8 @@ export function defineUpdateTrajectoryCurves () {
     this.freeFlightCurve.closed = false
     this.freeFlightCurve.tension = 0
 
-    // const freeFlighttTosConvertor = function tTos(t) {
-    //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-    //   return launcherMassDriverExitVelocity
-    // }
     this.freeFlightCurve.addtTosConvertor(freeFlighttTosConvertor)
-    // const freeFlighttTodConvertor = function(t) {
-    //   // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-    //   return Math.min(distanceTravelledOutsideLaunchSystem, launcherMassDriverExitVelocity * t)
-    // }
     this.freeFlightCurve.addtTodConvertor(freeFlighttTodConvertor)
-
     this.freeFlightCurve.setDuration(this.durationOfFreeFlight)
     this.freeFlightCurve.name = "freeFlightCurve"
 

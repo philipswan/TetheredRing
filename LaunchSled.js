@@ -4,16 +4,16 @@ import { SledGrapplerPlacementInfo, SledGrapplerGeometry } from './SledGrapplerG
 import * as tram from './tram.js'
 
 export class launchSledModel {
-  constructor(dParamWithUnits, myScene, unallocatedModelsList, perfOptimizedThreeJS, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewTexture) {
+  constructor(dParamWithUnits, myScene, unallocatedModelsList, perfOptimizedThreeJS, massDriverScrewTexture) {
     // Manually Create the Launch Vehicle
     const width = dParamWithUnits['launchSledWidth'].value
     const height = dParamWithUnits['launchSledHeight'].value
     const radialSegments = 32
     const bodyLength = dParamWithUnits['launchSledBodyLength'].value
     const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
-    const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
     const objName = 'launchSled'
     const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
+    const ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
 
     // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
     const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
@@ -80,18 +80,17 @@ export class launchSledModel {
           launchSledGrapplerMesh.scale.set(leftRight, 1, 1)
           grapplerGroup.add(launchSledGrapplerMesh.clone())
         }
-        const launchSledPivotGeometry = new THREE.SphereGeometry(shaftToGrapplerPad/2, 16, 8)
+        const launchSledPivotGeometry = new THREE.SphereGeometry(ballJointRadius, 16, 8)
         const launchSledPivotMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
         const launchSledPivot = new THREE.Mesh(launchSledPivotGeometry, launchSledPivotMaterial)
         // Hack - need to calculate the length properly...
         const strutLength = 1.5
-        const launchSledStrutGeometry = new THREE.CylinderGeometry(shaftToGrapplerPad/4, shaftToGrapplerPad/4, strutLength, 16, 1)
+        const launchSledStrutGeometry = new THREE.CylinderGeometry(ballJointRadius/2, ballJointRadius/2, strutLength, 16, 1)
         launchSledStrutGeometry.translate(0, strutLength/2, 0)
         const launchSledStrutMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
         const launchSledStrut = new THREE.Mesh(launchSledStrutGeometry, launchSledStrutMaterial)
         const leftRightList = ['left', 'right']
         const innerOuterList = ['Inner', 'Middle', 'Outer']
-        const anchorPointList = ['front', 'back']
         leftRightList.forEach(leftRight => {
           innerOuterList.forEach(innerOuter => {
             const tempPivot = launchSledPivot.clone()
@@ -124,6 +123,7 @@ export class launchSledModel {
       const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
       const betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
+      const ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
       const additionalRotation = 0
       const grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
     
@@ -220,6 +220,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
       virtualLaunchSled.betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
+      virtualLaunchSled.ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
       virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
@@ -277,7 +278,7 @@ export class virtualLaunchSled {
         const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
         const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
         const shaftRadius = virtualLaunchSled.launcherMassDriverScrewShaftRadius
-        const upwardsOffsetToAnchors = virtualLaunchSled.upwardsOffset - 1.45
+        const upwardsOffsetToAnchors = virtualLaunchSled.upwardsOffset - 1.35
         const anchorUpwardsSeparation = 0.1 //virtualLaunchSled.anchorUpwardsSeparation
         const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
         const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
@@ -285,10 +286,11 @@ export class virtualLaunchSled {
         const magnetThickness = virtualLaunchSled.magnetThickness
         const betweenGrapplerFactor = virtualLaunchSled.betweenGrapplerFactor
         const shaftToGrapplerPad = virtualLaunchSled.shaftToGrapplerPad
+        const ballJointRadius = virtualLaunchSled.ballJointRadius
         const grapplerMaxRangeOfMotion = virtualLaunchSled.grapplerMaxRangeOfMotion
         const grapplersSidewaysOffset = screwSidewaysOffset
         const grapplerUpwardsOffset = screwUpwardsOffset
-        const padCenterToPivotPoint = (threadRadius - (shaftRadius + shaftToGrapplerPad))/2 + shaftToGrapplerPad / 2
+        const padCenterToEdge = (threadRadius - (shaftRadius + shaftToGrapplerPad))/2
 
         // Create a new screw geometry to represent the adaptive nut
         const additionalRotation = (deltaT * screwRevolutionsPerSecond) % 1
@@ -377,7 +379,7 @@ export class virtualLaunchSled {
             const cosThetaOffset = Math.cos(thetaOffset)
 
             // Precalculated values for all pivot points...
-            const rOffsetPlus = rOffset + padCenterToPivotPoint*1.75
+            const rOffsetPlus = rOffset + padCenterToEdge + ballJointRadius * 3
             const pivotPointThetaComponent = 0.8 * magnetThickness * Math.sin(grapplerScrewAngle)
             const pivotPointYComponent = 0.8 * magnetThickness * Math.cos(grapplerScrewAngle)
             const thetaOffsetPlus = thetaOffset + pivotPointThetaComponent
@@ -405,7 +407,7 @@ export class virtualLaunchSled {
                 // Update the positions of the ends of the struts that are attached to the grapplers
                 const leftRightSign = grapplerComponent.userData.leftRightSign
                 const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
-                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*padCenterToPivotPoint*.75
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*ballJointRadius*2
                 const xOffset = rOffsetPlusMinus * -sinThetaOffsetPlus
                 const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
@@ -419,7 +421,7 @@ export class virtualLaunchSled {
                 // Update the positions of the ends of the struts that are attached to the grapplers
                 const leftRightSign = grapplerComponent.userData.leftRightSign
                 const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
-                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*padCenterToPivotPoint*.75
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*ballJointRadius*2
                 const xOffset = rOffsetPlusMinus * -sinThetaOffsetPlus
                 const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent

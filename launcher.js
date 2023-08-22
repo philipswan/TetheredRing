@@ -199,9 +199,6 @@ export class launcher {
       this.scene,
       this.unallocatedLaunchSledModels,
       this.perfOptimizedThreeJS,
-      this.massDriverCurve,
-      this.launcherMassDriverLength,
-      this.massDriverScrewSegments,
       this.massDriverScrewTexture)
 
     // Create and add the launch vechicle models
