@@ -5,7 +5,7 @@ export const kmlFileHeader = `<?xml version="1.0" encoding="UTF-8"?>
     <description>Tethered Ring</description>
     <Style id="faintGray">
       <LineStyle>
-        <color>40323232</color>
+        <color>FFCFCFCF</color>
         <width>1</width>
       </LineStyle>
       <PolyStyle>
