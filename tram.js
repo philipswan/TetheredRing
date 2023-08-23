@@ -89,13 +89,14 @@ Vector3.prototype.magnitudeSquared = function () {
 };
 
 export function airDensityAtAltitude(a) {
+  // Input in meters
   const c_4	= -3.957854E-19
   const c_3	= 6.657616E-14
   const c_2	= -3.47217E-09
   const c_1	= -8.61651E-05
   const c_0	= 2.16977E-01
   const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
-  return airDensityAtAltitude
+  return airDensityAtAltitude  // In kg/m^3
 }
 
 export function solveQuadratic(a, b, c) {

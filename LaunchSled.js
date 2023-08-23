@@ -39,8 +39,17 @@ export class launchSledModel {
           if (child.name=='launchSled_body') {
             const parent = child.parent
             parent.remove(child)
-            parent.add(object)
+            parent.add(object.clone())
           }
+        })
+        unallocatedModelsList.forEach(element => {
+          element.traverse(child => {
+            if (child.name==='launchSled_body') {
+              const parent = child.parent
+              parent.remove(child)
+              parent.add(object.clone())
+            }
+          })
         })
       }
     }

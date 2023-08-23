@@ -544,8 +544,8 @@ export function defineUpdateTrajectoryCurves () {
     // We'll need to generate some parameters to help us calculate the aerodynamic drag on the vehicle while it's travelling through the rarified upper atmosphere 
     const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
     const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-    const launchVehicleNoseConeLength = dParamWithUnits['launchVehicleNoseConeLength'].value
-    const noseConeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseConeLength)
+    const launchVehicleNoseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
+    const noseconeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseconeLength)
     const freeFlightConversionCurvePoints = []
     const numFreeFlightSplinePoints = totalSplinePoints - numEvacuatedTubeSplinePoints
     const tStep2 = (t4 - t3) / (numFreeFlightSplinePoints - 1)
@@ -565,7 +565,7 @@ export function defineUpdateTrajectoryCurves () {
       const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
       const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
-      const aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseConeAngle, launchVehicleRadius, launchVehicleBodyLength)
+      const aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
       const fuelFlowRate = aerodynamicDrag / launchVehicleRocketExhaustVelocity
       mPropellant = Math.max(0, mPropellant - fuelFlowRate * tStep2)
       if ((mPropellant == 0) && !warningAlreadyGiven) {

@@ -5,8 +5,6 @@ export class planet {
   constructor(dParamWithUnits, planetSpec, enableVR, nonGUIParams) {
     let planetWidthSegments = 768
     let planetHeightSegments = 192
-    const radiusOfPlanet = planetSpec.radiusOfPlanet
-
 
     let eightTextureMode = false
     let TextureMode24x12 = true
@@ -24,7 +22,6 @@ export class planet {
     if (dParamWithUnits['earthTextureOpacity'].value!==1 && useShaders) {
       console.log("Warning useShaders should be set to false when earthTextureOpacity is set less than one.")
     }
-
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -48,13 +45,13 @@ export class planet {
         for (let j=0; j<h; j++) {
           for (let i = 0; i<w; i++) {
             const pointOnEarthsSurface = new THREE.Vector3().setFromSphericalCoords(
-              radiusOfPlanet, 
+              planetSpec.radius, 
               Math.PI * (1+2*j)/(2*h),
               Math.PI * (1 + (1+2*i)/w)
             )
 
             // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
-            //const farFromRing = (localPoint.y < 0.45 * radiusOfPlanet) || (localPoint.y > 0.7 * radiusOfPlanet)
+            //const farFromRing = (localPoint.y < 0.45 * planetSpec.radius) || (localPoint.y > 0.7 * planetSpec.radius)
             // Hack
             const farFromRing = // Just render these regions area in high-res 
               // ((i!=3) || (j!=2)) &&
@@ -85,7 +82,7 @@ export class planet {
 
             planetWidthSegments = (farFromRing) ? 768 : 768*64
             planetHeightSegments = (farFromRing) ? 192 : 192*64
-            const planetGeometry = new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
+            const planetGeometry = new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
             const planetMesh = new THREE.Mesh(
               planetGeometry,
               (useShaders) ? 
@@ -122,7 +119,7 @@ export class planet {
       }
       // else if (TextureModeOpenLayers) {
       //   const planetMesh = new THREE.Mesh(
-      //     new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+      //     new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
       //     new THREE.ShaderMaterial({
       //       vertexShader: document.getElementById('vertexShader').textContent,
       //       fragmentShader: document.getElementById('fragmentShader').textContent,
@@ -133,7 +130,7 @@ export class planet {
       //       }
       //     })
       //   )
-      //   makePlanetTexture(planetMesh, orbitControls, camera, radiusOfPlanet, false, (planetTexture) => {
+      //   makePlanetTexture(planetMesh, orbitControls, camera, planetSpec.radius, false, (planetTexture) => {
       //     planetMesh.material.uniforms.planetTexture.value = planetTexture;
       //     planetMesh.material.uniforms.planetTexture.needsUpdate = true;
       //   });
@@ -157,7 +154,7 @@ export class planet {
               //filename = `./textures/world.topo.200404.3x16384x16384.${letter}${j+1}.jpg`
               if (verbose) console.log(letter, filename)
               const planetMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
+                new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
                 new THREE.ShaderMaterial({
                   //vertexShader: vertexShader,
                   //fragmentShader: fragmentShader,
@@ -192,7 +189,7 @@ export class planet {
         //const texture = new THREE.TextureLoader().load( './textures/bluemarble_16384.jpg')
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+          new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
           // new THREE.MeshPhongMaterial({
           //   //roughness: 1,
           //   //metalness: 0,
@@ -224,7 +221,7 @@ export class planet {
         planetMesh.name = 'planet'
         planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
         planetMesh.matrixValid = false
-        if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
+        if (dParamWithUnits['perfOptimizedThreeJS'].value) planetMesh.freeze()
         planetMeshes.add(planetMesh)
       }
       else {
@@ -238,7 +235,7 @@ export class planet {
         //const texture = new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments),
+          new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
           new THREE.MeshPhongMaterial({
             //roughness: 1,
             //metalness: 0,
@@ -260,14 +257,14 @@ export class planet {
         planetMesh.name = 'planet'
         planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
         planetMesh.matrixValid = false
-        if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
+        if (dParamWithUnits['perfOptimizedThreeJS'].value) planetMesh.freeze()
         planetMeshes.add(planetMesh)  
       }
     }
     //planetMesh.castShadow = true
 
     const atmosphereMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
+      new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/16, planetHeightSegments/16),
       new THREE.ShaderMaterial({
         //vertexShader: atmosphereVertexShader,
         //fragmentShader: atmosphereFragmentShader,
@@ -287,7 +284,7 @@ export class planet {
     return [planetMeshes, atmosphereMesh]
 
     // const water = new Water(
-    //   new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments/16, planetHeightSegments/16),
+    //   new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/16, planetHeightSegments/16),
     //   {
     //     textureWidth: 512,
     //     textureHeight: 512,
@@ -320,7 +317,7 @@ export class planet {
     // plane.geometry.atributes.uv2 = plane.geometry.atributes.uv
     // scene.add(plane)
 
-    // const earth2Geometry = new THREE.SphereGeometry(radiusOfPlanet, planetWidthSegments, planetHeightSegments, 0, Math.PI/2, 0, Math.PI/2)
+    // const earth2Geometry = new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments, 0, Math.PI/2, 0, Math.PI/2)
     // const earth2Material = new THREE.MeshPhongMaterial({
     //   roughness: 1,
     //   metalness: 0,
@@ -336,5 +333,5 @@ export class planet {
     // earth2Mesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
     //earthMesh.position = 
     //scene.add(earth2Mesh)
-    }
   }
+}

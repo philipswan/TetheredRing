@@ -324,9 +324,11 @@ const guidParamWithUnits = {
   launchVehicleForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleFlameLength: {value: 15, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
   //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launchVehicleNoseConeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleNoseconeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 50, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleShockwaveConeLength: {value: 30, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -701,7 +703,7 @@ function updateLauncher() {
   crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
   launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
-  launchSystemObject.update(dParamWithUnits, timeSinceStart)
+  launchSystemObject.update(dParamWithUnits, timeSinceStart, crv)
   console.log(`renderer.info.memory: ${JSON.stringify(renderer.info.memory)}`)
 }
 
@@ -1020,8 +1022,8 @@ camera.up.copy(nonGUIParams['cameraUp'])
 
 const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
 sunLight.name = 'sunlight'
-//sunLight.position.set(0, -6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
-sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
+sunLight.position.set(0, -6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
+//sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
 sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
@@ -1049,9 +1051,11 @@ const planetSpec = {
 }
 
 let planetMeshes, atmosphereMesh
-[planetMeshes, atmosphereMesh] = new planet(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
-planetCoordSys.add(planetMeshes)
-planetCoordSys.add(atmosphereMesh)
+if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value) {
+  [planetMeshes, atmosphereMesh] = new planet(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
+  planetCoordSys.add(planetMeshes)
+  planetCoordSys.add(atmosphereMesh)
+}
 
 const moonTexture = new THREE.TextureLoader().load("./textures/moon.jpg")
 moonTexture.name = 'moon'
@@ -1864,8 +1868,10 @@ function renderFrame() {
       }
       else {
         const offset = trackingPoint.clone().sub(lastTrackingPoint)
+        const angleOffset = new THREE.Quaternion().setFromUnitVectors(trackingPoint.clone().normalize(), lastTrackingPoint.clone().normalize())
         if (!tweeningActive) {
           orbitControls.target.add(offset)
+          orbitControls.upDirection.applyQuaternion(angleOffset)
           orbitControls.object.position.add(offset)
           orbitControls.enableDamping = true
         }

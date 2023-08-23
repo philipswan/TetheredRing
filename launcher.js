@@ -33,6 +33,7 @@ export class launcher {
     this.const_M = 5.9722E+24;
     this.mu = this.const_G * this.const_M;
     this.R_Earth = 6371000;
+
     this.xyChart = xyChart
 
     // User defined parameters
@@ -232,10 +233,10 @@ export class launcher {
       this.scene.add(tempModel)
     }
 
-    this.update(dParamWithUnits, timeSinceStart)
+    this.update(dParamWithUnits, timeSinceStart, crv)
   }
 
-  update(dParamWithUnits, timeSinceStart) {
+  update(dParamWithUnits, timeSinceStart, crv) {
     this.versionNumber++
 
     // Todo: We should detect whether an update of the curves is called for as it's a time consuming operation...
@@ -257,7 +258,8 @@ export class launcher {
       dParamWithUnits, 
       this.timeWithinMassDriver,
       this.curveUpTime, 
-      this.timeWithinEvacuatedTube)
+      this.timeWithinEvacuatedTube,
+      crv.radiusOfPlanet)
 
     this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
     this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
@@ -785,16 +787,15 @@ export class launcher {
         if (objectValue.length>0) {
           objectValue.forEach(object => {
             if (!object.model) {
-              if (objectKey=='virtualLaunchVehicles') {
-                console.log("")
-              }
+              // if (objectKey=='virtualLaunchVehicles') {
+              //   console.log("")
+              // }
               if (object.unallocatedModels.length==1) {
                 // if (objectKey=='virtualLaunchVehicles') {
                 //   console.log("")
                 // }
                 // This is the last model. Duplicate it so that we don't run out.
-                const recursive = true
-                const tempModel = object.unallocatedModels[0].clone(recursive)
+                const tempModel = object.unallocatedModels[0].clone()
                 object.unallocatedModels.push(tempModel)
                 this.scene.add(tempModel)
                 //console.log('Duplicating model for ' + objectKey)
@@ -850,9 +851,9 @@ export class launcher {
 
     updateModelList.forEach(entry => {
       Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
-        if ((objectKey=='virtualLaunchVehicles') && (objectValue.length>0) && (entry['wedgeIndex']>91)) {
-          console.log("")
-        }
+        // if ((objectKey=='virtualLaunchVehicles') && (objectValue.length>0) && (entry['wedgeIndex']>91)) {
+        //   console.log("")
+        // }
         if (objectValue.length>0) {
           const classIsDynamic = objectValue[0].constructor.isDynamic
           const classHasChanged = objectValue[0].constructor.hasChanged
