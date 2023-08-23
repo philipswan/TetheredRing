@@ -18,7 +18,7 @@ export const kmlMainRingPlacemarkHeader = `    <Placemark>
       <description>Main Ring</description>
       <styleUrl>#faintGray</styleUrl>
       <LinearRing>
-        <extrude>1</extrude>
+        <extrude>0</extrude>
         <tessellate>0</tessellate>
         <altitudeMode>absolute</altitudeMode>
         <coordinates>

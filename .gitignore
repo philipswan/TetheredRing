@@ -6,6 +6,7 @@ dist
 dist-ssr
 *.local
 *.swp
+.vscode/settings.json
 tethered_ring.kml
 .gitignore
 tethered_ring.kml:Zone.Identifier
