@@ -689,7 +689,7 @@ export function defineUpdateTrajectoryCurves () {
 
     if (genLauncherKMLFile) {
       // Start a polyline...
-      kmlFile = kmlutils.kmlMainRingPlacemarkHeader
+      kmlFile = kmlutils.kmlLauncherPlacemarkHeader
 
       // launchTrajectoryCurveControlPoints.forEach(point => {
       //   const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
@@ -743,7 +743,7 @@ export function defineUpdateTrajectoryCurves () {
         const crossbarPointList = [crossbarPointToLeft, crossbarPointToRight]
 
         // Start a polyline
-        kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+        kmlFile = kmlFile.concat(kmlutils.kmlRampSupportPlacemarkHeader)
 
         // You'll need to convert each point to lla with this code...
         pointList.forEach(point => {

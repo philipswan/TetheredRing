@@ -20,7 +20,7 @@ class TetherGeometry extends BufferGeometry {
     const currentCatenaryTypes = [[], []]                        // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
     const verbose = false
 
-    tetherMath()       // Regenerate the strips of points that define a forking tether
+    this.kmlFile = tetherMath()       // Regenerate the strips of points that define a forking tether
     // Tethered Ring Math
     function tetherMath() {
       // Inputs:
@@ -653,6 +653,7 @@ class TetherGeometry extends BufferGeometry {
         tetheredRingRefCoordSys.updateMatrixWorld(true)
   
         console.log(tetherStrips.length + ' tether strips')
+        kmlFile  = ''
         tetherStrips.forEach(strip => {
           if (kmlFile.length<1000000) {   // Don't let the file get too big
             kmlFile = kmlFile.concat(kmlutils.kmlTetherPlacemarkHeader)
@@ -672,6 +673,7 @@ class TetherGeometry extends BufferGeometry {
         })
         console.log('KML file too big by ' + overflow + ' strips')
       }
+      return kmlFile;
     }
   
     this.userData['catenaryTypes'] = currentCatenaryTypes
