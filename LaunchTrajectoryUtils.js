@@ -672,7 +672,7 @@ export function defineUpdateTrajectoryCurves () {
 
     if (genLauncherKMLFile) {
       // Start a polyline...
-      kmlFile = kmlutils.kmlMainRingPlacemarkHeader
+      kmlFile = kmlutils.kmlLauncherPlacemarkHeader
 
       // launchTrajectoryCurveControlPoints.forEach(point => {
       //   const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
@@ -718,11 +718,15 @@ export function defineUpdateTrajectoryCurves () {
         const pointToLeft = pointOnGround.clone().sub(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
         const pointToRight = pointOnGround.clone().add(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
 
+        const crossbarPoint = pointOnCurve.clone().multiplyScalar((crv.radiusOfPlanet + 100)/ pointOnCurve.length())
+        const crossbarPointToLeft = pointOnGround.clone().sub(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
+        const crossbarPointToRight = pointOnGround.clone().add(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
         // To make the support, draw polyline from pointToLeft to pointOnCurve to pointToRight...
         const pointList = [pointToLeft, pointOnCurve, pointToRight]
+        const crossbarPointList = [crossbarPointToLeft, crossbarPointToRight]
 
         // Start a polyline
-        kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+        kmlFile = kmlFile.concat(kmlutils.kmlRampSupportPlacemarkHeader)
 
         // You'll need to convert each point to lla with this code...
         pointList.forEach(point => {
@@ -731,9 +735,26 @@ export function defineUpdateTrajectoryCurves () {
           const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
           kmlFile = kmlFile.concat(coordString)
         })
+        
+        // End the polyline
+        kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+
+        // draw crossbar
+
+        // Start a polyline
+        kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
+        
+        crossbarPointList.forEach(point => {
+          const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
+          const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+          const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
+          kmlFile = kmlFile.concat(coordString)
+        })
 
         // End the polyline
         kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
+
+        
       }
       this.kmlFile = kmlFile;
     }
