@@ -34,6 +34,29 @@ export const kmlTetherPlacemarkHeader = `    <Placemark>
         <altitudeMode>absolute</altitudeMode>
         <coordinates>
 `
+export const kmlLauncherPlacemarkHeader = `    <Placemark>
+      <name>Launcher</name>
+      <description>Launcher</description>
+      <styleUrl>#faintGray</styleUrl>
+      <LinearRing>
+        <extrude>0</extrude>
+        <tessellate>0</tessellate>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>
+`
+
+export const kmlRampSupportPlacemarkHeader = `    <Placemark>
+      <name>Support</name>
+      <description>Support Strut</description>
+      <styleUrl>#faintGray</styleUrl>
+      <LinearRing>
+        <extrude>0</extrude>
+        <tessellate>0</tessellate>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>
+`
+
+
 
 export const kmlPlacemarkFooter = `        </coordinates>
       </LinearRing>

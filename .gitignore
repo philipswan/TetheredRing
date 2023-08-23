@@ -6,3 +6,12 @@ dist
 dist-ssr
 *.local
 *.swp
+tethered_ring.kml
+.gitignore
+tethered_ring.kml:Zone.Identifier
+tethered_ring (1).kml:Zone.Identifier
+tethered_ring (1).kml
+tethered_ring (2).kml:Zone.Identifier
+tethered_ring (2).kml
+vectorGeoSketch.js
+tethered_ring 1.kml

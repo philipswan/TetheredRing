@@ -3302,6 +3302,8 @@ if (enableKMLFileFeature) {
     kmlFile = ''
     kmlFile = kmlutils.kmlFileHeader
     updateRing()
+    kmlFile = kmlFile.concat(launchSystemObject.kmlFile)
+    // kmlFile = kmlFile.concat(tetherKml)
     kmlFile = kmlFile.concat(kmlutils.kmlFileFooter)
     genKMLFile = false
     genLauncherKMLFile = false
