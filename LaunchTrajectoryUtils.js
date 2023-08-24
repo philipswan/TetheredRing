@@ -147,13 +147,18 @@ export function defineUpdateTrajectoryCurves () {
     let lastDifference = -1
 
     // First, determine if the orbit's appogee or the altitude of the tethered ring is greater.
-    if (apogeeDistance<=launcherRampExitAltitude) {
+    if (apogeeDistance>0 && apogeeDistance<=launcherRampExitAltitude) {
       console.log("Error: rampExitAltitude too high")
     }
     // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
-    const maxOrbitalR = tram.lerp(crv.radiusOfPlanet + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
-    const evacuatedTubeExitR = Math.min(maxOrbitalR , crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)
-    const evacuatedTubeExitRSquared = evacuatedTubeExitR ** 2
+    let evacuatedTubeExitR = crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude
+    if (apogeeDistance>0) {
+      // Eliptical orbit - check if the apogee is higher than the altitude of the ring
+      // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
+      const maxOrbitalR = tram.lerp(crv.radiusOfPlanet + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
+      evacuatedTubeExitR = Math.min(maxOrbitalR, evacuatedTubeExitR)
+    }
+    const evacuatedTubeExitRSquared = evacuatedTubeExitR**2
 
     for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
       RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t)

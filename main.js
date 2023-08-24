@@ -1078,17 +1078,27 @@ const universeSpec = {
   gravitationalConstant: 0.0000000000667408
 }
 
+
 const tetheredRingSpecs = [
   {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.3}},
-  {locationSpec: {buildLat: 14.3, buildLon:186.3, finalLat: 20.7, finalLon: 303.12}}
-]
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 237.72}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 289.15}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 340.58}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 32.01}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 83.44}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 134.87}},
+  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.29}}]
 
 const tetheredRingSystems = []
 tetheredRingSpecs.forEach((ringSpec, index) => {
-  const tempTetherdRingSystem = new tetheredRingSystem(universeSpec, planetSpec, ringSpec, dParamWithUnits, index)
-  tetheredRingSystems.push(tempTetherdRingSystem)
-  planetCoordSys.add(tempTetherdRingSystem.getMesh())
+  const tempTetheredRingSystem = new tetheredRingSystem(universeSpec, planetSpec, ringSpec, dParamWithUnits, index)
+  tetheredRingSystems.push(tempTetheredRingSystem)
+  planetCoordSys.add(tempTetheredRingSystem.getMesh())
 })
+
+// tetheredRingSpecs.forEach((ringSpec, index) => {
+//   tetheredRingSystems[index].add(tempTetherdRing)
+// })
 
 // End "Cleaner Code" Section
 
@@ -1325,7 +1335,8 @@ function constructTethers() {
 
 // Let's make a second ring!!!
 const tethers2 = []
-constructTethers2()
+const secondRing = false
+if (secondRing) constructTethers2()
 function constructTethers2() {
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers2")
@@ -1345,9 +1356,6 @@ function constructTethers2() {
     }
   }
 }
-
-
-
 
 function forceArrowsUpdate() {
   gravityForceArrowsUpdate()
@@ -1371,6 +1379,7 @@ function gyroscopicForceArrowsUpdate() {
 
 let trackingPoint = null  // This is the location of the object which was under the sprite when user last pressed the 'P' key  
 let lastTrackingPoint = null
+let lastCameraQaternion = null
 let stationaryCameraTrackingMode = false
 let closestVirtualLaunchVehicle = null
 let closestVirtualTransitVehicle = null
@@ -1633,13 +1642,15 @@ function updateRing() {
   })
   tethers.splice(0, tethers.length)
 
-  tethers2.forEach(tether => {
-    tether.geometry.dispose()
-    tether.material.dispose()
-    //tether.color.dispose()
-    tetheredRingRefCoordSys.remove(tether)
-  })
-  tethers2.splice(0, tethers2.length)
+  if (secondRing) {
+    tethers2.forEach(tether => {
+      tether.geometry.dispose()
+      tether.material.dispose()
+      //tether.color.dispose()
+      tetheredRingRefCoordSys.remove(tether)
+    })
+    tethers2.splice(0, tethers2.length)
+  }
   if (verbose) console.log('dispose tethers ')
 
   // Update the parameters prior to reconsrructing the scene
@@ -1681,7 +1692,7 @@ function updateRing() {
   if (verbose) console.log('constructElevatorCables ')
   //if (verbose) console.log("Updating Tethers")
   constructTethers()
-  constructTethers2()
+  if (secondRing) constructTethers2()
   if (verbose) console.log('constructTethers ')
 
   tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)
@@ -1845,16 +1856,9 @@ function renderFrame() {
       }
       trackingPointMarkerMesh.position.copy(trackingPoint)
       trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
+
       if (stationaryCameraTrackingMode) {
-        //orbitControls.enable = false
-        //camera.lookAt(trackingPoint)
         orbitControls.update()
-
-        // const q1 = new THREE.Quaternion
-        // const tangent = trackingPoint.clone().sub(camera.position).normalize()
-        // q1.setFromUnitVectors(camera.up, tangent)
-        // camera.setRotationFromQuaternion(q1)
-
         const offset = trackingPoint.clone().sub(lastTrackingPoint)
         if (!tweeningActive) {
           orbitControls.target.add(offset)
@@ -1868,10 +1872,12 @@ function renderFrame() {
       }
       else {
         const offset = trackingPoint.clone().sub(lastTrackingPoint)
-        const angleOffset = new THREE.Quaternion().setFromUnitVectors(trackingPoint.clone().normalize(), lastTrackingPoint.clone().normalize())
+        const angleOffset = new THREE.Quaternion().setFromUnitVectors(lastTrackingPoint.clone().normalize(), trackingPoint.clone().normalize())
+
         if (!tweeningActive) {
           orbitControls.target.add(offset)
           orbitControls.upDirection.applyQuaternion(angleOffset)
+          camera.up.applyQuaternion(angleOffset)
           orbitControls.object.position.add(offset)
           orbitControls.enableDamping = true
         }
