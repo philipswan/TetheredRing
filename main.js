@@ -301,6 +301,9 @@ const guidParamWithUnits = {
   solarArrayUpwardOffset: {value: -50, units: "m", autoMap: true, min: -100, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   
   // Engineering Parameters - Launch System
+  launchSystemForwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSystemUpwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSystemRightwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},

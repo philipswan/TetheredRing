@@ -62,8 +62,14 @@ export class launchVehicleModel {
     const launchVehiclePointLightMesh = makePointLight()
     const launchVehicleShockwaveConeMesh = makeShockwaveCone()
     const launchVehicleMesh = assemble(launchVehicleBodyMesh, launchVehicleFlameMesh, launchVehiclePointLightMesh, launchVehicleShockwaveConeMesh)
+
     const scaleFactor = dParamWithUnits['launchVehicleScaleFactor'].value
-    decorateAndSave(launchVehicleMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchVehicleNumModels, perfOptimizedThreeJS)
+    const scaleFactorVector = new THREE.Vector3(
+      dParamWithUnits['launchSystemRightwardScaleFactor'].value * scaleFactor,
+      dParamWithUnits['launchSystemForwardScaleFactor'].value * scaleFactor,
+      dParamWithUnits['launchSystemUpwardScaleFactor'].value * scaleFactor)
+
+    decorateAndSave(launchVehicleMesh, myScene, unallocatedModelsList, objName, scaleFactorVector, launchVehicleNumModels, perfOptimizedThreeJS)
     console.log("Created " + launchVehicleNumModels + " launch vehicle models")
 
     // Load the launch vehicle body mesh from a model, and replace the proceedurally generated body with the body from the model
@@ -148,9 +154,9 @@ export class launchVehicleModel {
 
     }
 
-    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
+    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
       
-      object.updateMatrixWorld()
+      object.scale.set(scaleFactorVector.x, scaleFactorVector.y, scaleFactorVector.z)
       object.visible = false
       object.name = objName
       object.traverse(child => {
@@ -158,8 +164,8 @@ export class launchVehicleModel {
         child.name = objName+'_'+child.name
       }
       })
+      object.updateMatrixWorld()
       if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
-      object.scale.set(scaleFactor, scaleFactor, scaleFactor)
       for (let i=0; i<n; i++) {
         const tempModel = object.clone()
         myScene.add(tempModel)

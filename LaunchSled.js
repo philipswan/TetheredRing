@@ -24,15 +24,20 @@ export class launchSledModel {
     const launchSledMesh = new THREE.Group().add(launchSledBodyMesh)
     addGrapplers(launchSledMesh)
     launchSledMesh.name = 'launchSled'
-    const scaleFactor = dParamWithUnits['launchSledScaleFactor'].value
-    decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactor, launchSledNumModels, perfOptimizedThreeJS)
+    const scaleFactorVector = new THREE.Vector3(
+      dParamWithUnits['launchSystemRightwardScaleFactor'].value,
+      dParamWithUnits['launchSystemForwardScaleFactor'].value,
+      dParamWithUnits['launchSystemUpwardScaleFactor'].value)
+
+    decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactorVector, launchSledNumModels, perfOptimizedThreeJS)
 
     // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
-    function prepareACallbackFunctionForFBXLoader (myScene, scaleFactor) {
+    function prepareACallbackFunctionForFBXLoader (myScene) {
       // This is the additional work we want to do later, after the loader get's around to loading our model...
       return function(object) {
-        object.children[0].scale.set(scaleFactor*0.6, scaleFactor, scaleFactor*2)  // A bit hacky - Alastair's sled model is too wide
-        object.children[0].position.set(0, 0, 1.4)
+        object.children[0].scale.set(0.6, 1, 2)  // A bit hacky - Alastair's sled model is too wide and thin
+        object.children[0].position.set(0, 0, 1400) // reposition vertically after making the sled thicker
+        object.scale.set(0.001, 0.001, 0.001)  // Correct for units - mm to m
         object.name = 'launchSled_bodyFromModel'
         object.children[0].material.color.setHex(0x2f1f50)
         myScene.traverse(child=> {
@@ -56,8 +61,7 @@ export class launchSledModel {
 
     const loader = new OBJLoader();
 
-    const modelScaleFactor = 0.001 // Because Alastair's launch sled model used mm instead of meters
-    const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene, modelScaleFactor)
+    const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene)
     
     loader.load('models/launchSled.obj',
       // called when resource is loaded
@@ -182,8 +186,8 @@ export class launchSledModel {
       return new THREE.Mesh(sledGrapplerGeometry, sledGrapplerMaterial)
     }
 
-    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
-      object.updateMatrixWorld()
+    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
+      object.scale.set(scaleFactorVector.x, scaleFactorVector.y, scaleFactorVector.z)
       object.visible = false
       object.name = objName
       object.traverse(child => {
@@ -191,8 +195,8 @@ export class launchSledModel {
           child.name = objName+'_'+child.name
       }
       })
+      object.updateMatrixWorld()
       if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
-      object.scale.set(scaleFactor, scaleFactor, scaleFactor)
       for (let i=0; i<n; i++) {
           const tempModel = object.clone()
           myScene.add(tempModel)
@@ -223,6 +227,9 @@ export class virtualLaunchSled {
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
       virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
       virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
+      virtualLaunchSled.forwardScaleFactor = dParamWithUnits['launchSystemForwardScaleFactor'].value
+      virtualLaunchSled.upwardScaleFactor = dParamWithUnits['launchSystemUpwardScaleFactor'].value
+      virtualLaunchSled.rightwardScaleFactor = dParamWithUnits['launchSystemRightwardScaleFactor'].value
       virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
       virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
       virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
@@ -267,9 +274,9 @@ export class virtualLaunchSled {
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
         const pointOnRelevantCurve = relevantCurve.getPointAt(d)
-        const forward = relevantCurve.getTangentAt(d)
-        const upward = relevantCurve.getNormalAt(d)
-        const rightward = relevantCurve.getBinormalAt(d)
+        const forward = relevantCurve.getTangentAt(d).multiplyScalar(virtualLaunchSled.forwardScaleFactor)
+        const upward = relevantCurve.getNormalAt(d).multiplyScalar(virtualLaunchSled.upwardScaleFactor)
+        const rightward = relevantCurve.getBinormalAt(d).multiplyScalar(virtualLaunchSled.rightwardScaleFactor)
         const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
 
         const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
@@ -368,8 +375,20 @@ export class virtualLaunchSled {
           }
         }
   
+        om.position.copy(pointOnRelevantCurve)
+        om.setRotationFromQuaternion(orientation)
+        const internalPosition = new THREE.Vector3(0, 0, 0)
+        const internalRightward = new THREE.Vector3(1, 0, 0)
+        const internalUpward = new THREE.Vector3(0, 0, 1)
+        const internalForward = new THREE.Vector3(0, 1, 0)
+        const internalOrientation = new THREE.Quaternion().identity()
+
+        // Now we need to position the grappler components
         om.children.forEach(child => {
           if (child.name==='launchSled_grappler') {
+
+            // ToDo: Now that we're using unit vectors internally, we should be able to improve the performance of this code
+    
             const grapplerIndex = child.userData
             const offset = grapplerOffset[grapplerIndex]
             const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[grapplerIndex]: 1
@@ -405,12 +424,12 @@ export class virtualLaunchSled {
                 const xOffset = rOffset * -sinThetaOffset
                 const zOffset = rOffset * cosThetaOffset
                 const yOffset = offset.y - padLiftActuationYComponent
-                grapplerComponent.position.copy(pointOnRelevantCurve)
-                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
-                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
-                  .add(forward.clone().multiplyScalar(yOffset))
-                grapplerComponent.setRotationFromQuaternion(orientation)
-                grapplerComponent.rotateY(-leftRightSign*thetaOffset)
+                grapplerComponent.position.copy(internalPosition)
+                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(internalForward.clone().multiplyScalar(yOffset))
+                grapplerComponent.setRotationFromQuaternion(internalOrientation)
+                grapplerComponent.rotateY(leftRightSign*thetaOffset)
               }
               else if (grapplerComponent.name==='launchSled_pivot') {
                 // Update the positions of the ends of the struts that are attached to the grapplers
@@ -421,10 +440,10 @@ export class virtualLaunchSled {
                 const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
 
-                grapplerComponent.position.copy(pointOnRelevantCurve)
-                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
-                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
-                  .add(forward.clone().multiplyScalar(yOffset))
+                grapplerComponent.position.copy(internalPosition)
+                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(internalForward.clone().multiplyScalar(yOffset))
               }
               else if (grapplerComponent.name==='launchSled_strut') {
                 // Update the positions of the ends of the struts that are attached to the grapplers
@@ -435,16 +454,16 @@ export class virtualLaunchSled {
                 const zOffset = rOffsetPlusMinus * cosThetaOffsetPlus
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
 
-                grapplerComponent.position.copy(pointOnRelevantCurve)
-                  .add(rightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
-                  .add(upward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
-                  .add(forward.clone().multiplyScalar(yOffset))
+                grapplerComponent.position.copy(internalPosition)
+                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
+                  .add(internalForward.clone().multiplyScalar(yOffset))
 
                 const forwardAnchorOffset = (innerMiddleOuterSign==0) ? grapplerSpacing/2 : 0
-                const anchorPoint = pointOnRelevantCurve.clone()
-                  .add(rightward.clone().multiplyScalar(leftRightSign*launchSledWidthDiv2))
-                  .add(upward.clone().multiplyScalar(upwardsOffsetToAnchors + innerMiddleOuterSign*anchorUpwardsSeparation))
-                  .add(forward.clone().multiplyScalar(offset.y + forwardAnchorOffset))
+                const anchorPoint = internalPosition.clone()
+                  .add(internalRightward.clone().multiplyScalar(leftRightSign*launchSledWidthDiv2))
+                  .add(internalUpward.clone().multiplyScalar(upwardsOffsetToAnchors + innerMiddleOuterSign*anchorUpwardsSeparation))
+                  .add(internalForward.clone().multiplyScalar(offset.y + forwardAnchorOffset))
                 // Create a unit vector towards the anchorPoint
                 const q1 = new THREE.Quaternion
                 const tangent = anchorPoint.clone().sub(grapplerComponent.position).normalize()
@@ -454,11 +473,11 @@ export class virtualLaunchSled {
             })
           }
           else if ((child.name==='launchSled_body') || (child.name==='launchSled_bodyFromModel')) {
-            child.position.copy(pointOnRelevantCurve)
-              .add(rightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
-              .add(upward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))
-              .add(forward.clone().multiplyScalar(virtualLaunchSled.forwardsOffset))
-            child.setRotationFromQuaternion(orientation)
+            child.position.copy(internalPosition)
+              .add(internalRightward.clone().multiplyScalar(virtualLaunchSled.sidewaysOffset))
+              .add(internalUpward.clone().multiplyScalar(virtualLaunchSled.upwardsOffset))
+              .add(internalForward.clone().multiplyScalar(virtualLaunchSled.forwardsOffset))
+            child.setRotationFromQuaternion(internalOrientation)
           }
           child.visible = true
         })
