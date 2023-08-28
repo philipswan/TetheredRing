@@ -231,7 +231,7 @@ const guidParamWithUnits = {
   transitVehicleCruisingSpeed: {value: 500, units: 'm/s', autoMap: true, min: 0, max: 2000, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleMaxAcceleration: {value: 10, units: 'm/s2', autoMap: true, min: 0, max: 50, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleMergeTime: {value: 1, units: 's', autoMap: true, min: 1, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
-  transitVehicleStopDuration: {value: 3, units: 's', autoMap: true, min: 1, max: 300, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitVehicleStopDuration: {value: 30, units: 's', autoMap: true, min: 1, max: 300, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitVehicleRandomizeStartPositions: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   // ToDo: There are no calculations implemented yet that use the following parameters
@@ -692,7 +692,8 @@ function updateTransitsystem() {
   updatedParam()
   crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
-  constructMainRingCurve()
+
+  constructMainRingCurve(0)
 
   const dx = dParamWithUnits['transitTrackOuterOffset'].value
   const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
@@ -1031,7 +1032,7 @@ sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
 
-const ambientLight = new THREE.AmbientLight(0x4f4f4f, 1)
+const ambientLight = new THREE.AmbientLight(0x4f4f4f, 2)
 ambientLight.name = 'ambientLight'
 scene.add(ambientLight)
 
@@ -1082,15 +1083,27 @@ const universeSpec = {
 }
 
 
-const tetheredRingSpecs = [
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.3}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 237.72}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 289.15}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 340.58}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 32.01}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 83.44}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 134.87}},
-  {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.29}}]
+const tetheredRingSpecs = nonGUIParams['getRingLocations']()
+
+// tetheredRingSpecs.push({locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.3}})
+// tetheredRingSpecs.push({locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 22.5, finalLon: 304.365}})
+
+// const n = 20
+// for (let i = 0; i<n; i++) {
+//   const finalLonValue = i / n * 360 
+//   tetheredRingSpecs.push(
+//     {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: finalLonValue}}
+//   )
+// }
+
+// const coordinates = tram.getDodecahedronFaceCoordinates();
+// coordinates.forEach(coord => {
+//   const lat = coord.lat*180/Math.PI + Math.random()*10
+//   const lon = coord.lon*180/Math.PI + Math.random()*10
+//   tetheredRingSpecs.push(
+//     {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: lat, finalLon: lon}}
+//   )
+// })
 
 const tetheredRingSystems = []
 tetheredRingSpecs.forEach((ringSpec, index) => {
@@ -1106,15 +1119,17 @@ tetheredRingSpecs.forEach((ringSpec, index) => {
 // End "Cleaner Code" Section
 
 // Transitional code...
-const tetheredRingRefCoordSys = tetheredRingSystems[0].getMesh()
-const tetheredRingRefCoordSys2 = tetheredRingSystems[1].getMesh()
-const ringToPlanetRotation = tetheredRingSystems[0].ringToPlanetQuaternion
-// End Transitional code
 
 // ToDo: Still Necessary?
 planetCoordSys.updateWorldMatrix(true)
-tetheredRingRefCoordSys.updateMatrixWorld(true)
-tetheredRingRefCoordSys2.updateMatrixWorld(true)
+tetheredRingSystems.forEach(tetheredRingSystem =>{
+  const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
+  tetheredRingRefCoordSys.updateMatrixWorld(true)
+})
+
+const tetheredRingRefCoordSys = tetheredRingSystems[0].getMesh()
+const ringToPlanetRotation = tetheredRingSystems[0].ringToPlanetQuaternion
+// End Transitional code
 
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
 const whiteMaterial = new THREE.MeshBasicMaterial({color: 0x5f5f5f})
@@ -1264,10 +1279,24 @@ function updateBackgroundPatch() {
 
 let mainRingCurve
 let mainRingCurveControlPoints
-constructMainRingCurve()
+const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve)
+function mainRingCurveObjectUpdate() {updatedParam(); mainRingCurveObject.update(dParamWithUnits, mainRingCurve)}
 
-function constructMainRingCurve() {
-  mainRingCurveControlPoints = tram.generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys, tetheredRingRefCoordSys)
+let listsOfTethers = []
+
+tetheredRingSystems.forEach((tetheredRingSystem, index) =>{
+  const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
+
+  constructMainRingCurve(index)
+
+  // Tethers
+  const listOfTethers = constructTethers()
+  listsOfTethers.push(listOfTethers)
+  
+})
+
+function constructMainRingCurve(index) {
+  mainRingCurveControlPoints = tram.generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys)
   const threejsControlPoints = []
   mainRingCurveControlPoints.forEach(point => {
     threejsControlPoints.push(new THREE.Vector3(point.x, point.y, point.z))
@@ -1278,7 +1307,7 @@ function constructMainRingCurve() {
   mainRingCurve.closed = true
   mainRingCurve.tension = 0
 
-  if (genKMLFile) {
+  if (index==0 && genKMLFile) {
     const numPointsOnMainRingCurve = 8192
     const points = mainRingCurve.getPoints( numPointsOnMainRingCurve )
 
@@ -1304,16 +1333,11 @@ function constructMainRingCurve() {
   }
 }
 
-const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve)
-function mainRingCurveObjectUpdate() {updatedParam(); mainRingCurveObject.update(dParamWithUnits, mainRingCurve)}
-
-// Tethers
-const tethers = []
-constructTethers()
 function constructTethers() {
+  const tethers = []
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
+    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile && (index==0), kmlFile, genSpecs && (index==0), planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     // tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
     if (fastTetherRender) {
@@ -1334,30 +1358,7 @@ function constructTethers() {
       tetheredRingRefCoordSys.add(tethers[0])
     }
   }
-}
-
-// Let's make a second ring!!!
-const tethers2 = []
-const secondRing = false
-if (secondRing) constructTethers2()
-function constructTethers2() {
-  if (dParamWithUnits['showTethers'].value || genSpecs) {
-    if (verbose) console.log("Constructing Tethers2")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys2)
-    const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
-    // tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
-    const n = dParamWithUnits['numTethers'].value
-    const k = 2 * Math.PI * 2 / n
-    for (let i=0; i<n/2; i++) {     // Really should be currentCatenaryTypes.length, but that value is hidden from us here
-      const theta = i * k
-      const referencePoint = new THREE.Vector3().setFromSphericalCoords(radiusOfPlanet + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), theta)
-      tempTetherMesh.position.copy(referencePoint)
-      tempTetherMesh.rotation.y = theta
-      tempTetherMesh.matrixValid = false
-      tethers2[i] = tempTetherMesh.clone()
-      tetheredRingRefCoordSys2.add(tethers2[i])
-    }
-  }
+  return tethers
 }
 
 function forceArrowsUpdate() {
@@ -1637,23 +1638,16 @@ function updateRing() {
   elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
   if (verbose) console.log('dispose elevatorCableMeshes ')
 
-  tethers.forEach(tether => {
-    tether.geometry.dispose()
-    tether.material.dispose()
-    //tether.color.dispose()
-    tetheredRingRefCoordSys.remove(tether)
-  })
-  tethers.splice(0, tethers.length)
-
-  if (secondRing) {
-    tethers2.forEach(tether => {
+  listsOfTethers.forEach(listOfTethers => {
+    listOfTethers.forEach(tether => {
       tether.geometry.dispose()
       tether.material.dispose()
       //tether.color.dispose()
       tetheredRingRefCoordSys.remove(tether)
     })
-    tethers2.splice(0, tethers2.length)
-  }
+    listOfTethers.splice(0, listOfTethers.length)
+  })
+
   if (verbose) console.log('dispose tethers ')
 
   // Update the parameters prior to reconsrructing the scene
@@ -1664,7 +1658,7 @@ function updateRing() {
   // ToDo, need to add crv parameters to the specs file. Specifically: crv.mainRingRadius, crv.mainRingCircumference, crv.mainRingMassPerMeter, 
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
  
-  constructMainRingCurve()
+  constructMainRingCurve(0)
   if (verbose) console.log('constructMainRingCurve ')
 
   if (dParamWithUnits['showTransitSystem'].value) {
@@ -1694,8 +1688,17 @@ function updateRing() {
   constructElevatorCables()
   if (verbose) console.log('constructElevatorCables ')
   //if (verbose) console.log("Updating Tethers")
-  constructTethers()
-  if (secondRing) constructTethers2()
+  
+  
+  tetheredRingSystems.forEach((tetheredRingSystem, index) =>{
+    const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
+  
+    // Tethers
+    const listOfTethers = constructTethers()
+    listsOfTethers.push(listOfTethers)
+    
+  })
+  
   if (verbose) console.log('constructTethers ')
 
   tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)

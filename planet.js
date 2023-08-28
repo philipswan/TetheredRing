@@ -80,8 +80,8 @@ export class planet {
               displacementMap = new THREE.TextureLoader().load(displacementFilename)
             }
 
-            planetWidthSegments = (farFromRing) ? 768/4 : 768*16
-            planetHeightSegments = (farFromRing) ? 192/4 : 192*16
+            planetWidthSegments = (farFromRing) ? 768 : 768*64
+            planetHeightSegments = (farFromRing) ? 192 : 192*64
             const planetGeometry = new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
             const planetMesh = new THREE.Mesh(
               planetGeometry,

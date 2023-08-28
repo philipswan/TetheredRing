@@ -105,7 +105,7 @@ export function solveQuadratic(a, b, c) {
     return [result1, result2]
 }
 
-export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys) {
+export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation) {
   const controlPoints = []
 
   const e = dParamWithUnits['ringEccentricity'].value
@@ -180,7 +180,7 @@ export class elevatorCarVariables {
   }
   update() {
     // Not verified yet!!!
-    this.waitTime = 40 // seconds - a bit short for people to disembark/embark but will suffice for now
+    this.waitTime = 30 // seconds - a bit short for people to disembark/embark but will suffice for now
     this.energyRequirementPerKg = (this.gravitationalConstant * 1 * this.massOfPlanet) * (1/this.radiusOfPlanet - 1/(this.radiusOfPlanet+this.crv.currentMainRingAltitude))
     this.batterySpecificEnergy = 265 // Wh/kg
     this.driveSystemEfficiency = 0.8
@@ -1339,3 +1339,33 @@ export function findCircleSphereIntersections(circleCenter, circleNormal, circle
     }
   }
 }
+
+export function getDodecahedronFaceCoordinates() {
+  const phi = (1 + Math.sqrt(5)) / 2; // The golden ratio
+  const a = 1;
+
+  const vertices = [
+    [0, a, phi * a],
+    [0, -a, phi * a],
+    [0, a, -phi * a],
+    [0, -a, -phi * a],
+
+    [a, phi * a, 0],
+    [-a, phi * a, 0],
+    [a, -phi * a, 0],
+    [-a, -phi * a, 0],
+
+    [phi * a, 0, a],
+    [-phi * a, 0, a],
+    [phi * a, 0, -a],
+    [-phi * a, 0, -a]
+  ];
+
+  const faceCoordinates = vertices.map(vertex => ({
+    lat: Math.atan2(vertex[2], Math.sqrt(vertex[0] * vertex[0] + vertex[1] * vertex[1])),
+    lon: Math.atan2(vertex[1], vertex[0])
+  }));
+
+  return faceCoordinates;
+}
+
