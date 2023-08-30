@@ -178,13 +178,11 @@ const guidParamWithUnits = {
   defaultcapitalCostPerKgSupported: {value: 100.0, units: "USD/kg", autoMap: true, min: 1, max: 1000, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Stationary Rings
-  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numMainRings2: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
 
-  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: adjustRingDesign, folder: folderEngineering}, // ToDo - Retire this parameter
+  mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: updateTransitsystem, folder: folderEngineering}, // ToDo - Retire this parameter
 
-  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: adjustRingDesign, folder: folderEngineering},
-  mainRingSpacing2: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
+  mainRingSpacing: {value: 10, units: "m", autoMap: true, min: 0, max: 30, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   mainRingUpwardOffset: {value: 0, units: "m", autoMap: true, min: -100, max: 100, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   mainRingOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -10, max: 10, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -210,9 +208,9 @@ const guidParamWithUnits = {
   transitTrackHeight: {value: .1, units: 'm', autoMap: true, min: 0, max: 2, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTrackNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTrackUpwardOffset: {value: 2.38125, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
-  transitTrackOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -10, max: 10, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTrackUpwardSpacing: {value: 4.8125, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
-  transitTrackOutwardSpacing: {value: 4.575, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
+  transitTrackOutwardSpacing: {value: 4.575, units: 'm', autoMap: true, min: 0, max: 20, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTracksNumUpwardTracks: {value: 2, units: '', autoMap: true, min: 1, max: 4, updateFunction: updateTransitsystem, folder: folderEngineering},
   transitTracksNumOutwardTracks: {value: 2, units: '', autoMap: true, min: 1, max: 4, updateFunction: updateTransitsystem, folder: folderEngineering},
 
@@ -274,8 +272,8 @@ const guidParamWithUnits = {
   elevatorCarCost: {value: 1000000, units: 'USD', autoMap: true, min: 0, max: 10000000, updateFunction: updateTransitsystem, folder: folderEngineering},  // ToDo: Need a better estimate for the cost of an elevator car
 
   // Habitats
-  numVirtualHabitats: {value:17100, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  habitatNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  numVirtualHabitats: {value:17100, units: "", autoMap: true, min: 0, max: 100000, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  habitatNumModels: {value:256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   habitatUpwardOffset: {value: 3.66, units: 'm', autoMap: true, min: -10, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
   habitatOutwardOffset: {value: 14.32, units: 'm', autoMap: true, min: 0, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   habitatForwardOffset: {value: 4.16, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -294,7 +292,7 @@ const guidParamWithUnits = {
 
   // Solar Arrays
   numVirtualSolarArrays: {value: 100000, units: "", autoMap: true, min: 0, max: 1000000, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  solarArrayNumModels: {value:2560, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  solarArrayNumModels: {value: 2560, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayWidth: {value: 15, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayHeight: {value: 10, units: "m", autoMap: true, min: 0, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   solarArrayOutwardOffset: {value: -60, units: "m", autoMap: true, min: -100, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -690,21 +688,14 @@ updatedParam()
 
 function updateTransitsystem() {
   updatedParam()
-  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+  crv = tetheredRingSystems[0].crv
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 
-  constructMainRingCurve(0)
-
-  const dx = dParamWithUnits['transitTrackOuterOffset'].value
-  const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
-  const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
-  trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
-  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, timeSinceStart)
+  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, timeSinceStart)
 }
 
 function updateLauncher() {
   updatedParam()
-  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
   launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
   launchSystemObject.update(dParamWithUnits, timeSinceStart, crv)
@@ -954,10 +945,12 @@ let farClippingPlane = 10 * radiusOfPlanet
 let extraDistanceForCamera = 10000
 
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
+camera.name = 'camera'
 
 // The Camera group is a place where we will add things that should always be close to the user, wherever the user happens to be, such as VR controllers, for example, and maybe an in-VR gui for the user to interact with.
 // We will also move the camera group rather than the camera when we're navigating around the scene, for example when interacting with the orbit controls.
 const cameraGroup = new THREE.Group()
+cameraGroup.name = 'cameraGroup'
 cameraGroup.add(camera)
 if (!enableVR) {
   camera.position.z = -30 * radiusOfPlanet/8
@@ -1037,6 +1030,7 @@ ambientLight.name = 'ambientLight'
 scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
+planetCoordSys.name = 'planetCoordSys'
 //planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
 scene.add(planetCoordSys)
 if (enableVR) {
@@ -1069,11 +1063,12 @@ const moonMesh = new THREE.Mesh(
     map: moonTexture,
   })
 )
+moonMesh.name = 'moon'
 const moonOrbitDistance = 384467000 // m
 moonMesh.position.set(moonOrbitDistance, 0, 0)
 moonMesh.rotation.set(0, 0, 0)
 moonMesh.visible = dParamWithUnits['showMoon'].value
-scene.add(moonMesh)
+planetCoordSys.add(moonMesh)
 
 
 
@@ -1083,7 +1078,7 @@ const universeSpec = {
 }
 
 
-const tetheredRingSpecs = nonGUIParams['getRingLocations']()
+const tetheredRingSpecs = nonGUIParams['getRingSpecs']()
 
 // tetheredRingSpecs.push({locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.3}})
 // tetheredRingSpecs.push({locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 22.5, finalLon: 304.365}})
@@ -1107,14 +1102,10 @@ const tetheredRingSpecs = nonGUIParams['getRingLocations']()
 
 const tetheredRingSystems = []
 tetheredRingSpecs.forEach((ringSpec, index) => {
-  const tempTetheredRingSystem = new tetheredRingSystem(universeSpec, planetSpec, ringSpec, dParamWithUnits, index)
+  const tempTetheredRingSystem = new tetheredRingSystem(dParamWithUnits, universeSpec, planetSpec, ringSpec, index, genKMLFile, kmlFile)
   tetheredRingSystems.push(tempTetheredRingSystem)
   planetCoordSys.add(tempTetheredRingSystem.getMesh())
 })
-
-// tetheredRingSpecs.forEach((ringSpec, index) => {
-//   tetheredRingSystems[index].add(tempTetherdRing)
-// })
 
 // End "Cleaner Code" Section
 
@@ -1127,8 +1118,11 @@ tetheredRingSystems.forEach(tetheredRingSystem =>{
   tetheredRingRefCoordSys.updateMatrixWorld(true)
 })
 
-const tetheredRingRefCoordSys = tetheredRingSystems[0].getMesh()
-const ringToPlanetRotation = tetheredRingSystems[0].ringToPlanetQuaternion
+let tetheredRingRefCoordSys = tetheredRingSystems[0].getMesh()
+let ringToPlanetRotation = tetheredRingSystems[0].ringToPlanetQuaternion
+let crv = tetheredRingSystems[0].crv
+let mainRingCurve = tetheredRingSystems[0].mainRingCurve
+
 // End Transitional code
 
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
@@ -1222,10 +1216,9 @@ for ( let i = 0; i < 10000;) {
 starGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( starVertices, 3 ) )
 const starsMesh = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
 starsMesh.name = 'stars'
-planetCoordSys.add(starsMesh)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
+scene.add(starsMesh)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
 // Generate the main ring
-let crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
 let ctv = new tram.commonTetherVariables()
 let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
 let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
@@ -1277,8 +1270,6 @@ function updateBackgroundPatch() {
   
 }
 
-let mainRingCurve
-let mainRingCurveControlPoints
 const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve)
 function mainRingCurveObjectUpdate() {updatedParam(); mainRingCurveObject.update(dParamWithUnits, mainRingCurve)}
 
@@ -1287,53 +1278,13 @@ let listsOfTethers = []
 tetheredRingSystems.forEach((tetheredRingSystem, index) =>{
   const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
 
-  constructMainRingCurve(index)
-
   // Tethers
-  const listOfTethers = constructTethers()
+  const listOfTethers = constructTethers(tetheredRingRefCoordSys)
   listsOfTethers.push(listOfTethers)
   
 })
 
-function constructMainRingCurve(index) {
-  mainRingCurveControlPoints = tram.generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation, planetCoordSys)
-  const threejsControlPoints = []
-  mainRingCurveControlPoints.forEach(point => {
-    threejsControlPoints.push(new THREE.Vector3(point.x, point.y, point.z))
-  })
-
-  mainRingCurve = new THREE.CatmullRomCurve3(threejsControlPoints)
-  mainRingCurve.curveType = 'centripetal'
-  mainRingCurve.closed = true
-  mainRingCurve.tension = 0
-
-  if (index==0 && genKMLFile) {
-    const numPointsOnMainRingCurve = 8192
-    const points = mainRingCurve.getPoints( numPointsOnMainRingCurve )
-
-    //KML file placemark creation code for the ring and elevator cables.
-    kmlFile = kmlFile.concat(kmlutils.kmlMainRingPlacemarkHeader)
-    let xyzWorld, xyzPlanet
-    let coordString, firstCoordString
-
-    planetCoordSys.updateWorldMatrix(true)
-    tetheredRingRefCoordSys.updateMatrixWorld(true)
-    points.forEach((point, i) => {
-      xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
-      xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
-      const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
-      coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
-      if (i==0) {
-        firstCoordString = coordString
-      }
-      kmlFile = kmlFile.concat(coordString)
-    })
-    kmlFile = kmlFile.concat(firstCoordString)  // We need to repeat the first coordinate to close the loop
-    kmlFile = kmlFile.concat(kmlutils.kmlPlacemarkFooter)
-  }
-}
-
-function constructTethers() {
+function constructTethers(tetheredRingRefCoordSys) {
   const tethers = []
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
@@ -1366,24 +1317,23 @@ function forceArrowsUpdate() {
   gyroscopicForceArrowsUpdate()
 }
 
-const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation)
+const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation)
 function gravityForceArrowsUpdate() {
   updatedParam()
   showTensileForceArrows = true
   showGravityForceArrows = true
   showInertialForceArrows = true
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
 }
 
-const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
 function gyroscopicForceArrowsUpdate() {
   updatedParam()
-  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
 }
 
 let trackingPoint = null  // This is the location of the object which was under the sprite when user last pressed the 'P' key  
 let lastTrackingPoint = null
-let lastCameraQaternion = null
 let stationaryCameraTrackingMode = false
 let closestVirtualLaunchVehicle = null
 let closestVirtualTransitVehicle = null
@@ -1392,6 +1342,7 @@ let tweeningTime = 2000
 let tweeningActive = false
 
 let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 9, 9), grayMaterial)
+trackingPointMarkerMesh.name = 'trackingPointMarkerMesh'
 trackingPointMarkerMesh.visible = false
 planetCoordSys.add(trackingPointMarkerMesh)
 let orbitControlsMarkerMesh = new THREE.Mesh(new THREE.SphereGeometry(5, 10, 10), greenMaterial)
@@ -1404,147 +1355,7 @@ let start, end
 
 console.log("V6")
 
-const mainRingMeshes = []
-const transitSystemMeshes = []
-const dx = dParamWithUnits['transitTrackOuterOffset'].value
-const dy1 = dParamWithUnits['transitTrackUpperOffset1'].value
-const dy2 = dParamWithUnits['transitTrackUpperOffset2'].value
-let trackOffsetsList = [[-dx, dy1], [dx, dy1], [-dx, dy2], [dx, dy2]]
-
-constructMainRingAndTransitSystem()
-function constructMainRingAndTransitSystem() {
-  if (dParamWithUnits['showTransitSystem'].value) {
-    //console.log("Constructing Transit System")
-    // Add the transit tube
-    // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
-    const transitTube_r = crv.mainRingRadius + tram.offset_r(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
-    const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
-
-    const trackHalfWidth = 0.2
-    const trackHalfHeight = 0.05
-    const referencePoint = new THREE.Vector3()
-
-    // Construct the main rings
-    //const mro = (dParamWithUnits['numMainRings'].value - 1)/2
-    for (let j = 0; j<numWedges; j++) {
-      const mainRingGeometries = []
-      start = j / numWedges
-      end = (j+1) / numWedges
-      referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
-
-      // for (let i = 0; i<dParamWithUnits['numMainRings'].value; i++) {
-      //   mainRingGeometries[i] = new mainRingTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, (i-mro) * dParamWithUnits['mainRingSpacing'].value, dParamWithUnits['mainRingTubeRadius'].value-.25)
-      // }
-      // const mainRingMesh = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries( mainRingGeometries ), metalicMaterial)
-      // mainRingMesh.name = 'mainRing'
-      // mainRingMesh.position.copy(referencePoint)
-      // mainRingMesh.matrixValid = false
-      // if (guidParam['perfOptimizedThreeJS']) mainRingMesh.freeze()
-      // mainRingMeshes.push( mainRingMesh )
-    }
-    // mainRingMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
-
-    // Construct the Transit Tube
-    // Outer tube
-    // for (let j = 0; j<numWedges; j++) {
-    //   start = j / numWedges
-    //   end = (j+1) / numWedges
-    //   referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
-
-    //   const tempTransitTubeGeometry = new transitTubeGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, dParamWithUnits['transitTubeTubeRadius'].value)
-    //   const transitTubeMesh = new THREE.Mesh(tempTransitTubeGeometry, transparentMaterial3)
-    //   transitTubeMesh.name = 'transitTube'
-    //   transitTubeMesh.position.copy(referencePoint)
-    //   transitTubeMesh.matrixValid = false
-    //   if (guidParam['perfOptimizedThreeJS']) transitTubeMesh.freeze()
-    //   transitSystemMeshes.push( transitTubeMesh )
-    // }
-
-    // Four tracks within outer tube
-    // let outwardOffset = [], upwardOffset = []
-    // for (let i = 0; i<trackOffsetsList.length; i++) {
-    //   outwardOffset[i] = dParamWithUnits['transitTubeOutwardOffset'].value + trackOffsetsList[i][0]
-    //   upwardOffset[i] = dParamWithUnits['transitTubeUpwardOffset'].value + trackOffsetsList[i][1]
-    // }
-    // for (let j = 0; j<numWedges; j++) {
-    //   start = j / numWedges
-    //   end = (j+1) / numWedges
-    //   referencePoint.copy( mainRingCurve.getPoint( (start+end)/2 ) )
-
-    //   // Add four tracks inside the transit tube
-    //   for (let i = 0; i<trackOffsetsList.length; i++) {
-    //     const trackGeometry = new transitTrackGeometry(mainRingCurve, start, end, referencePoint, 8192/numWedges, outwardOffset[i], upwardOffset[i], trackHalfWidth, trackHalfHeight)
-    //     const transitTrackMesh = new THREE.Mesh(trackGeometry, metalicMaterial)
-    //     transitTrackMesh.name = 'transitTrack'
-    //     transitTrackMesh.position.copy(referencePoint)
-    //     transitTrackMesh.matrixValid = false
-    //     if (guidParam['perfOptimizedThreeJS']) transitTrackMesh.freeze()
-    //     transitSystemMeshes.push( transitTrackMesh )
-    //   }
-    // }
-    // transitSystemMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
-  }
-}
-
-const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve)
-
-const elevatorCableMeshes = []
-constructElevatorCables()
-function constructElevatorCables() {
-  if (false && dParamWithUnits['showElevatorCables'].value) {
-    //console.log("Constructing Elevator Cables")
-    
-    // Add elevator cables
-    // crv.y0, crv.yc, and crv.yf are the initial, current, and final distances between the center of the earth and the center of mass of the moving rings.
-    const cableOutwardOffset = dParamWithUnits['transitTubeOutwardOffset'].value - dParamWithUnits['transitTubeTubeRadius'].value + dParamWithUnits['elevatorCableOutwardOffset'].value
-    const elevatorCableUpperAttachPnt_dr = tram.offset_r(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-    const elevatorCableLowerAttachPnt_dr = tram.offset_r(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    const elevatorCableUpperAttachPnt_dy = tram.offset_y(cableOutwardOffset, dParamWithUnits['transitTubeUpwardOffset'].value + dParamWithUnits['additionalUpperElevatorCable'].value, crv.currentEquivalentLatitude)
-    const elevatorCableLowerAttachPnt_dy = tram.offset_y(cableOutwardOffset, -crv.currentMainRingAltitude, crv.currentEquivalentLatitude)
-    //const elevatorCableLowerAttachPnt_da = dParamWithUnits['elevatorCableForwardOffset'].value / (2 * Math.PI * (crv.mainRingRadius + elevatorCableUpperAttachPnt_dr))
-    const elevatorCableLowerAttachPnt_da = -69.5 / (2 * Math.PI * (crv.mainRingRadius + elevatorCableUpperAttachPnt_dr))
-
-    const wedgeReferencePoints = Array(numWedges)
-    for (let wedgeIndex = 0; wedgeIndex<numWedges; wedgeIndex++) {
-      wedgeReferencePoints[wedgeIndex] = new THREE.Vector3()
-      wedgeReferencePoints[wedgeIndex].copy( mainRingCurve.getPoint( (wedgeIndex+0.5) / numWedges ) )
-      mainRingCurve.getPoint( (wedgeIndex+0.5) / numWedges )
-    }
-    const pointSets = Array(numWedges).fill().map(entry => [])  // declare an array of empty arrays for storing points
-    const n = dParamWithUnits['numElevatorCables'].value
-    for (let a = elevatorCableLowerAttachPnt_da, i = 0; i<n; a += 2*Math.PI/n, i++) {
-      const mrcp = mainRingCurve.getPoint((a/2/Math.PI) % 1)  // mrcp is the main ring curve point
-
-      const elevatorCableUpperAttachPnt = new THREE.Vector3(
-        mrcp.x + elevatorCableUpperAttachPnt_dr * Math.cos(a),
-        mrcp.y + elevatorCableUpperAttachPnt_dy,
-        mrcp.z + elevatorCableUpperAttachPnt_dr * Math.sin(a)
-      )
-      const elevatorCableLowerAttachPnt = new THREE.Vector3(
-        mrcp.x + elevatorCableLowerAttachPnt_dr * Math.cos(a),
-        mrcp.y + elevatorCableLowerAttachPnt_dy,
-        mrcp.z + elevatorCableLowerAttachPnt_dr * Math.sin(a)
-      )
-
-      // For performance reasons, within each wedge all of the elevator cables are collected into a single geometry  
-      const wedgeIndex = Math.floor(i * numWedges / n)
-      const wedgeReferencePoint = wedgeReferencePoints[wedgeIndex]
-      pointSets[wedgeIndex].push(elevatorCableUpperAttachPnt.sub(wedgeReferencePoint))
-      pointSets[wedgeIndex].push(elevatorCableLowerAttachPnt.sub(wedgeReferencePoint))
-      // Now create an array of two points use that to make a LineSegment Geometry
-      //tempGeometry.setAttribute("color", new THREE.Float32BufferAttribute(0x0000ff, 3) )
-    }
-    for (let wedgeIndex = 0; wedgeIndex<numWedges; wedgeIndex++) {
-      const pointSet = pointSets[wedgeIndex]
-      const elevatorCableMesh =  new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pointSet), cableMaterial)
-      pointSet.splice(0, pointSet.length)  // Empty the array
-      elevatorCableMesh.position.copy(wedgeReferencePoints[wedgeIndex])
-      elevatorCableMesh.matrixValid = false
-      elevatorCableMeshes.push(elevatorCableMesh)
-    }
-    elevatorCableMeshes.forEach(mesh => tetheredRingRefCoordSys.add(mesh))
-  }
-}
+const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, crv, ecv, radiusOfPlanet, mainRingCurve)
 
 // Launch Trajectory Line
 let launchSystemObject = null
@@ -1609,34 +1420,6 @@ function calculateAdditionalSpecs() {
 }
 
 function updateRing() {
-  
-  if (majorRedesign) {
-    mainRingMeshes.forEach(mesh => {
-      mesh.geometry.dispose()
-      mesh.material.dispose()
-      tetheredRingRefCoordSys.remove(mesh)
-    })
-    mainRingMeshes.splice(0, mainRingMeshes.length)
-  }
-  if (verbose) console.log('dispose mainRingMeshes ')
-
-  if (majorRedesign) {
-    transitSystemMeshes.forEach(mesh => {
-      mesh.geometry.dispose()
-      mesh.material.dispose()
-      tetheredRingRefCoordSys.remove(mesh)
-    })
-    transitSystemMeshes.splice(0, transitSystemMeshes.length)
-  }
-  if (verbose) console.log('dispose transitSystemMeshes ')
-
-  elevatorCableMeshes.forEach(mesh => {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    tetheredRingRefCoordSys.remove(mesh)
-  })
-  elevatorCableMeshes.splice(0, elevatorCableMeshes.length)
-  if (verbose) console.log('dispose elevatorCableMeshes ')
 
   listsOfTethers.forEach(listOfTethers => {
     listOfTethers.forEach(tether => {
@@ -1647,54 +1430,52 @@ function updateRing() {
     })
     listOfTethers.splice(0, listOfTethers.length)
   })
+  if (verbose) console.log('disposed of tethers')
 
-  if (verbose) console.log('dispose tethers ')
+  transitSystemObject.destroy(dParamWithUnits)  // Actually doesn't destroy - just removes all of the models from the scene.
+
+  tetheredRingSystems.forEach(tetheredRingSystem => {
+    tetheredRingSystem.destroy()
+  })
+  tetheredRingSystems.splice(0, tetheredRingSystems.length)
 
   // Update the parameters prior to reconsrructing the scene
   updatedParam()
 
   // Reconstruction Section
-  crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+ 
+  tetheredRingSpecs.forEach((ringSpec, index) => {
+    const tempTetheredRingSystem = new tetheredRingSystem(dParamWithUnits, universeSpec, planetSpec, ringSpec, index, genKMLFile, kmlFile)
+    tetheredRingSystems.push(tempTetheredRingSystem)
+    planetCoordSys.add(tempTetheredRingSystem.getMesh())
+    if (verbose) console.log('created tetheredRingSystem ' + index)
+  })
+
+  // Transition code
+  // ToDo: Still Necessary?
+  planetCoordSys.updateWorldMatrix(true)
+  tetheredRingSystems.forEach(tetheredRingSystem =>{
+    const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
+    tetheredRingRefCoordSys.updateMatrixWorld(true)
+  })
+
+  tetheredRingRefCoordSys = tetheredRingSystems[0].getMesh()
+  ringToPlanetRotation = tetheredRingSystems[0].ringToPlanetQuaternion
+  crv = tetheredRingSystems[0].crv
+  mainRingCurve = tetheredRingSystems[0].mainRingCurve
+  
   // ToDo, need to add crv parameters to the specs file. Specifically: crv.mainRingRadius, crv.mainRingCircumference, crv.mainRingMassPerMeter, 
   ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
- 
-  constructMainRingCurve(0)
-  if (verbose) console.log('constructMainRingCurve ')
 
-  if (dParamWithUnits['showTransitSystem'].value) {
-    if (majorRedesign) {
-      constructMainRingAndTransitSystem()
-    }
-    else {
-      transitSystemMeshes.forEach((mesh, i) => {
-        const transitTube_y = crv.yc + tram.offset_y(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv.currentEquivalentLatitude)
-        if (i==0) {
-          mesh.position.y = transitTube_y
-          mesh.matrixValid = false
-        }
-        else {
-          //const outwardOffset = trackOffsetsList[i-1][0] * dParamWithUnits['transitTubeTubeRadius'].value 
-          //const upwardOffset = trackOffsetsList[i-1][1] * dParamWithUnits['transitTubeTubeRadius'].value
-          //mesh.position.y = transitTube_y + tram.offset_y(outwardOffset, upwardOffset, crv.currentEquivalentLatitude)
-          //mesh.matrixValid = false
-        }
-      })
-    }
-  }
   mainRingCurveObject.update(dParamWithUnits, mainRingCurve)
-  transitSystemObject.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, [timeSinceStart])
+  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, [timeSinceStart])
   if (verbose) console.log('transitSystemObject.update ')
-
-  constructElevatorCables()
-  if (verbose) console.log('constructElevatorCables ')
-  //if (verbose) console.log("Updating Tethers")
   
-  
-  tetheredRingSystems.forEach((tetheredRingSystem, index) =>{
+  tetheredRingSystems.forEach(tetheredRingSystem => {
     const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
   
     // Tethers
-    const listOfTethers = constructTethers()
+    const listOfTethers = constructTethers(tetheredRingRefCoordSys)
     listsOfTethers.push(listOfTethers)
     
   })
@@ -1708,7 +1489,8 @@ function updateRing() {
     tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
   }
 
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
   //calculateAdditionalSpecs()
 
   if (genSpecs) {
@@ -1765,6 +1547,15 @@ const worldDirection = new THREE.Vector3
 const tempMatrix = new THREE.Matrix4()
 
 function renderFrame() {
+
+  // Code useful for checking that we didn't accidentally create too many objects.
+  // let counts = {}
+  // planetCoordSys.children.forEach(child => {
+  //   if (!counts[child.name]) counts[child.name] = 0
+  //   counts[child.name]++
+  // })
+  // console.log(tetheredRingRefCoordSys.children.length, counts)
+
   if (enableVR) {
     // These two lines are for the VR hand controllers
     // handleController( controller1 )
@@ -1986,29 +1777,14 @@ function renderFrame() {
   const weAreFar1 = (cameraGroup.position.length() > (radiusOfPlanet + crv.currentMainRingAltitude)*1.1)
   if (weAreFar1 !== prevWeAreFar1) {
     if (weAreFar1) {
-      // To improve rendering performance when zoomed out, make parts of the ring invisible
+      // To improve rendering performance when not zoomed out, make stars invisible
       starsMesh.visible = true
-      transitSystemMeshes.forEach(mesh => {mesh.visible = false})
-      mainRingMeshes.forEach(mesh => {mesh.visible = false})
     }
     else {
       starsMesh.visible = false
-      transitSystemMeshes.forEach(mesh => {mesh.visible = true})
-      mainRingMeshes.forEach(mesh => {mesh.visible = true})
     }
   }
   prevWeAreFar1 = weAreFar1
-
-  const weAreFar2 = (cameraGroup.position.length() > radiusOfPlanet*4)
-  if (weAreFar2 !== prevWeAreFar2) {
-    if (weAreFar2) {
-      elevatorCableMeshes.forEach(mesh => {mesh.visible = false})
-    }
-    else {
-      elevatorCableMeshes.forEach(mesh => {mesh.visible = true})
-    }
-  }
-  prevWeAreFar2 = weAreFar2
 
   if (console.userdata['capture']==1) { 
     console.userdata['matrixAutoUpdateData'] = {}
@@ -2130,7 +1906,7 @@ function onSelectEnd() {
 }
 
 controller1 = renderer.xr.getController( 0 )
-
+controller1.name = 'controller1'
 controller1.addEventListener( 'selectstart', onSelectStart )
 controller1.addEventListener( 'selectend', onSelectEnd )
 controller1.addEventListener( 'connected', function ( event ) {
@@ -2141,9 +1917,12 @@ controller1.addEventListener( 'connected', function ( event ) {
 controller1.addEventListener( 'disconnected', function () {
   this.remove( this.children[ 0 ] )
 } )
-cameraGroup.add( controller1 )
+if (enableVR) {
+  cameraGroup.add( controller1 )
+}
 
 controller2 = renderer.xr.getController( 1 )
+controller2.name = 'controller2'
 controller2.addEventListener( 'selectstart', onSelectStart )
 controller2.addEventListener( 'selectend', onSelectEnd )
 controller2.addEventListener( 'connected', function ( event ) {
@@ -2154,7 +1933,9 @@ controller2.addEventListener( 'connected', function ( event ) {
 controller2.addEventListener( 'disconnected', function () {
   this.remove( this.children[ 0 ] )
 } )
-cameraGroup.add( controller2 )
+if (enableVR) {
+  cameraGroup.add( controller2 )
+}
 
 // The XRControllerModelFactory will automatically fetch controller models
 // that match what the user is holding as closely as possible. The models
@@ -2164,12 +1945,18 @@ cameraGroup.add( controller2 )
 const controllerModelFactory = new XRControllerModelFactory()
 
 controllerGrip1 = renderer.xr.getControllerGrip( 0 )
+controllerGrip1.name = 'controllerGrip1'
 controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) )
-cameraGroup.add( controllerGrip1 )
+if (enableVR) {
+  cameraGroup.add( controllerGrip1 )
+}
 
 controllerGrip2 = renderer.xr.getControllerGrip( 1 )
+controllerGrip2.name = 'controllerGrip2'
 controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) )
-cameraGroup.add( controllerGrip2 )
+if (enableVR) {
+  cameraGroup.add( controllerGrip2 )
+}
 
 function buildController( data ) {
 
@@ -2529,19 +2316,19 @@ function onKeyDown( event ) {
     case 84: /*T*/
       // Toggle Display of the Tensile Force Arrows
       showTensileForceArrows = !showTensileForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break
     case 71: /*G*/
       // Toggle Display of the Tensile Force Arrows
       showGravityForceArrows = !showGravityForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break
     case 73: /*I*/
       // Toggle Display of the Tensile Force Arrows
       showInertialForceArrows = !showInertialForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
       break
     case 86: /*V*/

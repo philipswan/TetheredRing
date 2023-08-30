@@ -8,8 +8,15 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   })
 
   // defaults
-  nonGUIParams['getRingLocations'] = () => {
-    return [{locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: 14.33, finalLon: 186.3}}]
+  nonGUIParams['getRingSpecs'] = () => {
+    return [{
+      locationSpec: {
+        buildLat: guidParamWithUnits['buildLocationRingCenterLatitude'].value,
+        buildLon: guidParamWithUnits['buildLocationRingCenterLongitude'].value,
+        finalLat: guidParamWithUnits['finalLocationRingCenterLatitude'].value,
+        finalLon: guidParamWithUnits['finalLocationRingCenterLongitude'].value
+      }
+    }]
   }
 
   switch (0) {
@@ -627,7 +634,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=4) || (j!=2)) &&  // Seattle??
       ((i!=1) || (j!=4)))} // Hawaii??
       
-    nonGUIParams['getRingLocations'] = () => {
+    nonGUIParams['getRingSpecs'] = () => {
       const tetheredRingSpecs = []
       const coordinates = tram.getDodecahedronFaceCoordinates();
       coordinates.forEach(coord => {

@@ -97,7 +97,11 @@ export function defineUpdateTrajectoryCurves () {
     const evacuatedTubeEntrancePositionAroundRing = dParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value
     const evacuatedTubeEntrancePositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeEntrancePositionAroundRing)
     // Adjust the altitude of the positions to place it the correct distance above the earth's surface
-    const evacuatedTubeEntrancePosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeEntrancePositionInRingRefCoordSys.clone()))
+    if (planetCoordSys.matrixWorldNeedsUpdate) planetCoordSys.updateMatrixWorld(true)
+    if (tetheredRingRefCoordSys.matrixWorldNeedsUpdate) tetheredRingRefCoordSys.updateMatrixWorld(true)
+    console.assert(planetCoordSys.matrixWorldNeedsUpdate===false, 'planetCoordSys.matrixWorldNeedsUpdate===false')
+    const evacuatedTubeEntrancePositionInWorldCoordSystem = tetheredRingRefCoordSys.localToWorld(evacuatedTubeEntrancePositionInRingRefCoordSys.clone())
+    const evacuatedTubeEntrancePosition = planetCoordSys.worldToLocal(evacuatedTubeEntrancePositionInWorldCoordSystem)
     evacuatedTubeEntrancePosition.normalize().multiplyScalar(crv.radiusOfPlanet + launcherRampExitAltitude)
     // ***************************************************************
     // Now design the evacuated tube that the vehicles will travel within from the end of the ramp to the altitude of the main ring.  
@@ -222,7 +226,7 @@ export function defineUpdateTrajectoryCurves () {
     const evacuatedTubeExitPositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeExitPositionAroundRing)
     // Adjust the altitude of the positions to place it the correct distance above the earth's surface
     evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude))
-    // Convert thes positions into the planet's coordinate system 
+    // Convert these positions into the planet's coordinate system 
     const evacuatedTubeExitPosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeExitPositionInRingRefCoordSys.clone()))
 
     // Generate an axis of rotation for define the curvatures of the mass driver and the ramp

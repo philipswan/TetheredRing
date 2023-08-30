@@ -1,20 +1,15 @@
 import * as THREE from 'three'
-import { BoxGeometry } from 'three'
-import { Quaternion } from 'three/src/math/Quaternion.js'
 //import { XYChart } from './XYChart.js'
-import { CatmullRomSuperCurve3 } from './SuperCurves.js'
-import { CircleSuperCurve3 } from './SuperCurves.js'
 import { SuperCurvePath } from './SuperCurves.js'
-import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
-import { referenceFrame } from './ReferenceFrame.js'
+import { referenceFrame } from './referenceFrame.js'
 import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
 import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
 import { massDriverTubeModel, virtualMassDriverTube } from './MassDriverTube.js'
 import { massDriverRailModel, virtualMassDriverRail } from './MassDriverRail.js'
 import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBracket.js'
 import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.js'
-import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
+//import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
 import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
 import * as OrbitMath from './OrbitMath.js'
 
@@ -252,7 +247,7 @@ export class launcher {
     virtualMassDriverRail.update(dParamWithUnits, this.versionNumber)
     virtualMassDriverBracket.update(dParamWithUnits, this.massDriverCurve, this.versionNumber)
     virtualMassDriverScrew.update(dParamWithUnits, this.launcherMassDriverLength, this.massDriverScrewSegments, this.massDriverScrewMaterials, this.versionNumber)
-    virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
+    //virtualEvacuatedTube.update(dParamWithUnits, this.evacuatedTubeCurve)
     virtualLaunchSled.update(dParamWithUnits, this.launcherMassDriverLength, this.scene, this.clock)
     virtualLaunchVehicle.update(
       dParamWithUnits, 
@@ -797,7 +792,6 @@ export class launcher {
                 // This is the last model. Duplicate it so that we don't run out.
                 const tempModel = object.unallocatedModels[0].clone()
                 object.unallocatedModels.push(tempModel)
-                this.scene.add(tempModel)
                 //console.log('Duplicating model for ' + objectKey)
               }
               if (object.unallocatedModels.length>0) {
@@ -806,6 +800,7 @@ export class launcher {
                 // }
                 object.model = object.unallocatedModels.pop()
                 object.model.visible = object.isVisible
+                this.scene.add(object.model)
               }
               else {
                 if (objectKey in ranOutOfModelsInfo) {

@@ -115,13 +115,13 @@ export function arrow(position, direction, arrowSize = 1000000, vectorMagnitude 
 }
 
 export class gyroscopicForceArrowsObject {
-  constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
+  constructor(planetCoordSys, dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
     this.gyroscopicForceArrowMeshes = []
     this.planetCoordSys = planetCoordSys
-    this.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+    this.update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
   }
 
-  update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
+  update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation) {
 
     this.gyroscopicForceArrowMeshes.forEach(mesh => {
       mesh.geometry.dispose()
@@ -133,9 +133,10 @@ export class gyroscopicForceArrowsObject {
     if (dParamWithUnits['showGyroscopicForceArrows'].value) {
       const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
       const lengthOfSiderealDay = 86160 // s
-      const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)    
-      for (let i = 0; i<mainRingCurveControlPoints.length; i+=8) {
-        const positionInRingCoordSys = mainRingCurveControlPoints[i]
+      const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)
+      const n = dParamWithUnits['numForceArrows'].value
+      for (let i = 0; i<n; i++) {
+        const positionInRingCoordSys = mainRingCurve.getPoint(i / n)
         const positionInPlanetCoordSys = new THREE.Vector3()
         positionInPlanetCoordSys.copy(positionInRingCoordSys).applyQuaternion(ringToPlanetRotation)
         const upwardUnitVector = positionInPlanetCoordSys.clone().normalize()
@@ -202,13 +203,13 @@ export class gyroscopicForceArrowsObject {
 
 
 export class gravityForceArrowsObject {
-  constructor(planetCoordSys, dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation) {
+  constructor(planetCoordSys, dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation) {
     this.gravityForceArrowMeshes = []
     this.planetCoordSys = planetCoordSys
-    this.update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
+    this.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
   }
 
-  update(dParamWithUnits, mainRingCurveControlPoints, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
+  update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
 
     this.gravityForceArrowMeshes.forEach(mesh => {
       mesh.geometry.dispose()

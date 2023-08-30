@@ -1,8 +1,16 @@
 import * as THREE from 'three'
 import * as tram from './tram.js'   // Tethered Ring Architectural Model (a collection of functions useful for building a tethered ring system)
+import {mainRingCurve} from './mainRingCurve.js'
 
 export class tetheredRingSystem {
-  constructor(universeSpec, planetSpec, ringSpec, dParamWithUnits, index) {
+  constructor(dParamWithUnits, universeSpec, planetSpec, ringSpec, index, genKMLFile, kmlFile) {
+
+    this.create(dParamWithUnits, universeSpec, planetSpec, ringSpec, index, genKMLFile, kmlFile)
+    
+  }
+
+  create(dParamWithUnits, universeSpec, planetSpec, ringSpec, index, genKMLFile, kmlFile) {
+
     this.universeSepc = universeSpec
     this.planetSpec = planetSpec
     this.ringSpec = ringSpec
@@ -19,18 +27,49 @@ export class tetheredRingSystem {
     this.ringToPlanetQuaternion = new THREE.Quaternion()
     this.adjustLatLon(ringSpec.locationSpec, moveRingFactor)    // Note: sets this.ringCenterLat and this.ringCenterLon and calls gimbalTo which modifies this.ringToPlanetQuaternion
 
-  }
+    // Calculate some of the basic dimensions of the tethered ring
+    const gravitationalConstant = universeSpec.gravitationalConstant
+    const massOfPlanet = planetSpec.mass
+    const radiusOfPlanet = planetSpec.radius
+    this.crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
 
-  getMesh() {
-    return this.tetheredRingRefCoordSys
+    // Create a curve to represent the shape of the tethered ring system
+    this.mainRingCurve = new mainRingCurve(dParamWithUnits, planetSpec, this.crv, index, genKMLFile, kmlFile)
+
+    // Create a line for visualizing the main ring's curve
+    // const mainRingCurveVisualizer = new 
+    // this.children.push({mainRingCurveVisualizer})
+    // this.tetheredRingRefCoordSys.add(mainRingCurveVisualizer.getMesh())
+
+    // Setup the dynamic model management engine for the tethered ring system
+
+    // Add various objects to the dynamic model management system
+    // Tethers
+    // Stationary Rings
+    // Moving Rings
+    // Solar Panels
+    // Transit Tube
+    // Transit Tracks
+    // Transit Tube Stations
+    // Habitats
+    // Elevator Cables
+    // Elevator Cars
+    // Ground Terminuses
+
   }
 
   destroy() {
 
+    // Last of all...
+    if (this.tetheredRingRefCoordSys.parent) {
+      this.tetheredRingRefCoordSys.parent.remove(this.tetheredRingRefCoordSys)
+      // this.tetheredRingRefCoordSys.removeFromParent()
+    }
+
   }
 
-  create() {
-
+  getMesh() {
+    return this.tetheredRingRefCoordSys
   }
 
   adjustLatLon(ringLocationSpec, moveRingFactor) {

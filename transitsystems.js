@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
-import { referenceFrame } from './ReferenceFrame.js'
+import { referenceFrame } from './referenceFrame.js'
 import { virtualSolarArray } from './SolarArray.js'
 import { virtualTransitTubeSegment } from './TransitTubeSegment.js'
 import { virtualTransitTrackSegment } from './TransitTrackSegment.js'
@@ -34,7 +34,7 @@ export class transitSystem {
   // are retured to the pool. Virtual vehicles will also respond to timer events. These events will cause them to 
   // occassionally hop between two frames of reference.
 
-  constructor(scene, dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, ecv, radiusOfPlanet, mainRingCurve) {
+  constructor(scene, dParamWithUnits, specs, genSpecs, crv, ecv, radiusOfPlanet, mainRingCurve) {
 
     this.scene = scene
     this.unallocatedTransitVehicleModels = []
@@ -127,15 +127,15 @@ export class transitSystem {
     this.eventList = []
 
     this.numVirtualTransitVehicles = 0
-    this.numVirtualHabitats = 0
     this.numVirtualRingTerminuses = 0
-    this.numVirtualGroundTerminuses = 0
-    this.numVirtualElevatorCables = 0
+    this.numVirtualHabitats = 0
     this.numVirtualElevatorCars = 0
-    this.numVirtualSolarArrays = 0
-    this.numVirtualTransitTubeSegments = 0
+    this.numVirtualGroundTerminuses = 0
     this.numVirtualTransitTrackSegments = 0
+    this.numVirtualSolarArrays = 0
+    this.numVirtualElevatorCables = 0
     this.numVirtualStationaryRingSegments = 0
+    this.numVirtualTransitTubeSegments = 0
     this.numVirtualMovingRingSegments = 0
 
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, invalidateWedgeHistory, perfOptimizedThreeJS) {
@@ -221,7 +221,7 @@ export class transitSystem {
     const addMovingRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingSegmentModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeSegmentModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     //const addTransitTracks = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTrackSegmentModels, 'transitTrack', 1, dParamWithUnits['transitTrackNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
-    const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['numVirtualSolarArrays'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['solarArrayNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     //const addDynamicallyManagedObjects = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedDynamicallyManagedObjects, 'dynamicallyManagedObject', 1, dParamWithUnits['dynamicallyManagedObjectNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const progressFunction = function ( xhr ) {
       console.log( ( xhr.loaded / xhr.total * 100 ) + '% model loaded' );
@@ -410,10 +410,12 @@ export class transitSystem {
     this.groundTerminusRelativePosition_y = 0
     this.animateElevatorCarsStartTimeOffset = 0
     this.previousAnimateElevatorCars = dParamWithUnits['animateElevatorCars'].value
-    this.update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve)
+    this.update(dParamWithUnits, scene, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve)
   }
 
-  update(dParamWithUnits, specs, genSpecs, trackOffsetsList, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
+    update(dParamWithUnits, scene, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
+
+    this.scene = scene
 
     const nt = dParamWithUnits['numVirtualRingTerminuses'].value
     const nh = dParamWithUnits['numVirtualHabitats'].value
@@ -423,7 +425,7 @@ export class transitSystem {
     // ToDo: Updating the curve will leave some models it the wrong positions or worse. We need to
     // call placeAndOrient and possibly reassign all of the virtual models to wedges.
 
-    virtualTransitVehicle.update(dParamWithUnits, trackOffsetsList, crv)
+    virtualTransitVehicle.update(dParamWithUnits, crv)
     virtualRingTerminus.update(dParamWithUnits, crv)
     virtualGroundTerminus.update(dParamWithUnits, crv)
     virtualElevatorCar.update(dParamWithUnits, crv)
@@ -436,33 +438,13 @@ export class transitSystem {
     virtualElevatorCable.update(dParamWithUnits, crv)
     //dynamicallyManagedObject.update(dParamWithUnits, crv)
  
-    function removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
-      refFrames.forEach(refFrame => {
-        for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
-          if (objectName in refFrame.wedges[wedgeIndex]) {
-            const wedgeList = refFrame.wedges[wedgeIndex][objectName]
-            wedgeList.forEach(vobj => {
-              if (vobj.model) {
-                vobj.model.visible = false
-                unallocatedModelsArray.push(vobj.model)
-              }
-            })
-            wedgeList.splice(0, wedgeList.length)
-          }
-          else {
-            console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
-          }
-        }
-      })
-    }
-
     // Update the number of transit vehicles
     const newNumVirtualTransitVehicles = dParamWithUnits['showTransitVehicles'].value ? dParamWithUnits['numVirtualTransitVehicles'].value : 0
     // Remove old virtual transit vehicles
     const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
     let changeOccured = (this.numVirtualTransitVehicles != newNumVirtualTransitVehicles)
     if (changeOccured && (this.numVirtualTransitVehicles > 0)) {
-      removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
+      this.removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
     }
 
     // Add new virtual transit vehicles
@@ -522,16 +504,16 @@ export class transitSystem {
                     (this.numVirtualElevatorCars != newNumVirtualElevatorCars) || 
                     (this.numVirtualGroundTerminuses != newNumVirtualGroundTerminuses)
     if (changeOccured && (this.numVirtualRingTerminuses > 0)) {
-      removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
     }
     if (changeOccured && (this.numVirtualHabitats > 0)) {
-      removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
     }
     if (changeOccured && (this.numVirtualElevatorCars > 0)) {
-      removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
     }
     if (changeOccured && (this.numVirtualGroundTerminuses > 0)) {
-      removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
     }
 
     // Add new facilities
@@ -571,7 +553,7 @@ export class transitSystem {
       const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
       for (let j = 0; j < ttnut; j++) {
         for (let i = 0; i < ttnot; i++) {
-          removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
+          this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
         }
       }
     }
@@ -601,7 +583,7 @@ export class transitSystem {
     changeOccured = (this.numVirtualSolarArrays != newNumVirtualSolarArrays)
 
     if (changeOccured && (this.numVirtualSolarArrays > 0)) {
-      removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
     }
 
     if (changeOccured && (newNumVirtualSolarArrays > 0)) {
@@ -633,7 +615,7 @@ export class transitSystem {
     // If a needed, remove all of the existing virtual facilities
     changeOccured = (this.numVirtualElevatorCables != newNumVirtualElevatorCables)
     if (changeOccured && (this.numVirtualElevatorCables > 0)) {
-      removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
+      this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
     }
 
     // Add new facilities
@@ -664,7 +646,7 @@ export class transitSystem {
     changeOccured = (this.numStationaryRingSegments != newNumVirtualStationaryRingSegments)
 
     if (changeOccured && (this.numVirtualStationaryRingSegments > 0)) {
-      removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
+      this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
       // ToDo: We need to remove the models as well, because the length of the model depends on the number of virtual ring segments
     }
 
@@ -676,7 +658,7 @@ export class transitSystem {
         for (let i = 0; i < nsr; i++) {
           const positionInFrameOfReference = i * step4
           const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+          for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
             refFrame.wedges[wedgeIndex]['virtualStationaryRingSegments'].push(new virtualStationaryRingSegment(positionInFrameOfReference, j, this.unallocatedStationaryRingSegmentModels))
           }
         }
@@ -692,7 +674,7 @@ export class transitSystem {
     changeOccured = (this.numVirtualTransitTubeSegments != newNumVirtualTransitTubeSegments)
 
     if (changeOccured && (this.numVirtualTransitTubeSegments > 0)) {
-      removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
+      this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
     }
 
     if (changeOccured && (newNumVirtualTransitTubeSegments > 0)) {
@@ -702,7 +684,7 @@ export class transitSystem {
         for (let i = 0; i < numTransitStops; i++) {
           const positionInFrameOfReference = i * step3
           const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+          for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
             refFrame.wedges[wedgeIndex]['virtualTransitTubeSegments'].push(new virtualTransitTubeSegment(positionInFrameOfReference, this.unallocatedTransitTubeSegmentModels))
           }
         }
@@ -721,7 +703,7 @@ export class transitSystem {
     changeOccured = (this.numVirtualMovingRingSegments != newNumVirtualMovingRingSegments)
 
     if (changeOccured && (this.numVirtualMovingRingSegments > 0)) {
-      removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
+      this.removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
       // ToDo: We need to remove the models as well, because the length of the model depends on the number of virtual ring segments
     }
 
@@ -733,7 +715,7 @@ export class transitSystem {
           const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
           // For now, all of the rings are the same diameter, so we can get away with using the same models and virtual objects for all of them.
           // In the final design, the rings will likely have slightly different diameters.
-          for (let j = 0; j<dParamWithUnits['numMainRings2'].value; j++) {
+          for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
             refFrame.wedges[wedgeIndex]['virtualMovingRingSegments'].push(new virtualMovingRingSegment(positionInFrameOfReference, j, this.unallocatedMovingRingSegmentModels))
           }
         }
@@ -766,6 +748,65 @@ export class transitSystem {
       this.animateElevatorCarsStartTimeOffset = this.elevatorPosCalc.cycleTime - (timeSinceStart % this.elevatorPosCalc.cycleTime) + this.elevatorPosCalc.cycleTime - 30
     }
     this.previousAnimateElevatorCars = dParamWithUnits['animateElevatorCars'].value
+  }
+
+  destroy(dParamWithUnits) {
+
+    // This doesn't actually destroy the objects, but rather hides them and moves them to their unallocated lists.
+    const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
+    this.removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
+    const staticShortRangeRefFrame = [this.refFrames[4]]
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
+    const ttnut = dParamWithUnits['transitTracksNumUpwardTracks'].value
+    const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
+    for (let j = 0; j < ttnut; j++) {
+      for (let i = 0; i < ttnot; i++) {
+        this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
+      }
+    }
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
+    const staticLongRangeRefFrame = [this.refFrames[6]]
+    this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
+    this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
+    this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
+    const movingRingReferenceFrame = [this.refFrames[5]]
+    this.removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
+    
+    this.numVirtualTransitVehicles = 0
+    this.numVirtualRingTerminuses = 0
+    this.numVirtualHabitats = 0
+    this.numVirtualElevatorCars = 0
+    this.numVirtualGroundTerminuses = 0
+    this.numVirtualTransitTrackSegments = 0
+    this.numVirtualSolarArrays = 0
+    this.numVirtualElevatorCables = 0
+    this.numVirtualStationaryRingSegments = 0
+    this.numVirtualTransitTubeSegments = 0
+    this.numVirtualMovingRingSegments = 0
+
+  }
+
+  removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
+    refFrames.forEach(refFrame => {
+      for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
+        if (objectName in refFrame.wedges[wedgeIndex]) {
+          const wedgeList = refFrame.wedges[wedgeIndex][objectName]
+          wedgeList.forEach(vobj => {
+            if (vobj.model) {
+              vobj.model.visible = false
+              unallocatedModelsArray.push(vobj.model)
+            }
+          })
+          wedgeList.splice(0, wedgeList.length)
+        }
+        else {
+          console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
+        }
+      }
+    })
   }
 
   animate(timeSinceStart, tetheredRingRefCoordSys, cameraPosition, mainRingCurve, dParamWithUnits) {
@@ -1023,12 +1064,12 @@ export class transitSystem {
                 // This is the last model. Duplicate it so that we don't run out.
                 const tempModel = object.unallocatedModels[0].clone()
                 object.unallocatedModels.push(tempModel)
-                this.scene.add(tempModel)
                 console.log('Duplicating model for ' + objectKey)
               }
               if (object.unallocatedModels.length>0) {
                 object.model = object.unallocatedModels.pop()
                 object.model.visible = object.isVisible
+                this.scene.add(object.model)
               }
               else {
                 if (objectKey in ranOutOfModelsInfo) {
