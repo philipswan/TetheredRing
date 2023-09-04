@@ -52,6 +52,7 @@ export class massDriverBracketModel {
             extrudePath: massDriverSegementCurve
         }
         const massDriverBracketGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+        massDriverBracketGeometry.name = "massDriverBracketGeometry"
         const massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
         const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, massDriverBracketMaterial)
         return massDriverBracketMesh

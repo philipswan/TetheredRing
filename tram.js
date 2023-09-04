@@ -105,27 +105,6 @@ export function solveQuadratic(a, b, c) {
     return [result1, result2]
 }
 
-export function generateMainRingControlPoints(dParamWithUnits, crv, radiusOfPlanet, ringToPlanetRotation) {
-  const controlPoints = []
-
-  const e = dParamWithUnits['ringEccentricity'].value
-
-  const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
-  const lengthOfSiderealDay = 86160 // s
-  const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)
-
-  for (let a = 0, i = 0; i<dParamWithUnits['numControlPoints'].value; a+=Math.PI*2/dParamWithUnits['numControlPoints'].value, i++) {
-    const angleInRingCoordSys = Math.acos(crv.mainRingRadius / (radiusOfPlanet+crv.currentMainRingAltitude)) * Math.sqrt((e*Math.cos(a))**2 + (1/e*Math.sin(a))**2)
-    const rInRingCoordSys = (radiusOfPlanet+crv.currentMainRingAltitude) * Math.cos(angleInRingCoordSys)
-    const positionInRingCoordSys = new Vector3()
-    positionInRingCoordSys.y = (radiusOfPlanet+crv.currentMainRingAltitude) * Math.sin(angleInRingCoordSys)
-    positionInRingCoordSys.x = rInRingCoordSys * Math.cos(a)
-    positionInRingCoordSys.z = rInRingCoordSys * Math.sin(a)
-    controlPoints.push(new Vector3(positionInRingCoordSys.x, positionInRingCoordSys.y, positionInRingCoordSys.z))
-  }
-  return controlPoints
-}
-
 export class commonRingVariables {
   constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, ringFinalAltitude, equivalentLatitude, ringAmountRaisedFactor) {
     this.gravitationalConstant = gravitationalConstant

@@ -194,14 +194,9 @@ export class virtualLaunchVehicle {
     
     static update(
         dParamWithUnits,
-        timeWithinMassDriver,
-        curveUpTime,
-        timeWithinEvacuatedTube,
+        timeAtEvacuatedTubeExit,
         planetRadius) {
 
-        virtualLaunchVehicle.timeWithinMassDriver = timeWithinMassDriver
-        virtualLaunchVehicle.curveUpTime = curveUpTime
-        virtualLaunchVehicle.timeWithinEvacuatedTube = timeWithinEvacuatedTube
         virtualLaunchVehicle.planetRadius = planetRadius
     
         virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
@@ -214,10 +209,7 @@ export class virtualLaunchVehicle {
         virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
         virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
         virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-        virtualLaunchVehicle.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-        virtualLaunchVehicle.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
-        virtualLaunchVehicle.launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
-        virtualLaunchVehicle.timeAtEvacuatedTubeExit = virtualLaunchVehicle.timeWithinMassDriver + virtualLaunchVehicle.curveUpTime + virtualLaunchVehicle.timeWithinEvacuatedTube
+        virtualLaunchVehicle.timeAtEvacuatedTubeExit = timeAtEvacuatedTubeExit
 
         virtualLaunchVehicle.isDynamic =  true
         virtualLaunchVehicle.hasChanged = true

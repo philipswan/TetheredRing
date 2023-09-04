@@ -42,6 +42,7 @@ export class massDriverRailModel {
       extrudePath: massDriverSegementCurve
     }
     const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+    massDriverRailGeometry.name = "massDriverRailGeometry"
     // ToDo: We are creating multiple identical materials here.  We should create one material and reuse it.
     const massDriverRailMaterial = (segmentIndex % 16 == 0) ? new THREE.MeshPhongMaterial( {color: 0x11791E }) : new THREE.MeshPhongMaterial( {color: 0x71797E })
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)

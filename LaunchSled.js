@@ -90,7 +90,7 @@ export class launchSledModel {
           const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
           launchSledGrapplerMesh.name = 'grappler'
           launchSledGrapplerMesh.userData = leftRight
-          launchSledGrapplerMesh.scale.set(leftRight, 1, 1)
+          launchSledGrapplerMesh.scale.set(-leftRight, 1, 1)
           grapplerGroup.add(launchSledGrapplerMesh.clone())
         }
         const launchSledPivotGeometry = new THREE.SphereGeometry(ballJointRadius, 16, 8)
@@ -130,7 +130,7 @@ export class launchSledModel {
       const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
       const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-      const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+      const launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
       const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
       const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
       const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
@@ -147,7 +147,7 @@ export class launchSledModel {
         threadStarts,
         launcherMassDriverScrewRevolutionsPerSecond,
         launcherMassDriverForwardAcceleration,
-        launcherMassDriverInitialVelocity,
+        launcherMassDriver2InitialVelocity,
         initialDistance,
         distanceToSledAft,
         bodyLength,
@@ -168,7 +168,7 @@ export class launchSledModel {
         threadStarts,
         launcherMassDriverScrewRevolutionsPerSecond,
         launcherMassDriverForwardAcceleration,
-        launcherMassDriverInitialVelocity,
+        launcherMassDriver2InitialVelocity,
         initialDistance,
         distanceToSledAft,
         bodyLength,
@@ -238,7 +238,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
       virtualLaunchSled.ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-      virtualLaunchSled.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+      virtualLaunchSled.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
       virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
       virtualLaunchSled.grapplerFactor = dParamWithUnits['grapplerFactor'].value
 
@@ -280,7 +280,7 @@ export class virtualLaunchSled {
         const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
 
         const acceleration = virtualLaunchSled.launcherMassDriverForwardAcceleration
-        const initialVelocity = virtualLaunchSled.launcherMassDriverInitialVelocity
+        const initialVelocity = virtualLaunchSled.launcherMassDriver2InitialVelocity
         const initialDistance = virtualLaunchSled.initialDistance
         const bodyLength = virtualLaunchSled.launchSledBodyLength
         const launchSledWidthDiv2 = virtualLaunchSled.launchSledWidth / 2
@@ -391,7 +391,8 @@ export class virtualLaunchSled {
     
             const grapplerIndex = child.userData
             const offset = grapplerOffset[grapplerIndex]
-            const switchoverSignal = (res.relevantCurveIndex==0) ? grapplerSwitchoverSignal[grapplerIndex]: 1
+            // Engage the grapplers only if we're on the part of the curve path that has the twin-screws
+            const switchoverSignal = (res.relevantCurve.name=='massDriver2Curve') ? grapplerSwitchoverSignal[grapplerIndex]: 1
             const threadPitch = grapplerThreadPitch[grapplerIndex]
             const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
             const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
@@ -425,7 +426,7 @@ export class virtualLaunchSled {
                 const zOffset = rOffset * cosThetaOffset
                 const yOffset = offset.y - padLiftActuationYComponent
                 grapplerComponent.position.copy(internalPosition)
-                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalRightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
                 grapplerComponent.setRotationFromQuaternion(internalOrientation)
@@ -441,7 +442,7 @@ export class virtualLaunchSled {
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
 
                 grapplerComponent.position.copy(internalPosition)
-                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalRightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
               }
@@ -455,7 +456,7 @@ export class virtualLaunchSled {
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
 
                 grapplerComponent.position.copy(internalPosition)
-                  .add(internalRightward.clone().multiplyScalar(-leftRightSign*(grapplersSidewaysOffset + xOffset))) // ToDo: This should be a parameter
+                  .add(internalRightward.clone().multiplyScalar(leftRightSign*(grapplersSidewaysOffset - xOffset))) // ToDo: This should be a parameter
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
 

@@ -40,7 +40,9 @@ export function defineUpdateTrajectoryCurves () {
       }
     }
 
-    const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+    const launcherFeederRailLength = dParamWithUnits['launcherFeederRailLength'].value
+    const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
+    const launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
     const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
     const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
     const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
@@ -50,25 +52,32 @@ export function defineUpdateTrajectoryCurves () {
 
     // Determine the time in the mass driver from acceleration, initial velocity, and final velocity
     // vf = v0 + at, therefore t = (vf-v0)/a
-    const launcherMassDriverAccelerationTime = (launcherMassDriverExitVelocity - launcherMassDriverInitialVelocity) / forwardAcceleration
-    specs['launcherMassDriverAccelerationTime'] = {value: launcherMassDriverAccelerationTime, units: 's'}
-    this.timeWithinMassDriver = launcherMassDriverAccelerationTime
+    const launcherMassDriver2AccelerationTime = (launcherMassDriverExitVelocity - launcherMassDriver2InitialVelocity) / forwardAcceleration
+    const launcherMassDriver1AccelerationTime = (launcherMassDriver2InitialVelocity - launcherMassDriver1InitialVelocity) / forwardAcceleration
+    specs['launcherMassDriver1AccelerationTime'] = {value: launcherMassDriver1AccelerationTime, units: 's'}
+    specs['launcherMassDriver2AccelerationTime'] = {value: launcherMassDriver2AccelerationTime, units: 's'}
+    this.timeWithinFeederRail = launcherFeederRailLength / launcherMassDriver1InitialVelocity
+    this.timeWithinMassDriver1 = launcherMassDriver1AccelerationTime
+    this.timeWithinMassDriver2 = launcherMassDriver2AccelerationTime
 
-    const launcherMassDriverLength = launcherMassDriverInitialVelocity * launcherMassDriverAccelerationTime + 0.5 * forwardAcceleration * launcherMassDriverAccelerationTime**2
-    specs['launcherMassDriverLength'] = {value: launcherMassDriverLength, units: 's'}
-    this.launcherMassDriverLength = launcherMassDriverLength
+    const launcherMassDriver1Length = launcherMassDriver1InitialVelocity * launcherMassDriver1AccelerationTime + 0.5 * forwardAcceleration * launcherMassDriver1AccelerationTime**2
+    const launcherMassDriver2Length = launcherMassDriver2InitialVelocity * launcherMassDriver2AccelerationTime + 0.5 * forwardAcceleration * launcherMassDriver2AccelerationTime**2
+    specs['launcherMassDriver1Length'] = {value: launcherMassDriver1Length, units: 'm'}
+    specs['launcherMassDriver2Length'] = {value: launcherMassDriver2Length, units: 'm'}
+    this.launcherMassDriver1Length = launcherMassDriver1Length
+    this.launcherMassDriver2Length = launcherMassDriver2Length
     this.launcherMassDriverScrewModelRoughLength = dParamWithUnits['launcherMassDriverScrewModelRoughLength'].value  // This is the length we want to specify for dynamic model allocation purposes, not a real dimension used to specify the hardware.
-    this.massDriverScrewSegments = Math.ceil(launcherMassDriverLength / this.launcherMassDriverScrewModelRoughLength)
+    this.massDriverScrewSegments = Math.ceil(launcherMassDriver2Length / this.launcherMassDriverScrewModelRoughLength)
 
     // ***************************************************************
     // Design the ramp. The ramp is positioned at the end of the mass driver to divert the vehicle's trajectory skwards.
     // ***************************************************************
     // Clamp the altitude of the ramp to be between the altitude of the launcher and the altitude of the main ring.
     const launcherRampExitAltitude = Math.max(launcherMassDriverAltitude, Math.min(dParamWithUnits['launcherRampExitAltitude'].value, launcherEvacuatedTubeExitAltitude))
-    const launcherMassDriverUpwardAcceleration = dParamWithUnits['launcherMassDriverUpwardAcceleration'].value
+    const launcherRampUpwardAcceleration = dParamWithUnits['launcherRampUpwardAcceleration'].value
     const launcherSledDownwardAcceleration = dParamWithUnits['launcherSledDownwardAcceleration'].value
     const accelerationOfGravity = 9.8 // m/s2 // ToDo: Should make this a function of the selected planet
-    const allowableUpwardTurningRadius = launcherMassDriverExitVelocity**2 / (launcherMassDriverUpwardAcceleration - accelerationOfGravity)
+    const allowableUpwardTurningRadius = launcherMassDriverExitVelocity**2 / (launcherRampUpwardAcceleration - accelerationOfGravity)
 
     // For the launchRamp, make a triangle ABC where A is the center of the planet, B is the end of the ramp, and C is the center of the circle that defines the allowable turning radius
     const triangleSideAB = crv.radiusOfPlanet + launcherRampExitAltitude
@@ -80,7 +89,7 @@ export function defineUpdateTrajectoryCurves () {
     const angleBAC = Math.PI - angleACB - angleABC
     const upwardAngleAtEndOfRamp = Math.PI - angleABC
 
-    const rampBaseLength = angleBAC * (crv.radiusOfPlanet + launcherMassDriverAltitude) // This is the length along the base of the ramp, measured at ground level, assuming the altitude of the ground is the same as the altitude of the launcher
+    const rampBaseLength = angleBAC * (crv.radiusOfPlanet + launcherMassDriverAltitude) // This is the length along the base of the ramp, measured at the altitude of the mass driver (ToDo: Assuming the altitude of "the base" is the same as the altitude of the mass driver may be confusing.)
 
     // console.log('triangleSideAB', triangleSideAB)
     // console.log('triangleSideAC', triangleSideAC)
@@ -89,7 +98,7 @@ export function defineUpdateTrajectoryCurves () {
     // console.log('upwardAngleAtEndOfRamp', upwardAngleAtEndOfRamp, upwardAngleAtEndOfRamp*180/Math.PI)
 
     this.launcherRampLength = angleACB * allowableUpwardTurningRadius
-    this.curveUpTimeOld = this.launcherRampLength / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
+    this.timeWithinRampOld = this.launcherRampLength / launcherMassDriverExitVelocity // ToDo: This is inaccurate as it does not take into account the loss of speed due to coasting up teh ramp.
 
     // Let's define the end of the ramp as the launcher's exit position, since from that point on the vehicles will either be coasting or accelerating under their own power.
     // Also, it's a position that we can stick at the top of a mountain ridge and from their adjust parameters like launcer accelleration, etc.
@@ -219,9 +228,14 @@ export function defineUpdateTrajectoryCurves () {
     // so that the lightweight evacuated tube that the launched vehicles will inititially coast through can be suspended from the ring.
 
     // Convert the angle relative to the center of the Earth to an angle relative to the center of the ring 
-    const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)
+
+    // The evacuated tube entrance and evacuated tube exit are both directly under points on the ring.
+    // Calculate half of the straight-line distance between those two points. 
+    const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (crv.radiusOfPlanet + crv.currentMainRingAltitude)
+    // Now convert that distance into an angle around the ring and multiply the angle by two.
     const evacuatedTubeRingAngle = Math.asin(straightLineHalfDistance / crv.mainRingRadius) * 2
 
+    // Next find the poisition on the ring's curve that's directly above the evacuated tube's exit position (note: assumes the ring is a perfect circle)
     const evacuatedTubeExitPositionAroundRing = (1 + evacuatedTubeEntrancePositionAroundRing - evacuatedTubeRingAngle / (2*Math.PI)) % 1
     const evacuatedTubeExitPositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeExitPositionAroundRing)
     // Adjust the altitude of the positions to place it the correct distance above the earth's surface
@@ -229,26 +243,33 @@ export function defineUpdateTrajectoryCurves () {
     // Convert these positions into the planet's coordinate system 
     const evacuatedTubeExitPosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeExitPositionInRingRefCoordSys.clone()))
 
-    // Generate an axis of rotation for define the curvatures of the mass driver and the ramp
+    // Generate an axis of rotation to define the curvatures of the mass driver and the ramp
     this.axisOfRotation = new THREE.Vector3().crossVectors(evacuatedTubeEntrancePosition, evacuatedTubeExitPosition.clone().sub(evacuatedTubeEntrancePosition)).normalize()
 
     // Calculate a vector that points to the exit of the mass drive (and the entrance to the ramp)
-    const massDriverExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (crv.radiusOfPlanet + launcherMassDriverAltitude))
-    massDriverExitPosition.multiplyScalar((crv.radiusOfPlanet + launcherMassDriverAltitude) / (crv.radiusOfPlanet + launcherRampExitAltitude))
+    const massDriver2ExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+    massDriver2ExitPosition.multiplyScalar((crv.radiusOfPlanet + launcherMassDriverAltitude) / (crv.radiusOfPlanet + launcherRampExitAltitude))
+
+    const massDriver1ExitPosition = massDriver2ExitPosition.clone().applyAxisAngle(this.axisOfRotation, -launcherMassDriver2Length / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+    const feederRailExitPosition = massDriver1ExitPosition.clone().applyAxisAngle(this.axisOfRotation, -launcherMassDriver1Length / (crv.radiusOfPlanet + launcherMassDriverAltitude))
+    const feederRailEntrancePosition = feederRailExitPosition.clone().applyAxisAngle(this.axisOfRotation, -launcherFeederRailLength / (crv.radiusOfPlanet + launcherMassDriverAltitude))
 
     // Position markers at the end of the mass driver and at entrance and exit positions of the evacuated tube
-    this.LaunchTrajectoryMarker1.position.copy(massDriverExitPosition)
-    this.LaunchTrajectoryMarker2.position.copy(evacuatedTubeEntrancePosition)
-    this.LaunchTrajectoryMarker3.position.copy(evacuatedTubeExitPosition)
+    this.LaunchTrajectoryMarker0.position.copy(feederRailEntrancePosition)
+    this.LaunchTrajectoryMarker0.position.copy(feederRailExitPosition)
+    this.LaunchTrajectoryMarker1.position.copy(massDriver1ExitPosition)
+    this.LaunchTrajectoryMarker2.position.copy(massDriver2ExitPosition)
+    this.LaunchTrajectoryMarker3.position.copy(evacuatedTubeEntrancePosition)
+    this.LaunchTrajectoryMarker4.position.copy(evacuatedTubeExitPosition)
 
     // Calculate parameters for the circle that defines the upward arcing launch ramp
-    const l1 = massDriverExitPosition.length()   // Distance from the center of the planet to the end of the mass driver
-    const rampCircleCenter = massDriverExitPosition.clone().multiplyScalar((allowableUpwardTurningRadius + l1) / l1)  // Points to the center of the circle that defines the ramp's curve
-    const rampCircleVector = massDriverExitPosition.clone().multiplyScalar(-allowableUpwardTurningRadius / l1)     // A vector from the center of the circle that defines the ramp back to the mass driver's exit position.
+    const l1 = massDriver2ExitPosition.length()   // Distance from the center of the planet to the end of the mass driver
+    const rampCircleCenter = massDriver2ExitPosition.clone().multiplyScalar((allowableUpwardTurningRadius + l1) / l1)  // Points to the center of the circle that defines the ramp's curve
+    const rampCircleVector = massDriver2ExitPosition.clone().multiplyScalar(-allowableUpwardTurningRadius / l1)     // A vector from the center of the circle that defines the ramp back to the mass driver's exit position.
     const rampCircleVectorRotated = rampCircleVector.clone().applyAxisAngle(this.axisOfRotation, -angleACB)
     const rampEndPoint = rampCircleCenter.clone().add(rampCircleVectorRotated)
 
-    this.LaunchTrajectoryMarker4.position.copy(rampCircleCenter)
+    this.LaunchTrajectoryMarker5.position.copy(rampCircleCenter)
 
     // We have the shape of the mass driver and ramp, but we need to get some more information about the vehicle's speed and distance versus time while on the ramp.... 
     // In support of the curve for the ramp, we need to create a lookup table that converts time to speed and distance travelled...
@@ -266,7 +287,7 @@ export function defineUpdateTrajectoryCurves () {
     let kineticEnergy = initialKineticEnergy
     let potentialEnergy = initialPotentialEnergy
     const rampConversionCurvePoints = []
-    for (let t = 0; (lastAngle<angleACB) && (speed>minAllowableRampSpeed); t+=deltaT) {
+    for (t = 0; (lastAngle<angleACB) && (speed>minAllowableRampSpeed); t+=deltaT) {
       rampConversionCurvePoints.push(new THREE.Vector3(speed, distance, t))
       //console.log(t, kineticEnergy, potentialEnergy, speed, angle)
       // Change in angular position...
@@ -287,7 +308,7 @@ export function defineUpdateTrajectoryCurves () {
       // Special check to calculate the curveUp time accurately
       if (angle>=angleACB) {
         const remainingDeltaT = deltaT * (angleACB - lastAngle) / deltaAngle
-        this.curveUpTime = t + remainingDeltaT
+        this.timeWithinRamp = t + remainingDeltaT
       }
     }
     if (speed<=minAllowableRampSpeed) {
@@ -307,9 +328,9 @@ export function defineUpdateTrajectoryCurves () {
       const distance = interpolatedPoint.y
       return distance
     }
-    const launchRampExitVelocity = launchRamptTosConvertor(this.curveUpTime)
+    const launchRampExitVelocity = launchRamptTosConvertor(this.timeWithinRamp)
 
-    console.log('launcherRampLength', this.launcherRampLength, 'curveUpTime', this.curveUpTime, this.curveUpTimeOld)
+    console.log('launcherRampLength', this.launcherRampLength, 'timeWithinRamp', this.timeWithinRamp, this.timeWithinRampOld)
     console.log("launcherMassDriverExitVelocity", launcherMassDriverExitVelocity)
     console.log("launchRampExitVelocity", launchRampExitVelocity)
     // Next design the downward arcing part of the sled's return path
@@ -323,7 +344,7 @@ export function defineUpdateTrajectoryCurves () {
     const sledReturnCircleLength = Math.PI * 2 * 0.125 * allowableDownwardTurningRadius // The 0.125 fator is just an rough estimate - we'll need to calculated it later.
     this.curveDownTime = sledReturnCircleLength / launchRampExitVelocity // ToDo: This is inaccurate as it does not take into account the increase in speed due to coasting down the ramp.
 
-    this.LaunchTrajectoryMarker5.position.copy(sledReturnCircleCenter)
+    this.LaunchTrajectoryMarker6.position.copy(sledReturnCircleCenter)
 
     // ***************************************************************
     // Next we need to capture some curves and data sets for plotting
@@ -341,11 +362,13 @@ export function defineUpdateTrajectoryCurves () {
     const aerodynamicDragVersusTimeData = []
     const totalMassVerusTimeData = []
 
-    const t1 = this.timeWithinMassDriver
-    console.log("timeWithinMassDriver", this.timeWithinMassDriver)
-    const t2 = t1 + this.curveUpTime
-    const t3 = t2 + this.timeWithinEvacuatedTube
-    const t4 = t3 + dParamWithUnits['launcherCoastTime'].value
+    const t0 = 0
+    const t1 = t0 + this.timeWithinFeederRail
+    const t2 = t1 + this.timeWithinMassDriver1
+    const t3 = t2 + this.timeWithinMassDriver2
+    const t4 = t3 + this.timeWithinRamp
+    const t5 = t4 + this.timeWithinEvacuatedTube
+    const t6 = t5 + dParamWithUnits['launcherCoastTime'].value
 
     let vehiclePosition
     let vehicleAirSpeed
@@ -362,35 +385,103 @@ export function defineUpdateTrajectoryCurves () {
     tStep = .1 // second
 
     // ***************************************************************
-    // Create the part of the trajectory where the vehicle is within mass driver near the planet's surface
+    // Create the part of the trajectory where the vehicles are on a feeder rail waiting to be launched
     // ***************************************************************
-    this.massDriverCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriverExitPosition, -launcherMassDriverLength, false)
-    const massDrivertTosConvertor = function tTos(t) {
-      return launcherMassDriverInitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
+    this.feederRailCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, feederRailExitPosition, -launcherFeederRailLength, false)
+    const feederRailCurvetTosConvertor = function tTos(t) {
+      return launcherMassDriver1InitialVelocity
     }
-    this.massDriverCurve.addtTosConvertor(massDrivertTosConvertor)
-    const massDrivertTodConvertor = function(t) {
-      return launcherMassDriverInitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+    this.feederRailCurve.addtTosConvertor(feederRailCurvetTosConvertor)
+    const feederRailCurvetTodConvertor = function(t) {
+      return launcherMassDriver1InitialVelocity * t
     }
-    this.massDriverCurve.addtTodConvertor(massDrivertTodConvertor)
-    this.massDriverCurve.setDuration(this.timeWithinMassDriver)
-    this.massDriverCurve.name = "massDriverCurve"
+    this.feederRailCurve.addtTodConvertor(feederRailCurvetTodConvertor)
+    this.feederRailCurve.setDuration(this.timeWithinFeederRail)
+    this.feederRailCurve.name = "feederRailCurve"
 
     // Start the launch trajectory curve at the beginning of the mass driver.
     //console.log('Creating mass driver part of trajectory.')
     upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
     altitude = launcherMassDriverAltitude
 
-    for (t = 0; t < this.timeWithinMassDriver; t += tStep) {
-      vehicleAirSpeed = this.massDriverCurve.tTos(t, launcherMassDriverInitialVelocity, forwardAcceleration)
-      distanceTravelled = this.massDriverCurve.tTod(t, launcherMassDriverInitialVelocity, forwardAcceleration)
-      // Rotate the massDriverExitPosition around the axisOfRotation using the angle derived from the distance travelled
-      //vehiclePosition = massDriverExitPosition.clone().applyAxisAngle(this.axisOfRotation, (distanceTravelled - launcherMassDriverLength) / (crv.radiusOfPlanet + launcherMassDriverAltitude))
-      //console.log('old angle', (distanceTravelled - launcherMassDriverLength) / (crv.radiusOfPlanet + launcherMassDriverAltitude))
-      const vehiclePosition = this.massDriverCurve.getPointAt(distanceTravelled/launcherMassDriverLength)
+    for (t = t0; t < t1; t += tStep) {
+      vehicleAirSpeed = this.feederRailCurve.tTos(t - t0, launcherMassDriver1InitialVelocity, forwardAcceleration)
+      distanceTravelled = this.feederRailCurve.tTod(t - t0, launcherMassDriver1InitialVelocity, forwardAcceleration)
+      const vehiclePosition = this.feederRailCurve.getPointAt(distanceTravelled/launcherMassDriver1Length)
       if (t==0) {
-        this.startOfMassDriverPosition = vehiclePosition.clone()
+        // This is used in main.js to warp the camera over to the location where the mass driver starts
+        this.startOfMassDriver1Position = vehiclePosition.clone()
       }
+      launchTrajectoryCurveControlPoints.push(vehiclePosition)
+      altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
+      downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
+      speedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
+      forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
+      lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
+      aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+      totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
+    }
+    //console.log('done')
+
+    // ***************************************************************
+    // Create the part of the trajectory where the vehicle is within a traditional electromagnetic mass driver near the planet's surface
+    // ***************************************************************
+    this.massDriver1Curve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriver1ExitPosition, -launcherMassDriver1Length, false)
+    const massDriver1tTosConvertor = function tTos(t) {
+      return launcherMassDriver1InitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
+    }
+    this.massDriver1Curve.addtTosConvertor(massDriver1tTosConvertor)
+    const massDriver1tTodConvertor = function(t) {
+      return launcherMassDriver1InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+    }
+    this.massDriver1Curve.addtTodConvertor(massDriver1tTodConvertor)
+    this.massDriver1Curve.setDuration(this.timeWithinMassDriver1)
+    this.massDriver1Curve.name = "massDriver1Curve"
+
+    // Start the launch trajectory curve at the beginning of the mass driver.
+    //console.log('Creating mass driver part of trajectory.')
+    upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
+    altitude = launcherMassDriverAltitude
+
+    for (t = t1; t < t2; t += tStep) {
+      vehicleAirSpeed = this.massDriver1Curve.tTos(t - t1, launcherMassDriver1InitialVelocity, forwardAcceleration)
+      distanceTravelled = this.massDriver1Curve.tTod(t - t1, launcherMassDriver1InitialVelocity, forwardAcceleration)
+      const vehiclePosition = this.massDriver1Curve.getPointAt(distanceTravelled/launcherMassDriver1Length)
+      launchTrajectoryCurveControlPoints.push(vehiclePosition)
+      altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
+      downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
+      speedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
+      forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
+      lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
+      aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+      totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
+    }
+    //console.log('done')
+
+    // ***************************************************************
+    // Create the part of the trajectory where the vehicle is within the twin-screw mass driver near the planet's surface
+    // ***************************************************************
+    this.massDriver2Curve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), this.axisOfRotation, massDriver2ExitPosition, -launcherMassDriver2Length, false)
+    const massDriver2tTosConvertor = function tTos(t) {
+      return launcherMassDriver2InitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
+    }
+    this.massDriver2Curve.addtTosConvertor(massDriver2tTosConvertor)
+    const massDriver2tTodConvertor = function(t) {
+      return launcherMassDriver2InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+    }
+    this.massDriver2Curve.addtTodConvertor(massDriver2tTodConvertor)
+    this.massDriver2Curve.setDuration(this.timeWithinMassDriver2)
+    this.massDriver2Curve.name = "massDriver2Curve"
+
+    // Start the launch trajectory curve at the beginning of the mass driver.
+    //console.log('Creating mass driver part of trajectory.')
+    upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
+    altitude = launcherMassDriverAltitude
+
+    for (t = t2; t < t3; t += tStep) {
+      vehicleAirSpeed = this.massDriver2Curve.tTos(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
+      distanceTravelled = this.massDriver2Curve.tTod(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
+      const vehiclePosition = this.massDriver2Curve.getPointAt(distanceTravelled/launcherMassDriver2Length)
       launchTrajectoryCurveControlPoints.push(vehiclePosition)
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
@@ -405,10 +496,10 @@ export function defineUpdateTrajectoryCurves () {
     // ***************************************************************
     // Create the part of the trajectory where the vehicle is travelling along the upward curving ramp
     // ***************************************************************
-    this.launchRampCurve = new CircleSuperCurve3(rampCircleCenter.clone(), this.axisOfRotation.clone().negate(), massDriverExitPosition.clone(), this.launcherRampLength, true)
+    this.launchRampCurve = new CircleSuperCurve3(rampCircleCenter.clone(), this.axisOfRotation.clone().negate(), massDriver2ExitPosition.clone(), this.launcherRampLength, true)
     this.launchRampCurve.addtTosConvertor(launchRamptTosConvertor)
     this.launchRampCurve.addtTodConvertor(launchRamptTodConvertor)
-    this.launchRampCurve.setDuration(this.curveUpTime)
+    this.launchRampCurve.setDuration(this.timeWithinRamp)
     this.launchRampCurve.name = "launchRampCurve"
 
     // Test the convertors...
@@ -459,17 +550,18 @@ export function defineUpdateTrajectoryCurves () {
     this.launchSledReturnCurve.name = "launchSledReturnCurve"
 
     forwardAcceleration = 0
-    upwardAcceleration = launcherMassDriverUpwardAcceleration
+    upwardAcceleration = launcherRampUpwardAcceleration
 
     //console.log('Creating ramp part of trajectory.')
-    for (; t<Math.min(t2, 10000); t+=tStep) {   // Hack - Min function added to prevent endless loop in case of bug
-      const distanceTravelled = this.launchRampCurve.tTod(t - this.timeWithinMassDriver)
+    console.assert(t4<10000)
+    for (t = t3; t<Math.min(t4, 10000); t+=tStep) {   // Hack - Min function added to prevent endless loop in case of bug
+      const distanceTravelled = this.launchRampCurve.tTod(t - t3)
       const d = distanceTravelled / this.launcherRampLength
       vehiclePosition = this.launchRampCurve.getPointAt(d)
-      vehicleAirSpeed = this.launchRampCurve.tTos(t - this.timeWithinMassDriver)
+      vehicleAirSpeed = this.launchRampCurve.tTos(t - t3)
       altitude = vehiclePosition.length() - crv.radiusOfPlanet
-      const downrangeAngle = massDriverExitPosition.angleTo(vehiclePosition)
-      const downrangeDistance = launcherMassDriverLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
+      const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
+      const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       launchTrajectoryCurveControlPoints.push(vehiclePosition)
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
@@ -482,7 +574,7 @@ export function defineUpdateTrajectoryCurves () {
     //console.log('done')
 
     //this.LaunchTrajectoryMarker2.position.copy(rampEndPoint)
-    const downrangeAngle = massDriverExitPosition.angleTo(rampEndPoint)
+    const downrangeAngle = massDriver2ExitPosition.angleTo(rampEndPoint)
     const downrangeDistanceTravelledOnRamp = downrangeAngle * crv.radiusOfPlanet
     distanceTravelled += angleACB * allowableUpwardTurningRadius
 
@@ -495,13 +587,13 @@ export function defineUpdateTrajectoryCurves () {
 
     const evacuatedTubeConversionCurvePoints = []
     const l2 = R0.length()
-    const totalSplinePoints = Math.floor((t4-t2)/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
-    const numEvacuatedTubeSplinePoints = Math.floor(totalSplinePoints * (t3-t2) / (t4-t2))
-    const tStep1 = (t3 - t2) / (numEvacuatedTubeSplinePoints - 1)
+    const totalSplinePoints = Math.floor((t6-t4)/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
+    const numEvacuatedTubeSplinePoints = Math.floor(totalSplinePoints * (t5-t4) / (t6-t4))
+    const tStep1 = (t5 - t4) / (numEvacuatedTubeSplinePoints - 1)
     for (let i = 0; i<numEvacuatedTubeSplinePoints; i++ ) {
-      const t = t2 + i * tStep1
-      const t5 = i * tStep1  // t5 is the time from the end of the ramp
-      const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t5)
+      const t = t4 + i * tStep1
+      const t6 = i * tStep1  // t6 is the time from the end of the ramp
+      const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t6)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
       // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
       vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
@@ -511,9 +603,9 @@ export function defineUpdateTrajectoryCurves () {
       const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
       distanceTravelledWithinEvacuatedTube += deltaDistanceTravelled
 
-      const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
+      const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       // Collect control points for curves
-      evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledWithinEvacuatedTube, t5))
+      evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledWithinEvacuatedTube, t6))
       launchTrajectoryCurveControlPoints.push(vehiclePosition)
       evacuatedTubeCurveControlPoints.push(vehiclePosition)
       // Save telemery...
@@ -544,7 +636,7 @@ export function defineUpdateTrajectoryCurves () {
       const distance = interpolatedPoint.y
       return distance
     }
-    const evacuatedTubeExitVelocity = evacuatedTubetTosConvertor(this.curveUpTime)
+    const evacuatedTubeExitVelocity = evacuatedTubetTosConvertor(this.timeWithinRamp)
 
 
     // ***************************************************************
@@ -557,22 +649,22 @@ export function defineUpdateTrajectoryCurves () {
     const noseconeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseconeLength)
     const freeFlightConversionCurvePoints = []
     const numFreeFlightSplinePoints = totalSplinePoints - numEvacuatedTubeSplinePoints
-    const tStep2 = (t4 - t3) / (numFreeFlightSplinePoints - 1)
+    const tStep2 = (t6 - t5) / (numFreeFlightSplinePoints - 1)
     let distanceTravelledOutsideLaunchSystem = 0
     let warningAlreadyGiven = false
 
     //console.log('Creating hyprebolic part of trajectory.')
     for (let i = 0; i<numFreeFlightSplinePoints; i++ ) {
-      const t = t3 + i * tStep2
-      const t5 = t3 - t2 + i * tStep2  // t5 is the time from the end of the ramp
-      const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t5)
+      const t = t5 + i * tStep2
+      const t6 = t5 - t4 + i * tStep2  // t6 is the time from the end of the ramp
+      const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t6)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
       // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
       vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
       vehicleAirSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
       altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - crv.radiusOfPlanet
       const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
-      const downrangeDistance = launcherMassDriverLength + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
+      const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
       const aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
       const fuelFlowRate = aerodynamicDrag / launchVehicleRocketExhaustVelocity
@@ -584,7 +676,7 @@ export function defineUpdateTrajectoryCurves () {
       m0 = mVehicle + mPayload + mPropellant
 
       // Collect control points for curves
-      freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, t5))
+      freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, t6))
       if (i!=0) {
         // ToDo: This is a bit inaccurate because the temporal spacing of these points differs slightly from that of the points we added earlier
         launchTrajectoryCurveControlPoints.push(vehiclePosition)
@@ -601,8 +693,8 @@ export function defineUpdateTrajectoryCurves () {
       lastR = RV.R
     }
     //console.log('done')
-    this.durationOfLaunchTrajectory = t4
-    this.durationOfFreeFlight = t4 - t3
+    this.durationOfLaunchTrajectory = t6
+    this.durationOfFreeFlight = t6 - t5
     distanceTravelled += distanceTravelledOutsideLaunchSystem
 
     const freeFlightConversionCurve = new THREE.CatmullRomCurve3(freeFlightConversionCurvePoints)
@@ -670,10 +762,12 @@ export function defineUpdateTrajectoryCurves () {
     console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000), 'kN')
     console.print("RS-25 Engine Thrust 2279 kN")
     console.print("Vehicle Initial Mass", Math.round(m0), 'kg')
-    console.print("MassDriver Time", Math.round(launcherMassDriverAccelerationTime*100/60)/100, 'min')
-    console.print("Ramp Time", Math.round(this.curveUpTime*10)/10, 'sec')
+    console.print("MassDriver1 Time", Math.round(launcherMassDriver1AccelerationTime*100/60)/100, 'min')
+    console.print("MassDriver2 Time", Math.round(launcherMassDriver2AccelerationTime*100/60)/100, 'min')
+    console.print("Ramp Time", Math.round(this.timeWithinRamp*10)/10, 'sec')
     console.print("Evacuate Tube Time", Math.round(this.timeWithinEvacuatedTube*10)/10, 'sec')
-    console.print("MassDriver Length", Math.round(this.launcherMassDriverLength/1000), 'km')
+    console.print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/1000), 'km')
+    console.print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/1000), 'km')
     console.print("Ramp Base Length", Math.round(rampBaseLength/1000), 'km')
     console.print("Evacuate Tube Length", Math.round(distanceTravelledWithinEvacuatedTube/1000), 'km')
     console.print("Total Length Of Launch System", Math.round(totalLengthOfLaunchSystem/1000), 'km')
@@ -693,7 +787,7 @@ export function defineUpdateTrajectoryCurves () {
       // To make the line for the mass driver... 
       for (let i = 0; i<numSupports; i++) {
         const d = i / (numSupports-1)
-        const pointOnCurve = this.massDriverCurve.getPointAt(d)
+        const pointOnCurve = this.massDriver2Curve.getPointAt(d)
         // You'll need to convert each point to lla with this code...
         const xyzPlanet = planetCoordSys.worldToLocal(pointOnCurve.clone())
         const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)

@@ -264,7 +264,7 @@ export function define_GetAltitudeDistanceAndVelocity() {
       ADAndV.Distance = 0.5 * this.MaxGees * this.const_g * CurrentTime**2
       ADAndV.Velocity = this.MaxGees * this.const_g * CurrentTime
     }
-    else if (CurrentTime <= this.AccelerationTime + this.CurveUpTime) {
+    else if (CurrentTime <= this.AccelerationTime + this.timeWithinRamp) {
       ADAndV.Altitude = Math.sqrt((this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)**2 + this.AllowableUpwardTurningRadius**2 - 2 * (this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)*this.AllowableUpwardTurningRadius*Math.cos(Math.max(0, CurrentTime - this.AccelerationTime)*this.EllipticalOrbitPerigeeVelocity / this.AllowableUpwardTurningRadius)) - this.R_Earth;
       // ToDo: This is too rough and approximation
       ADAndV.Distance = this.LauncherTrackLength + (CurrentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity

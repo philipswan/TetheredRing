@@ -343,6 +343,7 @@ export class transitSystem {
           extrudePath: getTransitTrackSegmentCurve(transitTrackOutwardOffset, transitTrackUpwardOffset)
         }
         const transitTrackGeometry = new THREE.ExtrudeGeometry(trackShape, trackExtrudeSettings)
+        transitTrackGeometry.name = 'transitTrackGeometry_' + j + '_' + i
         //const transitTrackMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
         const transitTrackMaterial = new THREE.MeshPhongMaterial( {color: 0x3f3f3f})
         const transitTrackMesh = new THREE.Mesh(transitTrackGeometry, transitTrackMaterial)

@@ -32,7 +32,6 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 // import Stats from 'three/examples/jsm/libs/stats.module.js'
 
 import { planet } from './planet.js'
-import { mainRingTubeGeometry, transitTubeGeometry, transitTrackGeometry } from './TransitTrack.js'
 import { transitSystem } from './transitsystems.js'
 import { TetherGeometry } from './tethers.js'
 import { OrbitControls } from './OrbitControlsModified.js'
@@ -306,12 +305,14 @@ const guidParamWithUnits = {
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverInitialVelocity: {value: 200, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherFeederRailLength: {value: 200, units: "m", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriver1InitialVelocity: {value: 2, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriver2InitialVelocity: {value: 200, units: 'm*s', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitVelocity: {value: 8000, units: 'm*s-1', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -332,7 +333,7 @@ const guidParamWithUnits = {
   launchVehicleShockwaveConeLength: {value: 30, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualLaunchVehicles: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualLaunchVehicles: {value: 6, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherCoastTime: {value: 250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -373,7 +374,7 @@ const guidParamWithUnits = {
   launchSledUpwardsOffset: {value: 0.2, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualLaunchSleds: {value: 6, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledNumModels: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   // Hack - should be 128
   launchSledNumGrapplers: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -411,7 +412,7 @@ const guidParamWithUnits = {
   launcherMassDriverConcreteTubeOuterRadius: {value: 1.125, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverConcreteTubeJacketThickness: {value: 0.002, units: 'm', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
 
-  massDriverCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  massDriverCameraRange: {value: 500, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   vehicleInTubeCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -2370,8 +2371,8 @@ function onKeyDown( event ) {
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
 
       // Near start of mass driver
-      // orbitControls.target = launchSystemObject.startOfMassDriverPosition
-      // orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
+      // orbitControls.target = launchSystemObject.startOfMassDriver1Position
+      // orbitControls.object.position.copy(launchSystemObject.startOfMassDriver1Position.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
       // orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
       // camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
 
@@ -2459,8 +2460,8 @@ function onKeyDown( event ) {
           // orbitControls.object.position.set(1085284.9479284438, -3894418.8299996015, -4933138.122713651)
           // camera.up.set(0.17015900275988693, -0.6105907848756152, -0.773449938395977)
 
-          // orbitControls.target = launchSystemObject.startOfMassDriverPosition.clone()
-          // orbitControls.object.position.copy(launchSystemObject.startOfMassDriverPosition.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
+          // orbitControls.target = launchSystemObject.startOfMassDriver1Position.clone()
+          // orbitControls.object.position.copy(launchSystemObject.startOfMassDriver1Position.clone().add(new THREE.Vector3(1553302-1553253, -3779622 - -3779619, -4897144 - -4897146)))
           // orbitControls.upDirection.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
           // camera.up.set(-0.07836493543944477, -0.6467967230496569, -0.758625688957207)
         }

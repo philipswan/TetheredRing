@@ -15,7 +15,7 @@ export class massDriverScrewModel {
         const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
         const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-        const launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+        const launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
         // The point of breaking the screw into segments relates to the need to display the brackets.
@@ -33,7 +33,7 @@ export class massDriverScrewModel {
             threadThickness,
             threadStarts,
             baseDistanceAlongScrew,
-            launcherMassDriverInitialVelocity,
+            launcherMassDriver2InitialVelocity,
             initialDistance,
             launcherMassDriverScrewRevolutionsPerSecond,
             launcherMassDriverForwardAcceleration,
@@ -64,7 +64,7 @@ export class virtualMassDriverScrew {
         virtualMassDriverScrew.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
         virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         virtualMassDriverScrew.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-        virtualMassDriverScrew.launcherMassDriverInitialVelocity = dParamWithUnits['launcherMassDriverInitialVelocity'].value
+        virtualMassDriverScrew.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
         
         virtualMassDriverScrew.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         virtualMassDriverScrew.numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value
@@ -130,7 +130,7 @@ export class virtualMassDriverScrew {
                         virtualMassDriverScrew.threadThickness,
                         virtualMassDriverScrew.threadStarts,
                         baseDistanceAlongScrew,
-                        virtualMassDriverScrew.launcherMassDriverInitialVelocity,
+                        virtualMassDriverScrew.launcherMassDriver2InitialVelocity,
                         virtualMassDriverScrew.initialDistance,
                         virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond,
                         virtualMassDriverScrew.launcherMassDriverForwardAcceleration,

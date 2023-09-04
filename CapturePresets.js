@@ -53,6 +53,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 10:
       solarPanelsCalifornia()
     break
+    case 11:
+      twoStageMassDriver()
+    break
   }
 
   Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -1072,6 +1075,98 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // Tube bouncing - might need more tube segments...
     // Shorten the launcher
     // Adjust lighting - too bright
+
+  }
+
+  function twoStageMassDriver() {
+
+    // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
+    // guidParamWithUnits['numTethers'].value = 1300
+    // guidParamWithUnits['numForkLevels'].value = 10
+    guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
+    guidParamWithUnits['showXYChart'].value = false
+    guidParamWithUnits['showEarthsSurface'].value = false
+    guidParamWithUnits['showEarthsAtmosphere'].value = false
+    guidParamWithUnits['showMoon'].value = true
+    guidParamWithUnits['showStars'].value = true
+    guidParamWithUnits['showEarthAxis'].value = false
+    guidParamWithUnits['showBackgroundPatch'].value = false
+    guidParamWithUnits['showEarthEquator'].value = false
+    guidParamWithUnits['showMainRingCurve'].value = false
+    guidParamWithUnits['showGravityForceArrows'].value = false
+    guidParamWithUnits['showGyroscopicForceArrows'].value = false
+    guidParamWithUnits['showTethers'].value = true
+    guidParamWithUnits['showTransitSystem'].value = true
+    guidParamWithUnits['showStationaryRings'].value = true
+    guidParamWithUnits['showMovingRings'].value = false
+    guidParamWithUnits['showTransitTube'].value = true
+    guidParamWithUnits['showTransitVehicles'].value = true
+    guidParamWithUnits['showRingTerminuses'].value = false
+    guidParamWithUnits['showGroundTerminuses'].value = false
+    guidParamWithUnits['showElevatorCables'].value = true
+    guidParamWithUnits['showElevatorCars'].value = false
+    guidParamWithUnits['showHabitats'].value = true
+    guidParamWithUnits['showSolarArrays'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = false
+    guidParamWithUnits['showMarkers'].value = false
+    guidParamWithUnits['showMassDriverTube'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverRail'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showEvacuatedTube'].value = false
+    guidParamWithUnits['showLaunchSleds'].value = true
+    guidParamWithUnits['showLaunchVehicles'].value = true
+    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+    guidParamWithUnits['pKeyAltitudeFactor'].value = 0
+    guidParamWithUnits['tetherVisibility'].value = .3
+    guidParamWithUnits['massDriverCameraRange'].value = 300
+    guidParamWithUnits['launchSledCameraRange'].value = 10000
+    guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
+    guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 2
+    guidParamWithUnits['logZoomRate'].value = -3
+
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+    guidParamWithUnits['launchSledScaleFactor'].value = 1
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 6
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
+    guidParamWithUnits['numVirtualLaunchSleds'].value = 6
+    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
+    guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 400
+    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
+    guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1085383.8669969547, -3902699.9169670017, -4926661.290153145)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1085051.7452291835, -3902846.696186079, -4926668.713904155)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
+
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-63636.3777848408, -4115849.7575696534, -4913396.378631104)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-64172.35213304402, -4115800.0825407896, -4913293.827853268)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
+
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(210757.18355882427, -4012137.7432638933, -4932894.541903759)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(480331.6551612802, -4195149.259355443, -4883519.833408484)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
+
+    nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
+      ((i!=23) || (j!=8)) &&
+      ((i!=0) || (j!=8))
+    )} // New Zealand North Island and ocean to the east and west
+    nonGUIParams['nearClip'] = 1
+    nonGUIParams['farClip'] = 10000000
+
+    // Improvements...
+    // Add watermark
+    // Update bounding sphere on the mass driver tube?
+    // Put the moon in the background near the end of the shot
+    // Put Mars in the background at the end of the shot
+    // Reduce the rate at which the camera orbits the launch vehicle
+    // Add the sled to the shot
 
   }
 

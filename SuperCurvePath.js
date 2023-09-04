@@ -25,6 +25,7 @@ class SuperCurvePath extends SuperCurve {
 
 	add( superCurve ) {
 
+    console.assert(superCurve, "SuperCurvePath.add: superCurve is not defined")
 		this.superCurves.push( superCurve );
 
 	}
