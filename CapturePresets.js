@@ -1084,8 +1084,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // guidParamWithUnits['numTethers'].value = 1300
     // guidParamWithUnits['numForkLevels'].value = 10
     guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-    guidParamWithUnits['showXYChart'].value = false
-    guidParamWithUnits['showEarthsSurface'].value = false
+    guidParamWithUnits['showXYChart'].value = true
+    guidParamWithUnits['showEarthsSurface'].value = true
     guidParamWithUnits['showEarthsAtmosphere'].value = false
     guidParamWithUnits['showMoon'].value = true
     guidParamWithUnits['showStars'].value = true
@@ -1107,7 +1107,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showElevatorCars'].value = false
     guidParamWithUnits['showHabitats'].value = true
     guidParamWithUnits['showSolarArrays'].value = false
-    guidParamWithUnits['showLaunchTrajectory'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = true
     guidParamWithUnits['showMarkers'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
     guidParamWithUnits['showMassDriverScrews'].value = true
@@ -1116,6 +1116,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
+    guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
     guidParamWithUnits['tetherVisibility'].value = .3
@@ -1129,36 +1130,54 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 6
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 60
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 30
     guidParamWithUnits['numVirtualLaunchSleds'].value = 6
-    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
     guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 400
-    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
-    guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
+    guidParamWithUnits['launchVehicleConstantThrust'].value = true
+    guidParamWithUnits['launcherCoastTime'].value = 600
+    guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
+    guidParamWithUnits['launchVehiclePayloadMass'].value = 100
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1085383.8669969547, -3902699.9169670017, -4926661.290153145)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1085051.7452291835, -3902846.696186079, -4926668.713904155)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
+    switch (0) {
+      case 0:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 500     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 3600           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3700  // m
+        guidParamWithUnits['launchVehiclePropellantMass'].value = 29500 // kg
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
+        break
+      case 1:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 90       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3700  // m
+        guidParamWithUnits['launchVehiclePropellantMass'].value = 9500 // kg
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
+        break
+    }
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1085383.8669969547, -3902699.9169670017, -4926661.290153145)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1085051.7452291835, -3902846.696186079, -4926668.713904155)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
 
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-63636.3777848408, -4115849.7575696534, -4913396.378631104)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-64172.35213304402, -4115800.0825407896, -4913293.827853268)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
-
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(210757.18355882427, -4012137.7432638933, -4932894.541903759)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(480331.6551612802, -4195149.259355443, -4883519.833408484)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(392362.28345846327, -4073057.909934009, -4892485.123762921)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(638339.3390246285, -5101790.093401408, -4083665.75154447)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
-    nonGUIParams['nearClip'] = 1
-    nonGUIParams['farClip'] = 10000000
+    nonGUIParams['nearClip'] = 10
+    nonGUIParams['farClip'] = 40000000
 
     // Improvements...
     // Add watermark

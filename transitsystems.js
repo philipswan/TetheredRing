@@ -1065,7 +1065,7 @@ export class transitSystem {
                 // This is the last model. Duplicate it so that we don't run out.
                 const tempModel = object.unallocatedModels[0].clone()
                 object.unallocatedModels.push(tempModel)
-                console.log('Duplicating model for ' + objectKey)
+                //console.log('Duplicating model for ' + objectKey)
               }
               if (object.unallocatedModels.length>0) {
                 object.model = object.unallocatedModels.pop()

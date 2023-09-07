@@ -115,6 +115,12 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 	}
 
+  setPoints( points ) {
+
+    this.points = points
+
+  }
+
 	prepareInterpolator(t) {
 
 		const points = this.points;

@@ -6,10 +6,18 @@ import * as tram from './tram.js'
 class CircleSuperCurve3 extends SuperCurve {
 
 	constructor(centerPoint, axisOfRotation, pointOnCircle, length, normalInwards = false) {
-		// If the length is positive, the curve starts at pointOnCircle. If the length is negative, the curve ends at pointOnCircle.
+
+    // If the length is positive, the curve starts at pointOnCircle. If the length is negative, the curve ends at pointOnCircle.
 		super();
 		this.isCircleSuperCurve3 = true;
 		this.type = 'CircleSuperCurve3';
+
+    this.update(centerPoint, axisOfRotation, pointOnCircle, length, normalInwards)
+
+  }
+
+  update(centerPoint, axisOfRotation, pointOnCircle, length, normalInwards = false) {
+
 		this.centerPoint = centerPoint
 		this.axisOfRotation = axisOfRotation // Perhaps this should be called "circleNormal"
 		this.pointOnCircle = pointOnCircle
@@ -22,9 +30,10 @@ class CircleSuperCurve3 extends SuperCurve {
 		this.normalizedCenterToPointOnCircle = this.centerToPointOnCircle.clone().normalize()
 		this.binormal = this.axisOfRotation.normalize()
 		this.duration = 0;
-	}
 
-	getLength() {
+  }
+
+  getLength() {
 		return this.length
 	}
 	

@@ -18,7 +18,7 @@ import * as OrbitMath from './OrbitMath.js'
 
 export class launcher {
 
-  constructor(dParamWithUnits, timeSinceStart, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
+  constructor(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
     this.const_G = 0.0000000000667408;
     this.clock = clock
     this.versionNumber = 0
@@ -107,7 +107,7 @@ export class launcher {
     this.cameraRange[2] = dParamWithUnits['vehicleInTubeCameraRange'].value
     this.cameraRange[3] = dParamWithUnits['lauchVehicleCameraRange'].value
 
-    this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+    this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
     this.refFrames = []
     const numWedges = 200
@@ -245,7 +245,7 @@ export class launcher {
     this.versionNumber++
 
     // Todo: We should detect whether an update of the curves is called for as it's a time consuming operation...
-    //this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+    //this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
     this.refFrames.forEach(refFrame => {
       // ToDo: We should detect whether we need to call update - this is a potentially time consuming operation
@@ -263,8 +263,8 @@ export class launcher {
     virtualLaunchVehicle.update(
       dParamWithUnits,
       timeAtEvacuatedTubeExit,
+      this.tBurnOut,
       crv.radiusOfPlanet)
-
     this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
     this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value

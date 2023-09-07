@@ -195,6 +195,7 @@ export class virtualLaunchVehicle {
     static update(
         dParamWithUnits,
         timeAtEvacuatedTubeExit,
+        tBurnOut,
         planetRadius) {
 
         virtualLaunchVehicle.planetRadius = planetRadius
@@ -209,7 +210,9 @@ export class virtualLaunchVehicle {
         virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
         virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
         virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+        virtualLaunchVehicle.launchVehicleConstantThrust = dParamWithUnits['launchVehicleConstantThrust'].value
         virtualLaunchVehicle.timeAtEvacuatedTubeExit = timeAtEvacuatedTubeExit
+        virtualLaunchVehicle.tBurnOut = tBurnOut
 
         virtualLaunchVehicle.isDynamic =  true
         virtualLaunchVehicle.hasChanged = true
@@ -258,12 +261,23 @@ export class virtualLaunchVehicle {
         const flame_model = om.getObjectByName('launchVehicle_flame')
         const pointlight_model = om.getObjectByName('launchVehicle_pointLight')
         const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
-        flame_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (airDensityFactor>0.1)
+        if (virtualLaunchVehicle.launchVehicleConstantThrust) {
+          flame_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (deltaT < virtualLaunchVehicle.tBurnOut)
+        }
+        else {
+          flame_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (airDensityFactor>0.1)
+        }
         shockwaveCone_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (airDensityFactor>0.01)
 
         if (flame_model.visible) {
-          flame_model.position.set(0, -virtualLaunchVehicle.flameLength*airDensityFactor/2, 0)
-          flame_model.scale.set(1, airDensityFactor, 1)
+          if (virtualLaunchVehicle.launchVehicleConstantThrust) {
+            flame_model.position.set(0, -virtualLaunchVehicle.flameLength/2, 0)
+            flame_model.scale.set(1, 1, 1)
+          }
+          else {
+            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*airDensityFactor/2, 0)
+            flame_model.scale.set(1, airDensityFactor, 1)
+          }
         }
 
         if (shockwaveCone_model.visible) {
