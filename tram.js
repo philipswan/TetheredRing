@@ -638,10 +638,10 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
   //console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
   const launcherMassDriverExitAngleInRadians = launcherMassDriverExitAngleInDegrees * Math.PI / 180
-  const R0_x = 0
-  const R0_y = (crv.radiusOfPlanet + launcherMassDriverAltitude)
-  const V0_x = launcherMassDriverExitVelocity * Math.cos(launcherMassDriverExitAngleInRadians)
-  const V0_y = launcherMassDriverExitVelocity * Math.sin(launcherMassDriverExitAngleInRadians)
+  const R0 = new THREE.Vector2(0, crv.radiusOfPlanet + launcherMassDriverAltitude)
+  const V0 = new THREE.Vector2(
+    launcherMassDriverExitVelocity * Math.cos(launcherMassDriverExitAngleInRadians),
+    launcherMassDriverExitVelocity * Math.sin(launcherMassDriverExitAngleInRadians))
   const tStep = 0.125
 
   let propellantConsumed = 0 
@@ -649,7 +649,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   let launcherSuspendedTubeLength = 0
   for (let t = 0; t < 100; t += tStep) {
     // Determine the altitude and velocity of the vehicle. 't' in this case represents the time relative to the initial conditions, R0_x, R0_y, V0_x, V0_y
-    const RV = launcher.RV_from_R0V0andt(R0_x, R0_y, V0_x, V0_y, t)
+    const RV = launcher.RV_from_R0V0andt(R0, V0, t)
 
     const vehiclePositionVector = new THREE.Vector2(RV.R.x, RV.R.y)
     const vehicleAltitude = vehiclePositionVector.length() - crv.radiusOfPlanet

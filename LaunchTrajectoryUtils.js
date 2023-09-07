@@ -182,7 +182,7 @@ export function defineUpdateTrajectoryCurves () {
     const evacuatedTubeExitRSquared = evacuatedTubeExitR**2
 
     for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
-      RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t)
+      RV = this.RV_from_R0V0andt(R0, V0, t)
       distSquared = RV.R.x**2 + RV.R.y**2
       if ((distSquared < evacuatedTubeExitRSquared) ^ (tStep>0)) {
         tStep = -tStep/2
@@ -204,7 +204,7 @@ export function defineUpdateTrajectoryCurves () {
     // const ringDistSquared = (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)**2
     // //console.log('Calculating downrange distance from end of ramp to a point on the hyperbolic trajectory at the ring\'s altitude')
     // for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
-    //   RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t)
+    //   RV = this.RV_from_R0V0andt(R0, V0, t)
     //   distSquared = RV.R.x**2 + RV.R.y**2
     //   const withinBoundaries = (distSquared < ringDistSquared) && (distSquared > planetRadiusSquared) 
     //   if (withinBoundaries ^ (tStep>0)) {
@@ -653,7 +653,7 @@ export function defineUpdateTrajectoryCurves () {
     for (let i = 0; i<numEvacuatedTubeSplinePoints; i++ ) {
       const t = t4 + i * tStep1
       const t6a = i * tStep1  // t6a is the time from the end of the ramp
-      RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t6a)
+      RV = this.RV_from_R0V0andt(R0, V0, t6a)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
       // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
       vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
@@ -728,10 +728,10 @@ export function defineUpdateTrajectoryCurves () {
       const t = t5a + i * tStep2
       const t6a = t5a - t4 + i * tStep2  // t6a is the time from the end of the ramp
       if (constantThrust && (i!==0)) {
-        RV = this.RV_from_R0V0andt(RV.R.x, RV.R.y, RV.V.x, RV.V.y, tStep2)
+        RV = this.RV_from_R0V0andt(RV.R, RV.V, tStep2)
       }
       else {
-        RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, t6a)
+        RV = this.RV_from_R0V0andt(R0, V0, t6a)
       }
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
       // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.

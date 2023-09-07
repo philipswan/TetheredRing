@@ -46,10 +46,10 @@ export function define_f_and_g() {
 
     const z = a * x**2
     //Equation 3.66a:
-    fg.x = 1 - x**2 / ro * this.stumpC(z)
+    const f = 1 - x**2 / ro * this.stumpC(z)
     //Equation 3.66b:
-    fg.y = t - 1 / Math.sqrt(this.mu) * x*x*x * this.stumpS(z)
-    return fg
+    const g = t - 1 / Math.sqrt(this.mu) * x*x*x * this.stumpS(z)
+    return [f, g]
   }
 }
 
@@ -59,10 +59,10 @@ export function define_fDot_and_gDot() {
 
     const z = a * x**2
     // Equation 3.66c:
-    fdotgdot.x = Math.sqrt(this.mu) / r / ro * (z*this.stumpS(z) - 1)*x
+    const fdot = Math.sqrt(this.mu) / r / ro * (z*this.stumpS(z) - 1)*x
     // Equation 3.66d:
-    fdotgdot.y = 1 - x**2 / r * this.stumpC(z)
-    return fdotgdot
+    const gdot = 1 - x**2 / r * this.stumpC(z)
+    return [fdot, gdot]
   }
 }
 
@@ -94,10 +94,10 @@ export function define_kepler_U() {
 }
 
 export function define_RV_from_R0V0andt () {
-  return function (R0_x, R0_y, V0_x, V0_y, t) {
+  return function (R0, V0, t) {
 
-    const R0 = new Vector2(R0_x, R0_y)
-    const V0 = new Vector2(V0_x, V0_y)
+    // const R0 = new Vector2(R0_x, R0_y)
+    // const V0 = new Vector2(V0_x, V0_y)
     const RV = {
       R: new Vector2(0, 0),
       V: new Vector2(0, 0)
@@ -121,21 +121,25 @@ export function define_RV_from_R0V0andt () {
     // Compute the universal anomaly
     const x = this.kepler_U(t, r0, vr0, alpha)
     // Compute the f and g functions
-    const fg = this.f_and_g(x, t, r0, alpha)
+    let f, g
+    [f, g] = this.f_and_g(x, t, r0, alpha)
 
     // Compute the final position vector
-    RV.R.x = fg.x * R0.x + fg.y * V0.x
-    RV.R.y = fg.x * R0.y + fg.y * V0.y
+    RV.R = R0.clone().multiplyScalar(f).add(V0.clone().multiplyScalar(g))
+    // RV.R.x = f * R0.x + g * V0.x
+    // RV.R.y = f * R0.y + g * V0.y
 
     // Compute the magnitude of R
     const r = RV.R.length()
     
     // Compute the derivatives of f and g
-    const fdotgdot = this.fDot_and_gDot(x, r, r0, alpha)
+    let fdot, gdot
+    [fdot, gdot] = this.fDot_and_gDot(x, r, r0, alpha)
 
     // Compute the final velocity
-    RV.V.x = fdotgdot.x * R0.x + fdotgdot.y * V0.x
-    RV.V.y = fdotgdot.x * R0.y + fdotgdot.y * V0.y
+    RV.V = R0.clone().multiplyScalar(fdot).add(V0.clone().multiplyScalar(gdot))
+    // RV.V.x = fdot * R0.x + gdot * V0.x
+    // RV.V.y = fdot * R0.y + gdot * V0.y
 
     return RV
   }
@@ -252,41 +256,41 @@ export function define_orbitalElementsFromStateVector() {
 }
 
 export function define_GetAltitudeDistanceAndVelocity() {
-  return function (CurrentTime) {
+  return function (currentTime) {
     let ADAndV = {
       Altitude: 0,
       Distance: 0,
       Velocity: 0
     }
 
-    if (CurrentTime <= this.AccelerationTime) {
+    if (currentTime <= this.AccelerationTime) {
       ADAndV.Altitude = this.LauncherAltitude
-      ADAndV.Distance = 0.5 * this.MaxGees * this.const_g * CurrentTime**2
-      ADAndV.Velocity = this.MaxGees * this.const_g * CurrentTime
+      ADAndV.Distance = 0.5 * this.MaxGees * this.const_g * currentTime**2
+      ADAndV.Velocity = this.MaxGees * this.const_g * currentTime
     }
-    else if (CurrentTime <= this.AccelerationTime + this.timeWithinRamp) {
-      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)**2 + this.AllowableUpwardTurningRadius**2 - 2 * (this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)*this.AllowableUpwardTurningRadius*Math.cos(Math.max(0, CurrentTime - this.AccelerationTime)*this.EllipticalOrbitPerigeeVelocity / this.AllowableUpwardTurningRadius)) - this.R_Earth;
+    else if (currentTime <= this.AccelerationTime + this.timeWithinRamp) {
+      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)**2 + this.AllowableUpwardTurningRadius**2 - 2 * (this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)*this.AllowableUpwardTurningRadius*Math.cos(Math.max(0, currentTime - this.AccelerationTime)*this.EllipticalOrbitPerigeeVelocity / this.AllowableUpwardTurningRadius)) - this.R_Earth;
       // ToDo: This is too rough and approximation
-      ADAndV.Distance = this.LauncherTrackLength + (CurrentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
+      ADAndV.Distance = this.LauncherTrackLength + (currentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
       ADAndV.Velocity = this.EllipticalOrbitPerigeeVelocity
     }
-    else if (CurrentTime <= this.TotalTimeInLaunchSystem) {
-      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)**2 + this.AllowableDownwardTurningRadius**2 - 2 * (this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)*this.AllowableDownwardTurningRadius*Math.cos(Math.PI + Math.min(0, CurrentTime - this.TotalTimeInLaunchSystem)*this.EllipticalOrbitPerigeeVelocity / this.AllowableDownwardTurningRadius)) - this.R_Earth
+    else if (currentTime <= this.TotalTimeInLaunchSystem) {
+      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)**2 + this.AllowableDownwardTurningRadius**2 - 2 * (this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)*this.AllowableDownwardTurningRadius*Math.cos(Math.PI + Math.min(0, currentTime - this.TotalTimeInLaunchSystem)*this.EllipticalOrbitPerigeeVelocity / this.AllowableDownwardTurningRadius)) - this.R_Earth
       // ToDo: This is too rough and approximation
-      ADAndV.Distance = this.LauncherTrackLength + (CurrentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
+      ADAndV.Distance = this.LauncherTrackLength + (currentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
       ADAndV.Velocity = this.EllipticalOrbitPerigeeVelocity
     }
     else {
-      const Time = CurrentTime - this.TotalTimeInLaunchSystem
+      const time = currentTime - this.TotalTimeInLaunchSystem
       const R0 = new Vector2(0, (this.R_Earth + this.Alt_Perigee) / 1000)
       const V0 = new Vector2(this.EllipticalOrbitPerigeeVelocity / 1000, 0)
       // TBD - need to figure out the altitude while on the eliptical orbit's path
 
       // Note: The distance units in the RV_from_R0V0andt function and its sub functions are km, not meters.
-      const RV = this.RV_from_R0V0andt(R0.x, R0.y, V0.x, V0.y, Time)
+      const RV = this.RV_from_R0V0andt(R0, V0, time)
 
       ADAndV.Altitude = RV.R.length() * 1000 - this.R_Earth
-      ADAndV.Distance = Math.atan2(RV.R.x, RV.R.y) * RV.R.length() * 1000
+      ADAndV.Distance = Math.atan2(RV.R.x, RV.R.y) * RV.R.length() * 1000 // ToDo: This assumes that angle at time zero is zero - possibly bad assumption/
       ADAndV.Velocity = RV.V.length() * 1000
     }
     return ADAndV
