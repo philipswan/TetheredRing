@@ -1136,11 +1136,11 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
     guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 400
     guidParamWithUnits['launchVehicleConstantThrust'].value = true
-    guidParamWithUnits['launcherCoastTime'].value = 600
+    guidParamWithUnits['launcherCoastTime'].value = 500
     guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
     guidParamWithUnits['launchVehiclePayloadMass'].value = 100
 
-    switch (0) {
+    switch (2) {
       case 0:
         guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
         guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
@@ -1159,6 +1159,16 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
         guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
         guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3700  // m
         guidParamWithUnits['launchVehiclePropellantMass'].value = 9500 // kg
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
+        break
+      case 2:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 7700     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMass'].value = 50 // kg
         guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
         break
     }

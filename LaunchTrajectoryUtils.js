@@ -11,7 +11,7 @@ export function defineUpdateTrajectoryCurves () {
 
     // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
     // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of the mass driver,
-    // follows a hyperbolic trajectory away from the earth.
+    // follows a hyperbolic trajectory away from the planet.
 
     // console.print: console.log without filename/line number
     console.print = function (...args) {
@@ -47,6 +47,7 @@ export function defineUpdateTrajectoryCurves () {
     const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
     const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
     const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+    const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
 
     forwardAcceleration = launcherMassDriverForwardAcceleration
 
@@ -105,22 +106,23 @@ export function defineUpdateTrajectoryCurves () {
     
     const evacuatedTubeEntrancePositionAroundRing = dParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value
     const evacuatedTubeEntrancePositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeEntrancePositionAroundRing)
-    // Adjust the altitude of the positions to place it the correct distance above the earth's surface
+    // Adjust the altitude of the positions to place it the correct distance above the planet's surface
     if (planetCoordSys.matrixWorldNeedsUpdate) planetCoordSys.updateMatrixWorld(true)
     if (tetheredRingRefCoordSys.matrixWorldNeedsUpdate) tetheredRingRefCoordSys.updateMatrixWorld(true)
     console.assert(planetCoordSys.matrixWorldNeedsUpdate===false, 'planetCoordSys.matrixWorldNeedsUpdate===false')
     const evacuatedTubeEntrancePositionInWorldCoordSystem = tetheredRingRefCoordSys.localToWorld(evacuatedTubeEntrancePositionInRingRefCoordSys.clone())
     const evacuatedTubeEntrancePosition = planetCoordSys.worldToLocal(evacuatedTubeEntrancePositionInWorldCoordSystem)
     evacuatedTubeEntrancePosition.normalize().multiplyScalar(crv.radiusOfPlanet + launcherRampExitAltitude)
+  
     // ***************************************************************
     // Now design the evacuated tube that the vehicles will travel within from the end of the ramp to the altitude of the main ring.  
     // ***************************************************************
 
-    const R0 = new THREE.Vector3(crv.radiusOfPlanet + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
+    const R0_2D = new THREE.Vector3(crv.radiusOfPlanet + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
     
     // for (let launcherMassDriverExitVelocity = 100; launcherMassDriverExitVelocity<8000; launcherMassDriverExitVelocity+=100) {
     //   const V0 = new THREE.Vector3(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
-    //   const coe = this.orbitalElementsFromStateVector(R0, V0)
+    //   const coe = this.orbitalElementsFromStateVector(R0_2D, V0)
     //   const c = coe.semimajorAxis * coe.eccentricity
     //   const apogeeDistance = coe.semimajorAxis + c
     //   const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
@@ -131,32 +133,32 @@ export function defineUpdateTrajectoryCurves () {
     //   console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - crv.radiusOfPlanet), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
     // }
 
-    // Need a vector normal to earth's axis that points to the evacuated tube's entrance
-    const earthAxisToEvacuatedTubeEntrancePosition = evacuatedTubeEntrancePosition.clone().sub(new THREE.Vector3(0, evacuatedTubeEntrancePosition.y, 0))
+    // Need a vector normal to planet's axis that points to the evacuated tube's entrance
+    const planetAxisToEvacuatedTubeEntrancePosition = evacuatedTubeEntrancePosition.clone().sub(new THREE.Vector3(0, evacuatedTubeEntrancePosition.y, 0))
 
-    const speedFromPlanetsRotation = earthAxisToEvacuatedTubeEntrancePosition.length() * 2 * Math.PI / (planetSpec.lengthOfSiderealDay)
+    const speedFromPlanetsRotation = planetAxisToEvacuatedTubeEntrancePosition.length() * 2 * Math.PI / (planetSpec.lengthOfSiderealDay)
     console.log('speedFromPlanetsRotation', speedFromPlanetsRotation)
-    let V0 = new THREE.Vector3(
+    // This is a rather rough calculation. It assmues that the launcher points directly east.
+    // It also doesn't take into account speed lost travelling up the ramp. We're just using it to estimate how far
+    // downrange the vehicle will be when it reaches the altitude of the ring to help orient the launcher so that the
+    // evacuated tube is entirely under the ring.
+    const V0_2D = new THREE.Vector3(
       launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp),
       launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp) + speedFromPlanetsRotation,
-      0) // This is the vehicle's velocity vector at the exit of the launcher
-    const coe = this.orbitalElementsFromStateVector(R0, V0)
-    const c = coe.semimajorAxis * coe.eccentricity
-    const apogeeDistance = coe.semimajorAxis + c
-    const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
-    const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
-    const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
-    const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
-    const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
-    //console.log(coe)
-    console.log('speedAtApogee', speedAtApogee)
-    console.log('apogeeAltitude', apogeeDistance - crv.radiusOfPlanet)
-    console.log('deltaVNeededToCircularizeOrbit', deltaVNeededToCircularizeOrbit)
-    console.log('m0Overmf', m0Overmf)
+      0) 
 
-    // Better V0 calculation - we need to take into account the rotation of the planet...
-    //const V0 = new THREE.Vector2(launcherMassDriverExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launcherMassDriverExitVelocity * Math.cos(upwardAngleAtEndOfRamp)) // This is the vehicle's velocity vector at the exit of the launcher
-    //console.log(R0, V0)
+    const coeRough = this.orbitalElementsFromStateVector(R0_2D, V0_2D)
+    const c = coeRough.semimajorAxis * coeRough.eccentricity
+    const apogeeDistance = coeRough.semimajorAxis + c
+    // const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coeRough.semimajorAxis))
+    // const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
+    // const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
+    // const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
+    // console.log(coeRough, V0_2D.length())
+    // console.log('speedAtApogee', speedAtApogee)
+    // console.log('apogeeAltitude', apogeeDistance - crv.radiusOfPlanet)
+    // console.log('deltaVNeededToCircularizeOrbit', deltaVNeededToCircularizeOrbit)
+    // console.log('m0Overmf', m0Overmf)
 
     // We want to find the exact time and downrange distance where the vehicle's altitude is equal to the desired suspended evacuated tube exit altitude (or the ground, if it's not going fast enough).
     // We will solve for this iteratively, although there's probably a better way...
@@ -182,7 +184,7 @@ export function defineUpdateTrajectoryCurves () {
     const evacuatedTubeExitRSquared = evacuatedTubeExitR**2
 
     for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
-      RV = this.RV_from_R0V0andt(R0, V0, t)
+      RV = this.RV_from_R0V0andt(R0_2D, V0_2D, t)
       distSquared = RV.R.x**2 + RV.R.y**2
       if ((distSquared < evacuatedTubeExitRSquared) ^ (tStep>0)) {
         tStep = -tStep/2
@@ -200,40 +202,15 @@ export function defineUpdateTrajectoryCurves () {
       if (gotStuckCheck(this.clock, timeNow, t, 'the downrange distance calculation')) break
     }
 
-    // const planetRadiusSquared = crv.radiusOfPlanet**2
-    // const ringDistSquared = (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude)**2
-    // //console.log('Calculating downrange distance from end of ramp to a point on the hyperbolic trajectory at the ring\'s altitude')
-    // for (t = 0; (Math.abs(tStep)>0.01) && t<dParamWithUnits['launcherCoastTime'].value && converging; t+=tStep) {
-    //   RV = this.RV_from_R0V0andt(R0, V0, t)
-    //   distSquared = RV.R.x**2 + RV.R.y**2
-    //   const withinBoundaries = (distSquared < ringDistSquared) && (distSquared > planetRadiusSquared) 
-    //   if (withinBoundaries ^ (tStep>0)) {
-    //     tStep = -tStep/2
-    //   }
-    //   else {
-    //     // Check that we're converging towards (as opposed to diverging from) a solution
-    //     const difference = Math.abs(distSquared - ringDistSquared)
-    //     if ((lastDifference !== -1) && (difference > lastDifference)) {
-    //       converging = false
-    //     }
-    //     else {
-    //       lastDifference = difference
-    //     }
-    //   }
-    //   if (gotStuckCheck(this.clock, timeNow, t, 'the downrange distance calculation')) break
-    // }
-    // if (!converging) {
-    //   console.log('Warning: The downrange distance calculation did not converge')
-    // }
-
     this.timeWithinEvacuatedTube = t
-    const evacuatedTubeDownrangeAngle = Math.atan2(RV.R.y, RV.R.x)  // This is the angle subtending the end of the ramp, center of the earth, and the end of the evacuated tube
+    const evacuatedTubeDownrangeAngle = Math.atan2(RV.R.y, RV.R.x)  // This is the angle subtending the end of the ramp, center of the planet, and the end of the evacuated tube
     //console.log('done')
 
 
     // ***************************************************************
     // Next we need to place the end of the ramp and the end of the evacuated tube at locations that are directly under the ring, 
     // so that the lightweight evacuated tube that the launched vehicles will inititially coast through can be suspended from the ring.
+    // ***************************************************************
 
     // Convert the angle relative to the center of the Earth to an angle relative to the center of the ring 
 
@@ -246,7 +223,7 @@ export function defineUpdateTrajectoryCurves () {
     // Next find the poisition on the ring's curve that's directly above the evacuated tube's exit position (note: assumes the ring is a perfect circle)
     const evacuatedTubeExitPositionAroundRing = (1 + evacuatedTubeEntrancePositionAroundRing - evacuatedTubeRingAngle / (2*Math.PI)) % 1
     const evacuatedTubeExitPositionInRingRefCoordSys = mainRingCurve.getPoint(evacuatedTubeExitPositionAroundRing)
-    // Adjust the altitude of the positions to place it the correct distance above the earth's surface
+    // Adjust the altitude of the positions to place it the correct distance above the planet's surface
     evacuatedTubeExitPositionInRingRefCoordSys.multiplyScalar((crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude) / (crv.radiusOfPlanet + launcherEvacuatedTubeExitAltitude))
     // Convert these positions into the planet's coordinate system 
     const evacuatedTubeExitPosition = planetCoordSys.worldToLocal(tetheredRingRefCoordSys.localToWorld(evacuatedTubeExitPositionInRingRefCoordSys.clone()))
@@ -254,7 +231,7 @@ export function defineUpdateTrajectoryCurves () {
     // Generate an axis of rotation to define the curvatures of the mass driver and the ramp
     this.axisOfRotation = new THREE.Vector3().crossVectors(evacuatedTubeEntrancePosition, evacuatedTubeExitPosition.clone().sub(evacuatedTubeEntrancePosition)).normalize()
 
-    // Calculate a vector that points to the exit of the mass drive (and the entrance to the ramp)
+    // Calculate a vector that points to the exit of the mass driver (and the entrance to the ramp)
     const massDriver2ExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (crv.radiusOfPlanet + launcherMassDriverAltitude))
     massDriver2ExitPosition.multiplyScalar((crv.radiusOfPlanet + launcherMassDriverAltitude) / (crv.radiusOfPlanet + launcherRampExitAltitude))
 
@@ -602,12 +579,12 @@ export function defineUpdateTrajectoryCurves () {
       this.launchSledReturnCurve.update(sledReturnCircleCenter.clone(), this.axisOfRotation.clone(), sledReturnCircleStartPoint.clone(), sledReturnCircleLength, false)
     }
     const launchSledReturntTosConvertor = function tTos(t) {
-      // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
       return launcherMassDriverExitVelocity
     }
     this.launchSledReturnCurve.addtTosConvertor(launchSledReturntTosConvertor)
     const launchSledReturntTodConvertor = function(t) {
-      // We're ignoring the effect of earth's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
+      // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
       return launcherMassDriverExitVelocity * t
     }
     this.launchSledReturnCurve.addtTodConvertor(launchSledReturntTodConvertor)
@@ -642,32 +619,62 @@ export function defineUpdateTrajectoryCurves () {
     // Create the part of the trajectory where the vehicle coasts on an eliptical or hyperbolic trajectory within the evacuated tube
     // ***************************************************************
     let distanceTravelledWithinEvacuatedTube = 0
-    let lastR = R0
-    V0 = new THREE.Vector3(launchRampExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launchRampExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
+
+    // const R0 = evacuatedTubeEntrancePosition.clone()
+    const R0 = this.launchRampCurve.getPointAt(1)
+    const velocityDueToPlanetsRotation = new THREE.Vector3(0, 2 * Math.PI / planetSpec.lengthOfSiderealDay, 0).cross(R0)
+    const V0 = this.launchRampCurve.getTangentAt(1).multiplyScalar(launchRampExitVelocity)
+    const V0PlusPlanetRotation = V0.clone().add(velocityDueToPlanetsRotation)
+    //console.log('Launch Velocity', V0, 'Velocity Due To Planet\'s Rotation', velocityDueToPlanetsRotation, 'Sum', V0PlusPlanetRotation)
+    
+    const printOrbitalElements = true
+    if (printOrbitalElements) {
+      const coe = this.orbitalElementsFromStateVector(R0, V0PlusPlanetRotation)
+      const c = coe.semimajorAxis * coe.eccentricity
+      const apogeeDistance = coe.semimajorAxis + c
+      const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
+      const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
+      const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
+      const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
+      console.log(coe)
+      console.log('speedAtApogee', speedAtApogee)
+      console.log('apogeeAltitude', apogeeDistance - crv.radiusOfPlanet)
+      console.log('DeltaV Needed To Circularize Orbit', deltaVNeededToCircularizeOrbit)
+      console.log('Circularization m0Overmf', m0Overmf)
+    }
+    
+    let lastVehiclePositionRelativeToPlanet = R0.clone()
+    //V0 = new THREE.Vector3(launchRampExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launchRampExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
 
     const evacuatedTubeConversionCurvePoints = []
-    const l2 = R0.length()
+    const l2 = R0.length()  // LaunchRamp Exit distance from center of the planet
     const totalSplinePoints = Math.floor((t6a-t4)/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
     const numEvacuatedTubeSplinePoints = Math.max(4, Math.floor(totalSplinePoints * (t5a-t4) / (t6a-t4)))
     const tStep1 = (t5a - t4) / (numEvacuatedTubeSplinePoints-1)
     for (let i = 0; i<numEvacuatedTubeSplinePoints; i++ ) {
       const t = t4 + i * tStep1
       const t6a = i * tStep1  // t6a is the time from the end of the ramp
-      RV = this.RV_from_R0V0andt(R0, V0, t6a)
+      RV = this.RV_from_R0V0andt(R0, V0PlusPlanetRotation, t6a)
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
-      // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
-      vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
-      vehicleAirSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
-      altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - crv.radiusOfPlanet
+      // Calculate the vehicle's position relative to where R0 and V0PlusPlanetRotation were when the vehicle was at R0.
+      const vehiclePosition = RV.R.clone()
+      const vehicleVelocity = RV.V.clone()
+      const velocityDueToPlanetsRotation = new THREE.Vector3(0, 2 * Math.PI / planetSpec.lengthOfSiderealDay, 0).cross(vehiclePosition)
+      const vehicleVelocityRelativeToAir = vehicleVelocity.clone().sub(velocityDueToPlanetsRotation)
+      vehicleSpeed = RV.V.length() // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
+      vehicleAirSpeed = vehicleVelocityRelativeToAir.length()  // Yes, we're calculating this even though the evacuated tube is evacuated. Need it for tTos and so we can plot it on the xychart
+      const vehiclePositionRelativeToPlanet = vehiclePosition.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t6a/planetSpec.lengthOfSiderealDay)
+      altitude = RV.R.length() - crv.radiusOfPlanet
+
       const aerodynamicDrag = 0
-      const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
+      const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
       distanceTravelledWithinEvacuatedTube += deltaDistanceTravelled
 
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       // Collect control points for curves
       evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledWithinEvacuatedTube, t6a))
-      launchTrajectoryCurveControlPoints.push(vehiclePosition)
-      evacuatedTubeCurveControlPoints.push(vehiclePosition)
+      launchTrajectoryCurveControlPoints.push(vehiclePositionRelativeToPlanet)
+      evacuatedTubeCurveControlPoints.push(vehiclePositionRelativeToPlanet)
       // Save telemery...
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
@@ -676,7 +683,7 @@ export function defineUpdateTrajectoryCurves () {
       lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
       aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       totalMassVerusTimeData.push(new THREE.Vector3(t, m0, 0))
-      lastR = RV.R
+      lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
     }
     this.launcherEvacuatedTubeLength = distanceTravelledWithinEvacuatedTube
     distanceTravelled += distanceTravelledWithinEvacuatedTube
@@ -731,15 +738,20 @@ export function defineUpdateTrajectoryCurves () {
         RV = this.RV_from_R0V0andt(RV.R, RV.V, tStep2)
       }
       else {
-        RV = this.RV_from_R0V0andt(R0, V0, t6a)
+        RV = this.RV_from_R0V0andt(R0, V0PlusPlanetRotation, t6a)
       }
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
-      // Calculate the vehicle's position relative to where R0 and V0 were when the vehicle was at R0.
-      vehiclePosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, downrangeAngle).multiplyScalar(RV.R.length() / l2)
-      vehicleSpeed = Math.sqrt(RV.V.y**2 + RV.V.x**2) // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
-      vehicleAirSpeed = vehicleSpeed
-      altitude = Math.sqrt(RV.R.y**2 + RV.R.x**2) - crv.radiusOfPlanet
-      const deltaDistanceTravelled = Math.sqrt((RV.R.x-lastR.x)**2 + (RV.R.y-lastR.y)**2) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
+      // Calculate the vehicle's position relative to where R0 and V0PlusPlanetRotation were when the vehicle was at R0.
+      const vehiclePosition = RV.R.clone()
+      const vehicleVelocity = RV.V.clone()
+      const velocityDueToPlanetsRotation = new THREE.Vector3(0, 2 * Math.PI / planetSpec.lengthOfSiderealDay, 0).cross(vehiclePosition)
+      const vehicleVelocityRelativeToAir = vehicleVelocity.clone().sub(velocityDueToPlanetsRotation)
+      vehicleSpeed = RV.V.length() // ToDo: The speed due to the planet's rotation needs to be calculated and factored in
+      altitude = RV.R.length() - crv.radiusOfPlanet
+      vehicleAirSpeed = vehicleVelocityRelativeToAir.length()
+      const vehiclePositionRelativeToPlanet = vehiclePosition.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t6a/planetSpec.lengthOfSiderealDay)
+
+      const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (crv.radiusOfPlanet + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
       const aerodynamicDrag = this.GetAerodynamicDrag_ChatGPT(altitude, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
@@ -764,13 +776,16 @@ export function defineUpdateTrajectoryCurves () {
       }
       mTotal = mVehicle + mPayload + mPropellant
 
+      // ToDo: For the freeFlight part of the curve, it makes less sense to use the vehicle's position relative to the planet. Possibly this choice should be an option. 
+
       // Collect control points for curves
-      freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleSpeed, distanceTravelledOutsideLaunchSystem, t6a))
+      freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, t6a))
       if (i!=0) {
-        // ToDo: This is a bit inaccurate because the temporal spacing of these points differs slightly from that of the points we added earlier
-        launchTrajectoryCurveControlPoints.push(vehiclePosition)
+        // ToDo: This might be a bit inaccurate because the temporal spacing of these points differs slightly from that of the points we added earlier
+        // Need to inspect/verify the impact of this wherever the getPoint() method is used.
+        launchTrajectoryCurveControlPoints.push(vehiclePositionRelativeToPlanet)
       }
-      freeFlightCurveControlPoints.push(vehiclePosition)
+      freeFlightCurveControlPoints.push(vehiclePositionRelativeToPlanet)
       // Save telemery...
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
@@ -779,7 +794,7 @@ export function defineUpdateTrajectoryCurves () {
       lateralAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
       aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       totalMassVerusTimeData.push(new THREE.Vector3(t, mTotal, 0))
-      lastR = RV.R
+      lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
     }
     //console.log('done')
     this.durationOfLaunchTrajectory = t6a
@@ -854,27 +869,30 @@ export function defineUpdateTrajectoryCurves () {
     this.xyChart.addCurve("Forward Accelleration", "m/s2", forwardAccelerationVersusTimeData, 0xffff00, "Yellow") // Yellow Curve
     this.xyChart.addCurve("Lateral Accelleration", "m/s2", lateralAccelerationVersusTimeData, 0xff8000, "Orange") // Orange Curve
 
-    console.print('========================================')
-    let peakAerodynamicDrag = 0
+    console.print('========= Chart Legend and Y-Axis Values ==========')
+    //let peakAerodynamicDrag = 0
     this.xyChart.curveInfo.forEach(curve =>{
-      console.print(curve.name, '(', curve.colorName, ')', curve.maxY)
+      console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.maxY), curve.units)
       if (curve.name == 'Aerodynmic Drag') {
-        peakAerodynamicDrag = curve.maxY
+        console.print('   (Equivalent to ' + Math.round(curve.maxY/22790)/100 + ' RS-25 Space Shuttle Main Engines)')
+        //peakAerodynamicDrag = curve.maxY
       }
     })
-    console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000), 'kN')
-    console.print("RS-25 Engine Thrust 2279 kN")
+    console.print('===================================================')
+    // console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000), 'kN')
+    // console.print("RS-25 Engine Thrust 2279 kN")
     console.print("Vehicle Initial Mass", Math.round(m0), 'kg')
     console.print("MassDriver1 Time", Math.round(launcherMassDriver1AccelerationTime*100/60)/100, 'min')
     console.print("MassDriver2 Time", Math.round(launcherMassDriver2AccelerationTime*100/60)/100, 'min')
     console.print("Ramp Time", Math.round(this.timeWithinRamp*10)/10, 'sec')
     console.print("Evacuate Tube Time", Math.round(this.timeWithinEvacuatedTube*10)/10, 'sec')
+    console.print("Total Time on Chart X-Axis", Math.round(t6a), 'sec (' + Math.round(t6a/6)/10 + ' minutes)')
     console.print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/10)/100, 'km')
     console.print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/10)/100, 'km')
     console.print("Ramp Base Length", Math.round(rampBaseLength/1000), 'km')
     console.print("Evacuate Tube Length", Math.round(distanceTravelledWithinEvacuatedTube/10)/100, 'km')
     console.print("Total Length Of Launch System", Math.round(totalLengthOfLaunchSystem/10)/100, 'km')
-    console.print('========================================')
+    console.print('==================================================')
 
     if (genLauncherKMLFile) {
       // Start a polyline...
