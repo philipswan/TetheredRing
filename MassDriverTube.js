@@ -16,15 +16,6 @@ export class massDriverTubeModel {
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
     const modelsCurvePosition = (segmentIndex + 0.5) / massDriverTubeSegments
-    const res = curve.findRelevantCurveAt(modelsCurvePosition)
-    if (res==2) {
-      console.log('sledReturn')
-    }
-    // Debug code
-    // const subCurveD = curve.getSubcurveD(modelsCurvePosition, res.relevantCurveStartPosition, res.relevantCurveLength)
-    // const t = curve.superCurves[0].getUtoTmapping(subCurveD)
-    // console.log(modelsCurvePosition, subCurveD, t)
-
     const refPoint = curve.getPointAt(modelsCurvePosition)
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
@@ -33,7 +24,6 @@ export class massDriverTubeModel {
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
       const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverTubeSegments
-      if (modelsCurvePosition>1) console.log(modelsCurvePosition)
       try {
         tubePoints.push(curve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
       }
@@ -42,8 +32,9 @@ export class massDriverTubeModel {
         curve.getPointAt(modelsCurvePosition)
       }
     }
-    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
-    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegementCurve, modelLengthSegments, radius, modelRadialSegments, false)
+
+    const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
+    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, radius, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
     //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, depthWrite: false, opacity: 0.25})
     const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: 0.25})

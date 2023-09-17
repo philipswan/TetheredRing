@@ -124,6 +124,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+    guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80000
+    guidParamWithUnits['launcherMassDriverScrewBracketThickness'].value = 0.02
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
     guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 3000
@@ -131,15 +133,18 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
-    guidParamWithUnits['orbitControlsRotateSpeed'].value = -.2
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = .01
     guidParamWithUnits['logZoomRate'].value = -3
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 600
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
+    guidParamWithUnits['numVirtualLaunchSleds'].value = 6
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
+    guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 500
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
 
@@ -147,6 +152,11 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1085051.7452291835, -3902846.696186079, -4926668.713904155)
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
+    
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1082214.6746342087, -3904219.0954899974, -4926186.774702437)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.1696740181490977, -0.6121191921409517, -0.7723476045006692)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1082215.4347764272, -3904221.5535437455, -4926185.72475156)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.1696740181490977, -0.6121191921409517, -0.7723476045006692)
 
     // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-63636.3777848408, -4115849.7575696534, -4913396.378631104)
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
@@ -232,7 +242,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
     guidParamWithUnits['numVirtualMassDriverTubes'].value = 64
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
     guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.857
     guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value =  6
@@ -1080,12 +1090,15 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
   function twoStageMassDriver() {
 
+    // Uses Mt Ruapehu launch location
+
     // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
     // guidParamWithUnits['numTethers'].value = 1300
     // guidParamWithUnits['numForkLevels'].value = 10
     guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
     guidParamWithUnits['showXYChart'].value = true
     guidParamWithUnits['showEarthsSurface'].value = true
+    //guidParamWithUnits['earthTextureOpacity'].value = 0.25
     guidParamWithUnits['showEarthsAtmosphere'].value = false
     guidParamWithUnits['showMoon'].value = true
     guidParamWithUnits['showStars'].value = true
@@ -1110,9 +1123,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchTrajectory'].value = true
     guidParamWithUnits['showMarkers'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
@@ -1125,62 +1138,207 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 2
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
     guidParamWithUnits['logZoomRate'].value = -3
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 60
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 30
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
     guidParamWithUnits['numVirtualLaunchSleds'].value = 6
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
     guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 400
+    guidParamWithUnits['launchVehicleRadius'].value = 1.5
+    guidParamWithUnits['launchVehicleBodyLength'].value = 10
+
     guidParamWithUnits['launchVehicleConstantThrust'].value = true
-    guidParamWithUnits['launcherCoastTime'].value = 500
+    guidParamWithUnits['launcherCoastTime'].value = 4500
     guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
     guidParamWithUnits['launchVehiclePayloadMass'].value = 100
 
-    switch (2) {
-      case 0:
+    // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
+    const r = guidParamWithUnits['launchVehicleRadius'].value
+    const bl = guidParamWithUnits['launchVehicleBodyLength'].value
+    const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
+    const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
+    const π = Math.PI
+    const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
+    const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
+    const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
+    const skinMaterialDensity = 8000 // kg/m3
+    const rocketEngineMass = 3177 // kg (based on RS-25)
+    const avionicsEtcMass = 1000 // kg
+
+    // Hack
+    const dryMass = 0 //skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
+    // Allocate the volume between the payload and the propellant
+    const propellantDensity = 360 // kg/m3
+    const payloadDensity = 360 // kg/m3
+    const propellantMass = interiorVolume * propellantDensity
+    const payloadMass = 0 // (interiorVolume - propellantMass / propellantDensity) * payloadDensity
+    console.log('dryMass', dryMass)
+    console.log('payloadMass', payloadMass)
+    console.log('propellantMass', payloadMass)
+    console.log('totalMass', payloadMass + dryMass)
+
+    guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
+    guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
+    guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
+    // Parameters that are going to effect the launch system's performance...
+    // Launch Angle (launcherRampUpwardAcceleration)
+    // Propellant Mass (launchVehiclePropellantMass)
+    // Altitude of Ramp Exit
+    // Altitude of Evauated Tube Exit
+    // Desired Orbital Altitude
+
+    // The optimiztion loop will need to adjust the launch angle and propellant mass to achieve the desired orbit
+    // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
+    // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
+
+
+    switch (50) {
+      case 0.5:
         guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 70       // m/s2
         guidParamWithUnits['launcherMassDriverExitVelocity'].value = 500     // m/s
-        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
-        guidParamWithUnits['launcherRampExitAltitude'].value = 3600           // m
-        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3700  // m
-        guidParamWithUnits['launchVehiclePropellantMass'].value = 29500 // kg
-        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
-        break
-      case 1:
-        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 90       // m/s2
-        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3000     // m/s
-        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
-        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
-        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3700  // m
-        guidParamWithUnits['launchVehiclePropellantMass'].value = 9500 // kg
-        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
-        break
-      case 2:
-        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
-        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 7700     // m/s
         guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
         guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
         guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
-        guidParamWithUnits['launchVehiclePropellantMass'].value = 50 // kg
-        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 100 // kg/s
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s
         break
+      case 1:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 140       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 1000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s
+        break
+        // Mass Fraction = 0.013
+      case 2:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 135       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 2000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+        // Mass Fraction = 0.075
+      case 3:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+        // Mass Fraction = 0.146
+      case 4:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 110       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 4000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+        // Mass Fraction = 0.232
+      case 5:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 80       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        // Mass Fraction = 0.339
+        break
+      case 6:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 60       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 6000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        // Mass Fraction = 0.473
+        break
+      case 7:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 24       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 7000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        // Mass Fraction = 0.635
+        break
+      case 8:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3300     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = 0         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2900           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 3300  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        // Mass Fraction =
+        break
+      case 50:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 2797           // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+      case 51:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2       // m/s
+        guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40      // m/s
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 100     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = 0         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 100         // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 110  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+      case 52:
+        guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+        guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+        // guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2       // m/s
+        // guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40      // m/s
+        guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000     // m/s
+        guidParamWithUnits['launcherMassDriverAltitude'].value = 0         // m
+        guidParamWithUnits['launcherRampExitAltitude'].value = 1000         // m
+        guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 4000  // m
+        guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+        break
+  
     }
+
     // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1085383.8669969547, -3902699.9169670017, -4926661.290153145)
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
     // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(1085051.7452291835, -3902846.696186079, -4926668.713904155)
     // nonGUIParams['cameraUp'] = new THREE.Vector3(0.17017387534008444, -0.6118879246181094, -0.7724208825881654)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(392362.28345846327, -4073057.909934009, -4892485.123762921)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(638339.3390246285, -5101790.093401408, -4083665.75154447)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(392362.28345846327, -4073057.909934009, -4892485.123762921)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(638339.3390246285, -5101790.093401408, -4083665.75154447)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.06151710833298002, -0.6386005103137135, -0.7670756374761313)
+
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(378524.6040990794, -4045316.9481399837, -4925332.910447178)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(392764.46257647, -4063550.977465477, -4914259.685875784)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(380525.60358032025, -4038146.2734964443, -4922552.789112389)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(382481.65103939606, -4038404.374358447, -4922505.895094078)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)    
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
       ((i!=23) || (j!=8)) &&

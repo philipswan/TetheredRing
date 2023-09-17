@@ -192,13 +192,9 @@ export class virtualLaunchVehicle {
     static isDynamic
     static hasChanged
     
-    static update(
-        dParamWithUnits,
-        timeAtEvacuatedTubeExit,
-        tBurnOut,
-        planetRadius) {
+    static update(dParamWithUnits, planetSpec) {
 
-        virtualLaunchVehicle.planetRadius = planetRadius
+        virtualLaunchVehicle.planetSpec = planetSpec
     
         virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
         virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
@@ -211,8 +207,7 @@ export class virtualLaunchVehicle {
         virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
         virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
         virtualLaunchVehicle.launchVehicleConstantThrust = dParamWithUnits['launchVehicleConstantThrust'].value
-        virtualLaunchVehicle.timeAtEvacuatedTubeExit = timeAtEvacuatedTubeExit
-        virtualLaunchVehicle.tBurnOut = tBurnOut
+        virtualLaunchVehicle.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
 
         virtualLaunchVehicle.isDynamic =  true
         virtualLaunchVehicle.hasChanged = true
@@ -229,30 +224,22 @@ export class virtualLaunchVehicle {
         const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
-        // Debug code for tracking first vehicle
-        // if (this.timeLaunched==0.1) {
-        //     console.log(d)
-        // }
-        // try {
-            const pointOnRelevantCurve = relevantCurve.getPointAt(d)
-            const forward = relevantCurve.getTangentAt(d)
-            const upward = relevantCurve.getNormalAt(d)
-            const rightward = relevantCurve.getBinormalAt(d)
-            const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
-    
-            om.position.copy(pointOnRelevantCurve)
-                .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
-                .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
-                .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
-            om.setRotationFromQuaternion(orientation)
-        // } catch (e) {
-        //     console.log(e)
-        // }
+        const pointOnRelevantCurve = relevantCurve.getPointAt(d)
+        const forward = relevantCurve.getTangentAt(d)
+        const upward = relevantCurve.getNormalAt(d)
+        const rightward = relevantCurve.getBinormalAt(d)
+        const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
+
+        om.position.copy(pointOnRelevantCurve)
+            .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
+            .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
+            .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
+        om.setRotationFromQuaternion(orientation)
     
         om.visible = virtualLaunchVehicle.isVisible
     
-        const altitdute = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetRadius
-        const airDensity = tram.airDensityAtAltitude(altitdute)
+        const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetSpec.radius
+        const airDensity = virtualLaunchVehicle.planetSpec.airDensityAtAltitude(altitude)
         const airDensityFactor = Math.min(1, airDensity/0.0184)     // 0.0184 kg/m^3 is rougly the air density at 30000m
 
         // Turn on the flame at the exit of the launch tube
@@ -261,18 +248,31 @@ export class virtualLaunchVehicle {
         const flame_model = om.getObjectByName('launchVehicle_flame')
         const pointlight_model = om.getObjectByName('launchVehicle_pointLight')
         const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
-        if (virtualLaunchVehicle.launchVehicleConstantThrust) {
-          flame_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (deltaT < virtualLaunchVehicle.tBurnOut)
+        let fuelFlowRateFactor
+        if (res.relevantCurve.name==='freeFlightCurve') {
+          if (virtualLaunchVehicle.launchVehicleConstantThrust) {
+            try {
+              fuelFlowRateFactor = res.relevantCurve.tToFuelFlowRateConvertor(deltaT-res.relevantCurveStartTime) / virtualLaunchVehicle.maxPropellantMassFlowRate
+            }
+            catch (e) {
+              console.log(e)
+            }
+            flame_model.visible = (fuelFlowRateFactor>0.01)
+          }
+          else {
+            flame_model.visible = (airDensityFactor>0.1)
+          }
+          shockwaveCone_model.visible = (airDensityFactor>0.01)
         }
         else {
-          flame_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (airDensityFactor>0.1)
+          flame_model.visible = false
+          shockwaveCone_model.visible = false
         }
-        shockwaveCone_model.visible = (deltaT > virtualLaunchVehicle.timeAtEvacuatedTubeExit) && (airDensityFactor>0.01)
 
         if (flame_model.visible) {
           if (virtualLaunchVehicle.launchVehicleConstantThrust) {
-            flame_model.position.set(0, -virtualLaunchVehicle.flameLength/2, 0)
-            flame_model.scale.set(1, 1, 1)
+            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
+            flame_model.scale.set(1, fuelFlowRateFactor, 1)
           }
           else {
             flame_model.position.set(0, -virtualLaunchVehicle.flameLength*airDensityFactor/2, 0)

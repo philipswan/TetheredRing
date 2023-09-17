@@ -45,6 +45,7 @@ import * as CapturePresets from './CapturePresets.js'
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
+import { MultiModeTrial } from './MultiModeTrial.js'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
@@ -78,6 +79,8 @@ let lastPointOnLaunchTrajectoryCurve
 let followLaunchVehiclesStartTime
 let flyToLocation = 0
 const enableLaunchSystem = true
+
+const mtm = new MultiModeTrial()
 
 // Useful constants that we never plan to change
 // ToDo - We need to output these to the specs file as well.
@@ -128,7 +131,7 @@ const guidParamWithUnits = {
   buildLocationRingCenterLatitude: {value: -19.2, units: "degrees", autoMap: true, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderGeography},
   buildLocationRingCenterLongitude: {value: 213.7, units: "degrees", autoMap: true, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
   finalLocationRingCenterLatitude: {value: 14.33, units: "degrees", autoMap: true, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderGeography},
-  finalLocationRingCenterLongitude: {value: 186.3, units: "degrees", autoMap: true, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
+  finalLocationRingCenterLongitude: {value: 186.26, units: "degrees", autoMap: true, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
   moveRingFactor: {value: 1, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustRingLatLon, folder: folderGeography},
 
   buildLocationRingCenterLatitude2: {value: 14.3, units: "degrees", autoMap: true, min: -90, max: 90, updateFunction: adjustRingLatLon2, folder: folderGeography},
@@ -142,7 +145,8 @@ const guidParamWithUnits = {
   finalLocationRingEccentricity: {value: 1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   // ToDo: moveRingFactor needs to call adjustRingDesign when buildLocationRingEccentricity differs from finalLocationRingEccentricity
   locationPresetIndex: {value: 0, units: "", autoMap: true, min: 0, max: 6, tweenable: false, updateFunction: setRingLatLonWithPreset, folder: folderGeography},
-  displacementBias: {value: -1135, units: "", autoMap: true, min: -10000, max: 10000, tweenable: true, updateFunction: adjustDisplacementBias, folder: folderGeography},
+  displacementBias: {value: -900, units: "", autoMap: true, min: -10000, max: 10000, tweenable: true, updateFunction: adjustDisplacementBias, folder: folderGeography},
+  displacementScale: {value: 6400, units: "", autoMap: true, min: -10000, max: 10000, tweenable: true, updateFunction: adjustDisplacementScale, folder: folderGeography},
 
   // Physical Constants
   transitSystemForwardOffset: {value: 0.816, units: 'm', autoMap: true, min: -1, max: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -300,6 +304,8 @@ const guidParamWithUnits = {
   // Engineering Parameters - Launch System - Performance
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampTurningRadius: {value: 5000, units: 'm*s-2', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -314,6 +320,8 @@ const guidParamWithUnits = {
   launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleDesiredOrbitalAltitude: {value: 420000, units: 'm', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
+
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchVehiclePropellantMassFlowRate: {value: 20, units: 'kg/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -337,6 +345,7 @@ const guidParamWithUnits = {
   // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
   //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNoseconeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 50, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleRocketEngineLength: {value: 4.3, units: 'm', autoMap: true, min: .1, max: 50, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleShockwaveConeLength: {value: 30, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
@@ -348,9 +357,9 @@ const guidParamWithUnits = {
   //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  evacuatedTubeEntrancePositionAroundRing: {value: 0.7607, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  evacuatedTubeEntrancePositionAroundRing: {value: 0.76081, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeRadius: {value: 4, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualMassDriverTubes: {value: 16, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launchRailUpwardsOffset: {value: -1.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
@@ -542,6 +551,7 @@ const guidParamWithUnits = {
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
   // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
+  verboseLogging: {value: true, units: '', autoMap: true, folder: folderRendering},
 }
 
 function updatePerfOptimzation() {
@@ -704,8 +714,9 @@ function updateTransitsystem() {
 function updateLauncher() {
   updatedParam()
   launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+  launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
-  launchSystemObject.update(dParamWithUnits, timeSinceStart, crv)
+  launchSystemObject.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
   console.log(`renderer.info.memory: ${JSON.stringify(renderer.info.memory)}`)
 }
 
@@ -738,6 +749,17 @@ function adjustDisplacementBias() {
     if (child.type==='Mesh') {
       if (child.material.displacementMap) {
         child.material.displacementBias = guidParamWithUnits['displacementBias'].value
+      }
+    }
+  })
+}
+
+function adjustDisplacementScale() {
+  updatedParam()
+  planetMeshes.traverse(child => {
+    if (child.type==='Mesh') {
+      if (child.material.displacementMap) {
+        child.material.displacementScale = guidParamWithUnits['displacementScale'].value
       }
     }
   })
@@ -918,8 +940,10 @@ function updateXYChart() {
   updatedParam()
   const width = simContainer.offsetWidth
   const height = simContainer.offsetHeight
-  xyChart.chartGroup.position.set(-width/2 + 0.1*xyChart.width/2, -height/2 + 0.2*xyChart.height/2, 1 ); // bottom left
+  xyChart.chartGroup.position.set(-width/2 + 0.05*xyChart.width/2, height/2 - 1.15*xyChart.height, 1 );
   xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
+  xyChart.drawAxes()
+  xyChart.labelAxes()
 }
 
 // Used for saving the rendered images to series of numbered files
@@ -935,8 +959,8 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0xffffff )
-scene.background = null
+//scene.background = new THREE.Color( 0x1f1f1f )
+//scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
 //console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
@@ -1052,8 +1076,26 @@ const planetSpec = {
   radius: 6378100,                          // m
   WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
   lengthOfSiderealDay: 86164.0905,          // seconds
-  upDirection: new THREE.Vector3(0, 1, 0)   // upDirection
+  
+  // Hack!!!!!
+  //lengthOfSiderealDay: 1e20,          // seconds
+
+  upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
 }
+planetSpec['airDensityAtAltitude'] = function(a) {
+  // Input in meters
+  const c_4	= -3.957854E-19
+  const c_3	= 6.657616E-14
+  const c_2	= -3.47217E-09
+  const c_1	= -8.61651E-05
+  const c_0	= 2.16977E-01
+  const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
+  return airDensityAtAltitude  // In kg/m^3
+}
+
+// Hack!!!
+//planetSpec['airDensityAtAltitude'] = function(a) {return 0}
+
 
 let planetMeshes, atmosphereMesh
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value) {
@@ -1762,6 +1804,96 @@ function renderFrame() {
     adjustRingLatLon()
   }
 
+  if (mtm.active) {
+
+    const evacuatedTubeExitAltitude = mtm.evtea[mtm.j]
+    const massDriverExitSpeed = 100 + mtm.k * 1000
+    //const massDriverExitSpeed = 8100 + mtm.k * 1000
+    let rampUpwardAcceleration
+
+    console.print = function (...args) {
+      queueMicrotask (console.log.bind (console, ...args));
+    }
+
+    if (mtm.h===0) {
+      dParamWithUnits['verboseLogging'].value = 0
+      dParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2       // m/s
+      dParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40      // m/s
+      dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = evacuatedTubeExitAltitude
+      dParamWithUnits['launcherMassDriverExitVelocity'].value = massDriverExitSpeed
+      dParamWithUnits['launcherRampDesignMode'].value = 1
+      if (massDriverExitSpeed===100) {
+        dParamWithUnits['launcherRampExitAltitude'].value = 100
+        dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 110
+      }
+      else {
+        dParamWithUnits['launcherRampExitAltitude'].value = guidParamWithUnits['launcherRampExitAltitude'].value
+        dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = evacuatedTubeExitAltitude
+      }
+
+      // Search for the best ramp upward acceleration 
+      mtm.bestMassFraction = -1
+      for (let i=1; i<=90; i+=1) {
+        const desiredAngleOfAscent = i  // in degrees
+        const rampExitAltitude = dParamWithUnits['launcherRampExitAltitude'].value
+        const massDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
+        const launchVehicleDesiredOrbitalAltitude = dParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value
+        const launcherRampTurningRadius = (rampExitAltitude-massDriverAltitude) / (1 - Math.cos(desiredAngleOfAscent * Math.PI / 180 ))
+        const rampCentrifugalAcceleration = massDriverExitSpeed**2 / launcherRampTurningRadius
+        //dParamWithUnits['launcherRampUpwardAcceleration'].value = rampUpwardAcceleration
+        dParamWithUnits['launcherRampTurningRadius'].value = launcherRampTurningRadius
+        launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+
+        if ((mtm.k===0) && (mtm.j===0)) {
+          console.log(rampCentrifugalAcceleration, launchSystemObject.massFraction)
+        }
+        const someMargin = 200000  // Yeah, a lot of margin, I know...
+        const validCandidate = (launchSystemObject.initialApogeeDistance < planetSpec.radius + launchVehicleDesiredOrbitalAltitude + someMargin)
+        const betterCanditate = validCandidate && (mtm.bestMassFraction < launchSystemObject.massFraction)
+        if ((mtm.bestMassFraction===-1) || betterCanditate) {
+          mtm.bestMassFraction = launchSystemObject.massFraction
+          mtm.bestRampCentrifugalAcceleration = rampCentrifugalAcceleration
+          mtm.bestLauncherRampTurningRadius = launcherRampTurningRadius
+        }
+      }
+      //rampUpwardAcceleration = mtm.bestRampUpwardAcceleration
+      //dParamWithUnits['launcherRampUpwardAcceleration'].value = rampUpwardAcceleration
+      dParamWithUnits['launcherRampTurningRadius'].value = mtm.bestLauncherRampTurningRadius
+      dParamWithUnits['verboseLogging'].value = 1
+      launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+      launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
+      launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
+      launchSystemObject.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+
+      console.print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+      console.print('bestLauncherRampTurningRadius', mtm.bestLauncherRampTurningRadius)
+      console.print('bestRampCentrifugalAcceleration', mtm.bestRampCentrifugalAcceleration)
+      // Save the best result
+      mtm.massFraction[mtm.k][mtm.j] = launchSystemObject.massFraction
+      mtm.rocketTotalDeltaV[mtm.k][mtm.j] = launchSystemObject.rocketTotalDeltaV
+      mtm.peakCentrifugalAcceleration[mtm.k][mtm.j] = mtm.bestRampCentrifugalAcceleration
+      mtm.peakDecelleration[mtm.k][mtm.j] = launchSystemObject.peakDecelleration
+      console.log(mtm.bestMassFraction, mtm.bestRampCentrifugalAcceleration)
+
+      if (mtm.lastTrial()) {
+        console.print('massDriverExitSpeed', ...mtm.evtea, ...mtm.evtea, ...mtm.evtea)
+        for (let k = 0; k<mtm.nk; k++) {
+          const massDriverExitSpeed = 100 + k * 1000
+          //const massDriverExitSpeed = 8100 + k * 1000
+          console.print(massDriverExitSpeed, ...mtm.massFraction[k], ...mtm.rocketTotalDeltaV[k], ...mtm.peakCentrifugalAcceleration[k], ...mtm.peakDecelleration[k])
+        }
+        dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
+        dParamWithUnits['launcherMassDriverExitVelocity'].value = guidParamWithUnits['launcherMassDriverExitVelocity'].value
+        //dParamWithUnits['launcherRampUpwardAcceleration'].value = guidParamWithUnits['launcherRampUpwardAcceleration'].value
+        dParamWithUnits['launcherRampTurningRadius'].value = guidParamWithUnits['launcherRampTurningRadius'].value
+        dParamWithUnits['launcherRampDesignMode'].value = guidParamWithUnits['launcherRampDesignMode'].value
+        dParamWithUnits['launcherRampExitAltitude'].value = guidParamWithUnits['launcherRampExitAltitude'].value
+        dParamWithUnits['verboseLogging'].value = guidParamWithUnits['verboseLogging'].value
+      }
+    }
+    mtm.nextTrial()
+  }
+
   // if (cameraSpeed!==0) {
   //   camera.position.multiplyScalar(1+cameraSpeed)
   //   camera.matrixValid = false
@@ -2342,7 +2474,15 @@ function onKeyDown( event ) {
       lockUpToRingAxis = !lockUpToRingAxis
       break
     case 89: /*Y*/
-      backgroundPatchMesh.lookAt(camera.position)
+      // Automatically analyze a range of launch trajectory options
+      if (!mtm.active) {
+        mtm.start()
+      }
+      else {
+        mtm.active = false
+      }
+
+      //backgroundPatchMesh.lookAt(camera.position)
       break
     case 77: /*M*/
       let positionObject = {
@@ -2521,6 +2661,11 @@ function onKeyDown( event ) {
       orbitControlsTargetUpVector.copy(orbitControls.upDirection.clone())
       orbitControls.update()
       break;
+    case 83: /*S*/
+      genSpecs = true
+      updateRing()
+      genSpecs = false
+      break;
     case 88: /*X*/
       animateZoomingIn = false
       animateZoomingOut = !animateZoomingOut
@@ -2528,11 +2673,6 @@ function onKeyDown( event ) {
     case 90: /*Z*/
       animateZoomingIn = !animateZoomingIn
       animateZoomingOut = false
-      break;
-    case 83: /*S*/
-      genSpecs = true
-      updateRing()
-      genSpecs = false
       break;
     case 72: /*H*/
       // Sweep a parameter to generate data for a graph 

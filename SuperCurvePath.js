@@ -2,10 +2,10 @@ import { SuperCurve } from './SuperCurve.js';
 import * as SuperCurves from './SuperCurves.js';
 import { Quaternion } from 'three/src/math/Quaternion.js';
 
-/**************************************************************
- *	SuperCurved Path - a SuperCurve path is simply a array of connected
- *  SuperCurves, but retains the api of a SuperCurve
- **************************************************************/
+// **************************************************************
+//	SuperCurved Path - a SuperCurve path is simply a array of connected
+//  SuperCurves, but retains the api of a SuperCurve
+// **************************************************************
 
 class SuperCurvePath extends SuperCurve {
 
@@ -25,8 +25,10 @@ class SuperCurvePath extends SuperCurve {
 
 	add( superCurve ) {
 
-    console.assert(superCurve, "SuperCurvePath.add: superCurve is not defined")
-		this.superCurves.push( superCurve );
+    //console.assert(superCurve, "SuperCurvePath.add: superCurve is not defined")
+    if (superCurve) {
+  		this.superCurves.push( superCurve );
+    }
 
 	}
 
@@ -101,7 +103,7 @@ class SuperCurvePath extends SuperCurve {
 
 		this.needsUpdate = true;
 		this.cacheLengths = null;
-		this.getCurveLengths();
+		this.getSuperCurveLengths();
 
 	}
 
@@ -111,6 +113,7 @@ class SuperCurvePath extends SuperCurve {
 	getSuperCurveLengths() {
 
 		// We use cache values if superCurves and cache array are same length
+    // ToDo: This seems very unreliable. Should probably be improved.
 
 		if ( this.cacheLengths && this.cacheLengths.length === this.superCurves.length ) {
 
@@ -214,26 +217,46 @@ class SuperCurvePath extends SuperCurve {
 			newTotalNumZones += this.numZones[index]
 		})
 		// Hacky...
-		// Adjust the number of zones assigned to the last curve so that the total number of zones is unchanged
-		this.numZones[numSubCurves-1] += totalNumZones - newTotalNumZones
+		// Adjust the number of zones assigned to the curve with the most zones so that the total number of zones overall equals totalNumZones
+    let indexOfMaxNumZones = 0
+    let mostZones = 0
+		this.numZones.forEach((zones, index) => {
+      if (zones>mostZones) {
+        mostZones = zones
+        indexOfMaxNumZones = index
+      }
+    })
+    this.numZones[indexOfMaxNumZones] += totalNumZones - newTotalNumZones
 
 		let startDiv = 0
 		this.superCurves.forEach((subCurve, index) => {
 			this.startZone[index] = startDiv
 			startDiv += this.numZones[index]
+      if (this.numZones[index]==0) {
+        console.log("Error: numZones cannot be zero")
+        this.subdivide(totalNumZones)  // Debug call
+      }
 		})
 
 	}
+
+  getDuration() {
+
+    let duration = 0
+    this.superCurves.forEach(curve => { duration += curve.getDuration() })
+    return duration
+
+  }
 
 	findRelevantCurve(deltaT) {
 
 		const curveList = this.superCurves
 		// Determine which element of the curve deltaT maps to
-        let relevantCurve
-        let relevantCurveIndex
-        let relevantCurveDuration
-        let relevantCurveStartTime
-        let relevantCurveLength
+    let relevantCurve
+    let relevantCurveIndex
+    let relevantCurveDuration
+    let relevantCurveStartTime
+    let relevantCurveLength
 
 		let curveStartTime = 0
 		for (let i = 0; i<curveList.length; i++) {
@@ -259,11 +282,11 @@ class SuperCurvePath extends SuperCurve {
 
 		const curveList = this.superCurves
 		// Determine which element of the curve deltaT maps to
-        let relevantCurve
-        let relevantCurveIndex
-        let relevantCurveStartPosition
-		let relevantCurveStartD
-        let relevantCurveLength
+    let relevantCurve
+    let relevantCurveIndex
+    let relevantCurveStartPosition
+    let relevantCurveStartD
+    let relevantCurveLength
 
 		let curveStartPosition = 0
 		const distance = d * this.getLength()

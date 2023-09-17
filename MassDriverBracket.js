@@ -41,15 +41,15 @@ export class massDriverBracketModel {
         // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
         const tubePoints = []
         for (let i = 0; i<=modelLengthSegments; i++) {
-            const modelsCurvePosition = (segmentIndex + (i-0.5) * bracketThickness/segmentSpacing) / massDriverScrewSegments
+            const modelsCurvePosition = (segmentIndex + (i-modelLengthSegments/2)/modelLengthSegments * bracketThickness/segmentSpacing) / massDriverScrewSegments
             tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
         }
         const upDirection = new THREE.Vector3(-1, 0, 0)
-        const massDriverSegementCurve = new LineSuperCurve3(tubePoints[0], tubePoints[1], upDirection, upDirection)
+        const massDriverSegmentCurve = new LineSuperCurve3(tubePoints[0], tubePoints[1], upDirection, upDirection)
         const extrudeSettings = {
             steps: 2,
             depth: 1,
-            extrudePath: massDriverSegementCurve
+            extrudePath: massDriverSegmentCurve
         }
         const massDriverBracketGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
         massDriverBracketGeometry.name = "massDriverBracketGeometry"

@@ -35,11 +35,11 @@ export class massDriverRailModel {
       const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverRailSegments
       tubePoints.push(curve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
     }
-    const massDriverSegementCurve = new CatmullRomSuperCurve3(tubePoints)
+    const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
     const extrudeSettings = {
-      steps: 2,
+      steps: modelLengthSegments,
       depth: 1,
-      extrudePath: massDriverSegementCurve
+      extrudePath: massDriverSegmentCurve
     }
     const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
     massDriverRailGeometry.name = "massDriverRailGeometry"

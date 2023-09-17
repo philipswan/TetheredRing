@@ -255,6 +255,30 @@ export function define_orbitalElementsFromStateVector() {
   }
 }
 
+// This function doesn't work, but some of the conversions in it might be useful later...
+// export function define_calculateTimeToApogeeFromOrbitalElements() {
+//   return function (orbitalElements, mu) {
+//     // Calculate the mean anomaly from the true anomaly, eccentricity, and argument of perigee.
+//     const e = orbitalElements.eccentricity
+//     const π = Math.PI
+//     const a = orbitalElements.semimajorAxis
+//     const eccentricAnomaly = Math.atan2(
+//       Math.sqrt(1 - e**2) * Math.sin(orbitalElements.trueAnomaly),
+//       e + Math.cos(orbitalElements.trueAnomaly))
+//     const meanAnomaly = eccentricAnomaly - e * Math.sin(eccentricAnomaly)
+
+//     // Calculate the time to apogee.
+//     // const timeToApogee = Math.PI * orbitalElements.semimajorAxis ** 1.5 / Math.sqrt(1 - e ** 2) * (
+//     //     meanAnomaly - e * Math.sin(meanAnomaly));
+
+//     const timeToApogee1 = (π * a) / Math.sqrt(mu) * (1 - e**2)**(3/2) * (meanAnomaly - e * Math.sin(meanAnomaly))
+//     const timeToApogee2 = (π * a) / Math.sqrt(mu) * (1 - e) * (1 + e) * Math.sqrt((1 - e) / (1 + e)) * (meanAnomaly - e * Math.sin(meanAnomaly))
+
+//     console.log(orbitalElements.trueAnomaly, eccentricAnomaly, meanAnomaly, timeToApogee1, timeToApogee2)
+//     return timeToApogee1;
+//   }
+// }
+
 export function define_GetAltitudeDistanceAndVelocity() {
   return function (currentTime) {
     let ADAndV = {
@@ -320,18 +344,17 @@ export function define_GetAirDensity() {
   }
 }
 
-export function define_GetAerodynamicDrag() {
-  return function (CurrentAirDensity, Speed) {
-    const DragForce = CoefficientOfDrag * VehicleCrossSectionalAreaForDrag * (Speed - EarthsRimSpeed)**2 / 2 * CurrentAirDensity
-    return DragForce;
-  }
-}
+// export function define_GetAerodynamicDrag() {
+//   return function (CurrentAirDensity, Speed) {
+//     const DragForce = CoefficientOfDrag * VehicleCrossSectionalAreaForDrag * (Speed - EarthsRimSpeed)**2 / 2 * CurrentAirDensity
+//     return DragForce;
+//   }
+// }
 
 // ChatGPT version
-export function define_GetAerodynamicDrag_ChatGPT() {
-  return function (altitude, speed, noseConeAngle, radius, length) {
+export function define_GetAerodynamicDrag() {
+  return function (airDensity, speed, noseConeAngle, radius, length) {
     // Calculate the atmospheric density at the given altitude using the barometric formula
-    const density = this.GetAirDensity(altitude)
   
     // Calculate the drag coefficient based on the nose cone angle and length
     // const dragCoefficient = 0.5 * Math.pow(Math.cos(noseConeAngle), 2) + (length / (Math.PI * radius * radius)) // Suspect this formula is BS
@@ -341,7 +364,7 @@ export function define_GetAerodynamicDrag_ChatGPT() {
     const crossSectionalArea = Math.PI * radius * radius
   
     // Calculate the drag force using the drag equation
-    const dragForce = 0.5 * dragCoefficient * density * speed * speed * crossSectionalArea
+    const dragForce = 0.5 * dragCoefficient * airDensity * speed * speed * crossSectionalArea
   
     return dragForce;
   }

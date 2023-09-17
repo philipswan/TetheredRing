@@ -58,10 +58,10 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 
   // First, we will define some constants for the size and position of the graph
-const GRAPH_WIDTH = 600;
+const GRAPH_WIDTH = 1000;
 const GRAPH_HEIGHT = 300;
 const GRAPH_X_MIN = 0;
-const GRAPH_X_MAX = 600;
+const GRAPH_X_MAX = 1000;
 const GRAPH_Y_MIN = 0;
 const GRAPH_Y_MAX = 300;
 const GRAPH_X_MIDDLE = (GRAPH_X_MIN + GRAPH_X_MAX) / 2;
@@ -77,6 +77,39 @@ export class XYChart {
     this.width = GRAPH_WIDTH
     this.height = GRAPH_HEIGHT
     this.curveInfo = []
+    this.font = null
+    this.textDescriptions = []
+
+    const loader = new FontLoader();
+
+    function prepareACallbackFunctionForFontFLoader(chart) {
+      return function (font) {
+        chart.font = font
+        chart.renderText()
+      }
+    }
+  
+    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this))
+
+  }
+
+  renderText() {
+
+    while (this.textDescriptions.length) {
+      const textDescription = this.textDescriptions.pop()
+      const textGeometry = new TextGeometry( textDescription.text,
+      {
+        font: this.font,
+        size: 20,
+        height: 5,
+        curveSegments: 12,
+      } )
+      const textMaterial = new THREE.MeshBasicMaterial({color: 0x808080, transparent: false})
+      const textMesh = new THREE.Mesh(textGeometry, textMaterial)
+      textMesh.position.set(textDescription.x, textDescription.y, 0)  // ToDo: calculate this based on chart dimension and position
+      this.chartGroup.add(textMesh)
+    }
+
   }
 
   // Next, we will create a function to draw the x and y axis lines and labels
@@ -112,8 +145,8 @@ export class XYChart {
       // Calculate the pixel coordinates of the grid line
       const xPos = (x - GRAPH_X_MIN) * xScale;
       // Create the grid line
-      const gridLineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, GRAPH_Y_MIN, 0), new THREE.Vector3(x, GRAPH_Y_MAX, 0)]);
-      const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x888888 });
+      const gridLineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, GRAPH_Y_MIN, -1), new THREE.Vector3(x, GRAPH_Y_MAX, -1)]);
+      const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x282828 });
       const gridLine = new THREE.Line(gridLineGeometry, gridLineMaterial);
       this.chartGroup.add(gridLine);
       // Create the grid label
@@ -129,8 +162,8 @@ export class XYChart {
       // Calculate the pixel coordinates of the grid line
       const yPos = (y - GRAPH_Y_MIN) * yScale;
       // Create the grid line
-      const gridLineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(GRAPH_X_MIN, y, 0), new THREE.Vector3(GRAPH_X_MAX, y, 0)]);
-      const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x888888 });
+      const gridLineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(GRAPH_X_MIN, y, -1), new THREE.Vector3(GRAPH_X_MAX, y, -1)]);
+      const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x282828 });
       const gridLine = new THREE.Line(gridLineGeometry, gridLineMaterial);
       this.chartGroup.add(gridLine);
       // Create the grid label
@@ -141,38 +174,29 @@ export class XYChart {
   }
 
   labelAxes() {
-    const loader = new FontLoader();
 
-    function prepareACallbackFunctionForFontFLoader(chart) {
-      return function (font) {
-        //console.log('Font Loaded', font)
-        // x-axis lable
-        const textGeometry = new TextGeometry( 'Time (??\'s of s)',
-        {
-          font: font,
-          size: 20,
-          height: 5,
-          curveSegments: 12,
-        } )
-        const textMaterial = new THREE.MeshBasicMaterial({color: 0x808080, transparent: false})
-        const textMesh = new THREE.Mesh(textGeometry, textMaterial)
-        textMesh.position.set(200, -30, 0)  // ToDo: calculate this based on chart dimension and position
-        chart.add(textMesh)
+    // x-axis label
+    this.textDescriptions.push({text: 'Time (s)', x: 200, y: -30})
 
-        // y-axis lable
+    // y-axis label
 
-        // x-axis numbers
+    // x-axis numbers
 
-        // y-axis numbers
+    // y-axis numbers
 
-        // legend
+    // legend
 
-        // title
-
-      }
+    // title
+    if (this.font!==null) {
+      this.renderText()
     }
-  
-    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this.chartGroup))
+  }
+
+  clearCurves() {
+    this.curveInfo.forEach(curve => {
+      this.chartGroup.remove(curve.mesh)
+    })
+    this.curveInfo = []
   }
 
   addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName) {
@@ -184,6 +208,9 @@ export class XYChart {
       maxY = Math.max(point.y, maxY)
       maxZ = Math.max(point.z, maxZ)
     })
+
+    // Hack
+    //maxX = 2500
 
     // For now we'll assume that the minimums are always zero
     curveXYPoints.forEach(point => {
