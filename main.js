@@ -304,6 +304,8 @@ const guidParamWithUnits = {
   // Engineering Parameters - Launch System - Performance
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMaxEyesInAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampTurningRadius: {value: 5000, units: 'm*s-2', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -313,7 +315,8 @@ const guidParamWithUnits = {
   launcherMassDriver1InitialVelocity: {value: 2, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriver2InitialVelocity: {value: 200, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitVelocity: {value: 8000-360, units: 'm/s', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleSeaLevelRocketExhaustVelocity: {value: 3590, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleVacuumRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehiclePropellantMass: {value: 9500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -325,7 +328,7 @@ const guidParamWithUnits = {
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchVehiclePropellantMassFlowRate: {value: 20, units: 'kg/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleConstantThrust: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleAdaptiveThrust: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherCoastTime: {value: 1250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
@@ -959,7 +962,7 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0x1f1f1f )
+//scene.background = new THREE.Color( 0xffffff )
 //scene.background = null
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
@@ -1082,7 +1085,17 @@ const planetSpec = {
 
   upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
 }
+
+
+planetSpec['airTemperatureInKelvinAtAltitude'] = function(a) {
+
+  temperatureInKelvin = -6E-27 * a**6 + 2E-21 * a**5 - 2E-16 * a**4 + 7E-12 * a**3 + 1E-07 * a**2 - 0.0078 * a + 288.82
+  return temperatureInKelvin
+
+}
+
 planetSpec['airDensityAtAltitude'] = function(a) {
+
   // Input in meters
   const c_4	= -3.957854E-19
   const c_3	= 6.657616E-14
@@ -1091,11 +1104,18 @@ planetSpec['airDensityAtAltitude'] = function(a) {
   const c_0	= 2.16977E-01
   const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
   return airDensityAtAltitude  // In kg/m^3
+
 }
 
-// Hack!!!
-//planetSpec['airDensityAtAltitude'] = function(a) {return 0}
+planetSpec['airPressureAtAltitude'] = function(a) {
 
+  // Input in meters, Output in Pa
+  // https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
+  // Also ...\Atlantis\Engineering\ArchModel-ThreeJS\AtmosphericData.xlsx
+  const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) : 0
+  return pressurePa;
+
+}
 
 let planetMeshes, atmosphereMesh
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value) {
@@ -1807,13 +1827,15 @@ function renderFrame() {
   if (mtm.active) {
 
     const evacuatedTubeExitAltitude = mtm.evtea[mtm.j]
-    const massDriverExitSpeed = 100 + mtm.k * 1000
+    const massDriverExitSpeed = mtm.k * 1000
     //const massDriverExitSpeed = 8100 + mtm.k * 1000
     let rampUpwardAcceleration
 
     console.print = function (...args) {
       queueMicrotask (console.log.bind (console, ...args));
     }
+
+    //console.print(JSON.stringify(mtm.angleOfAscent, null, 1))
 
     if (mtm.h===0) {
       dParamWithUnits['verboseLogging'].value = 0
@@ -1833,31 +1855,44 @@ function renderFrame() {
 
       // Search for the best ramp upward acceleration 
       mtm.bestMassFraction = -1
-      for (let i=1; i<=90; i+=1) {
-        const desiredAngleOfAscent = i  // in degrees
+      const cachedAoA = mtm.checkCache()
+      let start, finish
+      if (cachedAoA===null) {
+        start = 1
+        finish = 90
+      }
+      else {
+        start = Math.max(1, cachedAoA - 3)
+        finish = Math.min(90, cachedAoA + 3)
+      }
+
+      for (let i=start; i<=finish; i++) {
+        const angleOfAscent = i  // in degrees
         const rampExitAltitude = dParamWithUnits['launcherRampExitAltitude'].value
         const massDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
         const launchVehicleDesiredOrbitalAltitude = dParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value
-        const launcherRampTurningRadius = (rampExitAltitude-massDriverAltitude) / (1 - Math.cos(desiredAngleOfAscent * Math.PI / 180 ))
+        const launcherRampTurningRadius = (rampExitAltitude-massDriverAltitude) / (1 - Math.cos(angleOfAscent * Math.PI / 180 ))
         const rampCentrifugalAcceleration = massDriverExitSpeed**2 / launcherRampTurningRadius
         //dParamWithUnits['launcherRampUpwardAcceleration'].value = rampUpwardAcceleration
         dParamWithUnits['launcherRampTurningRadius'].value = launcherRampTurningRadius
         launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
-        if ((mtm.k===0) && (mtm.j===0)) {
-          console.log(rampCentrifugalAcceleration, launchSystemObject.massFraction)
+        if ((mtm.k===1) && (mtm.j===0)) {
+          console.log(angleOfAscent, rampCentrifugalAcceleration, launchSystemObject.massFraction)
         }
         const someMargin = 200000  // Yeah, a lot of margin, I know...
         const validCandidate = (launchSystemObject.initialApogeeDistance < planetSpec.radius + launchVehicleDesiredOrbitalAltitude + someMargin)
-        const betterCanditate = validCandidate && (mtm.bestMassFraction < launchSystemObject.massFraction)
+        const betterCanditate = validCandidate && (launchSystemObject.massFraction > mtm.bestMassFraction)
         if ((mtm.bestMassFraction===-1) || betterCanditate) {
           mtm.bestMassFraction = launchSystemObject.massFraction
           mtm.bestRampCentrifugalAcceleration = rampCentrifugalAcceleration
           mtm.bestLauncherRampTurningRadius = launcherRampTurningRadius
+          mtm.bestAngleOfAscent = angleOfAscent
         }
       }
       //rampUpwardAcceleration = mtm.bestRampUpwardAcceleration
       //dParamWithUnits['launcherRampUpwardAcceleration'].value = rampUpwardAcceleration
+      
       dParamWithUnits['launcherRampTurningRadius'].value = mtm.bestLauncherRampTurningRadius
       dParamWithUnits['verboseLogging'].value = 1
       launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
@@ -1865,21 +1900,23 @@ function renderFrame() {
       launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
       launchSystemObject.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
-      console.print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+      console.print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@', mtm.j, mtm.k)
+      console.print('bestAngleOfAscent', mtm.bestAngleOfAscent)
       console.print('bestLauncherRampTurningRadius', mtm.bestLauncherRampTurningRadius)
       console.print('bestRampCentrifugalAcceleration', mtm.bestRampCentrifugalAcceleration)
+      console.print('bestMassFraction', launchSystemObject.massFraction)
       // Save the best result
-      mtm.massFraction[mtm.k][mtm.j] = launchSystemObject.massFraction
-      mtm.rocketTotalDeltaV[mtm.k][mtm.j] = launchSystemObject.rocketTotalDeltaV
-      mtm.peakCentrifugalAcceleration[mtm.k][mtm.j] = mtm.bestRampCentrifugalAcceleration
-      mtm.peakDecelleration[mtm.k][mtm.j] = launchSystemObject.peakDecelleration
+      mtm.massFraction[mtm.k-mtm.sk][mtm.j] = launchSystemObject.massFraction
+      mtm.rocketTotalDeltaV[mtm.k-mtm.sk][mtm.j] = launchSystemObject.rocketTotalDeltaV
+      mtm.peakCentrifugalAcceleration[mtm.k-mtm.sk][mtm.j] = mtm.bestRampCentrifugalAcceleration
+      mtm.peakDecelleration[mtm.k-mtm.sk][mtm.j] = launchSystemObject.peakDecelleration
+      mtm.angleOfAscent[mtm.k-mtm.sk][mtm.j] = {k: mtm.k, j: mtm.j, AoA: mtm.bestAngleOfAscent}
       console.log(mtm.bestMassFraction, mtm.bestRampCentrifugalAcceleration)
 
       if (mtm.lastTrial()) {
-        console.print('massDriverExitSpeed', ...mtm.evtea, ...mtm.evtea, ...mtm.evtea)
-        for (let k = 0; k<mtm.nk; k++) {
-          const massDriverExitSpeed = 100 + k * 1000
-          //const massDriverExitSpeed = 8100 + k * 1000
+        console.print('massDriverExitSpeed', ...mtm.evtea, ...mtm.evtea, ...mtm.evtea, ...mtm.evtea)
+        for (let k = 0; k<mtm.nk-mtm.sk; k++) {
+          const massDriverExitSpeed = (mtm.sk + k) * 1000
           console.print(massDriverExitSpeed, ...mtm.massFraction[k], ...mtm.rocketTotalDeltaV[k], ...mtm.peakCentrifugalAcceleration[k], ...mtm.peakDecelleration[k])
         }
         dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
@@ -1889,6 +1926,7 @@ function renderFrame() {
         dParamWithUnits['launcherRampDesignMode'].value = guidParamWithUnits['launcherRampDesignMode'].value
         dParamWithUnits['launcherRampExitAltitude'].value = guidParamWithUnits['launcherRampExitAltitude'].value
         dParamWithUnits['verboseLogging'].value = guidParamWithUnits['verboseLogging'].value
+        console.print(JSON.stringify(mtm.angleOfAscent))
       }
     }
     mtm.nextTrial()

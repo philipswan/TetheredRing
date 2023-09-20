@@ -3,6 +3,7 @@ import { CatmullRomSuperCurve3 } from './SuperCurves.js'
 import { CircleSuperCurve3 } from './SuperCurves.js'
 import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
+import { min } from 'lodash'
 
 export function defineUpdateTrajectoryCurves () {
   return function (dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
@@ -42,7 +43,8 @@ export function defineUpdateTrajectoryCurves () {
     const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value
     const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
     const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-    const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
+    const launchVehicleSeaLevelRocketExhaustVelocity = dParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value
+    const launchVehicleVacuumRocketExhaustVelocity = dParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value
     const launchVehicleDesiredOrbitalAltitude = dParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value
     const verbose = dParamWithUnits['verboseLogging'].value
 
@@ -122,6 +124,7 @@ export function defineUpdateTrajectoryCurves () {
     // ***************************************************************
     // Now design the evacuated tube that the vehicles will travel within from the end of the ramp to the altitude of the main ring.  
     // ***************************************************************
+    let apogeeDistance
 
     const R0_2D = new THREE.Vector3(planetSpec.radius + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
     
@@ -153,7 +156,7 @@ export function defineUpdateTrajectoryCurves () {
 
     const coeRough = this.orbitalElementsFromStateVector(R0_2D, V0_2D)
     const c = coeRough.semimajorAxis * coeRough.eccentricity
-    const apogeeDistance = Math.max(R0_2D.length(), coeRough.semimajorAxis + c)
+    apogeeDistance = Math.max(R0_2D.length(), coeRough.semimajorAxis + c)
     // const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coeRough.semimajorAxis))
     // const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
     // const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
@@ -171,7 +174,7 @@ export function defineUpdateTrajectoryCurves () {
     let tStep = .1 // second
     let RV
 
-    // First, determine if the orbit's appogee or the altitude of the tethered ring is greater.
+    // First, determine if the orbit's apogee or the altitude of the tethered ring is greater.
     if (apogeeDistance>0 && apogeeDistance<=launcherRampExitAltitude) {
       console.log("Error: rampExitAltitude too high")
     }
@@ -180,7 +183,7 @@ export function defineUpdateTrajectoryCurves () {
     if (apogeeDistance>0) {
       // Eliptical orbit - check if the apogee is higher than the altitude of the ring
       // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
-      const maxOrbitalR = tram.lerp(planetSpec.radius + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to appogee as this would cause the flight to level out to horizontal.
+      const maxOrbitalR = tram.lerp(planetSpec.radius + launcherRampExitAltitude, apogeeDistance, 0.8) // No point in going all the way to apogee as this would cause the flight to level out to horizontal.
       evacuatedTubeExitR = Math.min(maxOrbitalR, evacuatedTubeExitR)
     }
     
@@ -352,6 +355,7 @@ export function defineUpdateTrajectoryCurves () {
     const aerodynamicDragVersusTimeData = []
     const fuelMassFlowRateVersusTimeData = []
     const totalMassVersusTimeData = []
+    const apogeeAltitudeVersusTimeData = []
 
     const t0 = 0
     const t1 = t0 + this.timeWithinFeederRail
@@ -650,7 +654,7 @@ export function defineUpdateTrajectoryCurves () {
       const speedAtApogee = Math.sqrt(this.mu * (2 / initialApogeeDistance - 1 / coe.semimajorAxis))
       const speedOfCircularizedOrbit = Math.sqrt(this.mu / initialApogeeDistance)
       const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
-      const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
+      const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleSeaLevelRocketExhaustVelocity)
       console.log(coe)
       console.log('velocityDueToPlanetsRotation', velocityDueToPlanetsRotation)
       console.log('speedAtApogee', speedAtApogee)
@@ -708,6 +712,7 @@ export function defineUpdateTrajectoryCurves () {
         aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
         totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
+        apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, initialApogeeDistance - planetSpec.radius, 0))
         lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
       }
       distanceTravelled += distanceTravelledWithinEvacuatedTube
@@ -746,11 +751,12 @@ export function defineUpdateTrajectoryCurves () {
     const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
     const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     const launchVehicleNoseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
-    const constantThrust = dParamWithUnits['launchVehicleConstantThrust'].value
+    const adaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
     const maxFuelFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
+    const launcherMaxEyesInAcceleration = dParamWithUnits['launcherMaxEyesInAcceleration'].value
+    const launcherMaxEyesOutAcceleration = dParamWithUnits['launcherMaxEyesOutAcceleration'].value
     let fuelFlowRate = maxFuelFlowRate
     let mTotal = mVehicle + mPayload + mPropellant
-    const maxRocketThrust = maxFuelFlowRate * launchVehicleRocketExhaustVelocity
     const noseconeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseconeLength)
     const freeFlightConversionCurvePoints = []
     const numFreeFlightSplinePoints = Math.max(4, totalSplinePoints - numEvacuatedTubeSplinePoints)
@@ -761,7 +767,9 @@ export function defineUpdateTrajectoryCurves () {
     let warning2AlreadyGiven = false
     let peakFuelFlowRate = 0
     let thrustState = 2
-    let burn = false
+    let apogeeError
+    let orbitalSpeedError
+    let accelerateControlSignal = false
     this.rocketTotalDeltaV = 0
     this.peakDecelleration = 0
 
@@ -769,7 +777,7 @@ export function defineUpdateTrajectoryCurves () {
     for (let i = 0; i<numFreeFlightSplinePoints; i++ ) {
       const t = t5a + i * tStep2
       const t6a = t5a - t4 + i * tStep2  // t6a is the time from the end of the ramp
-      if (constantThrust && (i!==0)) {
+      if (adaptiveThrust && (i!==0)) {
         RV = this.RV_from_R0V0andt(RV.R, RV.V, tStep2)
       }
       else {
@@ -789,27 +797,40 @@ export function defineUpdateTrajectoryCurves () {
       const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (planetSpec.radius + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
+
+      const airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      if (isNaN(airPressureInPascals)) {
+        console.log('NaN Error')
+        const airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      }
+      const airPressureInAtmospheres = airPressureInPascals / 101325
+      const launchVehicleRocketExhaustVelocity = tram.lerp(launchVehicleVacuumRocketExhaustVelocity, launchVehicleSeaLevelRocketExhaustVelocity, airPressureInAtmospheres)
+  
       const airDensity = planetSpec.airDensityAtAltitude(altitude)
+
       const aerodynamicDrag = this.GetAerodynamicDrag(airDensity, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
-      const maxThrustMinusDrag = maxRocketThrust - aerodynamicDrag
-      const maxForwardAcceleration = maxThrustMinusDrag / mTotal
-      const limitedForwardAcceleration = Math.min(maxForwardAcceleration, launcherMassDriverForwardAcceleration)  // ToDo: We might want a separate parameter for this limit
-      this.peakDecelleration = Math.max(this.peakDecelleration, -limitedForwardAcceleration)
+      const maxPossibleRocketThrust = maxFuelFlowRate * launchVehicleRocketExhaustVelocity
+      const maxPossibleThrustMinusDrag = maxPossibleRocketThrust - aerodynamicDrag
+      const maxPossibleForwardAcceleration = maxPossibleThrustMinusDrag / mTotal
       
       let forwardAcceleration
 
-      if (constantThrust) {
+      if (adaptiveThrust) {
         // With "Constant Thrust" we calculate the fuel flow rate based on what will keep the vehicle from exceeding the maximum allowed forward acceleration
-        // and what is needed to increase the orbital appogee to the desired altitude. At appogee, we will need to execute a circularization burn.
+        // and what is needed to increase the orbital apogee to the desired altitude. At apogee, we will need to execute a circularization burn.
         const coe = this.orbitalElementsFromStateVector(RV.R, RV.V)
         const c = coe.semimajorAxis * coe.eccentricity
-        const apogeeDistance = coe.semimajorAxis + c
+        apogeeDistance = coe.semimajorAxis + c
         if (apogeeDistance<0) {
           console.log('Error')
         }
+        const targetOrbitDistance = planetSpec.radius + launchVehicleDesiredOrbitalAltitude
+        apogeeError = apogeeDistance - targetOrbitDistance
         const perigeeDistance = coe.semimajorAxis - c
+        const perigeeError = perigeeDistance - targetOrbitDistance
         const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
         const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
+        orbitalSpeedError = RV.V.length() - speedOfCircularizedOrbit
         const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
 
         // ToDo: When we run out of propellant, we should decelerate the launchVehicle due to aerodnamic drag
@@ -822,76 +843,90 @@ export function defineUpdateTrajectoryCurves () {
         //   console.log('Apogee Reached')
         // }
         if (mPropellant>0) {
-          const altitudeMargin = 20   // ToDo: Using this is a bit hackey...
+          const apogeeAltitudeMargin = 100
           switch(thrustState) {
           case 0:  // Veritical Ascent in the zenith direction
           case 1:  // Pitchover Maneuver
-          case 2:  // Gravity Turn (burn to raise appogee)
-            if (apogeeDistance < planetSpec.radius + launchVehicleDesiredOrbitalAltitude) {
-              burn = true
-            }
-            else {
-              // Done raising appogee. Now wait until the vehicle coasts closer to apogee
+          case 2:  // Gravity Turn (accelerate or decelerate as needed to adjust apogee)
+            const proportionalControlConstant1 = 300   // Not tuned up yet
+            accelerateControlSignal = Math.max(-1, Math.min(1, apogeeError / targetOrbitDistance * -proportionalControlConstant1))
+            // ToDo: Using this is a bit hacky, need a better state change rule here.
+            if ((Math.abs(apogeeError)<apogeeAltitudeMargin) && (altitude > 100000)) {
               thrustState = 3
-              burn = false
             }
             //console.log(apogeeDistance/(planetSpec.radius+launchVehicleDesiredOrbitalAltitude))
             break
-          case 3: // Coast to Appogee
+          case 3: // "Coast" to apogee, although the engine with thrust as much as is needed to compensate for aerodynamic drag 
             const averageDistance = (RV.R.length() + apogeeDistance) / 2
             const averageSpeed = (RV.V.length() + speedAtApogee) / 2
-            const roughTimeToAppogee = averageDistance * (Math.PI - coe.trueAnomaly) / averageSpeed
-            const timeNeededToCircularizeOrbit = deltaVNeededToCircularizeOrbit / limitedForwardAcceleration
-            //console.log('roughTimeToAppogee', roughTimeToAppogee, 'timeNeededToCircularizeOrbit', timeNeededToCircularizeOrbit)
+            const roughTimeToApogee = averageDistance * (Math.PI - coe.trueAnomaly) / averageSpeed
+            const timeNeededToCircularizeOrbit = deltaVNeededToCircularizeOrbit / maxPossibleForwardAcceleration
+            //console.log('roughTimeToApogee', roughTimeToApogee, 'timeNeededToCircularizeOrbit', timeNeededToCircularizeOrbit)
             // Hacky
-            if (roughTimeToAppogee>timeNeededToCircularizeOrbit) {
-              // Wait until we drift closer to orbital appogee before we start burning again
-              burn = false
+            if (roughTimeToApogee>timeNeededToCircularizeOrbit) {
+              // Wait until we drift closer to orbital apogee before we start burning again
+              accelerateControlSignal = 0
             }
             else {
               thrustState = 4
-              burn = true
+              accelerateControlSignal = 1
             }
             break
           case 4: // Orbit Circularization (Raise Perigee)
-            // Apogee and perigee might swap so we'll just accellerate until the semimajor axis greater than our current orbital distance
-            if (RV.V.length()<speedOfCircularizedOrbit) {
-              burn = true
-            }
-            else {
+            // Apogee and perigee might swap so we'll just accellerate until we're going the right speed
+            const proportionalControlConstant2 = 680 // Not tuned up yet
+            accelerateControlSignal  = Math.max(-1, Math.min(1, orbitalSpeedError / speedOfCircularizedOrbit * -proportionalControlConstant2))
+            
+            if (RV.V.length()>=speedOfCircularizedOrbit) {
               thrustState = 5
-              burn = false
             }
             break
-          case 5: // Coast in Circular Orbit
+          case 5: // Shut down controller and coast - hopefully in circular orbit
             break
           }
 
-          // ToDo: Implement a deceleration burn if/when decellerateToLowerAppogee is true to circularize the orbit
-          // const decellerateToLowerAppogee = (RV.R.length() < perigeeDistance + altitudeMargin) && (apogeeDistance > planetSpec.radius + launchVehicleDesiredOrbitalAltitude)
+          // ToDo: Implement a deceleration burn if/when decellerateToLowerApogee is true to circularize the orbit
+          // const decellerateToLowerApogee = (RV.R.length() < perigeeDistance + altitudeMargin) && (apogeeDistance > planetSpec.radius + launchVehicleDesiredOrbitalAltitude)
 
-          if (burn) {
-            if ((limitedForwardAcceleration<20) && !warning2AlreadyGiven) {
-              if (verbose>0) console.log('Too much aerodynamic drag!')
-              warning2AlreadyGiven = true
-            }
-            const limitedThrustMinusDrag = limitedForwardAcceleration * mTotal
-            const limitedRocketThrust = limitedThrustMinusDrag + aerodynamicDrag
-            fuelFlowRate = Math.max(0, Math.min(maxFuelFlowRate, limitedRocketThrust / launchVehicleRocketExhaustVelocity))   // m/s2 * kg / m/s = kg/s
-            const rocketThrust = fuelFlowRate * launchVehicleRocketExhaustVelocity
-            const thrustMinusDrag = rocketThrust - aerodynamicDrag
-            forwardAcceleration = thrustMinusDrag / Math.max(1, mTotal)  // Some divide-by-zero protection in case the dry mass of the vehicle is set to zero
+          let forwardAccelerationLimit
+          if (accelerateControlSignal>=0) {
+            forwardAccelerationLimit = Math.min(maxPossibleForwardAcceleration, launcherMaxEyesInAcceleration)  // ToDo: We might want a separate parameter for this limit
           }
           else {
-            // Use the rocket just enough to cancel out the effect of aerodynamic drag
-            fuelFlowRate = Math.min(aerodynamicDrag, maxRocketThrust) / launchVehicleRocketExhaustVelocity
-            forwardAcceleration = 0
+             forwardAccelerationLimit = -launcherMaxEyesOutAcceleration
           }
+      
+          const limitedThrustMinusDrag = forwardAccelerationLimit * mTotal * Math.abs(accelerateControlSignal)
+          const limitedRocketThrust = Math.max(0, limitedThrustMinusDrag + aerodynamicDrag) // Limit to >= zero since the rocket can only generate positive forward thrust
+          fuelFlowRate = Math.min(maxFuelFlowRate, limitedRocketThrust / launchVehicleRocketExhaustVelocity)   // m/s2 * kg / m/s = kg/s
+          const minFuelFlowRate = 0 // ToDo - Facing some challenges getting this to work with a reasonable min fuel rate. Punting for now. // 0.02 * maxFuelFlowRate
+          if (fuelFlowRate<minFuelFlowRate) {
+            fuelFlowRate = 0
+          }
+          const rocketThrust = fuelFlowRate * launchVehicleRocketExhaustVelocity
+          const thrustMinusDrag = rocketThrust - aerodynamicDrag
+          forwardAcceleration = thrustMinusDrag / Math.max(1, mTotal)  // Some divide-by-zero protection in case the dry mass of the vehicle is set to zero
+
+          // console.log(
+          //   Math.round(apogeeError*1e6)/1e6, 
+          //   Math.round(accelerateControlSignal*1e6)/1e6, 
+          //   Math.round(forwardAcceleration*1e6)/1e6,
+          //   t)
+
+          // Some warnings and telemetry
+          if ((forwardAccelerationLimit<100) && !warning2AlreadyGiven) {
+            if (verbose>0) console.log('Too much aerodynamic drag!')
+            warning2AlreadyGiven = true
+          }
+
         }
         else {
           fuelFlowRate = 0
           forwardAcceleration = -aerodynamicDrag / Math.max(1, mTotal)  // Some divide-by-zero protection in case the dry mass of the vehicle is set to zero
         }
+
+        this.peakDecelleration = Math.max(this.peakDecelleration, Math.round(-forwardAcceleration*10)/10)
+
         if (fuelFlowRate<0) {
           if (verbose>0) console.log('Negative fuel flow rate!')
         }
@@ -951,12 +986,15 @@ export function defineUpdateTrajectoryCurves () {
         }
 
         const changeInSpeed = forwardAcceleration * tBurn
+        if (isNaN(changeInSpeed)) {
+          console.log('Error')
+        }
         deltaVFromAcceleration = thrustDirection.clone().multiplyScalar(changeInSpeed)
         // Add the acceleration vector to the velocity vector
         RV.V.add(deltaVFromAcceleration)
       }
       else {
-        // With "Variable Thust" we need to calculate the fuel flow rate based on the thrust required to overcome the aerodynamic drag.
+        // With the simpler "Variable Thust" model we calculate the fuel flow rate based on the thrust required to exactly cancel out the aerodynamic drag.
         fuelFlowRate = aerodynamicDrag / launchVehicleRocketExhaustVelocity
         forwardAcceleration = 0
       }
@@ -995,6 +1033,7 @@ export function defineUpdateTrajectoryCurves () {
       aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, fuelFlowRate, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       totalMassVersusTimeData.push(new THREE.Vector3(t, mTotal, 0))
+      apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, apogeeDistance - planetSpec.radius, 0))
       lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
 
       if ((altitude<launcherMassDriverAltitude) && (i>4)) {
@@ -1011,7 +1050,13 @@ export function defineUpdateTrajectoryCurves () {
     distanceTravelled += distanceTravelledOutsideLaunchSystem
 
     // ToDo: This is probably the "payloadFraction". Check terms.
-    this.massFraction = (mPayload + mPropellant) / (mVehicle + mPayload + initialPropellantMass)
+    if ((Math.abs(apogeeError)<10000) && (Math.abs(orbitalSpeedError)<100)) {
+      this.massFraction = (mPayload + mPropellant) / (mVehicle + mPayload + initialPropellantMass)
+    }
+    else {
+      if (verbose>0) console.log('Vehicle didn\'t reach target orbit.')
+      this.massFraction = 0
+    }
 
     if (verbose) {
       console.log('Peak Fuel Flow Rate', peakFuelFlowRate, dParamWithUnits['launchVehiclePropellantMassFlowRate'].value )
@@ -1100,7 +1145,7 @@ export function defineUpdateTrajectoryCurves () {
     this.freeFlightCurve.name = "freeFlightCurve"
 
     this.xyChart.clearCurves()
-    this.xyChart.addCurve("Altitude", "m", altitudeVesusTimeData, 0xff0000, "Red")
+    this.xyChart.addCurve("Altitude", "m", altitudeVesusTimeData, 0xff0000, "Red", launchVehicleDesiredOrbitalAltitude)
     //this.xyChart.addCurve("Downrange Distance", "m", downrangeDistanceVersusTimeData, 0x0000ff, "Blue")
     this.xyChart.addCurve("Air Speed", "m/s", airSpeedVersusTimeData, 0x00ffff, "Cyan")
     this.xyChart.addCurve("Aerodynmic Drag", "N", aerodynamicDragVersusTimeData, 0x80ff80, "Bright Green")
@@ -1108,7 +1153,13 @@ export function defineUpdateTrajectoryCurves () {
     this.xyChart.addCurve("Vehicle Mass", "kg", totalMassVersusTimeData, 0xff7fff, "Purple")
     this.xyChart.addCurve("Forward Acceleration", "m/s2", forwardAccelerationVersusTimeData, 0xffff00, "Yellow")
     this.xyChart.addCurve("Lateral Acceleration", "m/s2", lateralAccelerationVersusTimeData, 0xff8000, "Orange")
+    this.xyChart.addCurve("Orbital Apogee Altiude", "m", apogeeAltitudeVersusTimeData, 0xffffff, "White", launchVehicleDesiredOrbitalAltitude)
 
+    // forwardAccelerationVersusTimeData.forEach(point => {
+    //   if (point.y<0) {
+    //     console.print(point.x, -point.y)
+    //   }
+    // })
     if (verbose) {
       console.print('========= Chart Legend and Y-Axis Values ==========')
       //let peakAerodynamicDrag = 0

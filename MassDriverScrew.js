@@ -55,6 +55,7 @@ export class virtualMassDriverScrew {
     }
 
     static update(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewMaterials, versionNumber) {
+      
         virtualMassDriverScrew.launcherMassDriverLength = launcherMassDriverLength
         virtualMassDriverScrew.massDriverScrewSegments = massDriverScrewSegments
         virtualMassDriverScrew.massDriverScrewMaterials = massDriverScrewMaterials

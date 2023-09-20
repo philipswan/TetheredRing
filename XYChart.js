@@ -100,13 +100,14 @@ export class XYChart {
       const textGeometry = new TextGeometry( textDescription.text,
       {
         font: this.font,
-        size: 20,
+        size: textDescription.fontSize || 20,
         height: 5,
         curveSegments: 12,
       } )
-      const textMaterial = new THREE.MeshBasicMaterial({color: 0x808080, transparent: false})
+      const textMaterial = new THREE.MeshBasicMaterial({color: textDescription.color || 0x808080, transparent: false})
       const textMesh = new THREE.Mesh(textGeometry, textMaterial)
       textMesh.position.set(textDescription.x, textDescription.y, 0)  // ToDo: calculate this based on chart dimension and position
+      textMesh.name = textDescription.name
       this.chartGroup.add(textMesh)
     }
 
@@ -176,7 +177,7 @@ export class XYChart {
   labelAxes() {
 
     // x-axis label
-    this.textDescriptions.push({text: 'Time (s)', x: 200, y: -30})
+    this.textDescriptions.push({text: 'Time (s)', name: 'x-axis', x: 200, y: -30})
 
     // y-axis label
 
@@ -194,12 +195,13 @@ export class XYChart {
 
   clearCurves() {
     this.curveInfo.forEach(curve => {
+      this.chartGroup.remove(this.chartGroup.getObjectByName(curve.name+'_label'))
       this.chartGroup.remove(curve.mesh)
     })
     this.curveInfo = []
   }
 
-  addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName) {
+  addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName, curveMaxY = null) {
     let maxX = 0.001
     let maxY = 0.001
     let maxZ = 0.001
@@ -208,6 +210,7 @@ export class XYChart {
       maxY = Math.max(point.y, maxY)
       maxZ = Math.max(point.z, maxZ)
     })
+    maxY = curveMaxY || maxY  // Allow the caller to override the maxY value
 
     // Hack
     //maxX = 2500
@@ -235,5 +238,11 @@ export class XYChart {
       this.chartGroup.add(curveLine);
       this.curveInfo.push({name: curveName, units: curveUnits, colorName: curveColorName, maxX: maxX, maxY: maxY, maxZ: maxZ, mesh: curveLine})
     }
+
+    this.textDescriptions.push({text: curveName, name: curveName+'_label', fontSize: 10, x: 10, y: this.curveInfo.length*20-10, color: curveColor})
+    if (this.font!==null) {
+      this.renderText()
+    }
+
   }
 }

@@ -206,7 +206,7 @@ export class virtualLaunchVehicle {
         virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
         virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
         virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-        virtualLaunchVehicle.launchVehicleConstantThrust = dParamWithUnits['launchVehicleConstantThrust'].value
+        virtualLaunchVehicle.launchVehicleAdaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
         virtualLaunchVehicle.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
 
         virtualLaunchVehicle.isDynamic =  true
@@ -250,7 +250,7 @@ export class virtualLaunchVehicle {
         const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
         let fuelFlowRateFactor
         if (res.relevantCurve.name==='freeFlightCurve') {
-          if (virtualLaunchVehicle.launchVehicleConstantThrust) {
+          if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
             try {
               fuelFlowRateFactor = res.relevantCurve.tToFuelFlowRateConvertor(deltaT-res.relevantCurveStartTime) / virtualLaunchVehicle.maxPropellantMassFlowRate
             }
@@ -270,7 +270,7 @@ export class virtualLaunchVehicle {
         }
 
         if (flame_model.visible) {
-          if (virtualLaunchVehicle.launchVehicleConstantThrust) {
+          if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
             flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
             flame_model.scale.set(1, fuelFlowRateFactor, 1)
           }
