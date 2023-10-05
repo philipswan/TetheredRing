@@ -60,14 +60,14 @@ export class earthEquatorObject {
 }
 
 export class mainRingCurveObject {
-  constructor(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve) {
+  constructor(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint = new THREE.Vector3(0, 0, 0)) {
     this.mainRingCurveMeshes = []
     this.tetheredRingRefCoordSys = tetheredRingRefCoordSys
-    this.update(dParamWithUnits, mainRingCurve)
+    this.update(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint)
   }
 
-  update(dParamWithUnits, mainRingCurve) {
-    // Dispose of the old object...
+  update(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint = new THREE.Vector3(0, 0, 0)) {
+    // Dispose of the old object(s) in the old scene...
     this.mainRingCurveMeshes.forEach(mesh => {
       mesh.geometry.dispose()
       mesh.material.dispose()
@@ -75,19 +75,33 @@ export class mainRingCurveObject {
     })
     this.mainRingCurveMeshes.splice(0, this.mainRingCurveMeshes.length)
 
+    // Update the pointer to the scene
+    this.tetheredRingRefCoordSys = tetheredRingRefCoordSys
+
     if (dParamWithUnits['showMainRingCurve'].value) {
-      const numPointsOnMainRingCurve = 8192
+      const numPointsOnMainRingCurve = 256
       const points = mainRingCurve.getPoints( numPointsOnMainRingCurve )
+      points.forEach(point => point.sub(referencePoint))
     
       // Debug - Draw a loop along the curve to check that it is correctly positioned
-      const mainRingCurveMesh = new THREE.LineLoop(
-        //new THREE.BufferGeometry().setFromPoints( points ),
-        new THREE.TubeGeometry( mainRingCurve, numPointsOnMainRingCurve, 20000, 8, true ),
-        //new THREE.LineBasicMaterial( { color: 0x00ff00 })
-        //new THREE.LineBasicMaterial( { color: 0x005f00 })
-        new THREE.MeshPhongMaterial({color: 0x3d3d3c})
-      )
+      let mainRingCurveMesh
+      const drawTubeAlongMainRingCurve = true
+      if (drawTubeAlongMainRingCurve) {
+        const localCurve = new THREE.CatmullRomCurve3(points)
+        mainRingCurveMesh = new THREE.Mesh(
+          new THREE.TubeGeometry( localCurve, numPointsOnMainRingCurve, 2, 8, true ),
+          new THREE.MeshPhongMaterial({color: 0x3d3d3c})
+        )
+      }
+      else {
+        mainRingCurveMesh = new THREE.LineLoop(
+          new THREE.BufferGeometry().setFromPoints( points ),
+          new THREE.LineBasicMaterial( { color: 0x00ff00 })
+        )
+      }
+
       mainRingCurveMesh.name = 'mainRingCurve'
+      mainRingCurveMesh.position.copy(referencePoint)
       this.mainRingCurveMeshes.push(mainRingCurveMesh)
       this.mainRingCurveMeshes.forEach(mesh => this.tetheredRingRefCoordSys.add(mesh))
     }

@@ -279,7 +279,7 @@ export function define_orbitalElementsFromStateVector() {
 //   }
 // }
 
-export function define_GetAltitudeDistanceAndVelocity() {
+export function define_getAltitudeDistanceAndVelocity() {
   return function (currentTime) {
     let ADAndV = {
       Altitude: 0,
@@ -321,7 +321,7 @@ export function define_GetAltitudeDistanceAndVelocity() {
   }
 }
 
-export function define_GetAirDensity() {
+export function define_getAirDensity() {
   return function (Altitude) {
     let T, P
     if (Altitude < 11000.0) {
@@ -344,7 +344,7 @@ export function define_GetAirDensity() {
   }
 }
 
-// export function define_GetAerodynamicDrag() {
+// export function define_getAerodynamicDrag() {
 //   return function (CurrentAirDensity, Speed) {
 //     const DragForce = CoefficientOfDrag * VehicleCrossSectionalAreaForDrag * (Speed - EarthsRimSpeed)**2 / 2 * CurrentAirDensity
 //     return DragForce;
@@ -352,7 +352,7 @@ export function define_GetAirDensity() {
 // }
 
 // ChatGPT version
-export function define_GetAerodynamicDrag() {
+export function define_getAerodynamicDrag() {
   return function (airDensity, speed, noseConeAngle, radius, length) {
     // Calculate the atmospheric density at the given altitude using the barometric formula
   

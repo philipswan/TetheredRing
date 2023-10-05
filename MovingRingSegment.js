@@ -1,4 +1,43 @@
+import * as THREE from 'three'
 import * as tram from './tram.js'
+
+export class movingRingSegmentModel {
+  constructor(dParamWithUnits, crv, mainRingCurve) {
+
+    const lengthSegments = 4
+
+    // Procedurally generate the moving rings
+    function getMovingRingSegmentCurve() {
+      const segmentNumber = 0
+      const totalSegments = dParamWithUnits['numVirtualMovingRingSegments'].value
+      return tram.makeOffsetCurve(dParamWithUnits['mainRingOutwardOffset'].value, dParamWithUnits['mainRingUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
+    }
+
+    // Create moving ring segments
+    const mrdx = dParamWithUnits['movingRingThickness'].value / 2
+    const mrdy = dParamWithUnits['movingRingHeight'].value / 2
+    const movingRingShape = new THREE.Shape()
+    movingRingShape.moveTo(mrdx, mrdy)
+    movingRingShape.lineTo(mrdx, -mrdy)
+    movingRingShape.lineTo(-mrdx, -mrdy)
+    movingRingShape.lineTo(-mrdx, mrdy)
+    movingRingShape.closed = true
+
+    const movingRingExtrudeSettings = {
+      steps: lengthSegments,
+      depth: 1,
+      extrudePath: getMovingRingSegmentCurve()
+    }
+
+    const movingRingGeometry = new THREE.ExtrudeGeometry(movingRingShape, movingRingExtrudeSettings)
+    const movingRingTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
+    const movingRingMaterial = new THREE.MeshPhongMaterial( {transparent: false, shininess: 10, map: movingRingTexture})
+    const movingRingMesh = new THREE.Mesh(movingRingGeometry, movingRingMaterial)
+    return movingRingMesh
+
+  }
+
+}
 
 export class virtualMovingRingSegment {
     constructor(positionInFrameOfReference, index, unallocatedModelsArray) {
@@ -23,9 +62,9 @@ export class virtualMovingRingSegment {
         virtualMovingRingSegment.movingRingRelativePosition_y = tram.offset_y(movingRingOutwardOffset, movingRingUpwardOffset, crv.currentEquivalentLatitude)
         virtualMovingRingSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
         virtualMovingRingSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
-        virtualMovingRingSegment.movingRingRotZ = crv.currentEquivalentLatitude - Math.PI/2
+        virtualMovingRingSegment.movingRingRotZ = crv.currentEquivalentLatitude
         virtualMovingRingSegment.isVisible = dParamWithUnits['showMovingRings'].value
-        virtualMovingRingSegment.isDynamic =  false
+        virtualMovingRingSegment.isDynamic =  true
         virtualMovingRingSegment.hasChanged = true
     }
 

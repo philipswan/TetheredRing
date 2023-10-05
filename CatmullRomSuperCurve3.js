@@ -115,11 +115,11 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 	}
 
-  setPoints( points ) {
+	setPoints( points ) {
 
-    this.points = points
+		this.points = points
 
-  }
+	}
 
 	prepareInterpolator(t) {
 
@@ -471,7 +471,7 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		const q1 = optionalTarget
 		const tangent = this.getTangent(t)
 		const normal = this.getNormal(t)
-        q1.setFromUnitVectors(objectForward, tangent)
+		q1.setFromUnitVectors(objectForward, tangent)
 		const rotatedObjectUpwardVector = objectUpward.clone().applyQuaternion(q1)
 		const q2 = new Quaternion
 		q2.setFromUnitVectors(rotatedObjectUpwardVector, normal)
@@ -511,12 +511,16 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 	}
 
-	addtTosConvertor( tTosConvertor ) {
-		this.tTos = tTosConvertor
+	addtToiConvertor( tToiConvertor ) {
+		this.tToi = tToiConvertor
 	}
 
 	addtTodConvertor( tTodConvertor ) {
 		this.tTod = tTodConvertor
+	}
+
+	addtTosConvertor( tTosConvertor ) {
+		this.tTos = tTosConvertor
 	}
 
 	copy( source ) {

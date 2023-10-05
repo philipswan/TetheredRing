@@ -125,6 +125,7 @@ export function defineUpdateTrajectoryCurves () {
     // Now design the evacuated tube that the vehicles will travel within from the end of the ramp to the altitude of the main ring.  
     // ***************************************************************
     let apogeeDistance
+    let perigeeDistance
 
     const R0_2D = new THREE.Vector3(planetSpec.radius + launcherRampExitAltitude, 0, 0)  // This is the vehicle's altitude (measured from the plantet's center) and downrange position at the exit of the launcher
     
@@ -223,7 +224,7 @@ export function defineUpdateTrajectoryCurves () {
     // Calculate half of the straight-line distance between those two points. 
     const straightLineHalfDistance = Math.sin(evacuatedTubeDownrangeAngle/2) * (planetSpec.radius + crv.currentMainRingAltitude)
     // Now convert that distance into an angle around the ring and multiply the angle by two.
-    const evacuatedTubeRingAngle = Math.asin(straightLineHalfDistance / crv.mainRingRadius) * 2
+    const evacuatedTubeRingAngle = Math.asin(Math.min(0.5, straightLineHalfDistance / crv.mainRingRadius)) * 2
 
     // Next find the poisition on the ring's curve that's directly above the evacuated tube's exit position (note: assumes the ring is a perfect circle)
     const evacuatedTubeExitPositionAroundRing = (1 + evacuatedTubeEntrancePositionAroundRing - evacuatedTubeRingAngle / (2*Math.PI)) % 1
@@ -248,12 +249,12 @@ export function defineUpdateTrajectoryCurves () {
     const feederRailEntrancePosition = feederRailExitPosition.clone().applyAxisAngle(this.axisOfRotation, -launcherFeederRailLength / (planetSpec.radius + launcherMassDriverAltitude))
 
     // Position markers at the end of the mass driver and at entrance and exit positions of the evacuated tube
-    this.LaunchTrajectoryMarker0.position.copy(feederRailEntrancePosition)
-    this.LaunchTrajectoryMarker0.position.copy(feederRailExitPosition)
-    this.LaunchTrajectoryMarker1.position.copy(massDriver1ExitPosition)
-    this.LaunchTrajectoryMarker2.position.copy(massDriver2ExitPosition)
-    this.LaunchTrajectoryMarker3.position.copy(evacuatedTubeEntrancePosition)
-    this.LaunchTrajectoryMarker4.position.copy(evacuatedTubeExitPosition)
+    this.launchTrajectoryMarker0.position.copy(feederRailEntrancePosition)
+    this.launchTrajectoryMarker0.position.copy(feederRailExitPosition)
+    this.launchTrajectoryMarker1.position.copy(massDriver1ExitPosition)
+    this.launchTrajectoryMarker2.position.copy(massDriver2ExitPosition)
+    this.launchTrajectoryMarker3.position.copy(evacuatedTubeEntrancePosition)
+    this.launchTrajectoryMarker4.position.copy(evacuatedTubeExitPosition)
 
     // Calculate parameters for the circle that defines the upward arcing launch ramp
     const l1 = massDriver2ExitPosition.length()   // Distance from the center of the planet to the end of the mass driver
@@ -262,7 +263,7 @@ export function defineUpdateTrajectoryCurves () {
     const rampCircleVectorRotated = rampCircleVector.clone().applyAxisAngle(this.axisOfRotation, -angleACB)
     const rampEndPoint = rampCircleCenter.clone().add(rampCircleVectorRotated)
 
-    this.LaunchTrajectoryMarker5.position.copy(rampCircleCenter)
+    this.launchTrajectoryMarker5.position.copy(rampCircleCenter)
 
     // We have the shape of the mass driver and ramp, but we need to get some more information about the vehicle's speed and distance versus time while on the ramp.... 
     // In support of the curve for the ramp, we need to create a lookup table that converts time to speed and distance travelled...
@@ -272,7 +273,7 @@ export function defineUpdateTrajectoryCurves () {
     const initialKineticEnergy = 0.5 * unitMass * speed**2
     // Add the potential energy...
     const initialPotentialEnergy = -crv.gravitationalConstant * planetSpec.mass * unitMass / (planetSpec.radius + launcherMassDriverAltitude) 
-    const minAllowableRampSpeed = 10 // m/s
+    const minAllowableRampSpeed = 0.01 // m/s
     let deltaT = 0.1
     let angle = 0
     let lastAngle = 0
@@ -304,22 +305,27 @@ export function defineUpdateTrajectoryCurves () {
         this.timeWithinRamp = t + remainingDeltaT
       }
     }
-    if (speed<=minAllowableRampSpeed) {
-      console.log('Warning: The vehicle is not going fast enough to make it up the ramp.')
+    if (angle<angleACB) {
+      console.log('Warning: The launch vehicle was not going fast enough to make it up the ramp.')
+      // Not accurate, but we're in an error condition at this point.
+      this.timeWithinRamp = this.launcherRampLength / launcherMassDriverExitVelocity
     }
     const rampConversionCurve = new THREE.CatmullRomCurve3(rampConversionCurvePoints)
 
-    const launchRamptTosConvertor = function tTos(t) {
-      const tForLookup = t / ((rampConversionCurvePoints.length-1) * deltaT)
-      const interpolatedPoint = rampConversionCurve.getPoint(tForLookup)
-      const speed = interpolatedPoint.x
-      return speed
+    const launchRamptToiConvertor = function (t) {
+      return t / ((rampConversionCurvePoints.length-1) * deltaT)
     }
-    const launchRamptTodConvertor = function(t) {
-      const tForLookup = t / ((rampConversionCurvePoints.length-1) * deltaT)
-      const interpolatedPoint = rampConversionCurve.getPoint(tForLookup)
+    const launchRamptTodConvertor = function (t) {
+      const iForLookup = launchRamptToiConvertor(t)
+      const interpolatedPoint = rampConversionCurve.getPoint(iForLookup)
       const distance = interpolatedPoint.y
       return distance
+    }
+    const launchRamptTosConvertor = function (t) {
+      const iForLookup = launchRamptToiConvertor(t)
+      const interpolatedPoint = rampConversionCurve.getPoint(iForLookup)
+      const speed = interpolatedPoint.x
+      return speed
     }
     const launchRampExitVelocity = launchRamptTosConvertor(this.timeWithinRamp)
 
@@ -337,14 +343,16 @@ export function defineUpdateTrajectoryCurves () {
     const sledReturnCircleLength = Math.PI * 2 * 0.125 * allowableDownwardTurningRadius // The 0.125 fator is just an rough estimate - we'll need to calculated it later.
     this.curveDownTime = sledReturnCircleLength / launchRampExitVelocity // ToDo: This is inaccurate as it does not take into account the increase in speed due to coasting down the ramp.
 
-    this.LaunchTrajectoryMarker6.position.copy(sledReturnCircleCenter)
+    this.launchTrajectoryMarker6.position.copy(sledReturnCircleCenter)
 
     // ***************************************************************
     // Next we need to capture some curves and data sets for plotting
     // ***************************************************************
 
-    const launchTrajectoryCurveControlPoints = []
-    const freeFlightCurveControlPoints = []
+    const freeFlightPositionCurveControlPoints = []
+    const freeFlightConversionCurveControlPoints = []
+    const freeFlightOrientationCurveControlPoints = []
+    const freeFlightTelemetryCurveControlPoints = []
     const evacuatedTubeCurveControlPoints = []
 
     const altitudeVesusTimeData = []
@@ -356,6 +364,7 @@ export function defineUpdateTrajectoryCurves () {
     const fuelMassFlowRateVersusTimeData = []
     const totalMassVersusTimeData = []
     const apogeeAltitudeVersusTimeData = []
+    const perigeeAltitudeVersusTimeData = []
 
     const t0 = 0
     const t1 = t0 + this.timeWithinFeederRail
@@ -392,14 +401,20 @@ export function defineUpdateTrajectoryCurves () {
     else {
       this.feederRailCurve.update(planetCenter, this.axisOfRotation, feederRailExitPosition, -launcherFeederRailLength, false)
     }
-    const feederRailCurvetTosConvertor = function tTos(t) {
+
+    const feederRailCurvetToiConvertor = function (t) {
+      return t
+    }
+    const feederRailCurvetTodConvertor = function (t) {
+      const tt = feederRailCurvetToiConvertor(t)
+      return launcherMassDriver1InitialVelocity * tt
+    }
+    const feederRailCurvetTosConvertor = function (t) {
       return launcherMassDriver1InitialVelocity
     }
-    this.feederRailCurve.addtTosConvertor(feederRailCurvetTosConvertor)
-    const feederRailCurvetTodConvertor = function(t) {
-      return launcherMassDriver1InitialVelocity * t
-    }
+    this.feederRailCurve.addtToiConvertor(feederRailCurvetToiConvertor)
     this.feederRailCurve.addtTodConvertor(feederRailCurvetTodConvertor)
+    this.feederRailCurve.addtTosConvertor(feederRailCurvetTosConvertor)
     this.feederRailCurve.setDuration(this.timeWithinFeederRail)
     this.feederRailCurve.name = "feederRailCurve"
 
@@ -417,7 +432,6 @@ export function defineUpdateTrajectoryCurves () {
         // This is used in main.js to warp the camera over to the location where the mass driver starts
         this.startOfMassDriver1Position = vehiclePosition.clone()
       }
-      launchTrajectoryCurveControlPoints.push(vehiclePosition)
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
       airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -438,14 +452,21 @@ export function defineUpdateTrajectoryCurves () {
     else {
       this.massDriver1Curve.update(planetCenter, this.axisOfRotation, massDriver1ExitPosition, -launcherMassDriver1Length, false)
     }
-    const massDriver1tTosConvertor = function tTos(t) {
-      return launcherMassDriver1InitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
+    const massDriver1tToiConvertor = function (t) {
+      return t
+    }
+    const massDriver1tTosConvertor = function (t) {
+      const tt = massDriver1tToiConvertor(t)
+      return launcherMassDriver1InitialVelocity + launcherMassDriverForwardAcceleration * tt  // 1/2 at^2
     }
     this.massDriver1Curve.addtTosConvertor(massDriver1tTosConvertor)
-    const massDriver1tTodConvertor = function(t) {
-      return launcherMassDriver1InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+    const massDriver1tTodConvertor = function (t) {
+      const tt = massDriver1tToiConvertor(t)
+      return launcherMassDriver1InitialVelocity * tt + 0.5 * launcherMassDriverForwardAcceleration * tt * tt  // v0*t + 1/2 at^2
     }
+    this.massDriver1Curve.addtToiConvertor(massDriver1tToiConvertor)
     this.massDriver1Curve.addtTodConvertor(massDriver1tTodConvertor)
+    this.massDriver1Curve.addtTosConvertor(massDriver1tTosConvertor)
     this.massDriver1Curve.setDuration(this.timeWithinMassDriver1)
     this.massDriver1Curve.name = "massDriver1Curve"
 
@@ -459,7 +480,6 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = this.massDriver1Curve.tTos(t - t1)
       distanceTravelled = this.massDriver1Curve.tTod(t - t1)
       const vehiclePosition = this.massDriver1Curve.getPointAt(distanceTravelled/launcherMassDriver1Length)
-      launchTrajectoryCurveControlPoints.push(vehiclePosition)
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
       airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -480,14 +500,22 @@ export function defineUpdateTrajectoryCurves () {
     else {
       this.massDriver2Curve.update(planetCenter, this.axisOfRotation, massDriver2ExitPosition, -launcherMassDriver2Length, false)
     }
-    const massDriver2tTosConvertor = function tTos(t) {
-      return launcherMassDriver2InitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
+
+    const massDriver2tToiConvertor = function (t) {
+      return t
+    }
+    const massDriver2tTosConvertor = function (t) {
+      const tt = massDriver2tToiConvertor(t)
+      return launcherMassDriver2InitialVelocity + launcherMassDriverForwardAcceleration * tt  // 1/2 at^2
     }
     this.massDriver2Curve.addtTosConvertor(massDriver2tTosConvertor)
-    const massDriver2tTodConvertor = function(t) {
-      return launcherMassDriver2InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
+    const massDriver2tTodConvertor = function (t) {
+      const tt = massDriver2tToiConvertor(t)
+      return launcherMassDriver2InitialVelocity * tt + 0.5 * launcherMassDriverForwardAcceleration * tt * tt  // v0*t + 1/2 at^2
     }
+    this.massDriver2Curve.addtToiConvertor(massDriver2tToiConvertor)
     this.massDriver2Curve.addtTodConvertor(massDriver2tTodConvertor)
+    this.massDriver2Curve.addtTosConvertor(massDriver2tTosConvertor)
     this.massDriver2Curve.setDuration(this.timeWithinMassDriver2)
     this.massDriver2Curve.name = "massDriver2Curve"
 
@@ -501,7 +529,6 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = this.massDriver2Curve.tTos(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
       distanceTravelled = this.massDriver2Curve.tTod(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
       const vehiclePosition = this.massDriver2Curve.getPointAt(distanceTravelled/launcherMassDriver2Length)
-      launchTrajectoryCurveControlPoints.push(vehiclePosition)
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled, 0))
       airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -522,8 +549,9 @@ export function defineUpdateTrajectoryCurves () {
     else {
       this.launchRampCurve.update(rampCircleCenter.clone(), this.axisOfRotation.clone().negate(), massDriver2ExitPosition.clone(), this.launcherRampLength, true)
     }
-    this.launchRampCurve.addtTosConvertor(launchRamptTosConvertor)
+    this.launchRampCurve.addtToiConvertor(launchRamptToiConvertor)
     this.launchRampCurve.addtTodConvertor(launchRamptTodConvertor)
+    this.launchRampCurve.addtTosConvertor(launchRamptTosConvertor)
     this.launchRampCurve.setDuration(this.timeWithinRamp)
     this.launchRampCurve.name = "launchRampCurve"
 
@@ -568,7 +596,6 @@ export function defineUpdateTrajectoryCurves () {
       altitude = vehiclePosition.length() - planetSpec.radius
       const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (planetSpec.radius + launcherMassDriverAltitude)
-      launchTrajectoryCurveControlPoints.push(vehiclePosition)  
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
       airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -580,7 +607,7 @@ export function defineUpdateTrajectoryCurves () {
     }
     //console.log('done')
 
-    //this.LaunchTrajectoryMarker2.position.copy(rampEndPoint)
+    //this.launchTrajectoryMarker2.position.copy(rampEndPoint)
     const downrangeAngle = massDriver2ExitPosition.angleTo(rampEndPoint)
     const downrangeDistanceTravelledOnRamp = downrangeAngle * planetSpec.radius
     distanceTravelled += angleACB * allowableUpwardTurningRadius
@@ -594,15 +621,19 @@ export function defineUpdateTrajectoryCurves () {
     else {
       this.launchSledReturnCurve.update(sledReturnCircleCenter.clone(), this.axisOfRotation.clone(), sledReturnCircleStartPoint.clone(), sledReturnCircleLength, false)
     }
-    const launchSledReturntTosConvertor = function tTos(t) {
+    const launchSledReturntToiConvertor = function (t) {
+      return t
+    }
+    const launchSledReturntTosConvertor = function (t) {
       // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
       return launchRampExitVelocity
     }
     this.launchSledReturnCurve.addtTosConvertor(launchSledReturntTosConvertor)
-    const launchSledReturntTodConvertor = function(t) {
+    const launchSledReturntTodConvertor = function (t) {
       // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-      return launchRampExitVelocity * t
+      return launchRampExitVelocity * launchSledReturntToiConvertor(t)
     }
+    this.launchSledReturnCurve.addtToiConvertor(launchSledReturntToiConvertor)
     this.launchSledReturnCurve.addtTodConvertor(launchSledReturntTodConvertor)
     this.launchSledReturnCurve.setDuration(this.curveDownTime)
     this.launchSledReturnCurve.name = "launchSledReturnCurve"
@@ -620,7 +651,6 @@ export function defineUpdateTrajectoryCurves () {
       // Just to be explicate that we're not including downward arching part of the sled's return path in the launch trajectory curve and telemetry for the xychart
       // const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       // const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (planetSpec.radius + launcherMassDriverAltitude)
-      // launchTrajectoryCurveControlPoints.push(vehiclePosition)  
       // altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       // downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
       // airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -648,6 +678,7 @@ export function defineUpdateTrajectoryCurves () {
     const coe = this.orbitalElementsFromStateVector(R0, V0PlusPlanetRotation)
     const initial_c = coe.semimajorAxis * coe.eccentricity
     const initialApogeeDistance = coe.semimajorAxis + initial_c
+    const initialPerigeeDistance = coe.semimajorAxis - initial_c
     this.initialApogeeDistance = initialApogeeDistance
 
     if (printOrbitalElements) {
@@ -666,8 +697,9 @@ export function defineUpdateTrajectoryCurves () {
     //V0 = new THREE.Vector3(launchRampExitVelocity * Math.sin(upwardAngleAtEndOfRamp), launchRampExitVelocity * Math.cos(upwardAngleAtEndOfRamp), 0) // This is the vehicle's velocity vector at the exit of the launcher
     const totalSplinePoints = Math.floor((t6a-t4)/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
 
-    let evacuatedTubetTosConvertor = null
+    let evacuatedTubetToiConvertor = null
     let evacuatedTubetTodConvertor = null
+    let evacuatedTubetTosConvertor = null
     let lastVehiclePositionRelativeToPlanet = R0.clone()
     let numEvacuatedTubeSplinePoints
 
@@ -701,7 +733,6 @@ export function defineUpdateTrajectoryCurves () {
         }
         // Collect control points for curves
         evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledWithinEvacuatedTube, t6a))
-        launchTrajectoryCurveControlPoints.push(vehiclePositionRelativeToPlanet)
         evacuatedTubeCurveControlPoints.push(vehiclePositionRelativeToPlanet)
         // Save telemery...
         altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
@@ -713,13 +744,14 @@ export function defineUpdateTrajectoryCurves () {
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
         totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
         apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, initialApogeeDistance - planetSpec.radius, 0))
+        perigeeAltitudeVersusTimeData.push(new THREE.Vector3(t, initialPerigeeDistance, 0))
         lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
       }
       distanceTravelled += distanceTravelledWithinEvacuatedTube
 
       const evacuatedTubeConversionCurve = new THREE.CatmullRomCurve3(evacuatedTubeConversionCurvePoints)
 
-      evacuatedTubetTosConvertor = function tTos(t) {
+      evacuatedTubetTosConvertor = function (t) {
         const tForLookup = t / ((evacuatedTubeConversionCurvePoints.length-1) * tStep1)
         try {
           const interpolatedPoint = evacuatedTubeConversionCurve.getPoint(tForLookup)
@@ -731,9 +763,12 @@ export function defineUpdateTrajectoryCurves () {
         }
       }
 
-      evacuatedTubetTodConvertor = function(t) {
-        const tForLookup = t / ((evacuatedTubeConversionCurvePoints.length-1) * tStep1)
-        const interpolatedPoint = evacuatedTubeConversionCurve.getPoint(tForLookup)
+      evacuatedTubetToiConvertor = function (t) {
+        return t / ((evacuatedTubeConversionCurvePoints.length-1) * tStep1)
+      }
+      evacuatedTubetTodConvertor = function (t) {
+        const iForLookup = evacuatedTubetToiConvertor(t)
+        const interpolatedPoint = evacuatedTubeConversionCurve.getPoint(iForLookup)
         const distance = interpolatedPoint.y
         return distance
       }
@@ -758,7 +793,6 @@ export function defineUpdateTrajectoryCurves () {
     let fuelFlowRate = maxFuelFlowRate
     let mTotal = mVehicle + mPayload + mPropellant
     const noseconeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseconeLength)
-    const freeFlightConversionCurvePoints = []
     const numFreeFlightSplinePoints = Math.max(4, totalSplinePoints - numEvacuatedTubeSplinePoints)
     const tStep2 = (t6a - t5a) / (numFreeFlightSplinePoints - 1)
     let accellerateToRaisePerigee = false
@@ -772,16 +806,23 @@ export function defineUpdateTrajectoryCurves () {
     let accelerateControlSignal = false
     this.rocketTotalDeltaV = 0
     this.peakDecelleration = 0
+    let abortFreeFlight = false
 
     //console.log('Creating hyperbolic part of trajectory.')
-    for (let i = 0; i<numFreeFlightSplinePoints; i++ ) {
-      const t = t5a + i * tStep2
-      const t6a = t5a - t4 + i * tStep2  // t6a is the time from the end of the ramp
+    for (let i = 0; (i<numFreeFlightSplinePoints) && !abortFreeFlight; i++ ) {
+      t = t5a + i * tStep2
+      const t6a = (t5a - t4) + i * tStep2  // t6a is the time from the end of the ramp
       if (adaptiveThrust && (i!==0)) {
+        if (!isFinite(RV.R.length()) || !isFinite(RV.V.length())) {
+          console.error('Error - RV is not finite')
+        }
         RV = this.RV_from_R0V0andt(RV.R, RV.V, tStep2)
       }
       else {
         RV = this.RV_from_R0V0andt(R0, V0PlusPlanetRotation, t6a)
+      }
+      if (!isFinite(RV.R.length()) || !isFinite(RV.V.length())) {
+        console.error('Error - RV is not finite')
       }
       const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
       // Calculate the vehicle's position relative to where R0 and V0PlusPlanetRotation were when the vehicle was at R0.
@@ -794,13 +835,13 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = vehicleVelocityRelativeToAir.length()
       const vehiclePositionRelativeToPlanet = vehiclePosition.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t6a/planetSpec.lengthOfSiderealDay)
 
-      const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
+      const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along an eclipse versus time.
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (planetSpec.radius + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
 
       const airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
       if (isNaN(airPressureInPascals)) {
-        console.log('NaN Error')
+        console.error('NaN Error')
         const airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
       }
       const airPressureInAtmospheres = airPressureInPascals / 101325
@@ -808,12 +849,14 @@ export function defineUpdateTrajectoryCurves () {
   
       const airDensity = planetSpec.airDensityAtAltitude(altitude)
 
-      const aerodynamicDrag = this.GetAerodynamicDrag(airDensity, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
+      const aerodynamicDrag = this.getAerodynamicDrag(airDensity, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
       const maxPossibleRocketThrust = maxFuelFlowRate * launchVehicleRocketExhaustVelocity
+      const insignificantAerodynamicDrag = maxPossibleRocketThrust * 0.00001
       const maxPossibleThrustMinusDrag = maxPossibleRocketThrust - aerodynamicDrag
       const maxPossibleForwardAcceleration = maxPossibleThrustMinusDrag / mTotal
       
       let forwardAcceleration
+      let vehicleOrientation
 
       if (adaptiveThrust) {
         // With "Constant Thrust" we calculate the fuel flow rate based on what will keep the vehicle from exceeding the maximum allowed forward acceleration
@@ -821,17 +864,45 @@ export function defineUpdateTrajectoryCurves () {
         const coe = this.orbitalElementsFromStateVector(RV.R, RV.V)
         const c = coe.semimajorAxis * coe.eccentricity
         apogeeDistance = coe.semimajorAxis + c
+        if (!isFinite(apogeeDistance)) {
+          console.error('Error - apogeeDistance is not finite')
+          abortFreeFlight = true
+        }
+        perigeeDistance = coe.semimajorAxis - c
         if (apogeeDistance<0) {
-          console.log('Error')
+          console.error('Error')
         }
         const targetOrbitDistance = planetSpec.radius + launchVehicleDesiredOrbitalAltitude
         apogeeError = apogeeDistance - targetOrbitDistance
-        const perigeeDistance = coe.semimajorAxis - c
         const perigeeError = perigeeDistance - targetOrbitDistance
         const speedAtApogee = Math.sqrt(this.mu * (2 / apogeeDistance - 1 / coe.semimajorAxis))
         const speedOfCircularizedOrbit = Math.sqrt(this.mu / apogeeDistance)
-        orbitalSpeedError = RV.V.length() - speedOfCircularizedOrbit
+        const apogeeAltitudeMargin = 10
+
+        const targetedOrbitalSpeed = speedOfCircularizedOrbit + 1 // Add a little extra speed to account for the fact that we will shut off the rocket when we reach the speedOfCircularizedOrbit
+
+        orbitalSpeedError = RV.V.length() - targetedOrbitalSpeed
         const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
+        const perigeeOfDeorbitOrbit = planetSpec.radius + 80000
+        const apogeeOfDeorbitOrbit = targetOrbitDistance
+        const semiMajorAxisOfDeorbitOrbit = (perigeeOfDeorbitOrbit + apogeeOfDeorbitOrbit) / 2
+        const velocityAtApogeeOfDeorbitOrbit = Math.sqrt(this.mu * (2 / targetOrbitDistance - 1 / semiMajorAxisOfDeorbitOrbit))
+        const deltaVNeededToDeorbit = speedOfCircularizedOrbit - velocityAtApogeeOfDeorbitOrbit
+
+        // const massOfISS = 420000 // kg
+        // const deorbitRocketExhaustVelocity = 3050 // m/s (Merlin Vacuum Engine)
+        // const propellantNeededToDeorbit = massOfISS * (Math.exp(deltaVNeededToDeorbit / deorbitRocketExhaustVelocity) - 1)
+        // console.log('deltaVNeededToDeorbit', deltaVNeededToDeorbit, 'propellantNeededToDeorbit', propellantNeededToDeorbit)
+
+        const straightUpDirection = RV.R.clone().normalize()
+        const velocityDirectionInECEFReferencFrame = vehicleVelocityRelativeToAir.normalize()
+        const upwardComponentOfVelocity = RV.V.clone().dot(straightUpDirection)
+
+        const circularOrbitDirection = RV.R.clone().cross(RV.V).cross(RV.R).normalize()
+        const speedInOrbitalDirection = RV.V.clone().dot(circularOrbitDirection)
+        const centripitalAcceleration = (speedInOrbitalDirection ** 2) / RV.R.length()
+        const gravityAcceleration = crv.gravitationalConstant * planetSpec.mass / (RV.R.length() ** 2)
+        const upwardsAcceleration = centripitalAcceleration - gravityAcceleration  // Will be negative if we're on a ballistic trajectory
 
         // ToDo: When we run out of propellant, we should decelerate the launchVehicle due to aerodnamic drag
         // ToDo: We really need to interpolate between steps here to more accurately determine when to adjust fuel flow rate.
@@ -843,7 +914,6 @@ export function defineUpdateTrajectoryCurves () {
         //   console.log('Apogee Reached')
         // }
         if (mPropellant>0) {
-          const apogeeAltitudeMargin = 100
           switch(thrustState) {
           case 0:  // Veritical Ascent in the zenith direction
           case 1:  // Pitchover Maneuver
@@ -851,18 +921,19 @@ export function defineUpdateTrajectoryCurves () {
             const proportionalControlConstant1 = 300   // Not tuned up yet
             accelerateControlSignal = Math.max(-1, Math.min(1, apogeeError / targetOrbitDistance * -proportionalControlConstant1))
             // ToDo: Using this is a bit hacky, need a better state change rule here.
-            if ((Math.abs(apogeeError)<apogeeAltitudeMargin) && (altitude > 100000)) {
+            //if (verbose>0) console.log('2:','ApErr (abs)',  apogeeError, 'ApErr (Frac)', apogeeDistance/targetOrbitDistance)
+            if ((Math.abs(apogeeError)<apogeeAltitudeMargin) && (aerodynamicDrag < insignificantAerodynamicDrag)) {
               thrustState = 3
             }
-            //console.log(apogeeDistance/(planetSpec.radius+launchVehicleDesiredOrbitalAltitude))
             break
-          case 3: // "Coast" to apogee, although the engine with thrust as much as is needed to compensate for aerodynamic drag 
+          case 3: // "Coast" to apogee, although the engine will thrust as much as is needed to compensate for aerodynamic drag 
             const averageDistance = (RV.R.length() + apogeeDistance) / 2
             const averageSpeed = (RV.V.length() + speedAtApogee) / 2
             const roughTimeToApogee = averageDistance * (Math.PI - coe.trueAnomaly) / averageSpeed
             const timeNeededToCircularizeOrbit = deltaVNeededToCircularizeOrbit / maxPossibleForwardAcceleration
-            //console.log('roughTimeToApogee', roughTimeToApogee, 'timeNeededToCircularizeOrbit', timeNeededToCircularizeOrbit)
+            //if (verbose>0) console.log('roughTimeToApogee', roughTimeToApogee, 'timeNeededToCircularizeOrbit', timeNeededToCircularizeOrbit)
             // Hacky
+            //if (verbose>0) console.log('3:','ApErr (abs)',  apogeeError, 'ApErr (Frac)', apogeeDistance/targetOrbitDistance)
             if (roughTimeToApogee>timeNeededToCircularizeOrbit) {
               // Wait until we drift closer to orbital apogee before we start burning again
               accelerateControlSignal = 0
@@ -874,9 +945,9 @@ export function defineUpdateTrajectoryCurves () {
             break
           case 4: // Orbit Circularization (Raise Perigee)
             // Apogee and perigee might swap so we'll just accellerate until we're going the right speed
-            const proportionalControlConstant2 = 680 // Not tuned up yet
-            accelerateControlSignal  = Math.max(-1, Math.min(1, orbitalSpeedError / speedOfCircularizedOrbit * -proportionalControlConstant2))
-            
+            const proportionalControlConstant2 = 60 // Not tuned up yet
+            accelerateControlSignal  = Math.max(-1, Math.min(1, orbitalSpeedError / targetedOrbitalSpeed * -proportionalControlConstant2))
+            //if (verbose>0) console.log('4:','ApErr (abs)',  apogeeError, 'ApErr (Frac)', apogeeDistance/targetOrbitDistance, 'Orbit V Err', orbitalSpeedError)
             if (RV.V.length()>=speedOfCircularizedOrbit) {
               thrustState = 5
             }
@@ -914,7 +985,7 @@ export function defineUpdateTrajectoryCurves () {
           //   t)
 
           // Some warnings and telemetry
-          if ((forwardAccelerationLimit<100) && !warning2AlreadyGiven) {
+          if ((maxPossibleForwardAcceleration<-launcherMaxEyesOutAcceleration) && !warning2AlreadyGiven) {
             if (verbose>0) console.log('Too much aerodynamic drag!')
             warning2AlreadyGiven = true
           }
@@ -924,6 +995,10 @@ export function defineUpdateTrajectoryCurves () {
           fuelFlowRate = 0
           forwardAcceleration = -aerodynamicDrag / Math.max(1, mTotal)  // Some divide-by-zero protection in case the dry mass of the vehicle is set to zero
         }
+
+        const upwardAccelerationPlusControlCorrection = upwardsAcceleration + (RV.R.length() - targetOrbitDistance) * 0
+        //if (verbose>0) console.log('upAcc', upwardsAcceleration, upwardAccelerationPlusControlCorrection, 'up Vel', upwardComponentOfVelocity, 'AltErr', RV.R.length() - targetOrbitDistance, 'Ap Dist', apogeeDistance-targetOrbitDistance)
+        const circularOrbitDirectionAcceleration = Math.sqrt(Math.max(0, forwardAcceleration ** 2 - upwardAccelerationPlusControlCorrection ** 2))
 
         this.peakDecelleration = Math.max(this.peakDecelleration, Math.round(-forwardAcceleration*10)/10)
 
@@ -954,50 +1029,114 @@ export function defineUpdateTrajectoryCurves () {
         }
         let deltaVFromAcceleration
 
-        let thrustDirection
         // Hacky...
+        // Note: "vehicleOrientation" is defined here to mean "the direction we want to go", not the direction the rocket exhaust is travelling
+
         if (thrustState===0) {
           // Fly straight relative to the planet's surface
-          const velocityInECEFReferenceFrame = RV.V.clone().sub(velocityDueToPlanetsRotation)
-          if (velocityInECEFReferenceFrame.length() < 1) {
-            thrustDirection = R0.clone().normalize()
+          if (upwardComponentOfVelocity<=0) {
+            // Thrust away from the center of the earth
+            vehicleOrientation = RV.R.clone().normalize()
           }
           else {
-            thrustDirection = velocityInECEFReferenceFrame.normalize()
+            vehicleOrientation = RV.V.clone() //velocityDirectionInECEFReferencFrame
           }
         }
         else if (thrustState===1) {
           // Do the pitchover maneuver (under construction)
           // Temporary hack
-          thrustDirection = RV.V.clone().normalize()
+          if (upwardComponentOfVelocity<=0) {
+            // Thrust away from the center of the earth
+            vehicleOrientation = RV.R.clone().normalize()
+          }
+          else {
+            vehicleOrientation = RV.V.clone() //velocityDirectionInECEFReferencFrame
+          }
         }
-        else if ((thrustState===2) || (thrustState===3)) {
-          // Thrust in the velocity direction in the Earth Centered Inertial Reference Frame
-          thrustDirection = RV.V.clone().normalize()
+        else if (thrustState===2) {
+          if (upwardComponentOfVelocity<=0) {
+            // If we're falling, thrust directly away from the center of the earth
+            vehicleOrientation = RV.R.clone().normalize()
+          }
+          else {
+            // Thrust in the velocity direction in the Earth Centered Inertial Reference Frame
+            vehicleOrientation = RV.V.clone() //velocityDirectionInECEFReferencFrame
+          }
+        } 
+        else if (thrustState===3) {
+          vehicleOrientation = RV.V.clone().normalize()
         }
         else if (thrustState===4) {
-          // thrustDirection = RV.V.clone().normalize()
-          const r = RV.R.clone().normalize()
-          const v = RV.V.clone().normalize()
-          thrustDirection = r.clone().cross(v).cross(r)
+          //console.log(coe.trueAnomaly, altitude/launchVehicleDesiredOrbitalAltitude)
+          const circularOrbitDirection = RV.R.clone().cross(RV.V).cross(RV.R).normalize()
+          // If still we're on the way up, thrust in the direction of the circular orbit
+          // if (upwardComponentOfVelocity>0) {
+          //   vehicleOrientation = circularOrbitDirection.clone()
+          // }
+          // else {
+          //   // In this state we need to maintain the apogee, which means that we may need to vector some of the thrust downwards
+          //   // vehicleOrientation = RV.V.clone().normalize()
+          //   vehicleOrientation = circularOrbitDirection.clone().multiplyScalar(circularOrbitDirectionAcceleration).add(straightUpDirection.clone().multiplyScalar(-upwardsAcceleration)).normalize()
+          // }
+
+          // Search for the orientation that will result in in increase in perigee but no increase in appoee.
+          function calcVehicleOrientation(theta, circularOrbitDirection, straightUpDirection) {
+            const vehicleOrientation = circularOrbitDirection.clone().multiplyScalar(Math.cos(theta)).add(straightUpDirection.clone().multiplyScalar(Math.sin(theta)))
+            return vehicleOrientation
+          }
+          const predictApogeeError = (theta) => {
+            const vehicleOrientation = calcVehicleOrientation(theta, circularOrbitDirection, straightUpDirection)
+            const experimentalRV_V = RV.V.clone().add(vehicleOrientation.clone().multiplyScalar(rocketIncrementalDeltaV))
+            const experimentalCOE = this.orbitalElementsFromStateVector(RV.R, experimentalRV_V)
+            const c = experimentalCOE.semimajorAxis * experimentalCOE.eccentricity
+            const apogeeDistance = experimentalCOE.semimajorAxis + c
+            const apogeeError = apogeeDistance - targetOrbitDistance
+            return apogeeError
+          }
+
+          if (Math.abs(apogeeError) > apogeeAltitudeMargin*100) {
+            // Search for the angle that minimizes the change to the appogee
+            let smallestApogeeError = 0
+            let bestAngle = null
+            for (let angle = -Math.PI/2; angle<Math.PI/2; angle+=0.01) {
+              const apogeeError = predictApogeeError(angle)
+              if ((bestAngle===null) || (Math.abs(apogeeError)<smallestApogeeError)) {
+                smallestApogeeError = Math.abs(apogeeError)
+                bestAngle = angle
+              }
+            }
+
+            vehicleOrientation = calcVehicleOrientation(bestAngle, circularOrbitDirection, straightUpDirection)
+          }
+          else {
+            vehicleOrientation = circularOrbitDirection.clone().multiplyScalar(circularOrbitDirectionAcceleration).add(straightUpDirection.clone().multiplyScalar(-upwardsAcceleration)).normalize()
+          }
+
         }
         else {
-          thrustDirection = RV.V.clone().normalize()
+          vehicleOrientation = RV.V.clone().normalize()
         }
 
         const changeInSpeed = forwardAcceleration * tBurn
-        if (isNaN(changeInSpeed)) {
-          console.log('Error')
+        if (!isFinite(changeInSpeed)) {
+          console.error('Error: changeInSpeed is not finite')
         }
-        deltaVFromAcceleration = thrustDirection.clone().multiplyScalar(changeInSpeed)
+        deltaVFromAcceleration = vehicleOrientation.clone().multiplyScalar(changeInSpeed)
         // Add the acceleration vector to the velocity vector
+        if (!isFinite(deltaVFromAcceleration.length())) {
+          console.error('Error: deltaVFromAcceleration is not finite')
+        }
         RV.V.add(deltaVFromAcceleration)
       }
       else {
         // With the simpler "Variable Thust" model we calculate the fuel flow rate based on the thrust required to exactly cancel out the aerodynamic drag.
         fuelFlowRate = aerodynamicDrag / launchVehicleRocketExhaustVelocity
+        vehicleOrientation = RV.V.clone().normalize()
         forwardAcceleration = 0
       }
+
+      const vehicleOrientationRelativeToPlanet = vehicleOrientation.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t6a/planetSpec.lengthOfSiderealDay)
+
       mPropellant = Math.max(0, mPropellant - fuelFlowRate * tStep2)
       if ((mPropellant == 0) && !warningAlreadyGiven) {
         if (verbose>0) console.log("Out of propellant!")
@@ -1017,14 +1156,13 @@ export function defineUpdateTrajectoryCurves () {
       if (fuelFlowRate===NaN) {
         console.log('Error')
       }
-      freeFlightConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, fuelFlowRate))
-      if (i!=0) {
-        // ToDo: This might be a bit inaccurate because the temporal spacing of these points differs slightly from that of the points we added earlier
-        // Need to inspect/verify the impact of this wherever the getPoint() method is used.
-        launchTrajectoryCurveControlPoints.push(vehiclePositionRelativeToPlanet)
-      }
-      freeFlightCurveControlPoints.push(vehiclePositionRelativeToPlanet)
-      // Save telemery...
+      const vehicleTelemetry = new THREE.Vector3(vehicleAirSpeed, aerodynamicDrag, fuelFlowRate)
+
+      freeFlightConversionCurveControlPoints.push(new THREE.Vector3(vehicleAirSpeed, distanceTravelledOutsideLaunchSystem, fuelFlowRate))
+      freeFlightPositionCurveControlPoints.push(vehiclePositionRelativeToPlanet)
+      freeFlightOrientationCurveControlPoints.push(vehicleOrientationRelativeToPlanet.normalize())
+      freeFlightTelemetryCurveControlPoints.push(vehicleTelemetry)
+      // Record telemery for plots...
       altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
       downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
       airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
@@ -1034,6 +1172,7 @@ export function defineUpdateTrajectoryCurves () {
       fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, fuelFlowRate, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       totalMassVersusTimeData.push(new THREE.Vector3(t, mTotal, 0))
       apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, apogeeDistance - planetSpec.radius, 0))
+      perigeeAltitudeVersusTimeData.push(new THREE.Vector3(t, perigeeDistance, 0))
       lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
 
       if ((altitude<launcherMassDriverAltitude) && (i>4)) {
@@ -1042,11 +1181,9 @@ export function defineUpdateTrajectoryCurves () {
         break
       }
     }
+    this.durationOfFreeFlight = t - t5a
     //console.log('done')
 
-    this.durationOfLaunchTrajectory = t6a
-    this.durationOfSledTrajectory = t5b
-    this.durationOfFreeFlight = t6a - t5a
     distanceTravelled += distanceTravelledOutsideLaunchSystem
 
     // ToDo: This is probably the "payloadFraction". Check terms.
@@ -1071,38 +1208,23 @@ export function defineUpdateTrajectoryCurves () {
       console.log('Rocket Total Delta-V', Math.round(this.rocketTotalDeltaV))
     }
 
-    const freeFlightConversionCurve = new THREE.CatmullRomCurve3(freeFlightConversionCurvePoints)
+    const freeFlightConversionCurve = new THREE.CatmullRomCurve3(freeFlightConversionCurveControlPoints)
 
-    const freeFlighttTosConvertor = function tTos(t) {
-      const tForLookup = t / ((freeFlightConversionCurvePoints.length-1) * tStep2)
-      const interpolatedPoint = freeFlightConversionCurve.getPoint(tForLookup)
+    const freeFlighttToiConvertor = function (t) {
+      return t / ((freeFlightConversionCurveControlPoints.length-1) * tStep2)
+    }
+    const freeFlighttTosConvertor = function (t) {
+      const iForLookup = freeFlighttToiConvertor(t)
+      const interpolatedPoint = freeFlightConversionCurve.getPoint(iForLookup)
       const speed = interpolatedPoint.x
       return speed
     }
-    const freeFlighttTodConvertor = function(t) {
-      const tForLookup = t / ((freeFlightConversionCurvePoints.length-1) * tStep2)
-      const interpolatedPoint = freeFlightConversionCurve.getPoint(tForLookup)
+    const freeFlighttTodConvertor = function (t) {
+      const iForLookup = freeFlighttToiConvertor(t)
+      const interpolatedPoint = freeFlightConversionCurve.getPoint(iForLookup)
       const distance = interpolatedPoint.y
       return distance
     }
-    const freeFlighttToFuelFlowRateConvertor = function(t) {
-      const tForLookup = t / ((freeFlightConversionCurvePoints.length-1) * tStep2)
-      const interpolatedPoint = freeFlightConversionCurve.getPoint(tForLookup)
-      const fuelFlowRate = interpolatedPoint.z
-      return fuelFlowRate
-    }
-
-    // Make a curve for the entire start-to-finish launch trajectory
-    if (!this.launchTrajectoryCurve) {
-      this.launchTrajectoryCurve = new CatmullRomSuperCurve3(launchTrajectoryCurveControlPoints)
-    }
-    else {
-      this.launchTrajectoryCurve.setPoints(launchTrajectoryCurveControlPoints)
-      this.launchTrajectoryCurve.updateArcLengths()
-    }
-    this.launchTrajectoryCurve.curveType = 'centripetal'
-    this.launchTrajectoryCurve.closed = false
-    this.launchTrajectoryCurve.tension = 0
 
     // Make a curve for the suspended evacuated tube
     if (t5a-t4>0) {
@@ -1117,8 +1239,9 @@ export function defineUpdateTrajectoryCurves () {
       this.evacuatedTubeCurve.closed = false
       this.evacuatedTubeCurve.tension = 0
 
-      this.evacuatedTubeCurve.addtTosConvertor(evacuatedTubetTosConvertor)
+      this.evacuatedTubeCurve.addtToiConvertor(evacuatedTubetToiConvertor)
       this.evacuatedTubeCurve.addtTodConvertor(evacuatedTubetTodConvertor)
+      this.evacuatedTubeCurve.addtTosConvertor(evacuatedTubetTosConvertor)
       this.evacuatedTubeCurve.setDuration(this.timeWithinEvacuatedTube)
       this.evacuatedTubeCurve.name = "evacuatedTubeCurve"
     }
@@ -1127,22 +1250,62 @@ export function defineUpdateTrajectoryCurves () {
     }
 
     // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
-    if (!this.freeFlightCurve) {
-      this.freeFlightCurve = new CatmullRomSuperCurve3(freeFlightCurveControlPoints)
+    if (!this.freeFlightPositionCurve) {
+      this.freeFlightPositionCurve = new CatmullRomSuperCurve3(freeFlightPositionCurveControlPoints)
     }
     else {
-      this.freeFlightCurve.setPoints(freeFlightCurveControlPoints)
-      this.freeFlightCurve.updateArcLengths()
+      this.freeFlightPositionCurve.setPoints(freeFlightPositionCurveControlPoints)
+      this.freeFlightPositionCurve.updateArcLengths()
     }
-    this.freeFlightCurve.curveType = 'centripetal'
-    this.freeFlightCurve.closed = false
-    this.freeFlightCurve.tension = 0
+    this.freeFlightPositionCurve.curveType = 'centripetal'
+    this.freeFlightPositionCurve.closed = false
+    this.freeFlightPositionCurve.tension = 0
 
-    this.freeFlightCurve.addtTosConvertor(freeFlighttTosConvertor)
-    this.freeFlightCurve.addtTodConvertor(freeFlighttTodConvertor)
-    this.freeFlightCurve.tToFuelFlowRateConvertor = freeFlighttToFuelFlowRateConvertor
-    this.freeFlightCurve.setDuration(this.durationOfFreeFlight)
-    this.freeFlightCurve.name = "freeFlightCurve"
+    this.freeFlightPositionCurve.addtToiConvertor(freeFlighttToiConvertor)
+    this.freeFlightPositionCurve.addtTodConvertor(freeFlighttTodConvertor)
+    this.freeFlightPositionCurve.addtTosConvertor(freeFlighttTosConvertor)
+    this.freeFlightPositionCurve.setDuration(this.durationOfFreeFlight)
+    this.freeFlightPositionCurve.name = "freeFlightPositionCurve"
+
+    // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
+    if (!this.freeFlightOrientationCurve) {
+      this.freeFlightOrientationCurve = new CatmullRomSuperCurve3(freeFlightOrientationCurveControlPoints)
+    }
+    else {
+      this.freeFlightOrientationCurve.setPoints(freeFlightOrientationCurveControlPoints)
+      this.freeFlightOrientationCurve.updateArcLengths()
+    }
+    this.freeFlightOrientationCurve.curveType = 'centripetal'
+    this.freeFlightOrientationCurve.closed = false
+    this.freeFlightOrientationCurve.tension = 0
+
+    this.freeFlightOrientationCurve.addtToiConvertor(freeFlighttToiConvertor)
+    this.freeFlightOrientationCurve.addtTodConvertor(freeFlighttTodConvertor)
+    this.freeFlightOrientationCurve.addtTosConvertor(freeFlighttTosConvertor)
+    this.freeFlightOrientationCurve.setDuration(this.durationOfFreeFlight)
+    this.freeFlightOrientationCurve.name = "freeFlightOrientationCurve"
+
+    // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
+    if (!this.freeFlightTelemetryCurve) {
+      this.freeFlightTelemetryCurve = new CatmullRomSuperCurve3(freeFlightTelemetryCurveControlPoints)
+    }
+    else {
+      this.freeFlightTelemetryCurve.setPoints(freeFlightTelemetryCurveControlPoints)
+      this.freeFlightTelemetryCurve.updateArcLengths()
+    }
+    this.freeFlightTelemetryCurve.curveType = 'centripetal'
+    this.freeFlightTelemetryCurve.closed = false
+    this.freeFlightTelemetryCurve.tension = 0
+
+    this.freeFlightTelemetryCurve.addtToiConvertor(freeFlighttToiConvertor)
+    this.freeFlightTelemetryCurve.addtTodConvertor(freeFlighttTodConvertor)
+    this.freeFlightTelemetryCurve.addtTosConvertor(freeFlighttTosConvertor)
+    this.freeFlightTelemetryCurve.setDuration(this.durationOfFreeFlight)
+    this.freeFlightTelemetryCurve.name = "freeFlightTelemetryCurve"
+
+    // Add the orientation curve to the position curve
+    this.freeFlightPositionCurve.freeFlightOrientationCurve = this.freeFlightOrientationCurve
+    this.freeFlightPositionCurve.freeFlightTelemetryCurve = this.freeFlightTelemetryCurve
 
     this.xyChart.clearCurves()
     this.xyChart.addCurve("Altitude", "m", altitudeVesusTimeData, 0xff0000, "Red", launchVehicleDesiredOrbitalAltitude)
@@ -1154,6 +1317,7 @@ export function defineUpdateTrajectoryCurves () {
     this.xyChart.addCurve("Forward Acceleration", "m/s2", forwardAccelerationVersusTimeData, 0xffff00, "Yellow")
     this.xyChart.addCurve("Lateral Acceleration", "m/s2", lateralAccelerationVersusTimeData, 0xff8000, "Orange")
     this.xyChart.addCurve("Orbital Apogee Altiude", "m", apogeeAltitudeVersusTimeData, 0xffffff, "White", launchVehicleDesiredOrbitalAltitude)
+    this.xyChart.addCurve("Orbital Perigee Distance", "m", perigeeAltitudeVersusTimeData, 0xffff7f, "White", planetSpec.radius + launchVehicleDesiredOrbitalAltitude)
 
     // forwardAccelerationVersusTimeData.forEach(point => {
     //   if (point.y<0) {
@@ -1191,12 +1355,6 @@ export function defineUpdateTrajectoryCurves () {
       // Start a polyline...
       kmlFile = kmlutils.kmlLauncherPlacemarkHeader
 
-      // launchTrajectoryCurveControlPoints.forEach(point => {
-      //   const xyzPlanet = planetCoordSys.worldToLocal(point.clone())
-      //   const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
-      //   const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
-      //   kmlFile = kmlFile.concat(coordString)
-      // })
       const numSupports = 100
       // To make the line for the mass driver... 
       for (let i = 0; i<numSupports; i++) {

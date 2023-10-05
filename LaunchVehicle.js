@@ -111,7 +111,7 @@ export class launchVehicleModel {
     function makeFlame() {
 
       // Create the vehicle's flame
-      const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*.9, radius*0.4, flameLength, radialSegments, lengthSegments, false)
+      const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*0.8, radius*0.4, flameLength, radialSegments, lengthSegments, false)
       launchVehicleFlameGeometry.name = "rocketEngine"
       const launchVehicleFlameMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, emissive: 0xdfa0df, emissiveIntensity: 1.25, transparent: true, opacity: 0.5})
       const launchVehicleFlameMesh = new THREE.Mesh(launchVehicleFlameGeometry, launchVehicleFlameMaterial)
@@ -219,16 +219,30 @@ export class virtualLaunchVehicle {
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
-        const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+        //const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+        const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
 
         const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
-        const pointOnRelevantCurve = relevantCurve.getPointAt(d)
-        const forward = relevantCurve.getTangentAt(d)
-        const upward = relevantCurve.getNormalAt(d)
-        const rightward = relevantCurve.getBinormalAt(d)
-        const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
+        const pointOnRelevantCurve = relevantCurve.getPoint(i)
+        const forward = relevantCurve.getTangent(i)
+        const upward = relevantCurve.getNormal(i)
+        const rightward = relevantCurve.getBinormal(i)
+
+        const orientation = new THREE.Quaternion()
+        if (relevantCurve.name==='freeFlightPositionCurve') {
+          const tangent = relevantCurve.freeFlightOrientationCurve.getPoint(i)
+          const normal = relevantCurve.getBinormal(i).cross(tangent)
+          const q1 = new THREE.Quaternion()
+          q1.setFromUnitVectors(modelForward, tangent)
+          const rotatedObjectUpwardVector = modelUpward.clone().applyQuaternion(q1)
+          orientation.setFromUnitVectors(rotatedObjectUpwardVector, normal)
+          orientation.multiply(q1)
+        }
+        else {
+          relevantCurve.getQuaternion(i, modelForward, modelUpward, orientation)
+        }
 
         om.position.copy(pointOnRelevantCurve)
             .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
@@ -240,7 +254,7 @@ export class virtualLaunchVehicle {
     
         const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetSpec.radius
         const airDensity = virtualLaunchVehicle.planetSpec.airDensityAtAltitude(altitude)
-        const airDensityFactor = Math.min(1, airDensity/0.0184)     // 0.0184 kg/m^3 is rougly the air density at 30000m
+        const speedOfSound = virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude(altitude)
 
         // Turn on the flame at the exit of the launch tube
         // ToDo: Some of this code does not need to be executed for every virtual vehicle.  We could improve performance it we can find a way to
@@ -249,43 +263,51 @@ export class virtualLaunchVehicle {
         const pointlight_model = om.getObjectByName('launchVehicle_pointLight')
         const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
         let fuelFlowRateFactor
-        if (res.relevantCurve.name==='freeFlightCurve') {
+        let shockwaveConeSizeFactor
+        let shockwaveConeLengthFactor
+        if (relevantCurve.name==='freeFlightPositionCurve') {
           if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-            try {
-              fuelFlowRateFactor = res.relevantCurve.tToFuelFlowRateConvertor(deltaT-res.relevantCurveStartTime) / virtualLaunchVehicle.maxPropellantMassFlowRate
-            }
-            catch (e) {
-              console.log(e)
-            }
+            const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(i)
+            const vehicleAirSpeed = vehicleTelemetry.x
+            const aerodynamicDrag = vehicleTelemetry.y 
+            const fuelFlowRate = vehicleTelemetry.z
+            fuelFlowRateFactor = fuelFlowRate / virtualLaunchVehicle.maxPropellantMassFlowRate
+            shockwaveConeSizeFactor = aerodynamicDrag / 2.279e6   // Using the max thrust of an RS-25 vacuum engine as a baseline
+            shockwaveConeLengthFactor = vehicleAirSpeed / speedOfSound
             flame_model.visible = (fuelFlowRateFactor>0.01)
+            if (vehicleAirSpeed>speedOfSound) {
+              shockwaveCone_model.visible = true
+            }
+            else {
+              shockwaveCone_model.visible = false
+            }
           }
           else {
             flame_model.visible = (airDensityFactor>0.1)
+            fuelFlowRateFactor = airDensityFactor
+            shockwaveCone_model.visible = (airDensityFactor>0.01)
+            shockwaveConeSizeFactor = Math.min(1, airDensity/0.0184)   // Using the max thrust of an RS-25 vacuum engine as a baseline
+            shockwaveConeLengthFactor = 1
           }
-          shockwaveCone_model.visible = (airDensityFactor>0.01)
+
+          if (flame_model.visible) {
+            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
+            flame_model.scale.set(1, fuelFlowRateFactor, 1)
+          }
+
+          if (shockwaveCone_model.visible) {
+            const shockwaveConeSizeFactorScaled = shockwaveConeSizeFactor * (0.9 + Math.random() * 0.2)
+            const lengthScale = shockwaveConeSizeFactorScaled * shockwaveConeLengthFactor
+            const widthScale = shockwaveConeSizeFactorScaled
+            const yPos = virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength - virtualLaunchVehicle.shockwaveConeLength*lengthScale/2
+            shockwaveCone_model.position.set(0, yPos, 0)
+            shockwaveCone_model.scale.set(widthScale, lengthScale, widthScale)
+            shockwaveCone_model.updateMatrixWorld()
+          }
         }
         else {
           flame_model.visible = false
           shockwaveCone_model.visible = false
-        }
-
-        if (flame_model.visible) {
-          if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
-            flame_model.scale.set(1, fuelFlowRateFactor, 1)
-          }
-          else {
-            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*airDensityFactor/2, 0)
-            flame_model.scale.set(1, airDensityFactor, 1)
-          }
-        }
-
-        if (shockwaveCone_model.visible) {
-          const shockwaveConeLengthFactor = airDensityFactor * (0.9 + Math.random() * 0.2)   
-          const yPos = virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength - virtualLaunchVehicle.shockwaveConeLength*shockwaveConeLengthFactor/2
-          shockwaveCone_model.position.set(0, yPos, 0)
-          shockwaveCone_model.scale.set(shockwaveConeLengthFactor, shockwaveConeLengthFactor, shockwaveConeLengthFactor)
-          shockwaveCone_model.updateMatrixWorld()
         }
 
         pointlight_model.visible = virtualLaunchVehicle.showLaunchVehiclePointLight
@@ -299,8 +321,9 @@ export class virtualLaunchVehicle {
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
-        const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
-        const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, Math.min(1, d)))
+        //const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
+        const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+        const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, i))
         return pointOnRelevantCurve
 
     }

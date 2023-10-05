@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { last } from 'lodash';
 
 // // First, we need to set up the scene and create a camera and a renderer
 
@@ -214,18 +215,38 @@ export class XYChart {
 
     // Hack
     //maxX = 2500
-
+    if ((maxX===0) || (maxY===0) || (maxZ===0)) {
+      console.error('Divide-by-zero imenent for '+curveName+'.')
+    }
     // For now we'll assume that the minimums are always zero
     curveXYPoints.forEach(point => {
       point.x *= GRAPH_X_MAX / maxX
       point.y *= GRAPH_Y_MAX / maxY
       point.z *= 100 / maxZ
     })
-    
+
+    curveXYPoints.forEach(point => {
+      if (!isFinite(point.x) || !isFinite(point.y) || !isFinite(point.z)) {
+        console.error('Non-finite value detected in curve points for '+curveName+'.')
+      }
+    })
+    let lastUnculledPoint = curveXYPoints[0]
+    let culledCurvePoints = [lastUnculledPoint]
+    for (let i = 1; i < curveXYPoints.length; i++) {
+      const currentPoint = curveXYPoints[i]
+      if (lastUnculledPoint.distanceToSquared(currentPoint) > 0.5) {
+        lastUnculledPoint = currentPoint
+        culledCurvePoints.push(currentPoint)
+      }
+    }
+    curveXYPoints.splice(0, curveXYPoints.length)
+    curveXYPoints = culledCurvePoints
+
     const existingCurves = this.curveInfo.map(function (o) {return o.name})
+    let curveLine = null
     if (existingCurves.includes(curveName)) {
       const index = existingCurves.indexOf(curveName)
-      const curveLine = this.curveInfo[index].mesh
+      curveLine = this.curveInfo[index].mesh
       // Recreate the line's geometry using the new points
       curveLine.geometry.setFromPoints(curveXYPoints)
       //curveLine.material.color = curveColor
@@ -234,10 +255,12 @@ export class XYChart {
     else {
       const curveGeometry = new THREE.BufferGeometry().setFromPoints(curveXYPoints);
       const curveMaterial = new THREE.LineBasicMaterial({ color: curveColor });
-      const curveLine = new THREE.Line(curveGeometry, curveMaterial);
+      curveLine = new THREE.Line(curveGeometry, curveMaterial);
+      curveLine.name = curveName
       this.chartGroup.add(curveLine);
       this.curveInfo.push({name: curveName, units: curveUnits, colorName: curveColorName, maxX: maxX, maxY: maxY, maxZ: maxZ, mesh: curveLine})
     }
+    curveLine.geometry.computeBoundingSphere() // This checks for invalid values in the geometry
 
     this.textDescriptions.push({text: curveName, name: curveName+'_label', fontSize: 10, x: 10, y: this.curveInfo.length*20-10, color: curveColor})
     if (this.font!==null) {

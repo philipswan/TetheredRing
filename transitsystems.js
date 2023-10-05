@@ -11,8 +11,9 @@ import { virtualRingTerminus } from './RingTerminus.js'
 import { virtualGroundTerminus } from './GroundTerminus.js'
 import { virtualElevatorCar } from './ElevatorCar.js'
 import { virtualHabitat } from './Habitat.js'
-import { virtualStationaryRingSegment } from './StationaryRingSegment.js'
-import { virtualMovingRingSegment } from './MovingRingSegment.js'
+import { stationaryRingSegmentModel, virtualStationaryRingSegment } from './StationaryRingSegment.js'
+import { movingRingSegmentModel, virtualMovingRingSegment } from './MovingRingSegment.js'
+import { statorMagnetSegmentModel, virtualStatorMagnetSegment } from './StatorMagnetSegment.js'
 import { virtualElevatorCable } from './ElevatorCable.js'
 
 // C:\Users\phils\Documents\repos\Three.js\TetheredRing\node_modules\three\examples\jsm\loaders
@@ -44,6 +45,7 @@ export class transitSystem {
     this.unallocatedHabitatModels = []
     this.unallocatedStationaryRingSegmentModels = []
     this.unallocatedMovingRingSegmentModels = []
+    this.unallocatedStatorMagnetSegmentModels = []
     this.unallocatedTransitTubeSegmentModels = []
     this.unallocatedTransitTrackSegmentModels = 
       [...Array(dParamWithUnits['transitTracksNumUpwardTracks'].value)].map(() => 
@@ -54,7 +56,7 @@ export class transitSystem {
     this.unallocatedDynamicallyManagedObjects = []
     this.unallocatedSolarArrayModels = []
     this.unallocatedElevatorCableModels = []
-    this.numWedges = 1024
+    this.numWedges = dParamWithUnits['transitSystemNumZones'].value
     this.actionFlags = new Array(this.numWedges).fill(0)
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
     //const massDriverLength = dParamWithUnits['massDriverLength'].value
@@ -99,6 +101,7 @@ export class transitSystem {
     rf4.addVirtualObject('virtualGroundTerminuses')
     rf4.addVirtualObject('virtualHabitats')
     rf4.addVirtualObject('virtualElevatorCars')
+    rf4.addVirtualObject('virtualStatorMagnetSegments')
     for (let j = 0; j < ttnut; j++) {
       for (let i = 0; i < ttnot; i++) {
         rf4.addVirtualObject('virtualTransitTrackSegments_' + j + '_' + i)
@@ -137,6 +140,9 @@ export class transitSystem {
     this.numVirtualStationaryRingSegments = 0
     this.numVirtualTransitTubeSegments = 0
     this.numVirtualMovingRingSegments = 0
+    this.numVirtualStatorMagnetSegments = 0
+
+    this.stationaryRingDependantParameters = [{name: 'ringFinalAltitude', lastValue: null}]
 
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, invalidateWedgeHistory, perfOptimizedThreeJS) {
       return function( {scene} ) {
@@ -219,6 +225,7 @@ export class transitSystem {
     const addHabitats = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedHabitatModels, 'habitat', 1.25, dParamWithUnits['habitatNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const addStationaryRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStationaryRingSegmentModels, 'stationaryRing', 1, dParamWithUnits['stationaryRingNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const addMovingRingSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedMovingRingSegmentModels, 'movingRing', 1, dParamWithUnits['movingRingNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
+    const addStatorMagnetSegments = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedStatorMagnetSegmentModels, 'statorMagnet', 1, dParamWithUnits['statorMagnetNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const addTransitTubes = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTubeSegmentModels, 'transitTube', 1, dParamWithUnits['transitTubeNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     //const addTransitTracks = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedTransitTrackSegmentModels, 'transitTrack', 1, dParamWithUnits['transitTrackNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
     const addSolarArrays = prepareACallbackFunctionForFBXLoader(this.scene, this.unallocatedSolarArrayModels, 'solarArray', 1, dParamWithUnits['solarArrayNumModels'].value, this.invalidateWedgeHistory, this.perfOptimizedThreeJS)
@@ -257,39 +264,14 @@ export class transitSystem {
     const nh = dParamWithUnits['numVirtualHabitats'].value
     const numTransitStops = nt + nh
 
-    function getStationaryRingSegmentCurve() {
-      const lengthSegments = 4
-      const segmentNumber = 0
-      const totalSegments = numTransitStops
-      return tram.makeOffsetCurve(dParamWithUnits['mainRingOutwardOffset'].value, dParamWithUnits['mainRingUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
-    }
-
-    // Need to use numMainRings
-    lengthSegments = 4
-    radius = dParamWithUnits['stationaryRingTubeRadius'].value
-    radialSegments = 32
-    const stationaryRingGeometry = new THREE.TubeGeometry(getStationaryRingSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    const stationaryRingMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.9})
-    const stationaryRingMesh = new THREE.Mesh(stationaryRingGeometry, stationaryRingMaterial)
+    const stationaryRingMesh = new stationaryRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
     addStationaryRingSegments(stationaryRingMesh)
 
-    // Manually create the moving rings
-    function getMovingRingSegmentCurve() {
-      const lengthSegments = 4
-      const segmentNumber = 0
-      const totalSegments = numTransitStops
-      return tram.makeOffsetCurve(dParamWithUnits['mainRingOutwardOffset'].value, dParamWithUnits['mainRingUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
-    }
-
-    // Need to use numMainRings
-    lengthSegments = 4
-    radius = dParamWithUnits['movingRingTubeRadius'].value
-    radialSegments = 32
-    const movingRingGeometry = new THREE.TubeGeometry(getMovingRingSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    const movingRingTexture = new THREE.TextureLoader().load( './textures/movingRingTexture.jpg' )
-    const movingRingMaterial = new THREE.MeshPhongMaterial( {transparent: false, shininess: 10, map: movingRingTexture})
-    const movingRingMesh = new THREE.Mesh(movingRingGeometry, movingRingMaterial)
+    const movingRingMesh = new movingRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
     addMovingRingSegments(movingRingMesh)
+
+    const statorMagnetMesh = new statorMagnetSegmentModel(dParamWithUnits, crv, mainRingCurve)
+    addStatorMagnetSegments(statorMagnetMesh)
 
     // Manually create the transit tube 
     function getTransitTubeSegmentCurve() {
@@ -414,7 +396,7 @@ export class transitSystem {
     this.update(dParamWithUnits, scene, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve)
   }
 
-    update(dParamWithUnits, scene, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
+  update(dParamWithUnits, scene, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, timeSinceStart) {
 
     this.scene = scene
 
@@ -433,17 +415,20 @@ export class transitSystem {
     virtualHabitat.update(dParamWithUnits, crv)
     virtualStationaryRingSegment.update(dParamWithUnits, crv)
     virtualMovingRingSegment.update(dParamWithUnits, crv)
+    virtualStatorMagnetSegment.update(dParamWithUnits, crv)
     virtualTransitTubeSegment.update(dParamWithUnits, crv)
     virtualTransitTrackSegment.update(dParamWithUnits, crv)
     virtualSolarArray.update(dParamWithUnits, crv)
     virtualElevatorCable.update(dParamWithUnits, crv)
     //dynamicallyManagedObject.update(dParamWithUnits, crv)
- 
+    
+    let changeOccured
+
     // Update the number of transit vehicles
     const newNumVirtualTransitVehicles = dParamWithUnits['showTransitVehicles'].value ? dParamWithUnits['numVirtualTransitVehicles'].value : 0
     // Remove old virtual transit vehicles
     const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
-    let changeOccured = (this.numVirtualTransitVehicles != newNumVirtualTransitVehicles)
+    changeOccured = (this.numVirtualTransitVehicles != newNumVirtualTransitVehicles)
     if (changeOccured && (this.numVirtualTransitVehicles > 0)) {
       this.removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
     }
@@ -488,7 +473,7 @@ export class transitSystem {
     const staticShortRangeRefFrame = [this.refFrames[4]]
 
     // Since habitats and terminuses are interspersed, changing either causes a major teardown of not only
-    // habitatis and ring terminuses, but also elevator cables, cars, and ground terminuses
+    // habitats and ring terminuses, but also elevator cables, cars, and ground terminuses
     const showRingTerminuses = dParamWithUnits['showRingTerminuses'].value
     const showHabitats = dParamWithUnits['showHabitats'].value
     const showElevatorCars = dParamWithUnits['showElevatorCars'].value
@@ -546,7 +531,7 @@ export class transitSystem {
     this.numVirtualGroundTerminuses = newNumVirtualGroundTerminuses
     
     // Transit Track Segments
-    const newNumVirtualTransitTrackSegments = dParamWithUnits['showTransitTrack'].value ? numTransitStops : 0
+    const newNumVirtualTransitTrackSegments = dParamWithUnits['showTransitTracks'].value ? numTransitStops : 0
     changeOccured = (this.numVirtualTransitTrackSegments != newNumVirtualTransitTrackSegments)
 
     if (changeOccured && (this.numVirtualTransitTrackSegments > 0)) {
@@ -645,6 +630,12 @@ export class transitSystem {
     const showStationaryRings = dParamWithUnits['showStationaryRings'].value
     const newNumVirtualStationaryRingSegments = showStationaryRings ? dParamWithUnits['numVirtualStationaryRingSegments'].value : 0
     changeOccured = (this.numStationaryRingSegments != newNumVirtualStationaryRingSegments)
+    this.stationaryRingDependantParameters.forEach(dependantParameter => {
+      if (dependantParameter.lastValue===null || dParamWithUnits[dependantParameter.name].value!==dependantParameter.lastValue) {
+        changeOccured |= true
+        dependantParameter.lastValue = dParamWithUnits[dependantParameter.name].value
+      }
+    })
 
     if (changeOccured && (this.numVirtualStationaryRingSegments > 0)) {
       this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
@@ -726,6 +717,33 @@ export class transitSystem {
     }
     this.numVirtualMovingRingSegments = newNumVirtualMovingRingSegments
 
+    // Stator Magnets
+    const newNumVirtualStatorMagnetSegments = dParamWithUnits['showStatorMagnets'].value ? dParamWithUnits['numVirtualStatorMagnetSegments'].value : 0
+    changeOccured = (this.numVirtualStatorMagnetSegments != newNumVirtualStatorMagnetSegments)
+
+    if (changeOccured && (this.numVirtualStatorMagnetSegments > 0)) {
+      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualStatorMagnetSegments', this.unallocatedStatorMagnetSegmentModels)
+    }
+
+    if (changeOccured && (newNumVirtualStatorMagnetSegments > 0)) {
+      let step5 = 1.0 / newNumVirtualStatorMagnetSegments
+      staticShortRangeRefFrame.forEach(refFrame => {
+        for (let i = 0; i < newNumVirtualStatorMagnetSegments; i++) {
+          const positionInFrameOfReference = i * step5
+          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          // For now, all of the rings are the same diameter, so we can get away with using the same models and virtual objects for all of them.
+          // In the final design, the rings will likely have slightly different diameters.
+          for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
+            refFrame.wedges[wedgeIndex]['virtualStatorMagnetSegments'].push(new virtualStatorMagnetSegment(positionInFrameOfReference, j, this.unallocatedStatorMagnetSegmentModels))
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+    this.numVirtualStatorMagnetSegments = newNumVirtualStatorMagnetSegments
+
+
+
     this.refFrames[0].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
     this.refFrames[1].v = dParamWithUnits['transitVehicleCruisingSpeed'].value
     this.refFrames[5].v = dParamWithUnits['movingRingsSpeedForRendering'].value
@@ -761,6 +779,7 @@ export class transitSystem {
     this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
     this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
     this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualStatorMagnetSegments', this.unallocatedGroundTerminusModels)
     const ttnut = dParamWithUnits['transitTracksNumUpwardTracks'].value
     const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
     for (let j = 0; j < ttnut; j++) {
@@ -903,14 +922,29 @@ export class transitSystem {
       if (distanceFromCameraToRing<=refFrame.cameraRange) {
         // Then figure out starting and finishing wedges for that position
         const cameraRangeDelta = refFrame.cameraRange / (2 * Math.PI * this.crv.mainRingRadius)
-        const cameraRangeStart = (nearestTrackPositionToCamera - cameraRangeDelta + 1) % 1
-        const cameraRangeFinish = (nearestTrackPositionToCamera + cameraRangeDelta + 1) % 1
+        let cameraRangeStartForFrame
+        let cameraRangeFinishForFrame
+        if (cameraRangeDelta<0.25) {
+          const cameraRangeStart = (nearestTrackPositionToCamera - cameraRangeDelta + 1) % 1
+          const cameraRangeFinish = (nearestTrackPositionToCamera + cameraRangeDelta + 1) % 1
+          cameraRangeStartForFrame = (cameraRangeStart - refFrame.p + 1 ) % 1
+          cameraRangeFinishForFrame = (cameraRangeFinish - refFrame.p + 1 ) % 1
+          }
+        else {
+          // Most of the ring is within the range of the camera, so we will just process the whole ring
+          cameraRangeStartForFrame = 0
+          cameraRangeFinishForFrame = 1
+        }
 
         // Subtract the current rotationalPosition of the reference frame from the cameraRangeStart and cameraRangeFinish values
-        const cameraRangeStartForFrame = (cameraRangeStart - refFrame.p + 1 ) % 1
-        const cameraRangeFinishForFrame = (cameraRangeFinish - refFrame.p + 1 ) % 1
-        refFrame.startWedgeIndex = Math.floor(cameraRangeStartForFrame * this.numWedges)
-        refFrame.finishWedgeIndex = Math.floor(cameraRangeFinishForFrame * this.numWedges)
+        refFrame.startWedgeIndex = Math.floor(cameraRangeStartForFrame * (this.numWedges-1))
+        refFrame.finishWedgeIndex = Math.floor(cameraRangeFinishForFrame * (this.numWedges-1))
+        if ((refFrame.startWedgeIndex<0) || (refFrame.startWedgeIndex>=this.numWedges)) {
+          console.error('Error: startWedgeIndex is ' + refFrame.startWedgeIndex)
+        }
+        if ((refFrame.finishWedgeIndex<0) || (refFrame.finishWedgeIndex>=this.numWedges)) {
+          console.error('Error: finishWedgeIndex is ' + refFrame.finishWedgeIndex)
+        }
       }
       else {
         refFrame.startWedgeIndex = -1
@@ -934,6 +968,9 @@ export class transitSystem {
         }
       }
 
+      if (refFrame.startWedgeIndex<-1) {
+        console.log('Error: startWedgeIndex is ' + refFrame.startWedgeIndex)
+      }
       if (refFrame.startWedgeIndex!=-1) {
         for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
           if (this.actionFlags[wedgeIndex] & 1 == 1) {
@@ -1057,6 +1094,9 @@ export class transitSystem {
     assignModelList.forEach(entry => {
       const wedgeToCameraDistance = entry['wedgeToCameraDistance']
       const ranOutOfModelsInfo = {}
+      if (!entry['refFrame'].wedges[entry['wedgeIndex']]) {
+        console.error('Error: entry[\'refFrame\'].wedges[entry[\'wedgeIndex\']]===null')
+      }
       Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
         if (objectValue.length>0) {
           objectValue.forEach(object => {

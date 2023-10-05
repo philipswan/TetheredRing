@@ -44,12 +44,6 @@ export class planet {
         const h = 12
         for (let j=0; j<h; j++) {
           for (let i = 0; i<w; i++) {
-            const pointOnEarthsSurface = new THREE.Vector3().setFromSphericalCoords(
-              planetSpec.radius, 
-              Math.PI * (1+2*j)/(2*h),
-              Math.PI * (1 + (1+2*i)/w)
-            )
-
             // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
             //const farFromRing = (localPoint.y < 0.45 * planetSpec.radius) || (localPoint.y > 0.7 * planetSpec.radius)
             // Hack
@@ -281,9 +275,95 @@ export class planet {
     //atmosphereMesh.receiveShadow = true
     atmosphereMesh.visible = dParamWithUnits['showEarthsAtmosphere'].value
 
-    return [planetMeshes, atmosphereMesh]
+    // const backgroundPatchDescriptor = {
+    //   // textureFilename: './textures/LundHillWashington3.jpg'
+    //   // textureFilename: './textures/ZionNationalPark.jpg'
+    //   // textureFilename: './textures/Mongolia.jpg'
+    //   // textureFilename: './textures/myakka_oli_2022031_lrg.jpg'
+    //   // textureFilename: './textures/chinasolar_oli_2020264_lrg.jpg'
+    //   // textureFilename: './textures/AustraliaDesert.jpg'
+    //   // textureFilename: './textures/CrepuscularRays.jpg'
+    //   // textureFilename: './textures/ISS042-E-263234.jpg'
+    //   patchAltitude: 2000,
+    //   patchImageWidth: 2239,
+    //   patchImageHeight: 1260,
+    //   patchPosition: new THREE.Vector3(-3954814.892863949, 4671082.911289911, -2284901.3465206292),
+    //   patchRotation: new THREE.Vector3(0, 0, 0)
+    // }
+    // const backgroundPatchDescriptor = {
+    //   textureFilename: './textures/LundHillWashington4.jpg',
+    //   patchAltitude: 3000,
+    //   patchImageWidth: 2239,
+    //   patchImageHeight: 1260,
+    //   patchPosition: new THREE.Vector3(-3819625.2935746475, 4596971.6990394695, -2235341.3665288324),     // Washington State
+    //   patchRotation: new THREE.Euler(-2.0234735226917318, -0.641906096175003, -2.1683293345531034, 'XYZ'),
+    //   patchScale: 209.241648
+    // }
+    // const backgroundPatchDescriptor = {
+    //   textureFilename: './textures/LundHillWashington3.jpg',
+    //   patchAltitude: 2000,
+    //   patchImageWidth: 2239,
+    //   patchImageHeight: 1260,
+    //   patchPosition: new THREE.Vector3(-3827945.649196222, 4596585.471598385, -2221862.1287314435),     // Washington State
+    //   patchRotation: new THREE.Euler(-2.0234735226917318, -0.641906096175003, -2.1683293345531034, 'XYZ'),
+    //   patchScale: 50.84
+    // }
+    const backgroundPatchDescriptor = {
+      textureFilename: './textures/LundHillWashington1.jpg',
+      patchAltitude: 1200,
+      patchImageWidth: 2239,
+      patchImageHeight: 1260,
+      patchPosition: new THREE.Vector3(-3827945.649196222, 4596585.471598385, -2221862.1287314435),     // Washington State
+      patchRotation: new THREE.Euler(-2.0234735226917318, -0.641906096175003, -2.1683293345531034, 'XYZ'),
+      patchScale: 10
+    }
+    const backgroundPatchMesh = this.addBackgroundPatch(backgroundPatchDescriptor, planetSpec)
 
-    // const water = new Water(
+    return [planetMeshes, atmosphereMesh, backgroundPatchMesh]
+
+  }
+
+  addBackgroundPatch(descriptor, planetSpec) {
+    // Add a patch of high res texture on the ground as a background for some downward looking shots 
+    const backgroundPatchGeometry = new THREE.PlaneGeometry(descriptor.patchImageWidth, descriptor.patchImageHeight)
+    
+    //const backgroundPatchGeometry = new THREE.SphereGeometry(100000, 32, 32)
+
+    const backgroundPatchMaterial = new THREE.MeshBasicMaterial({
+      side: THREE.DoubleSide,
+      map: new THREE.TextureLoader().load( descriptor.textureFilename ),
+      transparent: true,
+      opacity: 0.95
+    })
+    backgroundPatchMaterial.map.name = 'backeroundPatch'
+    const backgroundPatchMesh = new THREE.Mesh(
+      backgroundPatchGeometry,
+      backgroundPatchMaterial
+      // new THREE.ShaderMaterial({
+      //   vertexShader: document.getElementById( 'vertexShader' ).textContent,
+      //   fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+      //   uniforms: {
+      //     planetTexture: {
+      //       value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+      //     }
+      //   }
+      // })
+    )
+
+    backgroundPatchMesh.position.copy(descriptor.patchPosition).normalize().multiplyScalar(planetSpec.radius+descriptor.patchAltitude)
+    backgroundPatchMesh.lookAt(backgroundPatchMesh.position.clone().multiplyScalar(2))
+    backgroundPatchMesh.rotation.copy(descriptor.patchRotation)
+    //backgroundPatchMesh.rotateZ(descriptor.patchRotation)
+    backgroundPatchMesh.scale.set(descriptor.patchScale, descriptor.patchScale, descriptor.patchScale)
+
+    return backgroundPatchMesh
+    // this.backgroundPatchActive = false // State variable to keep track of whether the background patch is currently active
+    // this.updateBackgroundPatch()
+
+  }
+
+  addWater() {
+        // const water = new Water(
     //   new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/16, planetHeightSegments/16),
     //   {
     //     textureWidth: 512,

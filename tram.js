@@ -633,7 +633,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   // Launcher Propellant Mass Calculation
   const vehicleCrossSectionalArea = Math.PI * launchVehicleRadius*2
   const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle witha very pointy nose.
-  const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value // m/s
+  const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value // m/s
   const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
   const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
   //console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
@@ -1263,7 +1263,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  return Math.max(0, timeSinceStart - 50) * slowDownPassageOfTime
+  return Math.max(0, timeSinceStart - 20) * slowDownPassageOfTime
 }
 
 export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {

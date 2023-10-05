@@ -7,7 +7,7 @@ export class massDriverScrewModel {
     // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
     // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials) {
+    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials, highRes = false) {
 
         const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
@@ -19,7 +19,10 @@ export class massDriverScrewModel {
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
         // The point of breaking the screw into segments relates to the need to display the brackets.
-        const modelRadialSegments = 24 / Math.min(threadStarts, 4)
+        const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(threadStarts, 4)
+
+        // ToDo: This doesn't scale well. Need to figure out how to make this work for any dimentions of the mass driver's screw.
+        const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
         const baseDistanceAlongScrew = segmentIndex * segmentSpacing
@@ -37,7 +40,8 @@ export class massDriverScrewModel {
             initialDistance,
             launcherMassDriverScrewRevolutionsPerSecond,
             launcherMassDriverForwardAcceleration,
-            modelRadialSegments)
+            modelRadialSegments,
+            minLengthSegmentsPerMeter)
         const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterials[segmentIndex%2])
 
         return massDriverScrewMesh
@@ -119,8 +123,10 @@ export class virtualMassDriverScrew {
                     else {
                         screwLength = segmentSpacing
                     }
-                    const modelRadialSegments = 24 / Math.min(virtualMassDriverScrew.threadStarts, 4)
-                    // Get rid of the previous geometries...
+                    const highRes = false
+                    const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
+                    const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 16)
+                                // Get rid of the previous geometries...
                     om.children[0].geometry.dispose()
                     om.children[1].geometry.dispose()
                     // Generate new geometries
@@ -135,7 +141,8 @@ export class virtualMassDriverScrew {
                         virtualMassDriverScrew.initialDistance,
                         virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond,
                         virtualMassDriverScrew.launcherMassDriverForwardAcceleration,
-                        modelRadialSegments)
+                        modelRadialSegments,
+                        minLengthSegmentsPerMeter)
                     om.children[1].geometry = om.children[0].geometry
                     const select = (((this.index % 1024) <= 32) && (this.index<256*128)) ? 1 : 0
                     om.children[0].material = virtualMassDriverScrew.massDriverScrewMaterials[select]

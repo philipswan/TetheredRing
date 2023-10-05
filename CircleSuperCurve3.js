@@ -45,6 +45,11 @@ class CircleSuperCurve3 extends SuperCurve {
 		return this.duration
 	}
 
+  getPoint(t, optionalTarget) {
+    const d = this.tTod(t) / this.length
+    return this.getPointAt(d, optionalTarget)
+  }
+
 	getPointAt(d, optionalTarget) {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
 		const point = optionalTarget || new Vector3();
@@ -54,6 +59,11 @@ class CircleSuperCurve3 extends SuperCurve {
 		return point
 	}
 
+  getTangent(t, optionalTarget) {
+    const d = this.tTod(t) / this.length
+    return this.getTangentAt(d, optionalTarget)
+  }
+
 	getTangentAt(d, optionalTarget) {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
 		const vector = optionalTarget || new Vector3();
@@ -62,6 +72,11 @@ class CircleSuperCurve3 extends SuperCurve {
 		vector.applyAxisAngle(this.axisOfRotation, angle + Math.PI/2)
 		return vector
 	}
+
+  getNormal(t, optionalTarget) {
+    const d = this.tTod(t) / this.length
+    return this.getNormalAt(d, optionalTarget)
+  }
 
 	getNormalAt(d, optionalTarget) {
 		// d is a number from 0 to 1 which indicates the desired distance along the curve 
@@ -73,19 +88,33 @@ class CircleSuperCurve3 extends SuperCurve {
 		return vector
 	}
 
+  getBinormal(t, optionalTarget) {
+    const d = this.tTod(t) / this.length
+    return this.getBinormalAt(d, optionalTarget)
+  }
+
 	getBinormalAt(d, optionalTarget) {
 		const vector = optionalTarget || new Vector3();
 		vector.copy(this.binormal)
 		return vector
 	}
 	
-	addtTosConvertor(tTosConvertor) {
-		this.tTos = tTosConvertor
+	addtToiConvertor(tToiConvertor) {
+		this.tToi = tToiConvertor
 	}
 
 	addtTodConvertor(tTodConvertor) {
 		this.tTod = tTodConvertor
 	}
+
+	addtTosConvertor(tTosConvertor) {
+		this.tTos = tTosConvertor
+	}
+
+  getQuaternion(t, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+    const d = this.tTod(t) / this.length
+    return this.getQuaternionAt(d, objectForward, objectUpward, optionalTarget)
+  }
 
 	getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
 

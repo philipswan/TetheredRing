@@ -12,6 +12,7 @@ import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.
 //import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
 import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
 import * as OrbitMath from './OrbitMath.js'
+import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
@@ -60,25 +61,25 @@ export class launcher {
     const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
     const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
     const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
-    this.LaunchTrajectoryMarker0 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
-    const LaunchTrajectoryMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
-    this.LaunchTrajectoryMarker0.scale.set(LaunchTrajectoryMarkerSize, LaunchTrajectoryMarkerSize, LaunchTrajectoryMarkerSize)
-    this.LaunchTrajectoryMarker1 = this.LaunchTrajectoryMarker0.clone()
-    this.LaunchTrajectoryMarker1.material = greenMaterial
-    this.LaunchTrajectoryMarker2 = this.LaunchTrajectoryMarker0.clone()
-    this.LaunchTrajectoryMarker2.material = greenMaterial
-    this.LaunchTrajectoryMarker3 = this.LaunchTrajectoryMarker0.clone()
-    this.LaunchTrajectoryMarker3.material = blueMaterial
-    this.LaunchTrajectoryMarker4 = this.LaunchTrajectoryMarker0.clone()
-    this.LaunchTrajectoryMarker5 = this.LaunchTrajectoryMarker0.clone()
-    this.LaunchTrajectoryMarker6 = this.LaunchTrajectoryMarker0.clone()
-    planetCoordSys.add(this.LaunchTrajectoryMarker0)
-    planetCoordSys.add(this.LaunchTrajectoryMarker1)
-    planetCoordSys.add(this.LaunchTrajectoryMarker2)
-    planetCoordSys.add(this.LaunchTrajectoryMarker3)
-    planetCoordSys.add(this.LaunchTrajectoryMarker4)
-    planetCoordSys.add(this.LaunchTrajectoryMarker5)
-    planetCoordSys.add(this.LaunchTrajectoryMarker6)
+    this.launchTrajectoryMarker0 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
+    const launchTrajectoryMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
+    this.launchTrajectoryMarker0.scale.set(launchTrajectoryMarkerSize, launchTrajectoryMarkerSize, launchTrajectoryMarkerSize)
+    this.launchTrajectoryMarker1 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker1.material = greenMaterial
+    this.launchTrajectoryMarker2 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker2.material = greenMaterial
+    this.launchTrajectoryMarker3 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker3.material = blueMaterial
+    this.launchTrajectoryMarker4 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker5 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker6 = this.launchTrajectoryMarker0.clone()
+    planetCoordSys.add(this.launchTrajectoryMarker0)
+    planetCoordSys.add(this.launchTrajectoryMarker1)
+    planetCoordSys.add(this.launchTrajectoryMarker2)
+    planetCoordSys.add(this.launchTrajectoryMarker3)
+    planetCoordSys.add(this.launchTrajectoryMarker4)
+    planetCoordSys.add(this.launchTrajectoryMarker5)
+    planetCoordSys.add(this.launchTrajectoryMarker6)
 
     this.wedgeMarker0 = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), redMaterial)
     this.wedgeMarker1 = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), blueMaterial)
@@ -132,7 +133,6 @@ export class launcher {
 
     // Next, create all of the virtual objects that will be placed along the launch trajectory curve
 
-    // Hack
     this.massDriverScrewTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
 
     // Add the virtual launch sleds and launch vehicles
@@ -140,12 +140,6 @@ export class launcher {
     let t, n, wedgeIndex
     const refFrame = this.refFrames[0]
     
-    // Hack - remove "&& (n<150)"
-    for (t = 0, n = 0; (t<this.durationOfLaunchTrajectory) && (n<500); t += tInc, n++) {
-      //refFrame.wedges[wedgeIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(-t, this.unallocatedLaunchSledModels))
-      //refFrame.wedges[wedgeIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(-t, this.unallocatedLaunchVehicleModels))
-    }
-
     // Create and add the launch sleds
     const launchSledMesh = new launchSledModel(
       dParamWithUnits,
@@ -167,7 +161,11 @@ export class launcher {
     screwModels.name = 'massDriverScrews'
     screwModels.userData = -1  // This is the index of the model starting from the breach of the mass driver. -1 is an invalid index which will force the model to be regenerated.
     const tempIndex = 0
-    const leftModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials)
+    const leftModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, false)
+    if (dParamWithUnits['saveMassDriverScrewSTL'].value) {
+      const saveModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, true)
+      this.saveGeometryAsSTL(saveModel, 'massDriverScrew.stl')
+    }
     leftModel.userData = 0
     leftModel.scale.set(1, 1, 1)
     screwModels.add(leftModel)
@@ -229,7 +227,7 @@ export class launcher {
     this.polyCurveForrf3.add(this.massDriver2Curve)
     this.polyCurveForrf3.add(this.launchRampCurve)
     this.polyCurveForrf3.add(this.evacuatedTubeCurve)
-    this.polyCurveForrf3.add(this.freeFlightCurve)
+    this.polyCurveForrf3.add(this.freeFlightPositionCurve)
     this.polyCurveForrf3.subdivide(numZones)
     const rf3 = new referenceFrame(this.polyCurveForrf3, numWedges, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame')
 
@@ -328,7 +326,8 @@ export class launcher {
         
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
         // Going backwards in time since we want to add vehicles that were launched in the past.
-        for (let t = tStart, i = 0; (t > -(tStart+this.durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
+        const durationOfLaunchTrajectory = refFrame.curve.getDuration()
+        for (let t = tStart, i = 0; (t > -(tStart+durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
           // Calculate where along the launcher to place the vehicle.
           const deltaT = adjustedTimeSinceStart - t
           const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
@@ -360,7 +359,8 @@ export class launcher {
         const n1 = newNumVirtualLaunchSleds
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
         // Going backwards in time since we want to add vehicles that were launched in the past.
-        for (let t = tStart, i = 0; (t > -(tStart+this.durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
+        const durationOfSledTrajectory = refFrame.curve.getDuration()
+        for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
           // Calculate where along the launcher to place the vehicle. 
           const deltaT = adjustedTimeSinceStart - t
           const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
@@ -538,13 +538,13 @@ export class launcher {
     this.numVirtualMassDriverBrackets = newNumVirtualMassDriverBrackets
 
     // Update launch trajectory markers
-    this.LaunchTrajectoryMarker0.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker1.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker5.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.LaunchTrajectoryMarker6.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker0.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker1.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker5.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryMarker6.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
 
     // Update 2D chart
     this.xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
@@ -611,6 +611,7 @@ export class launcher {
       planetCoordSys.remove( this.launchTrajectoryMesh )
     }
     this.launchTrajectoryMesh = new THREE.LineSegments(launchTrajectoryGeometry, launchTrajectoryMaterial)
+    this.launchTrajectoryMesh.name = 'launchTrajectory'
     this.launchTrajectoryMesh.visible = dParamWithUnits['showLaunchTrajectory'].value
     this.launchTrajectoryMesh.renderOrder = 1
     planetCoordSys.add( this.launchTrajectoryMesh )
@@ -923,9 +924,9 @@ export class launcher {
 
     updateModelList.forEach(entry => {
       Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
-        // if ((objectKey=='virtualLaunchVehicles') && (objectValue.length>0) && (entry['wedgeIndex']>91)) {
-        //   console.log("")
-        // }
+        if ((objectKey=='virtualLaunchSleds') && (objectValue.length>0)) {
+          console.log("")
+        }
         if (objectValue.length>0) {
           const classIsDynamic = objectValue[0].constructor.isDynamic
           const classHasChanged = objectValue[0].constructor.hasChanged
@@ -1053,7 +1054,8 @@ launcher.prototype.kepler_U = OrbitMath.define_kepler_U()
 launcher.prototype.RV_from_R0V0andt = OrbitMath.define_RV_from_R0V0andt()
 launcher.prototype.orbitalElementsFromStateVector = OrbitMath.define_orbitalElementsFromStateVector()
 //launcher.prototype.calculateTimeToApogeeFromOrbitalElements = OrbitMath.define_calculateTimeToApogeeFromOrbitalElements()
-launcher.prototype.GetAltitudeDistanceAndVelocity = OrbitMath.define_GetAltitudeDistanceAndVelocity()
-launcher.prototype.GetAirDensity = OrbitMath.define_GetAirDensity()
-launcher.prototype.GetAerodynamicDrag = OrbitMath.define_GetAerodynamicDrag()
+launcher.prototype.getAltitudeDistanceAndVelocity = OrbitMath.define_getAltitudeDistanceAndVelocity()
+launcher.prototype.getAirDensity = OrbitMath.define_getAirDensity()
+launcher.prototype.getAerodynamicDrag = OrbitMath.define_getAerodynamicDrag()
+launcher.prototype.saveGeometryAsSTL = SaveGeometryAsSTL.define_SaveGeometryAsSTL()
 

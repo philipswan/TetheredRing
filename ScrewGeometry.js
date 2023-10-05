@@ -20,7 +20,8 @@ class ScrewGeometry extends BufferGeometry {
 		initialDistance = 5,
 		revolutionsPerSecond = 1,
 		acceleration = 0,
-		radialSegments = 8) {
+		radialSegments = 8,
+		minLengthSegmentsPerMeter = 4) {
 
 		super();
 
@@ -38,6 +39,7 @@ class ScrewGeometry extends BufferGeometry {
 			revolutionsPerSecond: revolutionsPerSecond,
 			acceleration: acceleration,
 			radialSegments: radialSegments,
+			minLengthSegmentsPerMeter: minLengthSegmentsPerMeter
 		};
 
 		// helper variables
@@ -61,14 +63,20 @@ class ScrewGeometry extends BufferGeometry {
 		const cA = 0.5 * acceleration
 		const cB = initialVelocity
 		const cC = initialDistance - distanceAlongScrew
-		const time0 = (-cB + Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
-		const time1 = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
-		const time = Math.max(time0, time1)
+    let time
+    if (cB**2 - 4*cA*cC < 0) {
+      time = 0
+    }
+    else {
+    	const time0 = (-cB + Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+		  const time1 = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+  		time = Math.max(time0, time1)
+    }
 		const rotations = revolutionsPerSecond * time
 		const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
 		const rateOfChangeInForwardDisplacement = initialVelocity + acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
 
-		const minimumTubularSegments = Math.floor(4 * screwLength)
+		const minimumTubularSegments = Math.floor(minLengthSegmentsPerMeter * screwLength)
 		const tubularSegments = Math.ceil(Math.sqrt(rateOfChangeInRotationalDistance**2 + rateOfChangeInForwardDisplacement**2) / rateOfChangeInForwardDisplacement * minimumTubularSegments)
 
 		// create buffer data
@@ -116,7 +124,7 @@ class ScrewGeometry extends BufferGeometry {
 			// we use getPointAt to sample evenly distributed points from the given path
 
 			P = new Vector3(0, (i / tubularSegments - 0.5) * screwLength, 0 );
-            // Note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+						// Note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
 			const T = new Vector3(0, 1, 0)
 			const N = new Vector3(-1, 0, 0)  // z-axis is down
 			const B = new Vector3(0, 0, 1)   // x-axis is to the right when looking at the back of the launcher
@@ -127,7 +135,13 @@ class ScrewGeometry extends BufferGeometry {
 			const cA = 0.5 * acceleration
 			const cB = initialVelocity
 			const cC = initialDistance - distanceAlongScrew
-			const time = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+      let time
+      if (cB**2 - 4*cA*cC < 0) {
+        time = 0
+      }
+      else {
+			  time = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
+      }
 			// const time0 = (-cB + Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
 			// const time1 = (-cB - Math.sqrt(cB**2 - 4*cA*cC)) / (2*cA)
 			// const time = Math.max(time0, time1)
@@ -343,8 +357,14 @@ class ScrewGeometry extends BufferGeometry {
 						const d = verticiesPerThread * threadStarts * ( i - 1 ) + l;
 
 						// faces
-						indices.push( a, b, d );
-						indices.push( b, c, d );
+						// if (vertexArray[a].distanceTo(vertexArray[c]) > vertexArray[b].distanceTo(vertexArray[d])) {
+							// indices.push( a, b, d );
+							// indices.push( b, c, d );
+						// }
+						// else {
+							indices.push( a, b, c );
+							indices.push( c, d, a );
+						// }
 					}
 					
 					// Generate the indices for the shaft
@@ -356,8 +376,14 @@ class ScrewGeometry extends BufferGeometry {
 						const d = verticiesPerThread * threadStarts * ( i - 1 ) + l;
 
 						// faces
-						indices.push( a, b, d );
-						indices.push( b, c, d );
+						// if (vertexArray[a].distanceTo(vertexArray[c]) > vertexArray[b].distanceTo(vertexArray[d])) {
+							// indices.push( a, b, d );
+							// indices.push( b, c, d );
+						// }
+						// else {
+							indices.push( a, b, c );
+							indices.push( c, d, a );
+						// }
 					}
 
 				}

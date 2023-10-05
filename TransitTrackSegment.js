@@ -32,7 +32,7 @@ export class virtualTransitTrackSegment {
       }
 
       virtualTransitTrackSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
-      virtualTransitTrackSegment.isVisible = dParamWithUnits['showTransitTrack'].value
+      virtualTransitTrackSegment.isVisible = dParamWithUnits['showTransitTracks'].value
       virtualTransitTrackSegment.isDynamic =  false
       virtualTransitTrackSegment.hasChanged = true
     }
