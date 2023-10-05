@@ -1114,9 +1114,7 @@ planetSpec['airDensityAtAltitude'] = function(a) {
   const c_1	= -8.61651E-05
   const c_0	= 2.16977E-01
   const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
-
-  // Hack!!!!!
-  //return 0 //airDensityAtAltitude  // In kg/m^3
+  return airDensityAtAltitude  // In kg/m^3
 
 }
 
@@ -3154,7 +3152,7 @@ function recomputeNearFarClippingPlanes() {
     camera.near = nonGUIParams['nearClip']
     camera.far = nonGUIParams['farClip']
   }
-  
+
   //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)
   camera.updateProjectionMatrix()
   nearClippingPlane = camera.near

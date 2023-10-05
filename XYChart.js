@@ -225,9 +225,14 @@ export class XYChart {
       point.z *= 100 / maxZ
     })
 
+    let alreadyReported = false
     curveXYPoints.forEach(point => {
       if (!isFinite(point.x) || !isFinite(point.y) || !isFinite(point.z)) {
-        console.error('Non-finite value detected in curve points for '+curveName+'.')
+        if (!alreadyReported) {
+          console.error('Non-finite value detected in curve points for '+curveName+'.')
+          alreadyReported = true
+        }
+        point.y = 0
       }
     })
     let lastUnculledPoint = curveXYPoints[0]
