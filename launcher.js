@@ -181,7 +181,7 @@ export class launcher {
       this.unallocatedMassDriver2BracketModels.push(tempModel)
     }
 
-    //this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+    this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
   }
 
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv) {
@@ -249,7 +249,7 @@ export class launcher {
     })
     this.actionFlags = new Array(maxNumZones).fill(0)
 
-    this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+    //this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
     this.prevRefFrames = this.refFrames
 
@@ -561,25 +561,32 @@ export class launcher {
     
     let tStep = 0.1 // second
     let deltaT = 0
-    let res, relevantCurve, d
+    let res, relevantCurve, i
 
     res = this.polyCurveForrf3.findRelevantCurve(deltaT)
     relevantCurve = res.relevantCurve
-    d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-    prevVehiclePosition = relevantCurve.getPointAt(d)
+    // d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+    i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+    const refPosition = relevantCurve.getPoint(i)
+
+    res = this.polyCurveForrf3.findRelevantCurve(deltaT)
+    relevantCurve = res.relevantCurve
+    i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+    prevVehiclePosition = relevantCurve.getPoint(i).sub(refPosition)
 
     deltaT += tStep
 
     for (; deltaT < totalDuration; deltaT += tStep) {
+      res = this.polyCurveForrf3.findRelevantCurve(deltaT)
+      relevantCurve = res.relevantCurve
+      //d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+      const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
       try {
-        res = this.polyCurveForrf3.findRelevantCurve(deltaT)
-        relevantCurve = res.relevantCurve
-        d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-        currVehiclePosition = relevantCurve.getPointAt(d)
+        currVehiclePosition = relevantCurve.getPoint(i).sub(refPosition)
       }
       catch (e) {
         console.log(e)
-        currVehiclePosition = relevantCurve.getPointAt(d)
+        currVehiclePosition = relevantCurve.getPoint(i).sub(refPosition)
       } 
       launchTrajectoryPoints.push(prevVehiclePosition)
       launchTrajectoryPoints.push(currVehiclePosition)
@@ -612,6 +619,7 @@ export class launcher {
     this.launchTrajectoryMesh.name = 'launchTrajectory'
     this.launchTrajectoryMesh.visible = dParamWithUnits['showLaunchTrajectory'].value
     this.launchTrajectoryMesh.renderOrder = 1
+    this.launchTrajectoryMesh.position.copy(refPosition)
     planetCoordSys.add( this.launchTrajectoryMesh )
 
   }
