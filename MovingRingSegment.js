@@ -31,7 +31,11 @@ export class movingRingSegmentModel {
 
     const movingRingGeometry = new THREE.ExtrudeGeometry(movingRingShape, movingRingExtrudeSettings)
     const movingRingTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
-    const movingRingMaterial = new THREE.MeshPhongMaterial( {transparent: false, shininess: 10, map: movingRingTexture})
+    //movingRingTexture.wrapS = THREE.RepeatWrapping;
+    movingRingTexture.wrapT = THREE.MirrorWrapping;
+    movingRingTexture.repeat.set( 1, 2 );
+    movingRingTexture.rotation = Math.PI/2
+    const movingRingMaterial = new THREE.MeshPhongMaterial( {transparent: false, side: THREE.DoubleSide, shininess: 10, map: movingRingTexture})
     const movingRingMesh = new THREE.Mesh(movingRingGeometry, movingRingMaterial)
     return movingRingMesh
 
@@ -62,7 +66,7 @@ export class virtualMovingRingSegment {
         virtualMovingRingSegment.movingRingRelativePosition_y = tram.offset_y(movingRingOutwardOffset, movingRingUpwardOffset, crv.currentEquivalentLatitude)
         virtualMovingRingSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
         virtualMovingRingSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
-        virtualMovingRingSegment.movingRingRotZ = crv.currentEquivalentLatitude
+        virtualMovingRingSegment.movingRingRotZ = Math.PI/2 // crv.currentEquivalentLatitude   // ToDo - The actual angle is a function of the forces that were calculated in tether.js
         virtualMovingRingSegment.isVisible = dParamWithUnits['showMovingRings'].value
         virtualMovingRingSegment.isDynamic =  true
         virtualMovingRingSegment.hasChanged = true

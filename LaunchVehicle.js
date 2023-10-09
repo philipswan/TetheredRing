@@ -168,7 +168,6 @@ export class launchVehicleModel {
       if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
       for (let i=0; i<n; i++) {
         const tempModel = object.clone()
-        myScene.add(tempModel)
         unallocatedModelsList.push(tempModel)
       }
       
@@ -179,153 +178,161 @@ export class launchVehicleModel {
 
 export class virtualLaunchVehicle {
 
-    constructor(timeLaunched, unallocatedModelsArray) {
-        // The virtual vehicle has a position along the launch trajectory curve.
-        this.timeLaunched = timeLaunched
-        this.unallocatedModels = unallocatedModelsArray
-        this.model = null
+  constructor(timeLaunched, unallocatedModelsArray) {
+
+    // The virtual vehicle has a position along the launch trajectory curve.
+    this.timeLaunched = timeLaunched
+    this.unallocatedModels = unallocatedModelsArray
+    this.model = null
+
+  }
+  
+  // The following properties are common to all virtual vehicles...
+  static currentEquivalentLatitude
+  static isVisible
+  static isDynamic
+  static hasChanged
+  
+  static update(dParamWithUnits, planetSpec) {
+
+    virtualLaunchVehicle.planetSpec = planetSpec
+
+    virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
+    virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
+    virtualLaunchVehicle.forwardsOffset = dParamWithUnits['launchVehicleForwardsOffset'].value
+    virtualLaunchVehicle.bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
+    virtualLaunchVehicle.noseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
+    virtualLaunchVehicle.flameLength = dParamWithUnits['launchVehicleFlameLength'].value
+    virtualLaunchVehicle.shockwaveConeLength = dParamWithUnits['launchVehicleShockwaveConeLength'].value
+    virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
+    virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
+    virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    virtualLaunchVehicle.launchVehicleAdaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
+    virtualLaunchVehicle.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
+
+    virtualLaunchVehicle.isDynamic =  true
+    virtualLaunchVehicle.hasChanged = true
+
+  }
+
+  placeAndOrientModel(om, refFrame) {
+
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart)
+    const deltaT = adjustedTimeSinceStart - this.timeLaunched
+    const res = refFrame.curve.findRelevantCurve(deltaT)
+    const relevantCurve = res.relevantCurve
+    //const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+    const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+
+    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+
+    const pointOnRelevantCurve = relevantCurve.getPoint(i)
+    const forward = relevantCurve.getTangent(i)
+    const upward = relevantCurve.getNormal(i)
+    const rightward = relevantCurve.getBinormal(i)
+
+    const orientation = new THREE.Quaternion()
+    if (relevantCurve.name==='freeFlightPositionCurve') {
+      const tangent = relevantCurve.freeFlightOrientationCurve.getPoint(i)
+      const normal = relevantCurve.getBinormal(i).cross(tangent)
+      const q1 = new THREE.Quaternion()
+      q1.setFromUnitVectors(modelForward, tangent)
+      const rotatedObjectUpwardVector = modelUpward.clone().applyQuaternion(q1)
+      orientation.setFromUnitVectors(rotatedObjectUpwardVector, normal)
+      orientation.multiply(q1)
     }
-    
-    // The following properties are common to all virtual vehicles...
-    static currentEquivalentLatitude
-    static isVisible
-    static isDynamic
-    static hasChanged
-    
-    static update(dParamWithUnits, planetSpec) {
-
-        virtualLaunchVehicle.planetSpec = planetSpec
-    
-        virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
-        virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
-        virtualLaunchVehicle.forwardsOffset = dParamWithUnits['launchVehicleForwardsOffset'].value
-        virtualLaunchVehicle.bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-        virtualLaunchVehicle.noseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
-        virtualLaunchVehicle.flameLength = dParamWithUnits['launchVehicleFlameLength'].value
-        virtualLaunchVehicle.shockwaveConeLength = dParamWithUnits['launchVehicleShockwaveConeLength'].value
-        virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
-        virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
-        virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-        virtualLaunchVehicle.launchVehicleAdaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
-        virtualLaunchVehicle.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
-
-        virtualLaunchVehicle.isDynamic =  true
-        virtualLaunchVehicle.hasChanged = true
+    else {
+      relevantCurve.getQuaternion(i, modelForward, modelUpward, orientation)
     }
 
-    placeAndOrientModel(om, refFrame) {
+    om.position.copy(pointOnRelevantCurve)
+        .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
+        .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
+        .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
+    om.setRotationFromQuaternion(orientation)
 
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart)
-        const deltaT = adjustedTimeSinceStart - this.timeLaunched
-        const res = refFrame.curve.findRelevantCurve(deltaT)
-        const relevantCurve = res.relevantCurve
-        //const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-        const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+    om.visible = virtualLaunchVehicle.isVisible
 
-        const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-        const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+    const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetSpec.radius
+    const airDensity = virtualLaunchVehicle.planetSpec.airDensityAtAltitude(altitude)
+    const speedOfSound = virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude(altitude)
 
-        const pointOnRelevantCurve = relevantCurve.getPoint(i)
-        const forward = relevantCurve.getTangent(i)
-        const upward = relevantCurve.getNormal(i)
-        const rightward = relevantCurve.getBinormal(i)
-
-        const orientation = new THREE.Quaternion()
-        if (relevantCurve.name==='freeFlightPositionCurve') {
-          const tangent = relevantCurve.freeFlightOrientationCurve.getPoint(i)
-          const normal = relevantCurve.getBinormal(i).cross(tangent)
-          const q1 = new THREE.Quaternion()
-          q1.setFromUnitVectors(modelForward, tangent)
-          const rotatedObjectUpwardVector = modelUpward.clone().applyQuaternion(q1)
-          orientation.setFromUnitVectors(rotatedObjectUpwardVector, normal)
-          orientation.multiply(q1)
+    // Turn on the flame at the exit of the launch tube
+    // ToDo: Some of this code does not need to be executed for every virtual vehicle.  We could improve performance it we can find a way to
+    // execute it just once per animated frame.
+    const flame_model = om.getObjectByName('launchVehicle_flame')
+    const pointlight_model = om.getObjectByName('launchVehicle_pointLight')
+    const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
+    let fuelFlowRateFactor
+    let shockwaveConeSizeFactor
+    let shockwaveConeLengthFactor
+    if (relevantCurve.name==='freeFlightPositionCurve') {
+      if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
+        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(i)
+        const vehicleAirSpeed = vehicleTelemetry.x
+        const aerodynamicDrag = vehicleTelemetry.y 
+        const fuelFlowRate = vehicleTelemetry.z
+        fuelFlowRateFactor = fuelFlowRate / virtualLaunchVehicle.maxPropellantMassFlowRate
+        shockwaveConeSizeFactor = aerodynamicDrag / 2.279e6   // Using the max thrust of an RS-25 vacuum engine as a baseline
+        shockwaveConeLengthFactor = vehicleAirSpeed / speedOfSound
+        flame_model.visible = (fuelFlowRateFactor>0.01)
+        if (vehicleAirSpeed>speedOfSound) {
+          shockwaveCone_model.visible = true
         }
         else {
-          relevantCurve.getQuaternion(i, modelForward, modelUpward, orientation)
-        }
-
-        om.position.copy(pointOnRelevantCurve)
-            .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
-            .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
-            .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
-        om.setRotationFromQuaternion(orientation)
-    
-        om.visible = virtualLaunchVehicle.isVisible
-    
-        const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetSpec.radius
-        const airDensity = virtualLaunchVehicle.planetSpec.airDensityAtAltitude(altitude)
-        const speedOfSound = virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude(altitude)
-
-        // Turn on the flame at the exit of the launch tube
-        // ToDo: Some of this code does not need to be executed for every virtual vehicle.  We could improve performance it we can find a way to
-        // execute it just once per animated frame.
-        const flame_model = om.getObjectByName('launchVehicle_flame')
-        const pointlight_model = om.getObjectByName('launchVehicle_pointLight')
-        const shockwaveCone_model = om.getObjectByName('launchVehicle_shockwaveCone')
-        let fuelFlowRateFactor
-        let shockwaveConeSizeFactor
-        let shockwaveConeLengthFactor
-        if (relevantCurve.name==='freeFlightPositionCurve') {
-          if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-            const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(i)
-            const vehicleAirSpeed = vehicleTelemetry.x
-            const aerodynamicDrag = vehicleTelemetry.y 
-            const fuelFlowRate = vehicleTelemetry.z
-            fuelFlowRateFactor = fuelFlowRate / virtualLaunchVehicle.maxPropellantMassFlowRate
-            shockwaveConeSizeFactor = aerodynamicDrag / 2.279e6   // Using the max thrust of an RS-25 vacuum engine as a baseline
-            shockwaveConeLengthFactor = vehicleAirSpeed / speedOfSound
-            flame_model.visible = (fuelFlowRateFactor>0.01)
-            if (vehicleAirSpeed>speedOfSound) {
-              shockwaveCone_model.visible = true
-            }
-            else {
-              shockwaveCone_model.visible = false
-            }
-          }
-          else {
-            flame_model.visible = (airDensityFactor>0.1)
-            fuelFlowRateFactor = airDensityFactor
-            shockwaveCone_model.visible = (airDensityFactor>0.01)
-            shockwaveConeSizeFactor = Math.min(1, airDensity/0.0184)   // Using the max thrust of an RS-25 vacuum engine as a baseline
-            shockwaveConeLengthFactor = 1
-          }
-
-          if (flame_model.visible) {
-            flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
-            flame_model.scale.set(1, fuelFlowRateFactor, 1)
-          }
-
-          if (shockwaveCone_model.visible) {
-            const shockwaveConeSizeFactorScaled = shockwaveConeSizeFactor * (0.9 + Math.random() * 0.2)
-            const lengthScale = shockwaveConeSizeFactorScaled * shockwaveConeLengthFactor
-            const widthScale = shockwaveConeSizeFactorScaled
-            const yPos = virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength - virtualLaunchVehicle.shockwaveConeLength*lengthScale/2
-            shockwaveCone_model.position.set(0, yPos, 0)
-            shockwaveCone_model.scale.set(widthScale, lengthScale, widthScale)
-            shockwaveCone_model.updateMatrixWorld()
-          }
-        }
-        else {
-          flame_model.visible = false
           shockwaveCone_model.visible = false
         }
+      }
+      else {
+        flame_model.visible = (airDensityFactor>0.1)
+        fuelFlowRateFactor = airDensityFactor
+        shockwaveCone_model.visible = (airDensityFactor>0.01)
+        shockwaveConeSizeFactor = Math.min(1, airDensity/0.0184)   // Using the max thrust of an RS-25 vacuum engine as a baseline
+        shockwaveConeLengthFactor = 1
+      }
 
-        pointlight_model.visible = virtualLaunchVehicle.showLaunchVehiclePointLight
-        om.matrixValid = false
+      if (flame_model.visible) {
+        flame_model.position.set(0, -virtualLaunchVehicle.flameLength*fuelFlowRateFactor/2, 0)
+        flame_model.scale.set(1, fuelFlowRateFactor, 1)
+      }
 
+      if (shockwaveCone_model.visible) {
+        const shockwaveConeSizeFactorScaled = shockwaveConeSizeFactor * (0.9 + Math.random() * 0.2)
+        const lengthScale = shockwaveConeSizeFactorScaled * shockwaveConeLengthFactor
+        const widthScale = shockwaveConeSizeFactorScaled
+        const yPos = virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength - virtualLaunchVehicle.shockwaveConeLength*lengthScale/2
+        shockwaveCone_model.position.set(0, yPos, 0)
+        shockwaveCone_model.scale.set(widthScale, lengthScale, widthScale)
+        shockwaveCone_model.updateMatrixWorld()
+      }
+    }
+    else {
+      flame_model.visible = false
+      shockwaveCone_model.visible = false
     }
 
-    getFuturePosition(refFrame, timeDeltaInSeconds) {
+    pointlight_model.visible = virtualLaunchVehicle.showLaunchVehiclePointLight
+    om.matrixValid = false
 
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
-        const deltaT = adjustedTimeSinceStart - this.timeLaunched
-        const res = refFrame.curve.findRelevantCurve(deltaT)
-        const relevantCurve = res.relevantCurve
-        //const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
-        const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
-        const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, i))
-        return pointOnRelevantCurve
+  }
 
+  getFuturePosition(refFrame, timeDeltaInSeconds) {
+
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+    const deltaT = adjustedTimeSinceStart - this.timeLaunched
+    if (deltaT<=refFrame.curve.getDuration()) {
+      const res = refFrame.curve.findRelevantCurve(deltaT)
+      const relevantCurve = res.relevantCurve
+      //const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
+      const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+      const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, i))
+      return pointOnRelevantCurve
     }
+    else {
+      return null
+    }
+
+  }
       
 }

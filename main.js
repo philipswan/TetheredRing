@@ -189,7 +189,7 @@ const guidParamWithUnits = {
 
   mainRingUpwardOffset: {value: 0, units: "m", autoMap: true, min: -100, max: 100, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
   mainRingOutwardOffset: {value: 0, units: 'm', autoMap: true, min: -10, max: 10, step: 0.001, updateFunction: updateTransitsystem, folder: folderEngineering},
-  stationaryRingTubeRadius: {value: 0.5, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
+  stationaryRingTubeRadius: {value: 0.25, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   movingRingHeight: {value: 0.3, units: 'm', autoMap: true, min: 0.01, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   movingRingThickness: {value: 0.05, units: 'm', autoMap: true, min: 0.01, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   movingRingTubeRadius: {value: 0.4, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -199,14 +199,14 @@ const guidParamWithUnits = {
   // Engineering Parameters - Moving Ring and Stationary Rings
   movingRingNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   numVirtualStationaryRingSegments: {value: 40000, units: "", autoMap: true, min: 0, max: 400000, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
-  numVirtualMovingRingSegments: {value: 40000, units: "", autoMap: true, min: 0, max: 400000, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numVirtualMovingRingSegments: {value: 400000, units: "", autoMap: true, min: 0, max: 400000, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   movingRingsAverageDensity: {value: 8000, units: 'kg/m3', autoMap: true, min: 0, max: 4000, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   statorMagnetHeight: {value: 0.3, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   statorMagnetThickness: {value: 0.05, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   statorMagnetAirGap: {value: 0.001, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
   statorMagnetNumModels: {value: 512, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
-  numVirtualStatorMagnetSegments: {value: 40000, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numVirtualStatorMagnetSegments: {value: 400000, units: "", autoMap: true, min: 0, max: 400000, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
   
   // Engineering Parameters - Transit System
   transitTubeTubeRadius: {value: 6, units: 'm', autoMap: true, min: 1, max: 20, updateFunction: updateTransitsystem, folder: folderEngineering},
@@ -1136,9 +1136,9 @@ let planetMeshes, atmosphereMesh, backgroundPatchMesh
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value || dParamWithUnits['showBackgroundPatch'].value) {
   [planetMeshes, atmosphereMesh, backgroundPatchMesh] = new planet(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
-  planetCoordSys.add(planetMeshes)
-  planetCoordSys.add(atmosphereMesh)
-  planetCoordSys.add(backgroundPatchMesh)
+  if (dParamWithUnits['showEarthsSurface']) planetCoordSys.add(planetMeshes)
+  if (dParamWithUnits['showEarthsAtmosphere']) planetCoordSys.add(atmosphereMesh)
+  if (dParamWithUnits['showBackgroundPatch']) planetCoordSys.add(backgroundPatchMesh)
 }
 
 let backgroundPatchActive = false
@@ -1713,44 +1713,50 @@ function renderFrame() {
         const localTrackingPoint = closestVirtualElevatorCar.elevatorCar.getFuturePosition(closestVirtualElevatorCar.refFrame, 0)
         trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
       }
-      trackingPointMarkerMesh.position.copy(trackingPoint)
-      trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
 
-      if (stationaryCameraTrackingMode) {
-        orbitControls.update()
-        const offset = trackingPoint.clone().sub(lastTrackingPoint)
-        if (!tweeningActive) {
-          orbitControls.target.add(offset)
-          orbitControls.enableDamping = true
+      if (trackingPoint) {
+        trackingPointMarkerMesh.position.copy(trackingPoint)
+        trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
+
+        if (stationaryCameraTrackingMode) {
+          orbitControls.update()
+          const offset = trackingPoint.clone().sub(lastTrackingPoint)
+          if (!tweeningActive) {
+            orbitControls.target.add(offset)
+            orbitControls.enableDamping = true
+          }
+          else {
+            orbitControls.enableDamping = false
+          }
+          orbitControls.rotationSpeed = 0.1
+          orbitControls.enable = true
         }
         else {
-          orbitControls.enableDamping = false
+          const offset = trackingPoint.clone().sub(lastTrackingPoint)
+          const angleOffset = new THREE.Quaternion().setFromUnitVectors(lastTrackingPoint.clone().normalize(), trackingPoint.clone().normalize())
+
+          if (!tweeningActive) {
+            orbitControls.target.add(offset)
+            orbitControls.upDirection.applyQuaternion(angleOffset)
+            camera.up.applyQuaternion(angleOffset)
+            orbitControls.object.position.add(offset)
+            orbitControls.enableDamping = true
+          }
+          else {
+            orbitControls.enableDamping = false
+          }
+          orbitControls.enableDamping = true
+          orbitControls.rotationSpeed = 1
+          orbitControls.enable = true
         }
-        orbitControls.rotationSpeed = 0.1
-        orbitControls.enable = true
+        orbitControlsMarkerMesh.position.copy(orbitControls.target)
+        orbitControlsMarkerMesh.visible = dParamWithUnits['showMarkers'].value
       }
       else {
-        const offset = trackingPoint.clone().sub(lastTrackingPoint)
-        const angleOffset = new THREE.Quaternion().setFromUnitVectors(lastTrackingPoint.clone().normalize(), trackingPoint.clone().normalize())
-
-        if (!tweeningActive) {
-          orbitControls.target.add(offset)
-          orbitControls.upDirection.applyQuaternion(angleOffset)
-          camera.up.applyQuaternion(angleOffset)
-          orbitControls.object.position.add(offset)
-          orbitControls.enableDamping = true
-        }
-        else {
-          orbitControls.enableDamping = false
-        }
-        orbitControls.enableDamping = true
-        orbitControls.rotationSpeed = 1
-        orbitControls.enable = true
+        trackingPointMarkerMesh.visible = false
       }
-      orbitControlsMarkerMesh.position.copy(orbitControls.target)
-      orbitControlsMarkerMesh.visible = dParamWithUnits['showMarkers'].value
     }
-    lastTrackingPoint = trackingPoint.clone()
+    lastTrackingPoint = (trackingPoint) ? trackingPoint.clone() : null
   }
 
   //planetMesh.rotation.y += 0.000001
@@ -2405,6 +2411,21 @@ function onKeyDown( event ) {
           setupTweeningOperation()
         }
       }
+      break
+    case 51: /*3*/
+      const instances = {}
+      scene.traverse(child => {
+        const objName = child.name || 'noName'
+        if (instances[objName]) {
+          instances[objName]++
+        }
+        else {
+          instances[objName] = 1
+        }
+      })
+      Object.entries(instances).forEach(([k, v]) => {
+        console.log(k, v)
+      })
       break
     case 56: /*8*/
       // Put the moon into the camera's field of view

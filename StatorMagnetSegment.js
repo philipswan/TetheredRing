@@ -43,7 +43,11 @@ export class statorMagnetSegmentModel {
 
     const statorMagnetGeometry = new THREE.ExtrudeGeometry(statorMagnetShape, statorMagnetExtrudeSettings)
     const statorMagnetTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
-    const statorMagnetMaterial = new THREE.MeshPhongMaterial( {transparent: false, shininess: 10, map: statorMagnetTexture})
+    statorMagnetTexture.wrapS = THREE.RepeatWrapping;
+    //statorMagnetTexture.wrapT = THREE.RepeatWrapping;
+    statorMagnetTexture.repeat.set( 1, 50 );
+    //statorMagnetTexture.rotation = Math.PI/2
+    const statorMagnetMaterial = new THREE.MeshPhongMaterial( {transparent: false, side: THREE.DoubleSide, map: statorMagnetTexture})
     const statorMagnetMesh = new THREE.Mesh(statorMagnetGeometry, statorMagnetMaterial)
     return statorMagnetMesh
 
@@ -52,51 +56,56 @@ export class statorMagnetSegmentModel {
 }
 
 export class virtualStatorMagnetSegment {
-    constructor(positionInFrameOfReference, index, unallocatedModelsArray) {
-        this.p = positionInFrameOfReference
-        this.index = index
-        this.unallocatedModels = unallocatedModelsArray
+  constructor(positionInFrameOfReference, index, unallocatedModelsArray) {
+    this.p = positionInFrameOfReference
+    this.index = index
+    this.unallocatedModels = unallocatedModelsArray
+  }
+
+  // The following properties are common to all virtual habitats...
+  static currentEquivalentLatitude
+  static statorMagnetRotZ
+  static isVisible
+  static isDynamic
+  static hasChanged
+
+  static update(dParamWithUnits, crv) {
+
+    const statorMagnetOutwardOffset = dParamWithUnits['mainRingOutwardOffset'].value
+    const statorMagnetUpwardOffset = dParamWithUnits['mainRingUpwardOffset'].value
+    virtualStatorMagnetSegment.mro = (dParamWithUnits['numMainRings'].value - 1)/2
+    virtualStatorMagnetSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
+    virtualStatorMagnetSegment.statorMagnetRelativePosition_r = tram.offset_r(statorMagnetOutwardOffset, statorMagnetUpwardOffset, crv.currentEquivalentLatitude)
+    virtualStatorMagnetSegment.statorMagnetRelativePosition_y = tram.offset_y(statorMagnetOutwardOffset, statorMagnetUpwardOffset, crv.currentEquivalentLatitude)
+    virtualStatorMagnetSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
+    virtualStatorMagnetSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
+    virtualStatorMagnetSegment.statorMagnetRotZ = Math.PI/2 // crv.currentEquivalentLatitude // ToDo - The actual angle is a function of the forces that were calculated in tether.js
+    virtualStatorMagnetSegment.isVisible = dParamWithUnits['showStatorMagnets'].value
+    virtualStatorMagnetSegment.isDynamic =  false
+    virtualStatorMagnetSegment.hasChanged = true
+
+  }
+
+  placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
+
+    const modelsTrackPosition = (this.p + refFrame.p) % 1 
+    if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
+      console.log("error!!!")
+    }
+    else {
+      const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
+      const angle = 2 * Math.PI * modelsTrackPosition
+      om.position.set(
+        pointOnRingCurve.x + virtualStatorMagnetSegment.statorMagnetRelativePosition_r * Math.cos(angle),
+        pointOnRingCurve.y + virtualStatorMagnetSegment.statorMagnetRelativePosition_y + (this.index-virtualStatorMagnetSegment.mro) * virtualStatorMagnetSegment.mainRingSpacing,
+        pointOnRingCurve.z + virtualStatorMagnetSegment.statorMagnetRelativePosition_r * Math.sin(angle))
+      om.rotation.set(0, -angle, virtualStatorMagnetSegment.statorMagnetRotZ)
+      om.visible = virtualStatorMagnetSegment.isVisible
+      om.matrixValid = false
+      if (this.perfOptimizedThreeJS) om.freeze()
     }
 
-    // The following properties are common to all virtual habitats...
-    static currentEquivalentLatitude
-    static statorMagnetRotZ
-    static isVisible
-    static isDynamic
-    static hasChanged
+  }
 
-    static update(dParamWithUnits, crv) {
-        const statorMagnetOutwardOffset = dParamWithUnits['mainRingOutwardOffset'].value
-        const statorMagnetUpwardOffset = dParamWithUnits['mainRingUpwardOffset'].value
-        virtualStatorMagnetSegment.mro = (dParamWithUnits['numMainRings'].value - 1)/2
-        virtualStatorMagnetSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-        virtualStatorMagnetSegment.statorMagnetRelativePosition_r = tram.offset_r(statorMagnetOutwardOffset, statorMagnetUpwardOffset, crv.currentEquivalentLatitude)
-        virtualStatorMagnetSegment.statorMagnetRelativePosition_y = tram.offset_y(statorMagnetOutwardOffset, statorMagnetUpwardOffset, crv.currentEquivalentLatitude)
-        virtualStatorMagnetSegment.mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-        virtualStatorMagnetSegment.currentEquivalentLatitude = crv.currentEquivalentLatitude
-        virtualStatorMagnetSegment.statorMagnetRotZ = crv.currentEquivalentLatitude
-        virtualStatorMagnetSegment.isVisible = dParamWithUnits['showStatorMagnets'].value
-        virtualStatorMagnetSegment.isDynamic =  false
-        virtualStatorMagnetSegment.hasChanged = true
-    }
-
-    placeAndOrientModel(om, refFrame, wedgeToCameraDistance) {
-        const modelsTrackPosition = (this.p + refFrame.p) % 1 
-        if (modelsTrackPosition==='undefined' || (modelsTrackPosition<0) || (modelsTrackPosition>1)) {
-            console.log("error!!!")
-        }
-        else {
-            const pointOnRingCurve = refFrame.curve.getPoint(modelsTrackPosition)
-            const angle = 2 * Math.PI * modelsTrackPosition
-            om.position.set(
-                pointOnRingCurve.x + virtualStatorMagnetSegment.statorMagnetRelativePosition_r * Math.cos(angle),
-                pointOnRingCurve.y + virtualStatorMagnetSegment.statorMagnetRelativePosition_y + (this.index-virtualStatorMagnetSegment.mro) * virtualStatorMagnetSegment.mainRingSpacing,
-                pointOnRingCurve.z + virtualStatorMagnetSegment.statorMagnetRelativePosition_r * Math.sin(angle))
-            om.rotation.set(0, -angle, virtualStatorMagnetSegment.statorMagnetRotZ)
-            om.visible = virtualStatorMagnetSegment.isVisible
-            om.matrixValid = false
-            if (this.perfOptimizedThreeJS) om.freeze()
-        }
-    }
 }
   

@@ -199,7 +199,6 @@ export class launchSledModel {
       if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
       for (let i=0; i<n; i++) {
           const tempModel = object.clone()
-          myScene.add(tempModel)
           unallocatedModelsList.push(tempModel)
       }
     }

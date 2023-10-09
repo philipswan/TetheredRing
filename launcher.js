@@ -2,7 +2,7 @@ import * as THREE from 'three'
 //import { XYChart } from './XYChart.js'
 import { SuperCurvePath } from './SuperCurves.js'
 import * as tram from './tram.js'
-import { referenceFrame } from './referenceFrame.js'
+import { referenceFrame } from './ReferenceFrame.js'
 import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
 import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
 import { massDriverTubeModel, virtualMassDriverTube } from './MassDriverTube.js'
@@ -123,12 +123,11 @@ export class launcher {
 
     // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
     // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
-    // const rf1 = new referenceFrame(launchCurve, numWedges, this.cameraRange, 0, 0, 0, 'staticLaunchSledReferenceFrame')
+    // const rf1 = new referenceFrame(launchCurve, numZones, this.cameraRange, 0, 0, 0, 'staticLaunchSledReferenceFrame')
     // rf1.addVirtualObject('virtualLaunchSleds')
     // rf1.addVirtualObject('virtualMassDriverRails')
     // this.refFrames.push(rf1)
     
-    this.actionFlags = new Array(this.numZones).fill(0)
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
 
     // Next, create all of the virtual objects that will be placed along the launch trajectory curve
@@ -137,7 +136,7 @@ export class launcher {
 
     // Add the virtual launch sleds and launch vehicles
     const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
-    let t, n, wedgeIndex
+    let t, n, zoneIndex
     const refFrame = this.refFrames[0]
     
     // Create and add the launch sleds
@@ -180,24 +179,23 @@ export class launcher {
       const tempModel = new massDriverBracketModel(dParamWithUnits, this.massDriver2Curve, this.launcherMassDriver2Length, (this.massDriverScrewSegments+1), i)
       tempModel.name = 'massDriver2Bracket'
       this.unallocatedMassDriver2BracketModels.push(tempModel)
-      this.scene.add(tempModel)
     }
 
-    this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+    //this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
   }
 
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv) {
 
     this.prevRefFrames = this.refFrames
     this.refFrames = []
-    const numWedges = this.numZones  // We're going to switch terminology from "Wedges" to "Zones"...
     const numZones = this.numZones
+
     // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into the screws from
     this.polyCurveForrf0 = new SuperCurvePath()
     this.polyCurveForrf0.name = "massDriver2Path"
     this.polyCurveForrf0.add(this.massDriver2Curve)
     this.polyCurveForrf0.subdivide(numZones)
-    const rf0 = new referenceFrame(this.polyCurveForrf0, numWedges, this.cameraRange[0], 0, 0, 0, 'massDriver2RefFrame')
+    const rf0 = new referenceFrame(this.polyCurveForrf0, numZones, this.cameraRange[0], 0, 0, 0, 'massDriver2RefFrame')
 
     this.polyCurveForrf1 = new SuperCurvePath()
     this.polyCurveForrf1.name = "launchSledPath"
@@ -207,7 +205,7 @@ export class launcher {
     this.polyCurveForrf1.add(this.launchRampCurve)
     this.polyCurveForrf1.add(this.launchSledReturnCurve)
     this.polyCurveForrf1.subdivide(numZones)
-    const rf1 = new referenceFrame(this.polyCurveForrf1, numWedges, this.cameraRange[1], 0, 0, 0, 'launchSledRefFrame')
+    const rf1 = new referenceFrame(this.polyCurveForrf1, numZones, this.cameraRange[1], 0, 0, 0, 'launchSledRefFrame')
 
     this.polyCurveForrf2 = new SuperCurvePath()
     this.polyCurveForrf2.name = "launchVehicleInTubePath"
@@ -218,7 +216,7 @@ export class launcher {
     this.polyCurveForrf2.add(this.evacuatedTubeCurve)
     //this.polyCurveForrf2.add(this.launchSledReturnCurve)
     this.polyCurveForrf2.subdivide(numZones)
-    const rf2 = new referenceFrame(this.polyCurveForrf2, numWedges, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame')
+    const rf2 = new referenceFrame(this.polyCurveForrf2, numZones, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame')
 
     this.polyCurveForrf3 = new SuperCurvePath()
     this.polyCurveForrf3.name = "launchVehiclePath"
@@ -229,7 +227,7 @@ export class launcher {
     this.polyCurveForrf3.add(this.evacuatedTubeCurve)
     this.polyCurveForrf3.add(this.freeFlightPositionCurve)
     this.polyCurveForrf3.subdivide(numZones)
-    const rf3 = new referenceFrame(this.polyCurveForrf3, numWedges, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame')
+    const rf3 = new referenceFrame(this.polyCurveForrf3, numZones, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame')
 
     rf3.addVirtualObject('virtualLaunchVehicles')
     rf1.addVirtualObject('virtualLaunchSleds')
@@ -244,6 +242,12 @@ export class launcher {
     rf2.initialize()
     rf3.initialize()
     this.refFrames.push(rf0, rf1, rf2, rf3)
+
+    let maxNumZones = 0
+    this.refFrames.forEach(refFrame => {
+      maxNumZones = Math.max(maxNumZones, refFrame.numZones)
+    })
+    this.actionFlags = new Array(maxNumZones).fill(0)
 
     this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
@@ -283,9 +287,9 @@ export class launcher {
 
     function removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
       refFrames.forEach(refFrame => {
-        for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
-          if (objectName in refFrame.wedges[wedgeIndex]) {
-            const wedgeList = refFrame.wedges[wedgeIndex][objectName]
+        for (let zoneIndex = 0; zoneIndex < refFrame.wedges.length; zoneIndex++) {
+          if (objectName in refFrame.wedges[zoneIndex]) {
+            const wedgeList = refFrame.wedges[zoneIndex][objectName]
             wedgeList.forEach(vobj => {
               if (vobj.model) {
                 vobj.model.visible = false
@@ -295,7 +299,7 @@ export class launcher {
             wedgeList.splice(0, wedgeList.length)
           }
           else {
-            console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
+            console.log('Error: ' + objectName + ' not found in wedge ' + zoneIndex + ' of refFrame ' + refFrame.name)
           }
         }
       })
@@ -331,7 +335,7 @@ export class launcher {
           // Calculate where along the launcher to place the vehicle.
           const deltaT = adjustedTimeSinceStart - t
           const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t, this.unallocatedLaunchVehicleModels))
           }
           else {
@@ -374,7 +378,7 @@ export class launcher {
             const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
           }
 
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t, this.unallocatedLaunchSledModels))
           }
           else {
@@ -409,22 +413,17 @@ export class launcher {
           vmdt.model = new massDriverTubeModel(dParamWithUnits, refFrame.curve, i)
           vmdt.model.name = 'massDriverTube'
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          if (!zoneIndex && (zoneIndex!==0)) {
-            console.log('Error')
-            const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          }
           if (zoneIndex>=this.numZones) {
             console.log(refFrame.curve, d)
             console.log('Error')
             const zoneIndex = refFrame.curve.getZoneIndexAt(d)
           }
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverTubes'].push(vmdt)
           }
           else {
             console.log('Error')
           }
-          this.scene.add(vmdt.model)
         }
         refFrame.prevStartWedgeIndex = -1
       }
@@ -453,7 +452,7 @@ export class launcher {
           const vmdr = new virtualMassDriverRail(d, this.unallocatedMassDriverRailModels)
           vmdr.model = new massDriverRailModel(dParamWithUnits, refFrame.curve, i)
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverRails'].push(vmdr)
           }
           else {
@@ -461,7 +460,6 @@ export class launcher {
           }
           //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
           vmdr.model.name = 'MassDriverRail'
-          this.scene.add(vmdr.model)
         }
         refFrame.prevStartWedgeIndex = -1
       }
@@ -494,7 +492,7 @@ export class launcher {
           }
           const vmds = new virtualMassDriverScrew(d, i, this.unallocatedMassDriverScrewModels)
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverScrews'].push(vmds)
           }
           else {
@@ -522,10 +520,10 @@ export class launcher {
         const n = newNumVirtualMassDriverBrackets
         for (let i = 0; i < numBrackets; i++) {
           const d = (i+0.5)/n - halfBracketThickness
-          //const wedgeIndex = Math.floor(d * refFrame.numWedges) % refFrame.numWedges
+          //const zoneIndex = Math.floor(d * refFrame.numZones) % refFrame.numZones
           const vmdb = new virtualMassDriverBracket(d, this.unallocatedMassDriver2BracketModels)
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numWedges)) {
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverBrackets'].push(vmdb)
           }
           else {
@@ -620,7 +618,7 @@ export class launcher {
 
   animate(timeSinceStart, cameraPosition) {
     // Move the virtual models of the launched vehicles along the launch trajectory
-    let wedgeIndex
+    let zoneIndex
     const assignModelList = []
     const removeModelList = []
     const updateModelList = []
@@ -628,12 +626,12 @@ export class launcher {
 
     // Debug printout
     // const launcherRefFrame = this.refFrames[3]
-    // launcherRefFrame.wedges.forEach((wedge, wedgeIndex) => {
-    //   if (wedgeIndex<10) {
+    // launcherRefFrame.wedges.forEach((wedge, zoneIndex) => {
+    //   if (zoneIndex<10) {
     //     Object.entries(wedge).forEach(([objectKey, objectValue]) => {
     //       if (objectKey=='virtualLaunchVehicles') {
     //         objectValue.forEach(launchVehicle => {
-    //           console.log(wedgeIndex, launchVehicle.timeLaunched, launchVehicle.model)
+    //           console.log(zoneIndex, launchVehicle.timeLaunched, launchVehicle.model)
     //         })
     //       }
     //     })
@@ -649,23 +647,28 @@ export class launcher {
         if (movingObjects.includes(objectKey)) {
           const movingObject = objectKey
           const reassignList = []
-          for (let zoneIndex = 0; zoneIndex < refFrame.numWedges; zoneIndex++) {
+          for (let zoneIndex = 0; zoneIndex < refFrame.numZones; zoneIndex++) {
             const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
             const keepList = []
             refFrame.wedges[zoneIndex][movingObject].forEach(object => {
               // Calculate where along the launcher to place the vehicle.
               const deltaT = adjustedTimeSinceStart - object.timeLaunched
               // Convert deltaT to a zoneIndex along the curveList.
-              const correctZoneIndex = refFrame.curve.getZoneIndex(deltaT)
-              if ((correctZoneIndex>=0) && (correctZoneIndex<refFrame.numWedges)) {
+              if (deltaT<=refFrame.curve.getDuration()) {
                 // if ((objectKey=='virtualLaunchVehicles') && (object.timeLaunched==0.1)) {
                 //   console.log(correctZoneIndex)
                 // }
-                if (zoneIndex==correctZoneIndex) {
-                  keepList.push(object)
+                const correctZoneIndex = refFrame.curve.getZoneIndex(deltaT)
+                if ((correctZoneIndex>=0) && (correctZoneIndex<refFrame.numZones)) {
+                  if (zoneIndex==correctZoneIndex) {
+                    keepList.push(object)
+                  }
+                  else {
+                    reassignList.push({correctZoneIndex, object})
+                  }
                 }
                 else {
-                  reassignList.push({correctZoneIndex, object})
+                  console.error("Error: correctZoneIndex out of range")
                 }
               }
               else {
@@ -757,41 +760,41 @@ export class launcher {
       
       // Set bit0 of actionFlags if wedge is currently visible
       if (refFrame.startWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % refFrame.numWedges) {
-          this.actionFlags[wedgeIndex] |= 1
-          clearFlagsList.push(wedgeIndex)
-          if (wedgeIndex == refFrame.finishWedgeIndex) break
+        for (zoneIndex = refFrame.startWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          this.actionFlags[zoneIndex] |= 1
+          clearFlagsList.push(zoneIndex)
+          if (zoneIndex == refFrame.finishWedgeIndex) break
         }
       }
       // Set bit1 of actionFlags if wedge was previously visible
       if (refFrame.prevStartWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.prevStartWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % refFrame.numWedges) {
-          this.actionFlags[wedgeIndex] |= 2
-          clearFlagsList.push(wedgeIndex)
-          if (wedgeIndex == refFrame.prevFinishWedgeIndex) break
+        for (zoneIndex = refFrame.prevStartWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          this.actionFlags[zoneIndex] |= 2
+          clearFlagsList.push(zoneIndex)
+          if (zoneIndex == refFrame.prevFinishWedgeIndex) break
         }
       }
 
       if (refFrame.startWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % refFrame.numWedges) {
-          if (this.actionFlags[wedgeIndex]==1) {
+        for (zoneIndex = refFrame.startWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          if (this.actionFlags[zoneIndex]==1) {
             // Wedge wasn't visible before and it became visible, assign it the assignModel list
-            assignModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
+            assignModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex})
           }
-          if (this.actionFlags[wedgeIndex] & 1 == 1) {
+          if (this.actionFlags[zoneIndex] & 1 == 1) {
             // Wedge is currently visible, assign it the updateModel list
-            updateModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
+            updateModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex})
           }
-          if (wedgeIndex == refFrame.finishWedgeIndex) break
+          if (zoneIndex == refFrame.finishWedgeIndex) break
         }
       }
       if (refFrame.prevStartWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.prevStartWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % refFrame.numWedges) {
-          if (this.actionFlags[wedgeIndex]==2) {
+        for (zoneIndex = refFrame.prevStartWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          if (this.actionFlags[zoneIndex]==2) {
             // Wedge was visible before and it became invisible, add it to the removeModel list
-            removeModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
+            removeModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex})
           }
-          if (wedgeIndex == refFrame.prevFinishWedgeIndex) break
+          if (zoneIndex == refFrame.prevFinishWedgeIndex) break
         }
       }
       
@@ -817,8 +820,8 @@ export class launcher {
       refFrame.prevStartWedgeIndex = refFrame.startWedgeIndex
       refFrame.prevFinishWedgeIndex = refFrame.finishWedgeIndex
 
-      clearFlagsList.forEach(wedgeIndex => {
-        this.actionFlags[wedgeIndex] = 0  // Clear the action flags to ready them for future reuse
+      clearFlagsList.forEach(zoneIndex => {
+        this.actionFlags[zoneIndex] = 0  // Clear the action flags to ready them for future reuse
       })
     })
 
@@ -842,7 +845,7 @@ export class launcher {
 
     // Free models that are in wedges that are no longer near the camera
     removeModelList.forEach(entry => {
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
         objectValue.forEach(object => {
           if (object.model) {
             object.model.visible = false
@@ -856,7 +859,7 @@ export class launcher {
     // Assign models to virtual objects that have just entered the region near the camera
     assignModelList.forEach(entry => {
       const ranOutOfModelsInfo = {}
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
         if (objectValue.length>0) {
           objectValue.forEach(object => {
             if (!object.model) {
@@ -923,10 +926,10 @@ export class launcher {
     // Now adjust the models position and rotation in all of the active wedges
 
     updateModelList.forEach(entry => {
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
-        if ((objectKey=='virtualLaunchSleds') && (objectValue.length>0)) {
-          console.log("")
-        }
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
+        // if ((objectKey=='virtualLaunchSleds') && (objectValue.length>0)) {
+        //   console.log("")
+        // }
         if (objectValue.length>0) {
           const classIsDynamic = objectValue[0].constructor.isDynamic
           const classHasChanged = objectValue[0].constructor.hasChanged

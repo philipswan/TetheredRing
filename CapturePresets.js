@@ -65,6 +65,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 14:
       smallRing()
       break
+    case 15:
+      movingRingsOrbit()
+      break
   }
 
   Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -1791,6 +1794,74 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['farClip'] = 1000000
     
     nonGUIParams['enableLaunchSystem'] = false
+    
+  }
+
+  function movingRingsOrbit() {
+    
+    guidParamWithUnits['showLogo'].value = false // It will automatically turn off later to indicate that the launch delay timer is about to expire...
+    guidParamWithUnits['showXYChart'].value = false
+    guidParamWithUnits['showEarthsSurface'].value = true
+    guidParamWithUnits['showEarthsAtmosphere'].value = true
+    guidParamWithUnits['showMoon'].value = false
+    guidParamWithUnits['showStars'].value = false
+    guidParamWithUnits['showEarthAxis'].value = false
+    guidParamWithUnits['showBackgroundPatch'].value = false
+    guidParamWithUnits['showEarthEquator'].value = false
+    guidParamWithUnits['showMainRingCurve'].value = false
+    guidParamWithUnits['showGravityForceArrows'].value = true
+    guidParamWithUnits['showGyroscopicForceArrows'].value = false
+    guidParamWithUnits['showTethers'].value = true
+    guidParamWithUnits['showTransitSystem'].value = true
+    guidParamWithUnits['showStationaryRings'].value = true
+    guidParamWithUnits['showMovingRings'].value = true
+    guidParamWithUnits['showStatorMagnets'].value = true
+    guidParamWithUnits['showTransitTube'].value = true
+    guidParamWithUnits['showTransitTracks'].value = true
+    guidParamWithUnits['showTransitVehicles'].value = true
+    guidParamWithUnits['showRingTerminuses'].value = true
+    guidParamWithUnits['showGroundTerminuses'].value = false
+    guidParamWithUnits['showElevatorCables'].value = true
+    guidParamWithUnits['showElevatorCars'].value = true
+    guidParamWithUnits['showHabitats'].value = true
+    guidParamWithUnits['showSolarArrays'].value = false
+
+    guidParamWithUnits['showMassDriverTube'].value = false
+    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverRail'].value = false
+    guidParamWithUnits['showMassDriverBrackets'].value = false
+    guidParamWithUnits['showEvacuatedTube'].value = false
+    guidParamWithUnits['showLaunchSleds'].value = false
+    guidParamWithUnits['showLaunchVehicles'].value = false
+    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = false
+    guidParamWithUnits['showMarkers'].value = false
+    guidParamWithUnits['animateMovingRingSegments'].value = true
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = .5
+
+    guidParamWithUnits['stationaryRingTubeRadius'].value = 0.25
+    // guidParamWithUnits['numVirtualStationaryRingSegments'].value = 50000
+    // guidParamWithUnits['numVirtualMovingRingSegments'].value = 500000
+    // guidParamWithUnits['numVirtualStatorMagnetSegments'].value = 500000
+    guidParamWithUnits['numForkLevels'].value = 8
+    guidParamWithUnits['movingRingsSpeedForRendering'].value = 100
+    //guidParamWithUnits['transitTubeTubeRadius'].value = 5000
+
+    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+      // ((i!=3) || (j!=2)) &&  // Washington State
+      // ((i!=4) || (j!=2)) &&
+      // ((i!=3) || (j!=3)) &&
+      // ((i!=4) || (j!=3))
+      true
+    )}
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-3586160.308932927, 4822570.089538445, -2229721.126416423)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.5594546432906146, 0.7523392721138287, -0.34784496796102365)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3586158.264192416, 4822573.6952032205, -2229721.092930216)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.5594546432906146, 0.7523392721138287, -0.34784496796102365)
+
+    nonGUIParams['nearClip'] = 1
+    nonGUIParams['farClip'] = 10000000
     
   }
 

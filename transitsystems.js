@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
-import { referenceFrame } from './referenceFrame.js'
+import { referenceFrame } from './ReferenceFrame.js'
 import { virtualSolarArray } from './SolarArray.js'
 import { virtualTransitTubeSegment } from './TransitTubeSegment.js'
 import { virtualTransitTrackSegment } from './TransitTrackSegment.js'
@@ -27,7 +27,7 @@ import * as tram from './tram.js'
 
 export class transitSystem {
 
-  // A transit vehicle system comprises four moving frames of refernence and each is divided into "numWedges" sections,
+  // A transit vehicle system comprises four moving frames of refernence and each is divided into "numZones" sections,
   // called "wedges". A large number of "virtual" transit vehicles are created and each is placed inside one wedge 
   // within one of the frames of reference. The frames-of-reference rotate. When a wedge enters the proximity of the camera,
   // the virtual vehicles in that wedge are allocated models of transit vehicles from a pool. Allocated models will be
@@ -56,8 +56,8 @@ export class transitSystem {
     this.unallocatedDynamicallyManagedObjects = []
     this.unallocatedSolarArrayModels = []
     this.unallocatedElevatorCableModels = []
-    this.numWedges = dParamWithUnits['transitSystemNumZones'].value
-    this.actionFlags = new Array(this.numWedges).fill(0)
+    const numZones = dParamWithUnits['transitSystemNumZones'].value
+    
     this.perfOptimizedThreeJS = dParamWithUnits['perfOptimizedThreeJS'].value ? 1 : 0
     //const massDriverLength = dParamWithUnits['massDriverLength'].value
     this.ringSouthernMostPosition = 3/4 // Hack
@@ -74,34 +74,34 @@ export class transitSystem {
     this.refFrames = []
 
     // For vehicles cruising at a steady speed...
-    const rf0 = new referenceFrame(mainRingCurve, this.numWedges, 10000, v1, 1, 1, 'transitVehiclesExpressClockwise')
+    const rf0 = new referenceFrame(mainRingCurve, numZones, 10000, v1, 1, 1, 'transitVehiclesExpressClockwise')
     rf0.addVirtualObject('virtualTransitVehicles')
     rf0.initialize()
     this.refFrames.push(rf0)
 
-    const rf1 = new referenceFrame(mainRingCurve, this.numWedges, 10000, v1, -1, 3, 'transitVehiclesExpressCounterClockwise')
+    const rf1 = new referenceFrame(mainRingCurve, numZones, 10000, v1, -1, 3, 'transitVehiclesExpressCounterClockwise')
     rf1.addVirtualObject('virtualTransitVehicles')
     rf1.initialize()
     this.refFrames.push(rf1)
 
     // For vehicles making stops at ringTerminuses...
-    const rf2 = new referenceFrame(mainRingCurve, this.numWedges, 10000, v1, 1, 0, 'transitVehiclesCollectorClockwise')
+    const rf2 = new referenceFrame(mainRingCurve, numZones, 10000, v1, 1, 0, 'transitVehiclesCollectorClockwise')
     rf2.addVirtualObject('virtualTransitVehicles')
     rf2.initialize()
     this.refFrames.push(rf2)
 
-    const rf3 = new referenceFrame(mainRingCurve, this.numWedges, 10000, v1, -1, 2, 'transitVehiclesCollectorCounterClockwise')
+    const rf3 = new referenceFrame(mainRingCurve, numZones, 10000, v1, -1, 2, 'transitVehiclesCollectorCounterClockwise')
     rf3.addVirtualObject('virtualTransitVehicles')
     rf3.initialize()
     this.refFrames.push(rf3)
 
     // Static reference frame
-    const rf4 = new referenceFrame(mainRingCurve, this.numWedges, 10000, 0, 1, 1, 'staticReferenceFrame')
+    const rf4 = new referenceFrame(mainRingCurve, numZones, 20000, 0, 1, 1, 'staticReferenceFrame')
+    rf4.addVirtualObject('virtualStationaryRingSegments')
     rf4.addVirtualObject('virtualRingTerminuses')
     rf4.addVirtualObject('virtualGroundTerminuses')
     rf4.addVirtualObject('virtualHabitats')
     rf4.addVirtualObject('virtualElevatorCars')
-    rf4.addVirtualObject('virtualStatorMagnetSegments')
     for (let j = 0; j < ttnut; j++) {
       for (let i = 0; i < ttnot; i++) {
         rf4.addVirtualObject('virtualTransitTrackSegments_' + j + '_' + i)
@@ -113,20 +113,31 @@ export class transitSystem {
     this.refFrames.push(rf4)
 
     // For Moving Rings
-    const rf5 = new referenceFrame(mainRingCurve, this.numWedges, 10000, v3, -1, 0, 'movingRings')
+    const rf5 = new referenceFrame(mainRingCurve, numZones, 1000, v3, -1, 0, 'movingRings')
     rf5.addVirtualObject('virtualMovingRingSegments')
     rf5.initialize()
     this.refFrames.push(rf5)
 
     // Static reference frame with much greater camera range
-    const rf6 = new referenceFrame(mainRingCurve, this.numWedges, 500000, 0, 1, 1, 'staticReferenceFrameBigCameraRange')
-    rf6.addVirtualObject('virtualStationaryRingSegments')
+    const rf6 = new referenceFrame(mainRingCurve, numZones, 500000, 0, 1, 1, 'staticReferenceFrameLongCameraRange')
     rf6.addVirtualObject('virtualTransitTubeSegments')
     rf6.addVirtualObject('virtualElevatorCables')
     rf6.initialize()
     this.refFrames.push(rf6)
-    this.invalidateWedgeHistory = [false]
 
+    // Static reference frame with much shorter camera range
+    const rf7 = new referenceFrame(mainRingCurve, numZones, 1000, 0, 1, 1, 'staticReferenceFrameSmallCameraRange')
+    rf7.addVirtualObject('virtualStatorMagnetSegments')
+    rf7.initialize()
+    this.refFrames.push(rf7)
+
+    let maxNumZones = 0
+    this.refFrames.forEach(refFrame => {
+      maxNumZones = Math.max(maxNumZones, refFrame.numZones)
+    })
+    this.actionFlags = new Array(maxNumZones).fill(0)
+
+    this.invalidateWedgeHistory = [false]
     this.eventList = []
 
     this.numVirtualTransitVehicles = 0
@@ -143,6 +154,13 @@ export class transitSystem {
     this.numVirtualStatorMagnetSegments = 0
 
     this.stationaryRingDependantParameters = [{name: 'ringFinalAltitude', lastValue: null}]
+
+    // this.nearestPositionMarker1 = new THREE.Mesh(new THREE.SphereGeometry(1000, 16, 16), new THREE.MeshBasicMaterial({color: 0xff0000}))
+    // this.scene.add(this.nearestPositionMarker1)
+    // this.nearestPositionMarker2 = new THREE.Mesh(new THREE.SphereGeometry(1000, 16, 16), new THREE.MeshBasicMaterial({color: 0x00ff00}))
+    // this.scene.add(this.nearestPositionMarker2)
+    // this.nearestPositionMarker3 = new THREE.Mesh(new THREE.SphereGeometry(1000, 16, 16), new THREE.MeshBasicMaterial({color: 0x00ff00}))
+    // this.scene.add(this.nearestPositionMarker3)
 
     function prepareACallbackFunctionForGLTFLoader(myScene, myList, objName, scale_Factor, n, invalidateWedgeHistory, perfOptimizedThreeJS) {
       return function( {scene} ) {
@@ -206,7 +224,6 @@ export class transitSystem {
         object.scale.set(scaleFactor, scaleFactor, scaleFactor)
         for (let i=0; i<n; i++) {
           const tempModel = object.clone()
-          myScene.add(tempModel)
           myList.push(tempModel)
         }
         // Since the dynamic model engine may have already started, we need force it to
@@ -337,7 +354,6 @@ export class transitSystem {
         if (this.perfOptimizedThreeJS) transitTrackMesh.freeze()
         for (let k=0; k<ttnm; k++) {
           const tempModel = transitTrackMesh.clone()
-          this.scene.add(tempModel)
           this.unallocatedTransitTrackSegmentModels[j][i].push(tempModel)
         }
       }
@@ -378,7 +394,6 @@ export class transitSystem {
       elevatorCableModel.name = 'elevatorCable'
       elevatorCableModel.renderOrder = 999
       this.unallocatedElevatorCableModels.push(elevatorCableModel)
-      this.scene.add(elevatorCableModel)
     }
 
     // This calculator computes the position of the collector lane reference frames as a function of time
@@ -446,8 +461,8 @@ export class transitSystem {
         for (let i = 0; i < n1; i++) {
           const positionInFrameOfReference = i * step1
           const randomizedPositionInFrameOfReference = positionInFrameOfReference + randOn*(step1 * 0.8 * Math.random())
-          const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
-          refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
+          const zoneIndex = Math.floor(randomizedPositionInFrameOfReference * refFrame.numZones) % refFrame.numZones
+          refFrame.wedges[zoneIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
         }
         refFrame.prevStartWedgeIndex = -1
       })
@@ -459,8 +474,8 @@ export class transitSystem {
         for (let i = 0; i < n2; i++) {
           const positionInFrameOfReference = i * step2
           const randomizedPositionInFrameOfReference = positionInFrameOfReference + randOn*(step2 * 0.8 * Math.random())
-          const wedgeIndex = Math.floor(randomizedPositionInFrameOfReference * this.numWedges) % this.numWedges
-          refFrame.wedges[wedgeIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
+          const zoneIndex = Math.floor(randomizedPositionInFrameOfReference * refFrame.numZones) % refFrame.numZones
+          refFrame.wedges[zoneIndex]['virtualTransitVehicles'].push(new virtualTransitVehicle(randomizedPositionInFrameOfReference, this.unallocatedTransitVehicleModels))
         }
         refFrame.prevStartWedgeIndex = -1
       })
@@ -470,7 +485,7 @@ export class transitSystem {
     // Update virtual objects residing in the short camera range static reference frame
     // That is, "facilities" (habitats, terminuses, elevator cars), but not ultra long segments such as elevator cables
 
-    const staticShortRangeRefFrame = [this.refFrames[4]]
+    const staticMediumRangeRefFrame = [this.refFrames[4]]
 
     // Since habitats and terminuses are interspersed, changing either causes a major teardown of not only
     // habitats and ring terminuses, but also elevator cables, cars, and ground terminuses
@@ -490,16 +505,16 @@ export class transitSystem {
                     (this.numVirtualElevatorCars != newNumVirtualElevatorCars) || 
                     (this.numVirtualGroundTerminuses != newNumVirtualGroundTerminuses)
     if (changeOccured && (this.numVirtualRingTerminuses > 0)) {
-      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
     }
     if (changeOccured && (this.numVirtualHabitats > 0)) {
-      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
     }
     if (changeOccured && (this.numVirtualElevatorCars > 0)) {
-      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
     }
     if (changeOccured && (this.numVirtualGroundTerminuses > 0)) {
-      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
     }
 
     // Add new facilities
@@ -507,18 +522,18 @@ export class transitSystem {
       // Place static reference frame objects such as ringTerminuses, elevatorCars, habitats, transit tubes, launch tubes, main rings, etc...
       let step3 = 1.0 / numTransitStops
       let prevFloorS = -1
-      staticShortRangeRefFrame.forEach(refFrame => {
+      staticMediumRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < numTransitStops; i++) {
           const positionInFrameOfReference = i * step3
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           const currFloorS = Math.floor(i * nt / numTransitStops)
           if (currFloorS == prevFloorS) {
-            if (showHabitats) refFrame.wedges[wedgeIndex]['virtualHabitats'].push(new virtualHabitat(positionInFrameOfReference, this.unallocatedHabitatModels))
+            if (showHabitats) refFrame.wedges[zoneIndex]['virtualHabitats'].push(new virtualHabitat(positionInFrameOfReference, this.unallocatedHabitatModels))
           }
           else {
-            if (showRingTerminuses) refFrame.wedges[wedgeIndex]['virtualRingTerminuses'].push(new virtualRingTerminus(positionInFrameOfReference, this.unallocatedRingTerminusModels))
-            if (showGroundTerminuses) refFrame.wedges[wedgeIndex]['virtualGroundTerminuses'].push(new virtualGroundTerminus(positionInFrameOfReference, this.unallocatedGroundTerminusModels))
-            if (showElevatorCars) refFrame.wedges[wedgeIndex]['virtualElevatorCars'].push(new virtualElevatorCar(positionInFrameOfReference, this.unallocatedElevatorCarModels))
+            if (showRingTerminuses) refFrame.wedges[zoneIndex]['virtualRingTerminuses'].push(new virtualRingTerminus(positionInFrameOfReference, this.unallocatedRingTerminusModels))
+            if (showGroundTerminuses) refFrame.wedges[zoneIndex]['virtualGroundTerminuses'].push(new virtualGroundTerminus(positionInFrameOfReference, this.unallocatedGroundTerminusModels))
+            if (showElevatorCars) refFrame.wedges[zoneIndex]['virtualElevatorCars'].push(new virtualElevatorCar(positionInFrameOfReference, this.unallocatedElevatorCarModels))
           }
           prevFloorS = currFloorS
         }
@@ -539,7 +554,7 @@ export class transitSystem {
       const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
       for (let j = 0; j < ttnut; j++) {
         for (let i = 0; i < ttnot; i++) {
-          this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
+          this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
         }
       }
     }
@@ -549,13 +564,13 @@ export class transitSystem {
       const ttnut = dParamWithUnits['transitTracksNumUpwardTracks'].value
       const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
 
-      staticShortRangeRefFrame.forEach(refFrame => {
+      staticMediumRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < numTransitStops; i++) {
           const positionInFrameOfReference = i * step3
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           for (let j = 0; j < ttnut; j++) {
             for (let i = 0; i < ttnot; i++) {
-              refFrame.wedges[wedgeIndex]['virtualTransitTrackSegments_' + j + '_' + i].push(new virtualTransitTrackSegment(positionInFrameOfReference, this.unallocatedTransitTrackSegmentModels[j][i]))
+              refFrame.wedges[zoneIndex]['virtualTransitTrackSegments_' + j + '_' + i].push(new virtualTransitTrackSegment(positionInFrameOfReference, this.unallocatedTransitTrackSegmentModels[j][i]))
             }
           }
         }
@@ -569,19 +584,19 @@ export class transitSystem {
     changeOccured = (this.numVirtualSolarArrays != newNumVirtualSolarArrays)
 
     if (changeOccured && (this.numVirtualSolarArrays > 0)) {
-      this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
     }
 
     if (changeOccured && (newNumVirtualSolarArrays > 0)) {
       const nsa = dParamWithUnits['numVirtualSolarArrays'].value
       let step4 = 1.0 / nsa
 
-      staticShortRangeRefFrame.forEach(refFrame => {
+      staticMediumRangeRefFrame.forEach(refFrame => {
         if (dParamWithUnits['showSolarArrays'].value) {
           for (let i = 0; i < nsa; i++) {
             const positionInFrameOfReference = i * step4
-            const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
-            refFrame.wedges[wedgeIndex]['virtualSolarArrays'].push(new virtualSolarArray(positionInFrameOfReference, this.unallocatedSolarArrayModels))
+            const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
+            refFrame.wedges[zoneIndex]['virtualSolarArrays'].push(new virtualSolarArray(positionInFrameOfReference, this.unallocatedSolarArrayModels))
           }
         }
         refFrame.prevStartWedgeIndex = -1
@@ -612,12 +627,12 @@ export class transitSystem {
       staticLongRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < numTransitStops; i++) {
           const positionInFrameOfReference = i * step3
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           const currFloorS = Math.floor(i * nt / numTransitStops)
           if (currFloorS == prevFloorS) {
           }
           else {
-            if (showElevatorCables) refFrame.wedges[wedgeIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
+            if (showElevatorCables) refFrame.wedges[zoneIndex]['virtualElevatorCables'].push(new virtualElevatorCable(positionInFrameOfReference, this.unallocatedElevatorCableModels))
           }
           prevFloorS = currFloorS
         }
@@ -638,7 +653,7 @@ export class transitSystem {
     })
 
     if (changeOccured && (this.numVirtualStationaryRingSegments > 0)) {
-      this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
+      this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
       // ToDo: We need to remove the models as well, because the length of the model depends on the number of virtual ring segments
     }
 
@@ -646,12 +661,12 @@ export class transitSystem {
       const nsr = newNumVirtualStationaryRingSegments
       let step4 = 1.0 / nsr
 
-      staticLongRangeRefFrame.forEach(refFrame => {
+      staticMediumRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < nsr; i++) {
           const positionInFrameOfReference = i * step4
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
-            refFrame.wedges[wedgeIndex]['virtualStationaryRingSegments'].push(new virtualStationaryRingSegment(positionInFrameOfReference, j, this.unallocatedStationaryRingSegmentModels))
+            refFrame.wedges[zoneIndex]['virtualStationaryRingSegments'].push(new virtualStationaryRingSegment(positionInFrameOfReference, j, this.unallocatedStationaryRingSegmentModels))
           }
         }
         refFrame.prevStartWedgeIndex = -1
@@ -675,9 +690,9 @@ export class transitSystem {
       staticLongRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < numTransitStops; i++) {
           const positionInFrameOfReference = i * step3
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
-            refFrame.wedges[wedgeIndex]['virtualTransitTubeSegments'].push(new virtualTransitTubeSegment(positionInFrameOfReference, this.unallocatedTransitTubeSegmentModels))
+            refFrame.wedges[zoneIndex]['virtualTransitTubeSegments'].push(new virtualTransitTubeSegment(positionInFrameOfReference, this.unallocatedTransitTubeSegmentModels))
           }
         }
         refFrame.prevStartWedgeIndex = -1
@@ -704,11 +719,11 @@ export class transitSystem {
       movingRingReferenceFrame.forEach(refFrame => {
         for (let i = 0; i < newNumVirtualMovingRingSegments; i++) {
           const positionInFrameOfReference = i * step5
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           // For now, all of the rings are the same diameter, so we can get away with using the same models and virtual objects for all of them.
           // In the final design, the rings will likely have slightly different diameters.
           for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
-            refFrame.wedges[wedgeIndex]['virtualMovingRingSegments'].push(new virtualMovingRingSegment(positionInFrameOfReference, j, this.unallocatedMovingRingSegmentModels))
+            refFrame.wedges[zoneIndex]['virtualMovingRingSegments'].push(new virtualMovingRingSegment(positionInFrameOfReference, j, this.unallocatedMovingRingSegmentModels))
           }
         }
         refFrame.prevStartWedgeIndex = -1
@@ -718,6 +733,7 @@ export class transitSystem {
     this.numVirtualMovingRingSegments = newNumVirtualMovingRingSegments
 
     // Stator Magnets
+    const staticShortRangeRefFrame = [this.refFrames[7]]
     const newNumVirtualStatorMagnetSegments = dParamWithUnits['showStatorMagnets'].value ? dParamWithUnits['numVirtualStatorMagnetSegments'].value : 0
     changeOccured = (this.numVirtualStatorMagnetSegments != newNumVirtualStatorMagnetSegments)
 
@@ -730,11 +746,11 @@ export class transitSystem {
       staticShortRangeRefFrame.forEach(refFrame => {
         for (let i = 0; i < newNumVirtualStatorMagnetSegments; i++) {
           const positionInFrameOfReference = i * step5
-          const wedgeIndex = Math.floor(positionInFrameOfReference * this.numWedges) % this.numWedges
+          const zoneIndex = Math.floor(positionInFrameOfReference * refFrame.numZones) % refFrame.numZones
           // For now, all of the rings are the same diameter, so we can get away with using the same models and virtual objects for all of them.
           // In the final design, the rings will likely have slightly different diameters.
           for (let j = 0; j<dParamWithUnits['numMainRings'].value; j++) {
-            refFrame.wedges[wedgeIndex]['virtualStatorMagnetSegments'].push(new virtualStatorMagnetSegment(positionInFrameOfReference, j, this.unallocatedStatorMagnetSegmentModels))
+            refFrame.wedges[zoneIndex]['virtualStatorMagnetSegments'].push(new virtualStatorMagnetSegment(positionInFrameOfReference, j, this.unallocatedStatorMagnetSegmentModels))
           }
         }
         refFrame.prevStartWedgeIndex = -1
@@ -774,26 +790,27 @@ export class transitSystem {
     // This doesn't actually destroy the objects, but rather hides them and moves them to their unallocated lists.
     const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
     this.removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
-    const staticShortRangeRefFrame = [this.refFrames[4]]
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualStatorMagnetSegments', this.unallocatedGroundTerminusModels)
+    const staticMediumRangeRefFrame = [this.refFrames[4]]
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualGroundTerminuses', this.unallocatedGroundTerminusModels)
     const ttnut = dParamWithUnits['transitTracksNumUpwardTracks'].value
     const ttnot = dParamWithUnits['transitTracksNumOutwardTracks'].value
     for (let j = 0; j < ttnut; j++) {
       for (let i = 0; i < ttnot; i++) {
-        this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
+        this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualTransitTrackSegments_' + j + '_' + i, this.unallocatedTransitTrackSegmentModels[j][i])
       }
     }
-    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
     const staticLongRangeRefFrame = [this.refFrames[6]]
     this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
     this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
     this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
     const movingRingReferenceFrame = [this.refFrames[5]]
     this.removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
+    const staticShortRangeRefFrame = [this.refFrames[7]]
+    this.removeOldVirtualObjects(staticShortRangeRefFrame, 'virtualStatorMagnetSegments', this.unallocatedStatorMagnetSegments)
     
     this.numVirtualTransitVehicles = 0
     this.numVirtualRingTerminuses = 0
@@ -811,9 +828,9 @@ export class transitSystem {
 
   removeOldVirtualObjects(refFrames, objectName, unallocatedModelsArray) {
     refFrames.forEach(refFrame => {
-      for (let wedgeIndex = 0; wedgeIndex < refFrame.wedges.length; wedgeIndex++) {
-        if (objectName in refFrame.wedges[wedgeIndex]) {
-          const wedgeList = refFrame.wedges[wedgeIndex][objectName]
+      for (let zoneIndex = 0; zoneIndex < refFrame.wedges.length; zoneIndex++) {
+        if (objectName in refFrame.wedges[zoneIndex]) {
+          const wedgeList = refFrame.wedges[zoneIndex][objectName]
           wedgeList.forEach(vobj => {
             if (vobj.model) {
               vobj.model.visible = false
@@ -823,7 +840,7 @@ export class transitSystem {
           wedgeList.splice(0, wedgeList.length)
         }
         else {
-          console.log('Error: ' + objectName + ' not found in wedge ' + wedgeIndex + ' of refFrame ' + refFrame.name)
+          console.log('Error: ' + objectName + ' not found in wedge ' + zoneIndex + ' of refFrame ' + refFrame.name)
         }
       }
     })
@@ -831,7 +848,7 @@ export class transitSystem {
 
   animate(timeSinceStart, tetheredRingRefCoordSys, cameraPosition, mainRingCurve, dParamWithUnits) {
     
-    let wedgeIndex
+    let zoneIndex
 
     while ((this.eventList.length>0) && (this.eventList[0].triggerTime < timeSinceStart)) {
       // Process timer events - these events will mainly cause various virtualTransitVehicles to change from one frame of reference to another
@@ -886,6 +903,9 @@ export class transitSystem {
     // to be upgraded if we want to implement a non-circular mainRingCurve.
     const nearestTrackPositionToCamera = (Math.atan2(localCameraLocation.z, localCameraLocation.x) / (2*Math.PI) + 1) % 1
     const pointOnRingAtNearestTrackPosition = mainRingCurve.getPoint(nearestTrackPositionToCamera)
+
+    //this.nearestPositionMarker1.position.copy(pointOnRingAtNearestTrackPosition)
+
     const distanceFromCameraToRing = pointOnRingAtNearestTrackPosition.distanceTo(localCameraLocation)
 
     // if (cameraAltitude<this.crv.currentMainRingAltitude+cameraRange) {
@@ -929,7 +949,13 @@ export class transitSystem {
           const cameraRangeFinish = (nearestTrackPositionToCamera + cameraRangeDelta + 1) % 1
           cameraRangeStartForFrame = (cameraRangeStart - refFrame.p + 1 ) % 1
           cameraRangeFinishForFrame = (cameraRangeFinish - refFrame.p + 1 ) % 1
-          }
+          // if (refFrame.name==='staticReferenceFrameLongCameraRange') {
+          //   const pointOnRingAtNearestTrackPosition2 = mainRingCurve.getPoint(cameraRangeStartForFrame)
+          //   const pointOnRingAtNearestTrackPosition3 = mainRingCurve.getPoint(cameraRangeFinishForFrame)
+          //   this.nearestPositionMarker2.position.copy(pointOnRingAtNearestTrackPosition2)
+          //   this.nearestPositionMarker3.position.copy(pointOnRingAtNearestTrackPosition3)
+          // }
+        }
         else {
           // Most of the ring is within the range of the camera, so we will just process the whole ring
           cameraRangeStartForFrame = 0
@@ -937,12 +963,12 @@ export class transitSystem {
         }
 
         // Subtract the current rotationalPosition of the reference frame from the cameraRangeStart and cameraRangeFinish values
-        refFrame.startWedgeIndex = Math.floor(cameraRangeStartForFrame * (this.numWedges-1))
-        refFrame.finishWedgeIndex = Math.floor(cameraRangeFinishForFrame * (this.numWedges-1))
-        if ((refFrame.startWedgeIndex<0) || (refFrame.startWedgeIndex>=this.numWedges)) {
+        refFrame.startWedgeIndex = Math.floor((cameraRangeStartForFrame * (refFrame.numZones-1) + 0.5) % refFrame.numZones)
+        refFrame.finishWedgeIndex = Math.floor((cameraRangeFinishForFrame * (refFrame.numZones-1) + 0.5) % refFrame.numZones)
+        if ((refFrame.startWedgeIndex<0) || (refFrame.startWedgeIndex>=refFrame.numZones)) {
           console.error('Error: startWedgeIndex is ' + refFrame.startWedgeIndex)
         }
-        if ((refFrame.finishWedgeIndex<0) || (refFrame.finishWedgeIndex>=this.numWedges)) {
+        if ((refFrame.finishWedgeIndex<0) || (refFrame.finishWedgeIndex>=refFrame.numZones)) {
           console.error('Error: finishWedgeIndex is ' + refFrame.finishWedgeIndex)
         }
       }
@@ -953,18 +979,18 @@ export class transitSystem {
   
       // Set bit0 of actionFlags if wedge is currently visible
       if (refFrame.startWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
-          this.actionFlags[wedgeIndex] |= 1
-          clearFlagsList.push(wedgeIndex)
-          if (wedgeIndex == refFrame.finishWedgeIndex) break
+        for (zoneIndex = refFrame.startWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          this.actionFlags[zoneIndex] |= 1
+          clearFlagsList.push(zoneIndex)
+          if (zoneIndex===refFrame.finishWedgeIndex) break
         }
       }
       // Set bit1 of actionFlags if wedge was previously visible
       if (refFrame.prevStartWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.prevStartWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
-          this.actionFlags[wedgeIndex] |= 2
-          clearFlagsList.push(wedgeIndex)
-          if (wedgeIndex == refFrame.prevFinishWedgeIndex) break
+        for (zoneIndex = refFrame.prevStartWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          this.actionFlags[zoneIndex] |= 2
+          clearFlagsList.push(zoneIndex)
+          if (zoneIndex===refFrame.prevFinishWedgeIndex) break
         }
       }
 
@@ -972,54 +998,35 @@ export class transitSystem {
         console.log('Error: startWedgeIndex is ' + refFrame.startWedgeIndex)
       }
       if (refFrame.startWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.startWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
-          if (this.actionFlags[wedgeIndex] & 1 == 1) {
-            const wedgeCenterLocation = mainRingCurve.getPoint( ((refFrame.p + (wedgeIndex + 0.5) / this.numWedges)) % 1 )
+        for (zoneIndex = refFrame.startWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          if (this.actionFlags[zoneIndex] & 1 == 1) {
+            const wedgeCenterLocation = mainRingCurve.getPoint( ((refFrame.p + (zoneIndex + 0.5) / refFrame.numZones)) % 1 )
             const wedgeToCameraDistance = wedgeCenterLocation.distanceTo(localCameraLocation)
             // Wedge is currently visible, assign it the updateModel list
-            updateModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex, 'wedgeToCameraDistance': wedgeToCameraDistance})
-            if (this.actionFlags[wedgeIndex]==1) {
+            updateModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex, 'wedgeToCameraDistance': wedgeToCameraDistance})
+            if (this.actionFlags[zoneIndex]==1) {
                 // Wedge wasn't visible before and it became visible, assign it the assignModel list
-                assignModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex, 'wedgeToCameraDistance': wedgeToCameraDistance})
+                assignModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex, 'wedgeToCameraDistance': wedgeToCameraDistance})
             }
           }
-          if (wedgeIndex == refFrame.finishWedgeIndex) break
+          if (zoneIndex===refFrame.finishWedgeIndex) break
         }
       }
       if (refFrame.prevStartWedgeIndex!=-1) {
-        for (wedgeIndex = refFrame.prevStartWedgeIndex; ; wedgeIndex = (wedgeIndex + 1) % this.numWedges) {
-          if (this.actionFlags[wedgeIndex]==2) {
+        for (zoneIndex = refFrame.prevStartWedgeIndex; ; zoneIndex = (zoneIndex + 1) % refFrame.numZones) {
+          if (this.actionFlags[zoneIndex]==2) {
             // Wedge was visible before and it became invisible, add it to the removeModel list
-            removeModelList.push({'refFrame': refFrame, 'wedgeIndex': wedgeIndex})
+            removeModelList.push({'refFrame': refFrame, 'zoneIndex': zoneIndex})
           }
-          if (wedgeIndex == refFrame.prevFinishWedgeIndex) break
+          if (zoneIndex===refFrame.prevFinishWedgeIndex) break
         }
       }
       
-      // Debug - ToDo clean this up when it's no longer needed
-      // let different = false
-      // for (let j=0; j<this.actionFlags.length; j++) {
-      //   if (this.actionFlags[j]!=refFrame.prevActionFlags[j]) {
-      //     different = true
-      //     break
-      //   }
-      // }
-      // if (different) {
-      //   let prstr = ''
-      //   for (let j = 0; j<this.actionFlags.length; j++) {
-      //     prstr += String(this.actionFlags[j])
-      //   }
-      //   console.log(prstr)
-      // }
-      // for (let j=0; j<this.actionFlags.length; j++) {
-      //   refFrame.prevActionFlags[j] = this.actionFlags[j]
-      // }
-
       refFrame.prevStartWedgeIndex = refFrame.startWedgeIndex
       refFrame.prevFinishWedgeIndex = refFrame.finishWedgeIndex
 
-      clearFlagsList.forEach(wedgeIndex => {
-        this.actionFlags[wedgeIndex] = 0  // Clear the action flags to ready them for future reuse
+      clearFlagsList.forEach(zoneIndex => {
+        this.actionFlags[zoneIndex] = 0  // Clear the action flags to ready them for future reuse
       })
   
     })
@@ -1070,7 +1077,7 @@ export class transitSystem {
 
     // Free models that are in wedges that have recently left the region near the camera
     removeModelList.forEach(entry => {
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
         objectValue.forEach(object => {
           if (object.model) {
             object.model.visible = false
@@ -1094,10 +1101,10 @@ export class transitSystem {
     assignModelList.forEach(entry => {
       const wedgeToCameraDistance = entry['wedgeToCameraDistance']
       const ranOutOfModelsInfo = {}
-      if (!entry['refFrame'].wedges[entry['wedgeIndex']]) {
-        console.error('Error: entry[\'refFrame\'].wedges[entry[\'wedgeIndex\']]===null')
+      if (!entry['refFrame'].wedges[entry['zoneIndex']]) {
+        console.error('Error: entry[\'refFrame\'].wedges[entry[\'zoneIndex\']]===null')
       }
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
         if (objectValue.length>0) {
           objectValue.forEach(object => {
             if (!object.model) {
@@ -1105,7 +1112,9 @@ export class transitSystem {
                 // This is the last model. Duplicate it so that we don't run out.
                 const tempModel = object.unallocatedModels[0].clone()
                 object.unallocatedModels.push(tempModel)
-                //console.log('Duplicating model for ' + objectKey)
+                // if (objectKey==='virtualStatorMagnetSegments') {
+                //   console.log('Duplicating model for ' + objectKey)
+                // }
               }
               if (object.unallocatedModels.length>0) {
                 object.model = object.unallocatedModels.pop()
@@ -1158,7 +1167,7 @@ export class transitSystem {
 
     updateModelList.forEach(entry => {
       const wedgeToCameraDistance = entry['wedgeToCameraDistance']
-      Object.entries(entry['refFrame'].wedges[entry['wedgeIndex']]).forEach(([objectKey, objectValue]) => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
         if (objectValue.length>0) {
           const classIsDynamic = objectValue[0].constructor.isDynamic
           const classHasChanged = objectValue[0].constructor.hasChanged
