@@ -11,7 +11,7 @@ export class massDriverBracketModel {
         const railWidth = dParamWithUnits['launcherMassDriverRailWidth'].value
         const railHeight = dParamWithUnits['launcherMassDriverRailHeight'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-        const railUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        const railUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 //- dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
         const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
         const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
