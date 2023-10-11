@@ -8,29 +8,30 @@ export class massDriverBracketModel {
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
     constructor(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex) {
 
-        const width = dParamWithUnits['launcherMassDriverBracketWidth'].value
-        const height = dParamWithUnits['launcherMassDriverBracketHeight'].value
+        const railWidth = dParamWithUnits['launcherMassDriverRailWidth'].value
+        const railHeight = dParamWithUnits['launcherMassDriverRailHeight'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-        const bracketUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        const railUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
         const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-        const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+        const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
 
         const modelLengthSegments = 1    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
         const modelRadialSegments = 32
         const shape = new THREE.Shape()
-        shape.moveTo( 0 , height/2 )
-        shape.lineTo( -width/2 , height/2 )
+        shape.moveTo( railWidth/2, railHeight/2 )
+        shape.lineTo( -railWidth/2, railHeight/2 )
         for (let a = 8; a<=24; a++) {
-            shape.lineTo( -screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
+            shape.lineTo( -screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius, (screwUpwardsOffset-railUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
         }
+        shape.lineTo(-railWidth/2, -railHeight/2)
+        shape.lineTo(+railWidth/2, -railHeight/2)
         for (let a = 24; a<=40; a++) {
-            shape.lineTo( +screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius , (screwUpwardsOffset-bracketUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
+            shape.lineTo( +screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius, (screwUpwardsOffset-railUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
         }
-        shape.lineTo( width/2 , height/2 )
-        shape.lineTo( 0 , height/2 )
+        shape.lineTo( railWidth/2, railHeight/2 )
         // Now we need a reference point in the middle of this segment of the whole mass driver
         const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
         const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)

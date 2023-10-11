@@ -68,6 +68,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 15:
       movingRingsOrbit()
       break
+    case 16:
+      demonstratorLauncher()
+      break
   }
 
   Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -131,7 +134,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -232,7 +234,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -332,7 +333,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -433,7 +433,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -531,7 +530,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -613,7 +611,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -712,7 +709,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -812,7 +808,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = true
@@ -887,7 +882,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = true
@@ -962,7 +956,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1051,7 +1044,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1138,7 +1130,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
@@ -1413,7 +1404,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
@@ -1431,7 +1421,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // Hack!!!!
     guidParamWithUnits['saveMassDriverScrewSTL'].value = false
 
-    guidParamWithUnits['launcherMassDriverScrewShaftRadius'].value = 0.375 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
     guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
     guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
     guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
@@ -1586,7 +1577,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
@@ -1734,7 +1724,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1830,7 +1819,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showEvacuatedTube'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1864,6 +1852,123 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['farClip'] = 10000000
     
   }
+
+  function demonstratorLauncher() {
+
+    // Kilamanjaro, Africa
+    guidParamWithUnits['finalLocationRingCenterLatitude'].value = 54.5
+    guidParamWithUnits['finalLocationRingCenterLongitude'].value = 40
+    guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.1295
+
+    guidParamWithUnits['showLogo'].value = false // It will automatically turn off later to indicate that the launch delay timer is about to expire...
+    guidParamWithUnits['showXYChart'].value = false
+    guidParamWithUnits['showEarthsSurface'].value = true
+    guidParamWithUnits['showEarthsAtmosphere'].value = false
+    guidParamWithUnits['showMoon'].value = false
+    guidParamWithUnits['showStars'].value = false
+    guidParamWithUnits['showEarthAxis'].value = false
+    guidParamWithUnits['showBackgroundPatch'].value = false
+    guidParamWithUnits['showEarthEquator'].value = false
+    guidParamWithUnits['showMainRingCurve'].value = false
+    guidParamWithUnits['showGravityForceArrows'].value = false
+    guidParamWithUnits['showGyroscopicForceArrows'].value = false
+    guidParamWithUnits['showTethers'].value = false
+    guidParamWithUnits['showTransitSystem'].value = false
+    guidParamWithUnits['showStationaryRings'].value = false
+    guidParamWithUnits['showMovingRings'].value = false
+    guidParamWithUnits['showTransitTube'].value = false
+    guidParamWithUnits['showTransitVehicles'].value = false
+    guidParamWithUnits['showRingTerminuses'].value = false
+    guidParamWithUnits['showGroundTerminuses'].value = false
+    guidParamWithUnits['showElevatorCables'].value = false
+    guidParamWithUnits['showElevatorCars'].value = false
+    guidParamWithUnits['showHabitats'].value = false
+    guidParamWithUnits['showSolarArrays'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = true
+    guidParamWithUnits['showMarkers'].value = false
+    guidParamWithUnits['launcherMarkerRadius'].value = 500
+
+    guidParamWithUnits['showMassDriverTube'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverRail'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showLaunchSleds'].value = true
+    guidParamWithUnits['showLaunchVehicles'].value = true
+    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+    guidParamWithUnits['pKeyAltitudeFactor'].value = 0
+    guidParamWithUnits['massDriverCameraRange'].value = 300
+    guidParamWithUnits['launchSledCameraRange'].value = 10000
+    guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
+    guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+    guidParamWithUnits['logZoomRate'].value = -3
+
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+    guidParamWithUnits['launchSledScaleFactor'].value = 1
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 0.45
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+    guidParamWithUnits['numVirtualLaunchSleds'].value = 1
+    guidParamWithUnits['launchVehicleRadius'].value = 1.5
+    guidParamWithUnits['launchVehicleBodyLength'].value = 10
+
+    guidParamWithUnits['launchVehicleAdaptiveThrust'].value = true
+    guidParamWithUnits['launcherCoastTime'].value = 10
+    guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
+    guidParamWithUnits['launchVehiclePayloadMass'].value = 100
+
+    guidParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value = 100  // m
+    guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 10  // m/s2
+    guidParamWithUnits['launcherRampDesignMode'].value = 1
+    guidParamWithUnits['launcherRampTurningRadius'].value = 25
+    //guidParamWithUnits['launcherRampTurningRadius'].value = 10
+    //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+    guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 1
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 4
+    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 20     // m/s
+    guidParamWithUnits['launcherMassDriverAltitude'].value = 50         // m
+    guidParamWithUnits['launcherRampExitAltitude'].value = 70           // m  (Altitute of Mauna Kea summit plus ~300 meters)
+    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 85  // m
+    //guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+    guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 265 // kg/s  (Based on RS-25)
+    guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
+    guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
+
+
+    guidParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value = 2/8  // m
+    guidParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value = -1.75/8  // m
+    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375/8  // m
+    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3/8  // m
+    guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = 0.5/8  // m
+    guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = 0.05/8  // m
+    guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 4  // m
+    guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .5  // m
+    guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80  // m
+    guidParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value = 32  // m
+    guidParamWithUnits['launcherMassDriverBracketWidth'].value = 2.0/32  // m
+    guidParamWithUnits['launcherMassDriverBracketHeight'].value = 0.125/32  // m
+    guidParamWithUnits['launcherMassDriverScrewBracketThickness'].value = 0.02  // m
+    guidParamWithUnits['launcherMassDriverRailWidth'].value = 1/8  // m
+    guidParamWithUnits['launcherMassDriverRailHeight'].value = 0.25/8  // m
+    guidParamWithUnits['launchRailUpwardsOffset'].value = -1.5/8  // m
+    guidParamWithUnits['launchSledBodyLength'].value = .1  // m
+
+    // Kilamanjaro, Africa
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329632.988877341, 2300.3143576011626, 4683486.570061294)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.6788230535598375, 0.00036000662443132117, 0.7343017992289874)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329631.773212948, 2294.904191131801, 4683490.868013314)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.6788230535598375, 0.00036000662443132117, 0.7343017992289874)
+
+    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+//      ((i!=1) || (j!=4)) // Hawaii??
+      ((i!=14) || (j!=5)) // Hawaii??
+    )} 
+
+    nonGUIParams['nearClip'] = .1
+    nonGUIParams['farClip'] = 400000
+
+  }
+
 
 
 }

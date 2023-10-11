@@ -124,7 +124,8 @@ export class launchSledModel {
       // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
       // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
       // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-      const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+      const shaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+      const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
       const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
       const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
       const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
@@ -141,7 +142,7 @@ export class launchSledModel {
       const grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
     
       const info = new SledGrapplerPlacementInfo(
-        shaftRadius,
+        shaftOuterRadius,
         threadRadius,
         threadThickness,
         threadStarts,
@@ -162,7 +163,7 @@ export class launchSledModel {
       info.generatePlacementInfo(grapplerDistance, 1)
     
       const sledGrapplerGeometry = new SledGrapplerGeometry(
-        shaftRadius,
+        shaftOuterRadius,
         threadRadius,
         threadThickness,
         threadStarts,
@@ -243,13 +244,14 @@ export class virtualLaunchSled {
 
       // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
       virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-      virtualLaunchSled.launcherMassDriverScrewShaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+      virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+      virtualLaunchSled.launcherMassDriverScrewShaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
       virtualLaunchSled.launcherMassDriverScrewThreadRadius =  dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
       virtualLaunchSled.launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
       virtualLaunchSled.launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
       virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-      virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftRadius
+      virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
       virtualLaunchSled.padLiftActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
       virtualLaunchSled.launchSledWidth = dParamWithUnits['launchSledWidth'].value
       virtualLaunchSled.grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
@@ -292,7 +294,8 @@ export class virtualLaunchSled {
         const threadRadius = virtualLaunchSled.launcherMassDriverScrewThreadRadius
         const threadStarts = virtualLaunchSled.launcherMassDriverScrewThreadStarts
         const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
-        const shaftRadius = virtualLaunchSled.launcherMassDriverScrewShaftRadius
+        const shaftOuterRadius = virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
+        const shaftInnerRadius = virtualLaunchSled.launcherMassDriverScrewShaftInnerRadius
         const upwardsOffsetToAnchors = virtualLaunchSled.upwardsOffset - 1.35
         const anchorUpwardsSeparation = 0.1 //virtualLaunchSled.anchorUpwardsSeparation
         const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
@@ -305,7 +308,7 @@ export class virtualLaunchSled {
         const grapplerMaxRangeOfMotion = virtualLaunchSled.grapplerMaxRangeOfMotion
         const grapplersSidewaysOffset = screwSidewaysOffset
         const grapplerUpwardsOffset = screwUpwardsOffset
-        const padCenterToEdge = (threadRadius - (shaftRadius + shaftToGrapplerPad))/2
+        const padCenterToEdge = (threadRadius - (shaftOuterRadius + shaftToGrapplerPad))/2
 
         // Create a new screw geometry to represent the adaptive nut
         const additionalRotation = (deltaT * screwRevolutionsPerSecond) % 1
@@ -326,7 +329,7 @@ export class virtualLaunchSled {
         const grapplerSpacing = 1.0 / numGrapplers * bodyLength
   
         const info = new SledGrapplerPlacementInfo(
-          shaftRadius,
+          shaftOuterRadius,
           threadRadius,
           threadThickness,
           threadStarts,
@@ -353,7 +356,7 @@ export class virtualLaunchSled {
           grapplerThreadPitch[i] = info.threadPitch
           if (updateNow) {
             grapplerGeometry[i] = new SledGrapplerGeometry(
-              shaftRadius,
+              shaftOuterRadius,
               threadRadius,
               threadThickness,
               threadStarts,

@@ -378,7 +378,8 @@ const guidParamWithUnits = {
   launcherMassDriverBracketWidth: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverScrewShaftRadius: {value: 0.375, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewShaftOuterRadius: {value: 0.375, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewShaftInnerRadius: {value: 0.300, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.05, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
@@ -730,7 +731,6 @@ function updateLauncher() {
   launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
-  launchSystemObject.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
   console.log(`renderer.info.memory: ${JSON.stringify(renderer.info.memory)}`)
 }
 
@@ -1897,7 +1897,6 @@ function renderFrame() {
       launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
       launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
       launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
-      launchSystemObject.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
       console.print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@', mtm.j, mtm.k)
       console.print('bestAngleOfAscent', mtm.bestAngleOfAscent)
@@ -2234,7 +2233,7 @@ function onKeyDown( event ) {
         }
       })
       let objectIntersects = []
-      if (dParamWithUnits['showTransitTube'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showEvacuatedTube'].value || dParamWithUnits['showLaunchVehicles'].value) {
+      if (dParamWithUnits['showTransitTube'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showLaunchVehicles'].value) {
         planetCoordSys.children.forEach(mesh => {
           //console.log(mesh.name)
           if ((mesh.name==='massDriverTube') || (mesh.name==='evacuatedTube') || (mesh.name==='launchVehicle')) {

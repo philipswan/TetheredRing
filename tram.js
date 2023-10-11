@@ -808,15 +808,16 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverConcreteTubeOuterRadius = dParamWithUnits['launcherMassDriverConcreteTubeOuterRadius'].value // m
   const launcherMassDriverConcreteTubeJacketThickness = dParamWithUnits['launcherMassDriverConcreteTubeJacketThickness'].value // m
   const launcherMassDriverScrewThreadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value // m
-  const launcherMassDriverScrewShaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value // m
+  const launcherMassDriverScrewShaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value // m
+  const launcherMassDriverScrewShaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value // m
   const launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value // m
   const launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value // m
   const launcherConcreteTubeJacketMassPerMeter = Math.PI * launcherMassDriverConcreteTubeOuterRadius * launcherMassDriverConcreteTubeJacketThickness
   const launcherBracketsMassPerMeter = dParamWithUnits['launcherBracketsMassPerMeter'].value // kg/m
   const launcherRailsMassPerMeter = dParamWithUnits['launcherRailsMassPerMeter'].value // kg/m
   const launcherScrewsMassPerMeter = 
-    (launcherMassDriverScrewThreadRadius - launcherMassDriverScrewShaftRadius) * launcherMassDriverScrewThreadThickness * launcherMassDriverScrewThreadStarts
-    + Math.PI * (launcherMassDriverScrewShaftRadius**2 - (launcherMassDriverScrewShaftRadius*.8)**2)
+    (launcherMassDriverScrewThreadRadius - launcherMassDriverScrewShaftOuterRadius) * launcherMassDriverScrewThreadThickness * launcherMassDriverScrewThreadStarts
+    + Math.PI * (launcherMassDriverScrewShaftOuterRadius**2 - (launcherMassDriverScrewShaftInnerRadius)**2)
   const launcherTorqueConvertorsMassPerMeter = dParamWithUnits['launcherTorqueConvertorsMassPerMeter'].value // kg/m
   const launcherMotorMass = dParamWithUnits['launcherMotorMass'].value // kg/m
   const launcherMotorCost = dParamWithUnits['launcherMotorCost'].value // kg/m

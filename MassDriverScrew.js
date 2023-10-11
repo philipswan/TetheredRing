@@ -9,7 +9,8 @@ export class massDriverScrewModel {
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
     constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials, highRes = false) {
 
-        const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+        const shaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+        const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
         const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
         const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
@@ -22,7 +23,10 @@ export class massDriverScrewModel {
         const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(threadStarts, 4)
 
         // ToDo: This doesn't scale well. Need to figure out how to make this work for any dimentions of the mass driver's screw.
-        const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
+
+        // Hack!!!
+        //const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
+        const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
         const baseDistanceAlongScrew = segmentIndex * segmentSpacing
@@ -31,7 +35,8 @@ export class massDriverScrewModel {
 
         const massDriverScrewGeometry = new ScrewGeometry(
             screwLength,
-            shaftRadius,
+            shaftOuterRadius,
+            shaftInnerRadius,
             threadRadius,
             threadThickness,
             threadStarts,
@@ -63,7 +68,8 @@ export class virtualMassDriverScrew {
         virtualMassDriverScrew.launcherMassDriverLength = launcherMassDriverLength
         virtualMassDriverScrew.massDriverScrewSegments = massDriverScrewSegments
         virtualMassDriverScrew.massDriverScrewMaterials = massDriverScrewMaterials
-        virtualMassDriverScrew.shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftRadius'].value
+        virtualMassDriverScrew.shaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+        virtualMassDriverScrew.shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
         virtualMassDriverScrew.threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
         virtualMassDriverScrew.threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
         virtualMassDriverScrew.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
@@ -125,14 +131,19 @@ export class virtualMassDriverScrew {
                     }
                     const highRes = false
                     const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
-                    const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 16)
+
+                    // Hack!!!
+                    //const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 16)
+                    const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
+
                                 // Get rid of the previous geometries...
                     om.children[0].geometry.dispose()
                     om.children[1].geometry.dispose()
                     // Generate new geometries
                     om.children[0].geometry = new ScrewGeometry(
                         screwLength,
-                        virtualMassDriverScrew.shaftRadius,
+                        virtualMassDriverScrew.shaftOuterRadius,
+                        virtualMassDriverScrew.shaftInnerRadius,
                         virtualMassDriverScrew.threadRadius,
                         virtualMassDriverScrew.threadThickness,
                         virtualMassDriverScrew.threadStarts,
