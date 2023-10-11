@@ -217,7 +217,7 @@ class ScrewGeometry extends BufferGeometry {
 
         switch (sideOrEndsSelector) {
         case 0:
-          // Side faces
+          // Flight side faces
           // Thread back face
           normals.push( normal[0].x, normal[0].y, normal[0].z );
           normals.push( normal[0].x, normal[0].y, normal[0].z );
@@ -231,20 +231,20 @@ class ScrewGeometry extends BufferGeometry {
           normals.push( normal[2].x, normal[2].y, normal[2].z );
           break;
         case 1:
-          // End faces
+          // Flight backward end faces
           for (let j = 0; j<6; j++) {
             normals.push( -T.x, -T.y, -T.z );
           }
           break;
         case 2:
-          // Other end faces
+          // Flight forward end faces
           for (let j = 0; j<6; j++) {
             normals.push( T.x, T.y, T.z );
           }
           break;
         }
 
-        // Generate the normals and vertices that define the curves outer surface of the shaft
+        // Generate the normals and vertices that define the curves for the outer surface of the shaft
         for (let j = 0; j <= radialSegments; j++) {
 
           const v = precomputedPartOfAngle2 + j * angularStep1;
