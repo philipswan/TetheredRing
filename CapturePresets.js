@@ -1891,7 +1891,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showMassDriverTube'].value = true
     guidParamWithUnits['showMassDriverScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1954,10 +1954,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledBodyLength'].value = .1  // m
 
     // Kilamanjaro, Africa
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329632.988877341, 2300.3143576011626, 4683486.570061294)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.6788230535598375, 0.00036000662443132117, 0.7343017992289874)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329631.773212948, 2294.904191131801, 4683490.868013314)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.6788230535598375, 0.00036000662443132117, 0.7343017992289874)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329631.329213093, 2296.5948764996406, 4683489.992881816)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.6788226050417232, 0.0003600715907148834, 0.7343022138280791)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329631.299600512, 2297.381230351881, 4683490.465258459)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.6788226050417232, 0.0003600715907148834, 0.7343022138280791)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
 //      ((i!=1) || (j!=4)) // Hawaii??

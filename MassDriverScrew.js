@@ -25,8 +25,8 @@ export class massDriverScrewModel {
         // ToDo: This doesn't scale well. Need to figure out how to make this work for any dimentions of the mass driver's screw.
 
         // Hack!!!
-        const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
-        //const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
+        //const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
+        const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
         const baseDistanceAlongScrew = segmentIndex * segmentSpacing
@@ -133,8 +133,8 @@ export class virtualMassDriverScrew {
                     const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
 
                     // Hack!!!
-                    const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 16)
-                    //const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
+                    //const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 16)
+                    const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
                                 // Get rid of the previous geometries...
                     om.children[0].geometry.dispose()

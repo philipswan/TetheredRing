@@ -154,7 +154,7 @@ export class launcher {
     this.massDriverScrewMaterials = []
     this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({color: 0xffffff})
     this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({color: 0x7f7f7f})
-    //const massDriverScrewMaterial = new THREE.MeshPhongMaterial( {map: massDriverScrewTexture})
+    //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
     const screwModels = new THREE.Group()
     screwModels.name = 'massDriverScrews'

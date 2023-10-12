@@ -45,19 +45,26 @@ class ScrewGeometry extends BufferGeometry {
     };
 
     // helper variables
-    const vertex = new Vector3();
-    const normal = new Vector3();
-    const uv = new Vector2();
-    const vertexArray = [];
-    const uvArray = [];
+    const vertex = new Vector3()
+    const normal = new Vector3()
+    const uv = new Vector2()
+    const vertexArray = []
+    const uvArray = []
 
-    let P = new Vector3();
+    let P = new Vector3()
 
     // buffer
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-    const indices = [];
+    const vertices = []
+    const normals = []
+    const uvs = []
+    const indices = []
+
+    const renderInnerSurface = shaftInnerRadius > 0
+
+    // const verticesTag = []
+    // const normalsTag = []
+    // const uvsTag = []
+    // const indicesTag = []
 
     // Estimate how many length segments we will need to properly represent the screw
     const distanceAlongScrew = baseDistanceAlongScrew + 0.5 * screwLength
@@ -84,6 +91,17 @@ class ScrewGeometry extends BufferGeometry {
     // create buffer data
     generateBufferData();
 
+    // console.log(vertices.length, normals.length, uvs.length, verticesTag.length, normalsTag.length, uvsTag.length)
+    // let c = 0
+    // vertices.forEach((v, i) => {
+    // //for (let i = 0; i<1000; i++) {
+    //   if ((c<1000) && ((verticesTag[i]!==normalsTag[i]) || (verticesTag[i]!==uvsTag[i]))) {
+    //     console.log(i, verticesTag[i], normalsTag[i], uvsTag[i])
+    //     c++
+    //   }
+    // })
+
+
     // build geometry
 
     this.setIndex( indices );
@@ -102,16 +120,23 @@ class ScrewGeometry extends BufferGeometry {
       generateSegmentsAndUVs(0, screwLength, 1);
       generateSegmentsAndUVs(tubularSegments, screwLength, 2);
 
-      // Need an extra vertex at the center of each end of the screw. These will be used to construct the flat surfaces that cap the ends
-      for (let i = 0; i <= tubularSegments; i+=tubularSegments) {
-        P = new Vector3(0, (i / tubularSegments - 0.5) * screwLength, 0);
-        vertices.push( P.x, P.y, P.z );
-        const T = new Vector3(0, 1, 0);
-        if (i==0) {
-          normals.push( -T.x, -T.y, -T.z );
-        }
-        else {
-          normals.push( T.x, T.y, T.z );
+      if (!renderInnerSurface) {
+        // Need an extra vertex at the center of each end of the screw. These will be used to construct the flat surfaces that cap the ends
+        for (let i = 0; i <= tubularSegments; i+=tubularSegments) {
+          P = new Vector3(0, (i / tubularSegments - 0.5) * screwLength, 0);
+          vertices.push( P.x, P.y, P.z );
+          //verticesTag.push( 'end' + i, 'end' + i, 'end' + i);
+          const T = new Vector3(0, 1, 0);
+          if (i==0) {
+            normals.push( -T.x, -T.y, -T.z );
+            //normalsTag.push( 'end' + i, 'end' + i, 'end' + i);
+          }
+          else {
+            normals.push( T.x, T.y, T.z );
+            //normalsTag.push( 'end' + i, 'end' + i, 'end' + i);
+          }
+          uvs.push( 0.5, 0.5 );
+          //uvsTag.push( 'end' + i, 'end' + i, 'end' + i);
         }
       }
 
@@ -154,11 +179,11 @@ class ScrewGeometry extends BufferGeometry {
       const threadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance
   
       const threadHalfOfCrossWidth = Math.min(threadThickness * Math.sqrt(threadPitch**2+1) / Math.abs(threadPitch), shaftOuterRadius/2);
-      const threadBaseHalfAngle = Math.asin(threadHalfOfCrossWidth/shaftOuterRadius);
-      const threadBaseEndAngle = 2 * Math.PI / threadStarts;
-      const threadTopHalfAngle = Math.asin(threadHalfOfCrossWidth/threadRadius);
+      const threadBaseHalfAngle = Math.asin(threadHalfOfCrossWidth/shaftOuterRadius)
+      const threadBaseEndAngle = 2 * Math.PI / threadStarts
+      const threadTopHalfAngle = Math.asin(threadHalfOfCrossWidth/threadRadius)
       // generate normals and vertices for the current segment
-      const angularStep1 = (threadBaseEndAngle - threadBaseHalfAngle) / radialSegments;
+      const angularStep1 = (threadBaseEndAngle - threadBaseHalfAngle) / radialSegments
 
       const x0 = Math.cos(threadBaseHalfAngle) * shaftOuterRadius
       const y0 = Math.sin(threadBaseHalfAngle) * shaftOuterRadius
@@ -168,78 +193,93 @@ class ScrewGeometry extends BufferGeometry {
       const perimeterLength = (2 * Math.PI - threadStarts * 2 * threadBaseHalfAngle) * shaftOuterRadius + threadStarts * (2 * threadSideWallHeight + threadThickness)
 
       for (let k = 0; k < threadStarts; k++) {
-        const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations + k / threadStarts) );
-        //console.log('screw', precomputedPartOfAngle1, rotations, k)
-        const precomputedPartOfAngle2 = precomputedPartOfAngle1 + threadBaseHalfAngle;
+        const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations + k / threadStarts) )
+        const precomputedPartOfAngle2 = precomputedPartOfAngle1 + threadBaseHalfAngle
 
         // Thread Faces
 
-        // Generate the normals and vertices for the three faces of the thread
+        // Generate the normals and vertices for the three faces of each flight of the screw thread
         const v = []
-        v.push(precomputedPartOfAngle1);
-        v.push(precomputedPartOfAngle1);
-        v.push(precomputedPartOfAngle1 + threadTopHalfAngle);
-        v.push(precomputedPartOfAngle1 + threadBaseHalfAngle);
+        v.push(precomputedPartOfAngle1)
+        v.push(precomputedPartOfAngle1)
+        v.push(precomputedPartOfAngle1 + threadTopHalfAngle)
+        v.push(precomputedPartOfAngle1 + threadBaseHalfAngle)
 
         for (let j = 0; j<3; j++) {
           const nv = precomputedPartOfAngle1 + ((j-1) * Math.PI/2)
-          const sin = Math.sin(nv);
-          const cos = Math.cos(nv);
+          const sin = Math.sin(nv)
+          const cos = Math.cos(nv)
           normal[j] = new Vector3()
-          normal[j].x = cos * B.x + sin * N.x;
-          normal[j].y = cos * B.y + sin * N.y;
-          normal[j].z = cos * B.z + sin * N.z;
-          normal[j].normalize();
+          normal[j].x = cos * B.x + sin * N.x
+          normal[j].y = cos * B.y + sin * N.y
+          normal[j].z = cos * B.z + sin * N.z
+          normal[j].normalize()
         }
 
         for (let j = 0; j<4; j++) {
           const vv = v[j]
-          const sin = Math.sin(vv);
-          const cos = Math.cos(vv);
+          const sin = Math.sin(vv)
+          const cos = Math.cos(vv)
           vertexArray[j] = new Vector3()
-          const r = (j==0 || j==3) ? shaftOuterRadius : threadRadius;
-          vertexArray[j].x = P.x + r * (cos * B.x + sin * N.x);
-          vertexArray[j].y = P.y + r * (cos * B.y + sin * N.y);
-          vertexArray[j].z = P.z + r * (cos * B.z + sin * N.z);
+          const r = (j==0 || j==3) ? shaftOuterRadius : threadRadius
+          vertexArray[j].x = P.x + r * (cos * B.x + sin * N.x)
+          vertexArray[j].y = P.y + r * (cos * B.y + sin * N.y)
+          vertexArray[j].z = P.z + r * (cos * B.z + sin * N.z)
         }
 
         // Thread back face
-        vertices.push( vertexArray[0].x, vertexArray[0].y, vertexArray[0].z );
-        vertices.push( vertexArray[1].x, vertexArray[1].y, vertexArray[1].z );
+        vertices.push( vertexArray[0].x, vertexArray[0].y, vertexArray[0].z )
+        //verticesTag.push( 'tbf0', 'tbf0', 'tbf0')
+        vertices.push( vertexArray[1].x, vertexArray[1].y, vertexArray[1].z )
+        //verticesTag.push( 'tbf1', 'tbf1', 'tbf1')
 
         // Thread top face
-        vertices.push( vertexArray[1].x, vertexArray[1].y, vertexArray[1].z );
-        vertices.push( vertexArray[2].x, vertexArray[2].y, vertexArray[2].z );
+        vertices.push( vertexArray[1].x, vertexArray[1].y, vertexArray[1].z )
+        //verticesTag.push( 'ttf1', 'ttf1', 'ttf1')
+        vertices.push( vertexArray[2].x, vertexArray[2].y, vertexArray[2].z )
+        //verticesTag.push( 'ttf2', 'ttf2', 'ttf2')
 
         // Thread front face
-        vertices.push( vertexArray[2].x, vertexArray[2].y, vertexArray[2].z );
-        vertices.push( vertexArray[3].x, vertexArray[3].y, vertexArray[3].z );
+        vertices.push( vertexArray[2].x, vertexArray[2].y, vertexArray[2].z )
+        //verticesTag.push( 'tff2', 'tff2', 'tff2')
+        vertices.push( vertexArray[3].x, vertexArray[3].y, vertexArray[3].z )
+        //verticesTag.push( 'tff3', 'tff3', 'tff3')
 
         switch (sideOrEndsSelector) {
         case 0:
           // Flight side faces
           // Thread back face
-          normals.push( normal[0].x, normal[0].y, normal[0].z );
-          normals.push( normal[0].x, normal[0].y, normal[0].z );
+          normals.push( normal[0].x, normal[0].y, normal[0].z )
+          //normalsTag.push( 'tbf0', 'tbf0', 'tbf0')
+          normals.push( normal[0].x, normal[0].y, normal[0].z )
+          //normalsTag.push( 'tbf1', 'tbf1', 'tbf1')
 
           // Thread top face
-          normals.push( normal[1].x, normal[1].y, normal[1].z );
-          normals.push( normal[1].x, normal[1].y, normal[1].z );
+          normals.push( normal[1].x, normal[1].y, normal[1].z )
+          //normalsTag.push( 'ttf1', 'ttf1', 'ttf1')
+          normals.push( normal[1].x, normal[1].y, normal[1].z )
+          //normalsTag.push( 'ttf2', 'ttf2', 'ttf2')
 
           // Thread front face
-          normals.push( normal[2].x, normal[2].y, normal[2].z );
-          normals.push( normal[2].x, normal[2].y, normal[2].z );
+          normals.push( normal[2].x, normal[2].y, normal[2].z )
+          //normalsTag.push( 'tff2', 'tff2', 'tff2')
+          normals.push( normal[2].x, normal[2].y, normal[2].z )
+          //normalsTag.push( 'tff3', 'tff3', 'tff3')
           break;
         case 1:
           // Flight backward end faces
           for (let j = 0; j<6; j++) {
-            normals.push( -T.x, -T.y, -T.z );
+            normals.push( -T.x, -T.y, -T.z )
+            //const label = ((j<2) ? 'tbf' : (j<4) ? 'ttf' : 'tff' ) + [0, 1, 1, 2, 2, 3][j]
+            //normalsTag.push( label, label, label)
           }
           break;
         case 2:
           // Flight forward end faces
           for (let j = 0; j<6; j++) {
             normals.push( T.x, T.y, T.z );
+            //const label = ((j<2) ? 'tbf' : (j<4) ? 'ttf' : 'tff' ) + [0, 1, 1, 2, 2, 3][j]
+            //normalsTag.push( label, label, label)
           }
           break;
         }
@@ -269,6 +309,7 @@ class ScrewGeometry extends BufferGeometry {
             normals.push( T.x, T.y, T.z );
             break;
           }
+          //normalsTag.push( 'out' + j, 'out' + j, 'out' + j);
 
           // vertex
 
@@ -277,50 +318,102 @@ class ScrewGeometry extends BufferGeometry {
           vertex.z = P.z + shaftOuterRadius * normal.z;
 
           vertices.push( vertex.x, vertex.y, vertex.z );
+          //verticesTag.push( 'out' + j, 'out' + j, 'out' + j);
 
+        }
+
+        if (renderInnerSurface) {
+          // Generate the normals and vertices that define the curves for the inner surface of the shaft
+          for (let j = 0; j <= radialSegments; j++) {
+
+            const v = precomputedPartOfAngle2 + j * angularStep1;
+
+            const sin = Math.sin( v );
+            const cos = Math.cos( v );
+
+            // normal
+            normal.x = ( cos * B.x + sin * N.x );
+            normal.y = ( cos * B.y + sin * N.y );
+            normal.z = ( cos * B.z + sin * N.z );
+            normal.normalize();  // Really needed?
+
+            switch (sideOrEndsSelector) {
+            case 0:
+              normals.push( -normal.x, -normal.y, -normal.z );
+              break;
+            case 1:
+              normals.push( -T.x, -T.y, -T.z );
+              break;
+            case 2:
+              normals.push( T.x, T.y, T.z );
+              break;
+            }
+            //normalsTag.push( 'inn' + j, 'inn' + j, 'inn' + j);
+
+            // vertex
+
+            vertex.x = P.x + shaftInnerRadius * normal.x;
+            vertex.y = P.y + shaftInnerRadius * normal.y;
+            vertex.z = P.z + shaftInnerRadius * normal.z;
+
+            vertices.push( vertex.x, vertex.y, vertex.z );
+            //verticesTag.push( 'inn' + j, 'inn' + j, 'inn' + j);
+
+          }
         }
 
         // Now compute the UVs
         switch (sideOrEndsSelector) {
           // Side faces
           case 0:
-            for ( let j = 0; j <= radialSegments; j++ ) {
-              uv.x = i / tubularSegments;
-              uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * j / radialSegments * shaftOuterRadius) / perimeterLength) % 1;
-              uvs.push( uv.x, uv.y );
-            }
-
             // Screw flight back face
             uv.x = i / tubularSegments;
             uv.y = Math.abs(rotations + ( k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'tbf0', 'tbf0', 'tbf0');
 
             uv.x = i / tubularSegments;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'tbf1', 'tbf1', 'tbf1');
 
             // Screw flight top face
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'ttf1', 'ttf1', 'ttf1');
             uv.x = i / tubularSegments;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight + threadThickness) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'ttf2', 'ttf2', 'ttf2');
 
             // Screw flight front face
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'tff2', 'tff2', 'tff2');
             uv.x = i / tubularSegments;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight + threadThickness + threadSideWallHeight) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
+            //uvsTag.push( 'tff3', 'tff3', 'tff3');
+
+            // Outer surface of shaft
+            for ( let j = 0; j <= radialSegments; j++ ) {
+              uv.x = i / tubularSegments;
+              uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * j / radialSegments * shaftOuterRadius) / perimeterLength) % 1;
+              uvs.push( uv.x, uv.y );
+              //uvsTag.push( 'out' + j, 'out' + j, 'out' + j);
+            }
+
+            if (renderInnerSurface) {
+              // Inner surface of shaft
+              for ( let j = 0; j <= radialSegments; j++ ) {
+                uv.x = i / tubularSegments;
+                uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * j / radialSegments * shaftOuterRadius) / perimeterLength) % 1;
+                uvs.push( uv.x, uv.y );
+                //uvsTag.push( 'inn' + j, 'inn' + j, 'inn' + j);
+              }
+            }
+
             break;
           case 1: case 2:
             // End faces
-            for ( let j = 0; j <= radialSegments; j++ ) {
-              const v = precomputedPartOfAngle2 + j * angularStep1;
-              const sin = Math.sin( v );
-              const cos = Math.cos( v );
-              uv.x = shaftOuterRadius * cos
-              uv.y = shaftOuterRadius * sin
-              uvs.push( uv.x, uv.y );
-            }
             for (let j = 0; j<4; j++) {
               const vv = v[j]
               const sin = Math.sin(vv);
@@ -333,16 +426,44 @@ class ScrewGeometry extends BufferGeometry {
     
             // Screw flight back edge
             uvs.push( uvArray[0].x, uvArray[0].y );
+            //uvsTag.push( 'tbf0', 'tbf0', 'tbf0');
             uvs.push( uvArray[1].x, uvArray[1].y );
+            //uvsTag.push( 'tbf1', 'tbf1', 'tbf1');
     
             // Screw flight top edge
             uvs.push( uvArray[1].x, uvArray[1].y );
+            //uvsTag.push( 'ttf1', 'ttf1', 'ttf1');
             uvs.push( uvArray[2].x, uvArray[2].y );
+            //uvsTag.push( 'ttf2', 'ttf2', 'ttf2');
     
             // Screw flight front edge
             uvs.push( uvArray[2].x, uvArray[2].y );
+            //uvsTag.push( 'tff2', 'tff2', 'tff2');
             uvs.push( uvArray[3].x, uvArray[3].y );
+            //uvsTag.push( 'tff3', 'tff3', 'tff3');
     
+            for ( let j = 0; j <= radialSegments; j++ ) {
+              const v = precomputedPartOfAngle2 + j * angularStep1;
+              const sin = Math.sin( v );
+              const cos = Math.cos( v );
+              uv.x = shaftOuterRadius * cos
+              uv.y = shaftOuterRadius * sin
+              uvs.push( uv.x, uv.y );
+              //uvsTag.push( 'out' + j, 'out' + j, 'out' + j);
+            }
+
+            if (renderInnerSurface) {
+              for ( let j = 0; j <= radialSegments; j++ ) {
+                const v = precomputedPartOfAngle2 + j * angularStep1;
+                const sin = Math.sin( v );
+                const cos = Math.cos( v );
+                uv.x = shaftInnerRadius * cos
+                uv.y = shaftInnerRadius * sin
+                uvs.push( uv.x, uv.y );
+                //uvsTag.push( 'inn' + j, 'inn' + j, 'inn' + j);
+              }
+            }
+
             break;
         }
       }
@@ -350,92 +471,178 @@ class ScrewGeometry extends BufferGeometry {
 
     function generateIndices() {
 
-      const verticiesPerThread = radialSegments + 1 + 6  // Part of shaft plus each thread comprises 3 faces with 2 verticies per face 
+      let verticesPerThread
+      if (renderInnerSurface) {
+        verticesPerThread = 2*(radialSegments + 1) + 6  // Part of shaft (outer and inner) plus each thread comprises 3 faces with 2 verticies per face 
+      }
+      else {
+        verticesPerThread = (radialSegments + 1) + 6  // Part of shaft (outer) plus each thread comprises 3 faces with 2 verticies per face
+      }
+      const extraOffsetToOuterShaftFirstVertex = 6
+      const extraOffsetToInnerShaftFirstVertex = (radialSegments + 1) + 6
       for (let i = 1; i <= tubularSegments; i++) {
         for (let k = 0; k < threadStarts; k++) {
 
           // Generate the indices for the thread
           for (let j = 0; j < 3; j++) {
-            let l = k * verticiesPerThread + j * 2 + 1
-            const a = verticiesPerThread * threadStarts * ( i - 1 ) + ( l - 1 );
-            const b = verticiesPerThread * threadStarts * i + ( l - 1 );
-            const c = verticiesPerThread * threadStarts * i + l;
-            const d = verticiesPerThread * threadStarts * ( i - 1 ) + l;
+            let l = k * verticesPerThread + j * 2 + 1
+            const a = verticesPerThread * threadStarts * ( i - 1 ) + ( l - 1 );
+            const b = verticesPerThread * threadStarts * i + ( l - 1 );
+            const c = verticesPerThread * threadStarts * i + l;
+            const d = verticesPerThread * threadStarts * ( i - 1 ) + l;
 
-            // faces
-            // if (vertexArray[a].distanceTo(vertexArray[c]) > vertexArray[b].distanceTo(vertexArray[d])) {
-              // indices.push( a, b, d );
-              // indices.push( b, c, d );
-            // }
-            // else {
-              indices.push( a, b, c );
-              indices.push( c, d, a );
-            // }
+            indices.push( a, b, c );
+            indices.push( c, d, a );
           }
           
-          // Generate the indices for the shaft
+          // Generate the indices for the outer shaft
           for ( let j = 1; j <= radialSegments; j++) {
-            let l = 6 + k * verticiesPerThread + j
-            const a = verticiesPerThread * threadStarts * ( i - 1 ) + ( l - 1 );
-            const b = verticiesPerThread * threadStarts * i + ( l - 1 );
-            const c = verticiesPerThread * threadStarts * i + l;
-            const d = verticiesPerThread * threadStarts * ( i - 1 ) + l;
+            let l = extraOffsetToOuterShaftFirstVertex + k * verticesPerThread + j
+            const a = verticesPerThread * threadStarts * ( i - 1 ) + ( l - 1 );
+            const b = verticesPerThread * threadStarts * i + ( l - 1 );
+            const c = verticesPerThread * threadStarts * i + l;
+            const d = verticesPerThread * threadStarts * ( i - 1 ) + l;
 
-            // faces
-            // if (vertexArray[a].distanceTo(vertexArray[c]) > vertexArray[b].distanceTo(vertexArray[d])) {
-              // indices.push( a, b, d );
-              // indices.push( b, c, d );
-            // }
-            // else {
-              indices.push( a, b, c );
-              indices.push( c, d, a );
-            // }
+            indices.push( a, b, c );
+            indices.push( c, d, a );
           }
-
         }
+
+        if (renderInnerSurface) {
+          // Generate the indices for the inner shaft
+          for (let k = 0; k < threadStarts; k++) {
+            for ( let j = 0; j <= radialSegments; j++) {
+              let l0, l1
+              l1 = extraOffsetToInnerShaftFirstVertex + k * verticesPerThread + j
+              // Awkward code to handle the wrap around case...
+              if (j===0) {
+                l0 = extraOffsetToInnerShaftFirstVertex + ((k + threadStarts - 1) % threadStarts) * verticesPerThread + radialSegments
+              }
+              else {
+                l0 = l1 - 1
+              }
+              const a = verticesPerThread * threadStarts * ( i - 1 ) + ( l0 );
+              const b = verticesPerThread * threadStarts * i + ( l0 );
+              const c = verticesPerThread * threadStarts * i + l1;
+              const d = verticesPerThread * threadStarts * ( i - 1 ) + l1;
+
+              indices.push( c, b, a );
+              indices.push( a, d, c );
+            }
+          }
+        }
+
       }
 
       // Next create the triangles needed to cover the ends of the screws
-      // For texture mapping, it might look better if we created an additional set of vericies so that we could then assign unique UV values to them 
-      let b
-      let l
-      for (let ii = 0; ii < 2; ii++) {
-        const i = tubularSegments + 1 + ii
-        // Select one of the two extra vertices located at the center of each end of the screw
-        const a = (tubularSegments+3) * threadStarts * verticiesPerThread + ii
-        b = verticiesPerThread * threadStarts * i
-        for (let k = 0; k < threadStarts; k++) {
-          for (let j = 0; j < 2; j ++ ) {
-            // Just need to hit the verticies at (radialSegments+1)+1 and (radialSegments+1)+3 to reach the top of the thread
-            l = k * verticiesPerThread + j * 2 + 1
-            const c = verticiesPerThread * threadStarts * i + l;
-            if (ii==0) {
-              indices.push( a, b, c );
+      
+      if (renderInnerSurface) {
+        let l
+        for (let ii = 0; ii < 2; ii++) {
+          // Iterating through the two ends of the screw...
+          const i = tubularSegments + 1 + ii
+          // Select one of the two extra vertices located at the center of each end of the screw
+          const offsetToTubularSegment = verticesPerThread * threadStarts * i 
+
+          // Cap the ends of the flights
+          for (let k = 0; k < threadStarts; k++) {
+            const ss = offsetToTubularSegment + k * verticesPerThread
+            for (let j = 0; j < 2; j++) {
+              const a = ss + 0
+              const b = ss + 1
+              const c = ss + 4
+              const d = ss + 5
+              if (ii==0) {
+                //indices.push( a, b, c );
+                indices.push( a, b, c );
+                indices.push( c, d, a );
+              }
+              else {
+                //indices.push( c, b, a );
+                indices.push( c, b, a );
+                indices.push( a, d, c );
+              }
             }
-            else {
-              indices.push( c, b, a );
-            }
-            b = c
           }
-          for ( let j = 0; j <= radialSegments; j++) {
-            l = 6 + k * verticiesPerThread + j
-            const c = verticiesPerThread * threadStarts * i + l;
-            if (ii==0) {
-              indices.push( a, b, c );
+
+          // Cap the ends of the shaft
+          let a = offsetToTubularSegment + extraOffsetToOuterShaftFirstVertex
+          let c = offsetToTubularSegment + extraOffsetToInnerShaftFirstVertex
+          for (let k = 0; k < threadStarts; k++) {
+            const extraOffsetToThread = k * verticesPerThread
+            for ( let j = 0; j <= radialSegments; j++) {
+              const b = offsetToTubularSegment + extraOffsetToThread + extraOffsetToOuterShaftFirstVertex + j
+              const d = offsetToTubularSegment + extraOffsetToThread + extraOffsetToInnerShaftFirstVertex + j
+              if (ii==0) {
+                indices.push( a, b, c );
+                indices.push( c, b, d );
+              }
+              else {
+                indices.push( b, a, d );
+                indices.push( d, a, c );
+              }
+              a = b
+              c = d
             }
-            else {
-              indices.push( c, b, a );
-            }
-            b = c
+          }
+
+          // Wrap around to the beginning to close the face
+          const b = offsetToTubularSegment + extraOffsetToOuterShaftFirstVertex
+          const d = offsetToTubularSegment + extraOffsetToInnerShaftFirstVertex
+          if (ii==0) {
+            indices.push( a, b, c );
+            indices.push( c, b, d );
+          }
+          else {
+            indices.push( b, a, d );
+            indices.push( d, a, c );
           }
         }
-        const c = verticiesPerThread * threadStarts * i
-        if (ii==0) {
-          indices.push( a, b, c );
+      }
+      else {
+        // Next create the triangles needed to cover the ends of the screws
+        // For texture mapping, it might look better if we created an additional set of vericies so that we could then assign unique UV values to them 
+        let b
+        let l
+        for (let ii = 0; ii < 2; ii++) {
+          const i = tubularSegments + 1 + ii
+          // Select one of the two extra vertices located at the center of each end of the screw
+          const a = (tubularSegments+3) * threadStarts * verticesPerThread + ii
+          b = verticesPerThread * threadStarts * i
+          for (let k = 0; k < threadStarts; k++) {
+            for (let j = 0; j < 2; j ++ ) {
+              // Just need to hit the verticies at (radialSegments+1)+1 and (radialSegments+1)+3 to reach the top of the thread
+              l = k * verticesPerThread + j * 2 + 1
+              const c = verticesPerThread * threadStarts * i + l;
+              if (ii==0) {
+                indices.push( a, b, c );
+              }
+              else {
+                indices.push( c, b, a );
+              }
+              b = c
+            }
+            for ( let j = 0; j <= radialSegments; j++) {
+              l = 6 + k * verticesPerThread + j
+              const c = verticesPerThread * threadStarts * i + l;
+              if (ii==0) {
+                indices.push( a, b, c );
+              }
+              else {
+                indices.push( c, b, a );
+              }
+              b = c
+            }
+          }
+          const c = verticesPerThread * threadStarts * i
+          if (ii==0) {
+            indices.push( a, b, c );
+          }
+          else {
+            indices.push( c, b, a );
+          }
         }
-        else {
-          indices.push( c, b, a );
-        }
+
       }
 
     }

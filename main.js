@@ -379,7 +379,7 @@ const guidParamWithUnits = {
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewShaftOuterRadius: {value: 0.375, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverScrewShaftInnerRadius: {value: 0.300, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewShaftInnerRadius: {value: 0, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.05, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
