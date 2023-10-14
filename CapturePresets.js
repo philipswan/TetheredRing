@@ -1418,9 +1418,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
     guidParamWithUnits['logZoomRate'].value = -3
 
-    // Hack!!!!
-    guidParamWithUnits['saveMassDriverScrewSTL'].value = false
-
     guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
     guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
     guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
@@ -1918,14 +1915,14 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchVehiclePayloadMass'].value = 100
 
     guidParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value = 100  // m
-    guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 10  // m/s2
+    guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 70  // m/s2
     guidParamWithUnits['launcherRampDesignMode'].value = 1
     guidParamWithUnits['launcherRampTurningRadius'].value = 25
     //guidParamWithUnits['launcherRampTurningRadius'].value = 10
     //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 1
-    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 4
-    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 20     // m/s
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 8
+    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 16     // m/s
     guidParamWithUnits['launcherMassDriverAltitude'].value = 50         // m
     guidParamWithUnits['launcherRampExitAltitude'].value = 70           // m  (Altitute of Mauna Kea summit plus ~300 meters)
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 85  // m
@@ -1935,29 +1932,39 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
 
 
-    guidParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value = 2/8  // m
+    guidParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value = 0.125  // m
     guidParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value = -1.75/8  // m
-    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375/8  // m
-    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3/8  // m
-    guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = 0.5/8  // m
+    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.03  // m
+    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.025  // m
+    guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = 0.038  // m
     guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = 0.05/8  // m
     guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 4  // m
-    guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .5  // m
+    guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25  // m
     guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80  // m
-    guidParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value = 32  // m
+    guidParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value = 100  // m
     guidParamWithUnits['launcherMassDriverBracketWidth'].value = 2.0/32  // m
     guidParamWithUnits['launcherMassDriverBracketHeight'].value = 0.125/32  // m
-    guidParamWithUnits['launcherMassDriverScrewBracketThickness'].value = 0.02  // m
+    guidParamWithUnits['launcherMassDriverScrewBracketThickness'].value = 0.002  // m
     guidParamWithUnits['launcherMassDriverRailWidth'].value = 1/8  // m
     guidParamWithUnits['launcherMassDriverRailHeight'].value = 0.25/8  // m
     guidParamWithUnits['launchRailUpwardsOffset'].value = -1.5/8  // m
     guidParamWithUnits['launchSledBodyLength'].value = .1  // m
 
+    // Hack!!!!
+    guidParamWithUnits['saveMassDriverScrewSTL'].value = false
+
     // Kilamanjaro, Africa
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329631.329213093, 2296.5948764996406, 4683489.992881816)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.6788226050417232, 0.0003600715907148834, 0.7343022138280791)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329631.299600512, 2297.381230351881, 4683490.465258459)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.6788226050417232, 0.0003600715907148834, 0.7343022138280791)
+    // Side on view
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329645.232337113, 2297.1925139744653, 4683477.93398771)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.678824606787916, 0.0003601659538681463, 0.7343003632708599)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329645.488945393, 2296.225021810688, 4683478.113763174)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.678824606787916, 0.0003601659538681463, 0.7343003632708599)
+
+    // End View
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(4329644.469907974, 2297.4671285898203, 4683478.087086993)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.678824606787916, 0.0003601659538681463, 0.7343003632708599)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(4329644.363210346, 2297.480607709849, 4683478.416303728)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.678824606787916, 0.0003601659538681463, 0.7343003632708599)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
 //      ((i!=1) || (j!=4)) // Hawaii??
