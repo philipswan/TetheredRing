@@ -221,21 +221,21 @@ export class virtualLaunchVehicle {
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     const res = refFrame.curve.findRelevantCurve(deltaT)
     const relevantCurve = res.relevantCurve
-    //const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-    const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+    const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
+    //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
 
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
-    const pointOnRelevantCurve = relevantCurve.getPoint(i)
-    const forward = relevantCurve.getTangent(i)
-    const upward = relevantCurve.getNormal(i)
-    const rightward = relevantCurve.getBinormal(i)
+    const pointOnRelevantCurve = relevantCurve.getPointAt(d)
+    const forward = relevantCurve.getTangentAt(d)
+    const upward = relevantCurve.getNormalAt(d)
+    const rightward = relevantCurve.getBinormalAt(d)
 
     const orientation = new THREE.Quaternion()
     if (relevantCurve.name==='freeFlightPositionCurve') {
-      const tangent = relevantCurve.freeFlightOrientationCurve.getPoint(i)
-      const normal = relevantCurve.getBinormal(i).cross(tangent)
+      const tangent = relevantCurve.freeFlightOrientationCurve.getPointAt(d)
+      const normal = rightward.clone().cross(tangent)
       const q1 = new THREE.Quaternion()
       q1.setFromUnitVectors(modelForward, tangent)
       const rotatedObjectUpwardVector = modelUpward.clone().applyQuaternion(q1)
@@ -243,7 +243,7 @@ export class virtualLaunchVehicle {
       orientation.multiply(q1)
     }
     else {
-      relevantCurve.getQuaternion(i, modelForward, modelUpward, orientation)
+      relevantCurve.getQuaternionAt(d, modelForward, modelUpward, orientation)
     }
 
     om.position.copy(pointOnRelevantCurve)
@@ -285,6 +285,7 @@ export class virtualLaunchVehicle {
         }
       }
       else {
+        const airDensityFactor = Math.min(1, airDensity/0.0184)     // 0.0184 kg/m^3 is rougly the air density at 30000m
         flame_model.visible = (airDensityFactor>0.1)
         fuelFlowRateFactor = airDensityFactor
         shockwaveCone_model.visible = (airDensityFactor>0.01)
@@ -324,9 +325,9 @@ export class virtualLaunchVehicle {
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
-      //const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
-      const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
-      const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, i))
+      const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
+      //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+      const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, d))
       return pointOnRelevantCurve
     }
     else {
