@@ -1610,7 +1610,7 @@ const tempMatrix = new THREE.Matrix4()
 
 function renderFrame() {
 
-  // Code useful for checking that we didn't accidentally create too many objects.
+  // Object Histogram Code - useful for checking that we didn't accidentally create too many objects.
   // let counts = {}
   // planetCoordSys.children.forEach(child => {
   //   if (!counts[child.name]) counts[child.name] = 0
@@ -3169,8 +3169,10 @@ function recomputeNearFarClippingPlanes() {
     camera.far = 100 * radiusOfPlanet
   }
   else {
-    camera.near = nonGUIParams['nearClip']
-    camera.far = nonGUIParams['farClip']
+    if (nonGUIParams['overrideClipPlanes']) {
+      camera.near = nonGUIParams['nearClip']
+      camera.far = nonGUIParams['farClip']
+    }
   }
 
   //console.log(camera.near, camera.near*16384, (d1+d2)*1.5, camera.far, 2)

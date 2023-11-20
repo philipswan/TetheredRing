@@ -97,6 +97,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=18) || (j!=4)) &&
       ((i!=23) || (j!=8))  // New Zealand North Island
     )}
+    nonGUIParams['overrideClipPlanes'] = false
     nonGUIParams['nearClip'] = 0.1
     nonGUIParams['farClip'] = 600000000
   }
@@ -131,7 +132,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = false // Hack
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -185,6 +186,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
 
@@ -288,6 +290,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=22) || (j!=7)) && 
       ((i!=23) || (j!=8)) && 
       ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
     // Adjust near clipping plane
@@ -387,6 +390,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=22) || (j!=7)) && 
       ((i!=23) || (j!=8)) && 
       ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
     // Adjust near clipping plane
@@ -485,6 +489,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=3) || (j!=3)) &&  // California
       ((i!=4) || (j!=3)))}  // California
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 100000000
 
@@ -567,6 +572,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) && 
       ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
   
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
 
@@ -669,6 +675,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       return tetheredRingSpecs
     }
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10000
     nonGUIParams['farClip'] = 100000000
 
@@ -764,6 +771,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=22) || (j!=7)) && 
       ((i!=23) || (j!=8)) && 
       ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+    
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 10000000000
     // Adjust near clipping plane
@@ -835,6 +844,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
+
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 0.1
     nonGUIParams['farClip'] = 10000000
 
@@ -909,6 +920,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
+
+
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 0.1
     nonGUIParams['farClip'] = 10000000
 
@@ -996,6 +1010,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
+
+
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
 
@@ -1082,6 +1099,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=3) || (j!=3)) &&  // California
       ((i!=4) || (j!=3)))}  // California
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 10000000
 
@@ -1347,6 +1365,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8))
     )} // New Zealand North Island and ocean to the east and west
+
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 40000000
 
@@ -1372,7 +1392,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // guidParamWithUnits['numForkLevels'].value = 10
     
     guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-    guidParamWithUnits['showXYChart'].value = true
+    guidParamWithUnits['showXYChart'].value = false
     guidParamWithUnits['showEarthsSurface'].value = true
     //guidParamWithUnits['earthTextureOpacity'].value = 0.25
     guidParamWithUnits['showEarthsAtmosphere'].value = true
@@ -1401,10 +1421,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
-    guidParamWithUnits['showMassDriverRail'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showLaunchSleds'].value = true
+    guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
@@ -1415,7 +1435,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 6
     guidParamWithUnits['logZoomRate'].value = -3
 
     guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
@@ -1424,17 +1444,17 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
     guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
 
-    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 200
     guidParamWithUnits['launchSledScaleFactor'].value = 1
     guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
-    guidParamWithUnits['numVirtualLaunchSleds'].value = 6
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+    guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
     guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40
     guidParamWithUnits['launchVehicleRadius'].value = 1.5
     guidParamWithUnits['launchVehicleBodyLength'].value = 10
 
-    guidParamWithUnits['launchVehicleAdaptiveThrust'].value = true
+    guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
     guidParamWithUnits['launcherCoastTime'].value = 93*60 / 2
     guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
     guidParamWithUnits['launchVehiclePayloadMass'].value = 100
@@ -1479,13 +1499,13 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
     guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-    guidParamWithUnits['launcherRampDesignMode'].value = 1
+    guidParamWithUnits['launcherRampDesignMode'].value = 0
     //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
     guidParamWithUnits['launcherRampTurningRadius'].value = 381000
     guidParamWithUnits['launcherRampTurningRadius'].value = 49096
     //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
-    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 500     // m/s
-    guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
+    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
+    guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
     guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit plus ~300 meters)
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 5000  // m
     guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
@@ -1512,6 +1532,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=1) || (j!=4)) // Hawaii??
     )} 
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 40000000
 
@@ -1674,6 +1695,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=14) || (j!=5)) // Hawaii??
     )} 
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 40000000
 
@@ -1776,6 +1798,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3832973.8206065563, 4592542.127120851, -2216451.905682695)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.6008432580565791, 0.719910280322552, -0.3474428982348893)
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = .1
     nonGUIParams['farClip'] = 1000000
     
@@ -1845,6 +1868,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3586158.264192416, 4822573.6952032205, -2229721.092930216)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.5594546432906146, 0.7523392721138287, -0.34784496796102365)
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
     
@@ -1971,6 +1995,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       ((i!=14) || (j!=5)) // Hawaii??
     )} 
 
+    nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = .1
     nonGUIParams['farClip'] = 400000
 
