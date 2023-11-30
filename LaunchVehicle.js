@@ -269,7 +269,7 @@ export class virtualLaunchVehicle {
     let shockwaveConeLengthFactor
     if (relevantCurve.name==='freeFlightPositionCurve') {
       if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(i)
+        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPointAt(d)
         const vehicleAirSpeed = vehicleTelemetry.x
         const aerodynamicDrag = vehicleTelemetry.y 
         const fuelFlowRate = vehicleTelemetry.z
