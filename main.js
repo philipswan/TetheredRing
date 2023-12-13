@@ -52,6 +52,7 @@ import { MultiModeTrial } from './MultiModeTrial.js'
 // Get the URL of the current page
 const url = new URL(window.location.href)
 //console.log(url)
+if (!window.Worker) console.error("Web Workers are not supported in this browser.")
 
 // Get the value of the "action" query parameter
 // To enable VR, add "?enableVR=true" to end of url. For example, http://localhost:5173/?enableVR=true
@@ -369,12 +370,12 @@ const guidParamWithUnits = {
   //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
   launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   evacuatedTubeEntrancePositionAroundRing: {value: 0.76081, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverTubeRadius: {value: 4, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchRailUpwardsOffset: {value: -1.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualMassDriverRails: {value: 1024, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchRailUpwardsOffset: {value: -1.75, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualMassDriverRailsPerZone: {value: 1, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketWidth: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -398,7 +399,7 @@ const guidParamWithUnits = {
   launchSledHeight: {value: .25, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledUpwardsOffset: {value: 0.2, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledUpwardsOffset: {value: 0.4, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -3107,21 +3108,23 @@ function setupTweeningOperation() {
   tweeningActive = true
   new TWEEN.Tween(orbitControls.target)
     .to(orbitControlsTargetPoint, tweeningTime)
-    .easing(TWEEN.Easing.Quadratic.InOut)
+    .easing(TWEEN.Easing.Linear.None)
     .start(timeSinceStart*1000)
     .onComplete(() => {tweeningActive = false})
-  new TWEEN.Tween(orbitControls.object.position)
-    .to(orbitControls.object.position.clone().add(offset), tweeningTime)
-    .easing(TWEEN.Easing.Quadratic.InOut)
-    .start(timeSinceStart*1000)
-  new TWEEN.Tween(orbitControls.upDirection)
-    .to(orbitControlsTargetUpVector, tweeningTime)
-    .easing(TWEEN.Easing.Quadratic.InOut)
-    .start(timeSinceStart*1000)
-  new TWEEN.Tween(camera.up)
-    .to(orbitControlsTargetUpVector, tweeningTime)
-    .easing(TWEEN.Easing.Quadratic.InOut)
-    .start(timeSinceStart*1000)
+  if (!stationaryCameraTrackingMode) {
+    new TWEEN.Tween(orbitControls.object.position)
+      .to(orbitControls.object.position.clone().add(offset), tweeningTime)
+      .easing(TWEEN.Easing.Linear.None)
+      .start(timeSinceStart*1000)
+    new TWEEN.Tween(orbitControls.upDirection)
+      .to(orbitControlsTargetUpVector, tweeningTime)
+      .easing(TWEEN.Easing.Linear.None)
+      .start(timeSinceStart*1000)
+    new TWEEN.Tween(camera.up)
+      .to(orbitControlsTargetUpVector, tweeningTime)
+      .easing(TWEEN.Easing.Linear.None  )
+      .start(timeSinceStart*1000)
+  }
 }
 
 function orbitControlsEventHandler() {

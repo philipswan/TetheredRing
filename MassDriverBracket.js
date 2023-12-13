@@ -11,7 +11,7 @@ export class massDriverBracketModel {
         const railWidth = dParamWithUnits['launcherMassDriverRailWidth'].value
         const railHeight = dParamWithUnits['launcherMassDriverRailHeight'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-        const railUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 //- dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        const railUpwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 //- dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         const screwSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
         const screwUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
         const shaftRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
@@ -23,12 +23,12 @@ export class massDriverBracketModel {
         const shape = new THREE.Shape()
         shape.moveTo( railWidth/2, railHeight/2 )
         shape.lineTo( -railWidth/2, railHeight/2 )
-        for (let a = 8; a<=24; a++) {
+        for (let a = 7; a<=25; a++) {
             shape.lineTo( -screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius, (screwUpwardsOffset-railUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
         }
         shape.lineTo(-railWidth/2, -railHeight/2)
         shape.lineTo(+railWidth/2, -railHeight/2)
-        for (let a = 24; a<=40; a++) {
+        for (let a = 23; a<=41; a++) {
             shape.lineTo( +screwSidewaysOffset + Math.cos(a/16*Math.PI)*shaftRadius, (screwUpwardsOffset-railUpwardsOffset) + Math.sin(a/16*Math.PI)*shaftRadius )
         }
         shape.lineTo( railWidth/2, railHeight/2 )
@@ -70,7 +70,7 @@ export class virtualMassDriverBracket {
     static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
         virtualMassDriverBracket.massDriverSuperCurve = massDriverSuperCurve
         virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBrackets'].value
-        virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
+        virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
         virtualMassDriverBracket.isDynamic =  false
         virtualMassDriverBracket.hasChanged = true
         virtualMassDriverBracket.versionNumber = versionNumber

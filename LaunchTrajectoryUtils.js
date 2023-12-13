@@ -239,6 +239,9 @@ export function defineUpdateTrajectoryCurves () {
 
     // Generate an axis of rotation to define the curvatures of the mass driver and the ramp
     this.axisOfRotation = new THREE.Vector3().crossVectors(evacuatedTubeEntrancePosition, evacuatedTubeExitPosition.clone().sub(evacuatedTubeEntrancePosition)).normalize()
+    if (dParamWithUnits['finalLocationRingCenterLatitude'].value<0) {
+      this.axisOfRotation.negate()
+    }
 
     // Calculate a vector that points to the exit of the mass driver (and the entrance to the ramp)
     const massDriver2ExitPosition = evacuatedTubeEntrancePosition.clone().applyAxisAngle(this.axisOfRotation, -rampBaseLength / (planetSpec.radius + launcherMassDriverAltitude))
@@ -274,18 +277,18 @@ export function defineUpdateTrajectoryCurves () {
     // Add the potential energy...
     const initialPotentialEnergy = -crv.gravitationalConstant * planetSpec.mass * unitMass / (planetSpec.radius + launcherMassDriverAltitude) 
     const minAllowableRampSpeed = 0.01 // m/s
-    let deltaT = 0.1
+    const launchRampTStep = 0.1
     let angle = 0
     let lastAngle = 0
     let distance = 0
     let kineticEnergy = initialKineticEnergy
     let potentialEnergy = initialPotentialEnergy
     const rampConversionCurvePoints = []
-    for (t = 0; (lastAngle<angleACB) && (speed>minAllowableRampSpeed); t+=deltaT) {
+    for (t = 0; (lastAngle<angleACB) && (speed>minAllowableRampSpeed); t+=launchRampTStep) {
       rampConversionCurvePoints.push(new THREE.Vector3(speed, distance, t))
       //console.log(t, kineticEnergy, potentialEnergy, speed, angle)
       // Change in angular position...
-      const deltaAngle = speed * deltaT / allowableUpwardTurningRadius
+      const deltaAngle = speed * launchRampTStep / allowableUpwardTurningRadius
       lastAngle = angle
       angle += deltaAngle
       distance = allowableUpwardTurningRadius * angle
@@ -301,7 +304,7 @@ export function defineUpdateTrajectoryCurves () {
       kineticEnergy = newKineticEnergy
       // Special check to calculate the curveUp time accurately
       if (angle>=angleACB) {
-        const remainingDeltaT = deltaT * (angleACB - lastAngle) / deltaAngle
+        const remainingDeltaT = launchRampTStep * (angleACB - lastAngle) / deltaAngle
         this.timeWithinRamp = t + remainingDeltaT
       }
     }
@@ -313,7 +316,7 @@ export function defineUpdateTrajectoryCurves () {
     const rampConversionCurve = new THREE.CatmullRomCurve3(rampConversionCurvePoints)
 
     const launchRamptToiConvertor = function (t) {
-      return t / ((rampConversionCurvePoints.length-1) * deltaT)
+      return t / (rampConversionCurvePoints.length * launchRampTStep)
     }
     const launchRamptTodConvertor = function (t) {
       const iForLookup = launchRamptToiConvertor(t)
@@ -1095,7 +1098,7 @@ export function defineUpdateTrajectoryCurves () {
           }
 
           if (Math.abs(apogeeError) > apogeeAltitudeMargin*100) {
-            // Search for the angle that minimizes the change to the appogee
+            // Search for the angle that minimizes the change to the apogee
             let smallestApogeeError = 0
             let bestAngle = null
             for (let angle = -Math.PI/2; angle<Math.PI/2; angle+=0.01) {
@@ -1393,7 +1396,7 @@ export function defineUpdateTrajectoryCurves () {
         const pointToLeft = pointOnGround.clone().sub(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
         const pointToRight = pointOnGround.clone().add(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
 
-        const crossbarPoint = pointOnCurve.clone().multiplyScalar((planetSpec.radius + 100)/ pointOnCurve.length())
+        const crossbarPoint = pointOnCurve.clone().multiplyScalar((planetSpec.radius + 100) / pointOnCurve.length())
         const crossbarPointToLeft = pointOnGround.clone().sub(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
         const crossbarPointToRight = pointOnGround.clone().add(binormal.clone().multiplyScalar(0.3 * pointOnCurveAltitude))
         // To make the support, draw polyline from pointToLeft to pointOnCurve to pointToRight...

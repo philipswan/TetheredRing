@@ -9,6 +9,9 @@ export class massDriverScrewModel {
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
     constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials, highRes = false) {
 
+        if (highRes) {
+          console.log('High Res Mass Driver Screw')
+        }
         const shaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
         const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
@@ -20,12 +23,12 @@ export class massDriverScrewModel {
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
         // The point of breaking the screw into segments relates to the need to display the brackets.
-        const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(threadStarts, 4)
+        const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(threadStarts, 4)
 
         // ToDo: This doesn't scale well. Need to figure out how to make this work for any dimentions of the mass driver's screw.
 
         // Hack!!!
-        const minLengthSegmentsPerMeter = ((!highRes) ? 64 : 512)
+        const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 512)
         //const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
@@ -130,10 +133,10 @@ export class virtualMassDriverScrew {
                         screwLength = segmentSpacing
                     }
                     const highRes = false
-                    const modelRadialSegments = ((!highRes) ? 24 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
+                    const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
 
                     // Hack!!!
-                    const minLengthSegmentsPerMeter = ((!highRes) ? 64 : 512)
+                    const minLengthSegmentsPerMeter = ((!highRes) ? 4 : 512)
                     //const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
                                 // Get rid of the previous geometries...

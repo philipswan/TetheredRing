@@ -111,7 +111,7 @@ export class launchVehicleModel {
     function makeFlame() {
 
       // Create the vehicle's flame
-      const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*0.8, radius*0.4, flameLength, radialSegments, lengthSegments, false)
+      const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*0.95, radius*0.4, flameLength, radialSegments, lengthSegments, false)
       launchVehicleFlameGeometry.name = "rocketEngine"
       const launchVehicleFlameMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, emissive: 0xdfa0df, emissiveIntensity: 1.25, transparent: true, opacity: 0.5})
       const launchVehicleFlameMesh = new THREE.Mesh(launchVehicleFlameGeometry, launchVehicleFlameMaterial)

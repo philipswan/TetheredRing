@@ -20,6 +20,15 @@ import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 export class launcher {
 
   constructor(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile) {
+
+    // this.worker = new Worker("worker.js")
+
+    // this.worker.onmessage = function(e) {
+    //   console.log('Message received from worker', e.data);
+    // }
+    
+    // this.worker.postMessage("Hello World!");
+
     this.const_G = 0.0000000000667408;  // ToDo: Should get this from the universeSpec
     this.clock = clock
     this.versionNumber = 0
@@ -108,15 +117,19 @@ export class launcher {
     this.cameraRange[2] = dParamWithUnits['vehicleInTubeCameraRange'].value
     this.cameraRange[3] = dParamWithUnits['lauchVehicleCameraRange'].value
 
+    // Create rail materials
+    this.massDriverRailMaterials = []
+    this.massDriverRailMaterials[0] = new THREE.MeshPhongMaterial( { color: 0x11791E } )
+    this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x71797E } )
+
     this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
     this.numZones = 200
-    this.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
     this.numVirtualLaunchVehicles = 0
     this.numVirtualLaunchSleds = 0
     this.numVirtualMassDriverTubes = 0
-    this.numVirtualMassDriverRails = 0
+    this.numVirtualMassDriverRailsPerZone = 0
     this.numVirtualMassDriverBrackets = 0
     this.numVirtualMassDriverScrews = 0
     //this.numVirtualEvacuatedTubes = 0
@@ -136,8 +149,6 @@ export class launcher {
 
     // Add the virtual launch sleds and launch vehicles
     const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
-    let t, n, zoneIndex
-    const refFrame = this.refFrames[0]
     
     // Create and add the launch sleds
     const launchSledMesh = new launchSledModel(
@@ -152,9 +163,12 @@ export class launcher {
 
     // Create a placeholder screw model (these models need to be generated on the fly though)
     this.massDriverScrewMaterials = []
+
+    // Hack
+    // this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({wireframe: true, color: 0xffffff})
+    // this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({wireframe: true, color: 0x7f7f7f})
     this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({color: 0xffffff})
-    this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({color: 0x7f7f7f})
-    //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
+    this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
     const screwModels = new THREE.Group()
     screwModels.name = 'massDriverScrews'
@@ -181,7 +195,8 @@ export class launcher {
       this.unallocatedMassDriver2BracketModels.push(tempModel)
     }
 
-    this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+    this.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
+    //this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
   }
 
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv) {
@@ -433,10 +448,10 @@ export class launcher {
     this.numVirtualMassDriverTubes = newNumVirtualMassDriverTubes
 
     // Update the number of mass driver rails
-    const newNumVirtualMassDriverRails = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRails'].value : 0
-    changeOccured = (this.numVirtualMassDriverRails != newNumVirtualMassDriverRails) || (this.refFrames!==this.prevRefFrames) || true  // We'll just assume that a change occured if update was called
+    const newNumVirtualMassDriverRailsPerZone = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRailsPerZone'].value : 0
+    changeOccured = (this.numVirtualMassDriverRailsPerZone != newNumVirtualMassDriverRailsPerZone) || (this.refFrames!==this.prevRefFrames) || true  // We'll just assume that a change occured if update was called
     if (changeOccured) {
-      if (this.numVirtualMassDriverRails > 0) {
+      if (this.numVirtualMassDriverRailsPerZone > 0) {
         // Remove old virtual mass driver rails
         const refFrame = this.prevRefFrames[1]
         removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverRails', this.unallocatedMassDriverRailModels)
@@ -444,29 +459,39 @@ export class launcher {
         this.unallocatedMassDriverRailModels.forEach(model => {this.scene.remove(model)})
         this.unallocatedMassDriverRailModels.splice(0, this.unallocatedMassDriverRailModels.length)
       }
-      if (newNumVirtualMassDriverRails > 0) {
+      if (newNumVirtualMassDriverRailsPerZone > 0) {
+        const nrpz = newNumVirtualMassDriverRailsPerZone   // Number of rails per zone
         virtualMassDriverRail.hasChanged = true
         // Add new mass driver rails to the launch system
         const refFrame = this.refFrames[1]
-        const n = newNumVirtualMassDriverRails
-        for (let i = 0; i < n; i++) {
-          const d = (i+0.5)/n
-          const vmdr = new virtualMassDriverRail(d, this.unallocatedMassDriverRailModels)
-          vmdr.model = new massDriverRailModel(dParamWithUnits, refFrame.curve, i)
-          const zoneIndex = refFrame.curve.getZoneIndexAt(d)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualMassDriverRails'].push(vmdr)
+        const totalCurveLength = refFrame.curve.getLength()
+        refFrame.curve.superCurves.forEach((subCurve, subCurveIndex) => {
+          const lengthOfSubCurve = subCurve.getLength()
+          const lengthOffsetToSubcurve = (subCurveIndex==0) ? 0 : refFrame.curve.cacheLengths[subCurveIndex-1]
+          const nscz = refFrame.curve.numZones[subCurveIndex]  // Number of subCurve zones
+          const zoneIndexOffset = refFrame.curve.startZone[subCurveIndex]
+          for (let i = 0; i < nscz ; i++) {
+            const zoneIndex = zoneIndexOffset + i
+            for (let j = 0; j < nrpz ; j++) {
+              const d = (lengthOffsetToSubcurve + (i*nrpz+j+0.5)/(nscz*nrpz) * lengthOfSubCurve) / totalCurveLength
+              const vmdr = new virtualMassDriverRail(d, this.unallocatedMassDriverRailModels)
+              vmdr.model = new massDriverRailModel(dParamWithUnits, subCurve, i*nrpz+j, nscz*nrpz, this.massDriverRailMaterials)
+              vmdr.model.name = 'MassDriverRail'
+              if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+                refFrame.wedges[zoneIndex]['virtualMassDriverRails'].push(vmdr)
+                this.scene.add(vmdr.model)
+              }
+              else {
+                console.log('Error')
+              }
+              //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
+            }
           }
-          else {
-            console.log('Error')
-          }
-          //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
-          vmdr.model.name = 'MassDriverRail'
-        }
+        })
         refFrame.prevStartWedgeIndex = -1
       }
     }
-    this.numVirtualMassDriverRails = newNumVirtualMassDriverRails
+    this.numVirtualMassDriverRailsPerZone = newNumVirtualMassDriverRailsPerZone
 
     // Update the number of mass driver screws
     const newNumVirtualMassDriverScrews = dParamWithUnits['showMassDriverScrews'].value ? this.massDriverScrewSegments : 0

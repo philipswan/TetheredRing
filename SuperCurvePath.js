@@ -15,7 +15,7 @@ class SuperCurvePath extends SuperCurve {
 
 		this.type = 'SuperCurvePath';
 
-		this.superCurves = [];
+		this.superCurves = [];  // Should these be called subSuperCurves?
 		this.numZones = [];
 		this.startZone = [];
 

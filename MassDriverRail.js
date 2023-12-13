@@ -6,9 +6,8 @@ export class massDriverRailModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, curve, segmentIndex) {
+  constructor(dParamWithUnits, curve, index, count, massDriverRailMaterials) {
 
-    const massDriverRailSegments = dParamWithUnits['numVirtualMassDriverRails'].value
     const width = dParamWithUnits['launcherMassDriverRailWidth'].value
     const height = dParamWithUnits['launcherMassDriverRailHeight'].value
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
@@ -24,16 +23,16 @@ export class massDriverRailModel {
     shape.lineTo( width/2 , height/2 )
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverRailSegments
-    const refPoint = curve.getPointAt(modelsCurvePosition)
+    const modelCenterPosition = (index + 0.5) / count
+    const refPoint = curve.getPointAt(modelCenterPosition)
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = curve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
+    const orientation = curve.getQuaternionAt(modelCenterPosition, modelForward, modelUpward).invert()
 
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverRailSegments
-      tubePoints.push(curve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
+      const modelPointPosition = (index*modelLengthSegments + i) / (modelLengthSegments*count)
+      tubePoints.push(curve.getPointAt(modelPointPosition).sub(refPoint).applyQuaternion(orientation))
     }
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
     const extrudeSettings = {
@@ -44,7 +43,7 @@ export class massDriverRailModel {
     const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
     massDriverRailGeometry.name = "massDriverRailGeometry"
     // ToDo: We are creating multiple identical materials here.  We should create one material and reuse it.
-    const massDriverRailMaterial = (segmentIndex % 16 == 0) ? new THREE.MeshPhongMaterial( {color: 0x11791E }) : new THREE.MeshPhongMaterial( {color: 0x71797E })
+    const massDriverRailMaterial = massDriverRailMaterials[(index % 16 == 0) ? 1 : 0]
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
     return massDriverRailMesh
   }
@@ -59,7 +58,7 @@ export class virtualMassDriverRail {
   
     static update(dParamWithUnits, versionNumber) {
       virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value
-      virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value - dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
+      virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
       virtualMassDriverRail.isDynamic =  false
       virtualMassDriverRail.hasChanged = true
       virtualMassDriverRail.versionNumber = versionNumber

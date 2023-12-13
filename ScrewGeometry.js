@@ -154,9 +154,9 @@ class ScrewGeometry extends BufferGeometry {
           {r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI},
           // Motor mounting disk breach facing face
           {r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI/2},
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI/2},
+          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI/2},
           // Interior shaft wall
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI},
+          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI},
           {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: -Math.PI},
           // Motor mounting disk muzzle facing face
           {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: Math.PI/2},
