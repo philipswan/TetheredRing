@@ -63,7 +63,7 @@ export class launchSledModel {
 
     const addLaunchSleds = prepareACallbackFunctionForFBXLoader (myScene)
     
-    loader.load('models/launchSled.obj',
+    loader.load('models/LaunchSled.obj',
       // called when resource is loaded
       addLaunchSleds,
       // called when loading is in progresses

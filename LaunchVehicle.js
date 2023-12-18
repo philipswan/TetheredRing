@@ -106,7 +106,7 @@ export class launchVehicleModel {
     const modelScaleFactor = 0.001 // Because Alastair's launch vehicle model used mm instead of meters
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchVehicleNumModels, perfOptimizedThreeJS)
         
-    loader.loadAsync('models/launchVehicle.obj').then(addLaunchVehicles)
+    loader.loadAsync('models/LaunchVehicle.obj').then(addLaunchVehicles)
 
     function makeFlame() {
 
