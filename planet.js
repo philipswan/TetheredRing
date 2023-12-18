@@ -18,7 +18,7 @@ export class planet {
       TextureMode24x12 = true
     }
 
-    const useShaders = false && (dParamWithUnits['earthTextureOpacity'].value!==1)
+    const useShaders = (dParamWithUnits['earthTextureOpacity'].value!==1)
     if (dParamWithUnits['earthTextureOpacity'].value!==1 && useShaders) {
       console.log("Warning useShaders should be set to false when earthTextureOpacity is set less than one.")
     }
