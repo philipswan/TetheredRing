@@ -86,10 +86,12 @@ export class planet {
                   vertexShader: document.getElementById( 'vertexShader' ).textContent,
                   fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
                   //fragmentShader: document.getElementById( 'fragmentShaderInv' ).textContent,
+                  transparent: (dParamWithUnits['earthTextureOpacity'].value!==1) ? true : false,
                   uniforms: {
                     planetTexture: {
                       value: texture,
-                    }
+                    },
+                    opacity: { value: dParamWithUnits['earthTextureOpacity'].value }
                   } } ) :
                 new THREE.MeshStandardMaterial({
                   map: texture,
