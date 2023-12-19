@@ -506,7 +506,7 @@ const guidParamWithUnits = {
 
   // Hack
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
-  showEarthsAtmosphere: {value: false, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
+  showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
@@ -676,7 +676,16 @@ function updateCoilConductorMaterial() {
 
 // Add an additional button to the gui to display instructions for the new user
 function displayHelp() {
-  alert('"Z" and "X" keys zoom in and out.\n"P" key moves the point that the simulation orbits around to a position just above the planet\'s surface near to where the sprite is pointing.\n')
+  alert(`"Z" and "X" keys zoom in and out.\n` +
+        `"R/L" raises and lowers the ring.\n` +
+        `"I" causes the camera to orbit around the center of the ring and makes "up" align with the ring's axis of rotation.\n` +
+        `"O" causes the camera to orbit around the center of the planet and makes "up" align with the planet's axis of rotation.\n` +
+        `"P" key moves the point that the simulation orbits around. New position will where the sprite intersects the object that its hovering over. Only a few objects are supported though (e.g. the planet\'s surface, some tubes)\n` +
+        `"0" will track the nearest launch vehicle.\n` +
+        `"1" will track the nearest transit vehicle.\n` +
+        `"2" will track the nearest elecator car.\n` +
+        `"8" places the moon in the background.\n` +
+        `"9" will change camera from dolly tracking to pan and tilt.\n`)
 }
 guidParam['Help'] = displayHelp
 gui.add(guidParam, 'Help')
@@ -2221,17 +2230,30 @@ function onKeyDown( event ) {
 
   switch ( event.keyCode ) {
     case 79: /*O*/
+      orbitControls.upDirection = new THREE.Vector3(0, 1, 0)
+      camera.up.copy(orbitControls.upDirection)
       orbitControls.target.set(0, 0, 0)
       orbitControls.rotateSpeed = 1
-      setOrbitControlsTargetUpVector()
+      //setOrbitControlsTargetUpVector()
       orbitControls.maxPolarAngle = Math.PI
       orbitControlsNewMaxPolarAngle = Math.PI
       //camera.up.set(0, 1, 0)
       break;
     case 73: /*I*/
-      orbitControls.target = new THREE.Vector3(0, 1, 0).applyQuaternion(ringToPlanetRotation).multiplyScalar(crv.y0)
+      orbitControls.upDirection = new THREE.Vector3(0, 1, 0).applyQuaternion(ringToPlanetRotation)
+      camera.up.copy(orbitControls.upDirection)
+      orbitControls.target = orbitControls.upDirection.clone().multiplyScalar(crv.y0)
+
+      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+        v.value = guidParam[k]
+      })
+      guidParamWithUnits['logZoomRate'].value = -3
+      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+        guidParam[k] = v.value
+      })
+
       orbitControls.rotateSpeed = 1
-      setOrbitControlsTargetUpVector()
+      //setOrbitControlsTargetUpVector()
       orbitControls.maxPolarAngle = Math.PI
       orbitControlsNewMaxPolarAngle = Math.PI
       //camera.up.set(0, 1, 0)
