@@ -753,7 +753,18 @@ function adjustEarthTextureOpacity() {
   updatedParam()
   planetMeshes.traverse(child => {
     if (child.type==='Mesh') {
-      child.material.opacity = guidParamWithUnits['earthTextureOpacity'].value
+      if(child.material instanceof THREE.ShaderMaterial) {
+        child.material.uniforms["opacity"].value = guidParamWithUnits['earthTextureOpacity'].value;
+        child.material.uniformsNeedUpdate = true; 
+        const newTransparent = child.material.uniforms["opacity"].value < 1.0 ? true : false;
+        if(newTransparent != child.material.transparent) {
+          child.material.transparent = newTransparent;
+          child.material.needsUpdate = true;
+
+        }    
+
+      } else
+        child.material.opacity = guidParamWithUnits['earthTextureOpacity'].value
     }
   })
 }

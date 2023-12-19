@@ -18,10 +18,7 @@ export class planet {
       TextureMode24x12 = true
     }
 
-    const useShaders = false && (dParamWithUnits['earthTextureOpacity'].value!==1)
-    if (dParamWithUnits['earthTextureOpacity'].value!==1 && useShaders) {
-      console.log("Warning useShaders should be set to false when earthTextureOpacity is set less than one.")
-    }
+    const useShaders = true; 
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -86,10 +83,12 @@ export class planet {
                   vertexShader: document.getElementById( 'vertexShader' ).textContent,
                   fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
                   //fragmentShader: document.getElementById( 'fragmentShaderInv' ).textContent,
+                  transparent: (dParamWithUnits['earthTextureOpacity'].value!==1) ? true : false,
                   uniforms: {
                     planetTexture: {
                       value: texture,
-                    }
+                    },
+                    opacity: { value: dParamWithUnits['earthTextureOpacity'].value }
                   } } ) :
                 new THREE.MeshStandardMaterial({
                   map: texture,
