@@ -18,10 +18,8 @@ export class planet {
       TextureMode24x12 = true
     }
 
-    const useShaders = (dParamWithUnits['earthTextureOpacity'].value!==1)
-    if (dParamWithUnits['earthTextureOpacity'].value!==1 && useShaders) {
-      console.log("Warning useShaders should be set to false when earthTextureOpacity is set less than one.")
-    }
+    // opacity will now work with or without shaders, so warning is not needed.
+    const useShaders = true;
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
