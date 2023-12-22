@@ -508,6 +508,8 @@ const guidParamWithUnits = {
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
+  tetherBaseOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherBaseOpacity, folder: folderRendering},
+  tetherOpacityFactor: {value: 15000, units: '', autoMap: true, min: 1, max: 1e9, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
@@ -776,6 +778,18 @@ function adjustEarthTextureOpacity() {
         child.material.opacity = guidParamWithUnits['earthTextureOpacity'].value
     }
   })
+}
+
+function adjustTetherBaseOpacity() {
+  updatedParam()
+  tetherMaterial.uniforms["baseOpacity"].value = guidParamWithUnits['tetherBaseOpacity'].value;
+  tetherMaterial.uniformsNeedUpdate = true
+}
+
+function adjustTetherOpacityFactor() {
+  updatedParam()
+  tetherMaterial.uniforms["opacityFactor"].value = guidParamWithUnits['tetherOpacityFactor'].value;
+  tetherMaterial.uniformsNeedUpdate = true
 }
 
 function adjustDisplacementBias() {
@@ -1257,7 +1271,7 @@ const transparentMaterial1 = new THREE.MeshPhongMaterial( {transparent: true, op
 const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0.35})
 const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0})
 
-var tetherMaterial = new THREE.LineBasicMaterial({
+  /* new THREE.LineBasicMaterial({
   vertexColors: false,
   //color: 0x4897f8,
   //color: 0x000000,
@@ -1265,15 +1279,15 @@ var tetherMaterial = new THREE.LineBasicMaterial({
   color: 0xc0c0f0,
   transparent: true,
   opacity: dParamWithUnits['tetherVisibility'].value
-})
-// const thickness = 2
-// const tetherMaterial = new THREE.ShaderMaterial( {
-//   uniforms: { 'thickness': { value: thickness } },
-//   vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
-//   fragmentShader: document.getElementById( 'tetherFragmentShader' ).textContent,
-//   side: THREE.DoubleSide,
-//   alphaToCoverage: true // only works when WebGLRenderer's "antialias" is set to "true"
-// } )
+}) */
+const tetherMaterial = new THREE.ShaderMaterial( {
+  uniforms: 
+  { 'baseOpacity': { value: guidParamWithUnits['tetherBaseOpacity'].value  },
+    'opacityFactor': {value: guidParamWithUnits['tetherOpacityFactor'].value }},
+  vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
+  fragmentShader: document.getElementById( 'tetherFragmentShader' ).textContent,
+  transparent: true,
+} )
 
 var cableMaterial = new THREE.LineBasicMaterial({
   vertexColors: false,
