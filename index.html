@@ -156,7 +156,7 @@
           void main() {
             float opacityDropOff = opacityFactor / pow(eyeDistance, 2.0);
             float opacity = baseOpacity + opacityDropOff;
-            gl_FragColor.rgb = vec3(1.0);
+            gl_FragColor.rgb = vec3(0.0);
             gl_FragColor.a = opacity;
           }
         </script>

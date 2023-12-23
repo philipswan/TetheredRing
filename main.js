@@ -317,6 +317,10 @@ const guidParamWithUnits = {
   launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampTurningRadius: {value: 5000, units: 'm*s-2', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherGroundAssistLaunchMode: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -508,8 +512,8 @@ const guidParamWithUnits = {
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
-  tetherBaseOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherBaseOpacity, folder: folderRendering},
-  tetherOpacityFactor: {value: 15000, units: '', autoMap: true, min: 1, max: 1e9, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
+  tetherBaseOpacity: {value: 0.05, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherBaseOpacity, folder: folderRendering},
+  tetherOpacityFactor: {value: 150000, units: '', autoMap: true, min: 1, max: 1e9, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
@@ -1158,7 +1162,7 @@ planetSpec['airPressureAtAltitude'] = function(a) {
   // Input in meters, Output in Pa
   // https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
   // Also ...\Atlantis\Engineering\ArchModel-ThreeJS\AtmosphericData.xlsx
-  const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) : 0
+  const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) * 10000: 0
   return pressurePa;
 
 }
