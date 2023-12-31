@@ -604,6 +604,16 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   guidParam[k] = v.value
 })
 
+// Add controls for color (perhaps we can add this to the dParamWithUnits structure?)
+guidParam["tetherColor"] = "#101010"
+guidParam["elevatorCableColor"] = "#102020"
+folderRendering.addColor(guidParam, "tetherColor").name("Tether Color").onChange(()=>{
+  // tetherMaterial.color.set(tetherColor)
+})
+folderRendering.addColor(guidParam, "elevatorCableColor").name("Elevator Cable Color").onChange(()=>{
+  // elevatorCableMaterial.color.set(tetherColor)
+})
+
 const nonGUIParams = {}
 CapturePresets.applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams)
 
