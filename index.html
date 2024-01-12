@@ -138,6 +138,8 @@
           }          
         </script>
         <script id="tetherVertexShader" type="x-shader/x-vertex">
+          attribute float thickness;
+          varying float fThickness;
           varying float eyeDistance; // the distance in meters from the camera the current geometry fragment is
           void main() {
             // save a little computation by storing and reusing eye coordinates
@@ -147,15 +149,17 @@
             // face down the negative z axis. the inverse square means we don't
             // need to negate this, but better to be clear.
             eyeDistance = -eyeCoord.z;
+            fThickness = thickness;
           }
         </script>
         <script id="tetherFragmentShader" type="x-shader/x-fragment">
           uniform float opacityFactor;
           uniform float baseOpacity;
           varying float eyeDistance;
+          varying float fThickness;
           void main() {
             float opacityDropOff = opacityFactor / pow(eyeDistance, 2.0);
-            float opacity = baseOpacity + opacityDropOff;
+            float opacity = (baseOpacity + opacityDropOff) * fThickness;
             gl_FragColor.rgb = vec3(0.0);
             gl_FragColor.a = opacity;
           }
