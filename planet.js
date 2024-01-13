@@ -19,7 +19,7 @@ export class planet {
     }
 
     // opacity will now work with or without shaders, so warning is not needed.
-    let useShaders = true;
+    const useShaders = true;
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -56,11 +56,9 @@ export class planet {
 
             if (farFromRing) {
               textureFilename = `./textures/24x12/LR/earth_LR_${w}x${h}_${i}x${j}.jpg`
-              useShaders = true
             }
             else {
               textureFilename = `./textures/24x12/HR/earth_HR_${w}x${h}_${i}x${j}.jpg`
-              useShaders = false
             }
             //console.log(filename)
             const texture = new THREE.TextureLoader().load(textureFilename)
@@ -90,6 +88,18 @@ export class planet {
                   uniforms: {
                     planetTexture: {
                       value: texture,
+                    },
+                    displacementMap: {
+                      value: displacementMap
+                    },
+                    displacementScale: {
+                      value: dParamWithUnits['displacementScale'].value
+                    },
+                    displacementBias: {
+                      value: dParamWithUnits['displacementBias'].value
+                    },
+                    hasDisplacementMap: {
+                      value: displacementMap != null
                     },
                     opacity: { value: dParamWithUnits['earthTextureOpacity'].value }
                   } } ) :
