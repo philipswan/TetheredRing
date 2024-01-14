@@ -1,6 +1,7 @@
 import {
 	BufferGeometry,
-	Vector3
+	Vector3,
+	BufferAttribute
 } from 'three'
 //} from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
@@ -13,6 +14,7 @@ class TetherGeometry extends BufferGeometry {
 		super();
 
     const tetherPoints = []
+    const thicknesses = []
     const tetherIndices = []  // These indices index points in tetherPoints, reusing them to save memory
     const tetherStrips = []   // This array will store other arrays that will each define a "strip" of points
     const mrr = 10000 //crv.mainRingRadius
@@ -635,9 +637,30 @@ class TetherGeometry extends BufferGeometry {
   
       // Convert all of the tetherStrips into indexed lines
       let numIndices = 0
-      tetherStrips.forEach(strip => {
+        
+      // some syntactic sugar
+      const numLevels = dParamWithUnits['numForkLevels'].value 
+      // The number of segments at the final fork in a single tether
+      const numFinalSegments = 2 ** numLevels * dParamWithUnits['numMainRings'].value
+      // everything else
+      const numNonFinalSegments = 2 ** numLevels - 1
+      const segmentsPerCatenaryType = numFinalSegments + numNonFinalSegments 
+      tetherStrips.forEach((strip, stripIndex) => {
+      	// some index gymnastics to figure out what level this strip is on
+
+      	// We have two seperate tether structures, get the strip index within a single tether
+      	const cateneryNormalizedIndex = stripIndex < segmentsPerCatenaryType ? stripIndex : stripIndex - segmentsPerCatenaryType // Account for the fact that we hae two different forking cateneries 
+      	// Do we need to care about the last however many segments that attach to the ring?
+        const beforeFinalFork = cateneryNormalizedIndex < numNonFinalSegments
+        const stripLevel = beforeFinalFork ? Math.floor(Math.log2(cateneryNormalizedIndex + 1)) : numLevels
+
+      	// now we can compute the opacity
+      	const crossAreaDivision = beforeFinalFork ? 2 ** stripLevel : 2 ** stripLevel * numFinalSegments
+      	const opacity = 1.0 / Math.sqrt(crossAreaDivision);
+
         strip.forEach((point, i) => {
           tetherPoints.push(point)
+          thicknesses.push(opacity)
           if (i>0) {
             tetherIndices.push(numIndices-1)
             tetherIndices.push(numIndices)
@@ -678,6 +701,9 @@ class TetherGeometry extends BufferGeometry {
   
     this.userData['catenaryTypes'] = currentCatenaryTypes
     this.setFromPoints(tetherPoints)
+    const numThicknessComponents = 1
+    const thicknessAttribute = new BufferAttribute(new Float32Array(thicknesses), numThicknessComponents)
+    this.setAttribute('thickness', thicknessAttribute)
     this.setIndex(tetherIndices)
     // this.setAttribute( 'position', new THREE.Float32BufferAttribute( tetherPoints, 3 ) );
     // this.setAttribute( 'color', new THREE.Float32BufferAttribute( tetherColors, 3 ) );
