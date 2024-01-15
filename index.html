@@ -90,25 +90,45 @@
       <div id="simContainer" class="w-full">
         <canvas id="c"></canvas>
         <script id="vertexShader" type="x-shader/x-vertex">
-          varying vec2 vertexUV;
-          varying vec3 vertexNormal;
+          uniform bool hasDisplacementMap;
+          uniform float displacementScale;
+          uniform float displacementBias; 
+          uniform sampler2D displacementMap;
+
+          // fragment is the more correct term here,
+          // because it's referring to a pixel sized piece of geometry that might eventually be drawn
+          // the "uv" and "normals" are the vertex uv normals
+          // once they enter the fragment shader they have been rasterized and intermpolated
+          // by the gpu
+          varying vec2 fragmentUV;
+          varying vec3 fragmentNormal;
 
           void main() {
-              vertexUV = uv;
-              vertexNormal = normalize(normalMatrix * normal);
-              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+              fragmentUV = uv;
+              vec3 vertexNormal = normalize(normalMatrix * normal);
+              fragmentNormal = vertexNormal; // instruct the gpu to interpolate this for the fragment shader
+              if(hasDisplacementMap) {
+                // lifted from three.js' dislacement shader code
+                float displacementOffset = texture2D(displacementMap, uv).x * displacementScale + displacementBias;
+                // displace along the vertex normal
+                vec3 displacement = normalize(normal) * displacementOffset;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position + displacement, 1.0);
+              } else {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              }
+              
           }
         </script>
         <script id="fragmentShader" type="x-shader/x-fragment">
           uniform sampler2D planetTexture;
           uniform float opacity;
-          varying vec2 vertexUV;
-          varying vec3 vertexNormal;
+          varying vec2 fragmentUV;
+          varying vec3 fragmentNormal;
 
           void main() {
-              float intensity = 1.05 - dot(vertexNormal, vec3(0.0, 0.0, 1.0 ));
+              float intensity = 1.05 - dot(fragmentNormal, vec3(0.0, 0.0, 1.0 ));
               vec3 atmosphere = vec3(0.3, 0.6, 1.0) * pow(intensity, 1.5);
-              gl_FragColor = vec4(atmosphere + texture2D(planetTexture, vertexUV).xyz, opacity);
+              gl_FragColor = vec4(atmosphere + texture2D(planetTexture, fragmentUV).xyz, opacity);
           }          
         </script>
         <script id="fragmentShaderInv" type="x-shader/x-fragment">

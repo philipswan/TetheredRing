@@ -811,7 +811,8 @@ function adjustDisplacementBias() {
   planetMeshes.traverse(child => {
     if (child.type==='Mesh') {
       if (child.material.displacementMap) {
-        child.material.displacementBias = guidParamWithUnits['displacementBias'].value
+        child.material.uniforms["displacementBias"].value = guidParamWithUnits['displacementBias'].value
+        child.material.uniformsNeedUpdate = true
       }
     }
   })
@@ -822,7 +823,8 @@ function adjustDisplacementScale() {
   planetMeshes.traverse(child => {
     if (child.type==='Mesh') {
       if (child.material.displacementMap) {
-        child.material.displacementScale = guidParamWithUnits['displacementScale'].value
+        child.material.uniforms["displacementScale"].value = guidParamWithUnits['displacementScale'].value
+        child.material.uniformsNeedUpdate = true
       }
     }
   })
