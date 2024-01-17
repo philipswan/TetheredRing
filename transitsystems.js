@@ -305,7 +305,6 @@ export class transitSystem {
     //const transitTubeMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
     const transitTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: dParamWithUnits['transitTubeOpacity'].value})
     const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
-    transitTubeMesh.renderOrder = 999
     addTransitTubes(transitTubeMesh)
 
     // fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
@@ -392,7 +391,7 @@ export class transitSystem {
       const elevatorCableModel = new THREE.LineSegments(elevatorCableGeometry, elevatorCableMaterial.clone())
       elevatorCableModel.visible = false
       elevatorCableModel.name = 'elevatorCable'
-      elevatorCableModel.renderOrder = 999
+      elevatorCableModel.renderOrder = 1
       this.unallocatedElevatorCableModels.push(elevatorCableModel)
     }
 

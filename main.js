@@ -513,7 +513,7 @@ const guidParamWithUnits = {
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
   tetherBaseOpacity: {value: 0.05, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherBaseOpacity, folder: folderRendering},
-  tetherOpacityFactor: {value: 150000, units: '', autoMap: true, min: 1, max: 1e9, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
+  tetherOpacityFactor: {value: 6300000, units: '', autoMap: true, min: 1, max: 1e8, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
@@ -1307,6 +1307,7 @@ const tetherMaterial = new THREE.ShaderMaterial( {
   vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
   fragmentShader: document.getElementById( 'tetherFragmentShader' ).textContent,
   transparent: true,
+  blending: THREE.NormalBlending
 } )
 
 var cableMaterial = new THREE.LineBasicMaterial({
@@ -1406,7 +1407,7 @@ function constructTethers(tetheredRingRefCoordSys) {
     const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile && (index==0), kmlFile, genSpecs && (index==0), planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     tempTetherMesh.name = 'tether'
-    // tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
+    tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
     if (fastTetherRender) {
       const n = dParamWithUnits['numTethers'].value
       const k = 2 * Math.PI * 2 / n
