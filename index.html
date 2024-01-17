@@ -175,12 +175,13 @@
         <script id="tetherFragmentShader" type="x-shader/x-fragment">
           uniform float opacityFactor;
           uniform float baseOpacity;
+          uniform vec3 color;
           varying float eyeDistance;
           varying float fThickness;
           void main() {
             float opacityDropOff = opacityFactor / pow(eyeDistance, 2.0);
             float opacity = (baseOpacity + opacityDropOff) * fThickness;
-            gl_FragColor.rgb = vec3(0.0);
+            gl_FragColor.rgb = color;
             gl_FragColor.a = opacity;
           }
         </script>
