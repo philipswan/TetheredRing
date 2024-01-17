@@ -609,6 +609,8 @@ guidParam["tetherColor"] = "#101010"
 guidParam["elevatorCableColor"] = "#102020"
 folderRendering.addColor(guidParam, "tetherColor").name("Tether Color").onChange(()=>{
   // tetherMaterial.color.set(tetherColor)
+    tetherMaterial.uniforms["color"].value = new THREE.Color(guidParam["tetherColor"]);
+    tetherMaterial.uniformsNeedUpdate = true;
 })
 folderRendering.addColor(guidParam, "elevatorCableColor").name("Elevator Cable Color").onChange(()=>{
   // elevatorCableMaterial.color.set(tetherColor)
@@ -1299,7 +1301,9 @@ const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, tra
 const tetherMaterial = new THREE.ShaderMaterial( {
   uniforms: 
   { 'baseOpacity': { value: guidParamWithUnits['tetherBaseOpacity'].value  },
-    'opacityFactor': {value: guidParamWithUnits['tetherOpacityFactor'].value }},
+    'opacityFactor': {value: guidParamWithUnits['tetherOpacityFactor'].value },
+    'color': {value: new THREE.Color(guidParam["tetherColor"]) }
+    },
   vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
   fragmentShader: document.getElementById( 'tetherFragmentShader' ).textContent,
   transparent: true,
