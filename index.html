@@ -126,7 +126,7 @@
           varying vec3 fragmentNormal;
 
           void main() {
-              gl_FragColor = vec4(texture2D(planetTexture, fragmentUV).xyz, opacity);
+              gl_FragColor = vec4(texture2D(planetTexture, fragmentUV).xyz * 1.5, opacity);
           }          
         </script>
         <script id="fragmentShaderInv" type="x-shader/x-fragment">
