@@ -469,15 +469,15 @@ const guidParamWithUnits = {
   solarPanelWidth: {value: 10, units: "m", autoMap: true, min: 0, max: 10, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Material Parameters - Tethers
-  tetherMaterialDensityCarbonFiber: {value: 1790, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},        // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
-  tetherMaterialTensileStrengthCarbonFiber: {value: 7000, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},   // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
-  tetherMaterialCostCarbonFiber: {value: 22, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},           // Note: Probably not accurate for Toray1100GC
-  tetherMaterialDensityGraphene: {value: 2090, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},        // 
-  tetherMaterialTensileStrengthGraphene: {value: 130500, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},   // 
-  tetherMaterialCostGraphene: {value: 220, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},           // 
-  tetherMaterialDensityCustom: {value: 1790, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
-  tetherMaterialTensileStrengthCustom: {value: 7000, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},
-  tetherMaterialCostCustom: {value: 22, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  tetherFiberDensityCarbonFiber: {value: 1790, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},        // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
+  tetherFiberTensileStrengthCarbonFiber: {value: 7000, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},   // Toray1100GC, https://www.youtube.com/watch?v=yNsjVEm_9TI&t=129s
+  tetherFiberCostCarbonFiber: {value: 22, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},           // Note: Probably not accurate for Toray1100GC
+  tetherFiberDensityGraphene: {value: 2090, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},        // 
+  tetherFiberTensileStrengthGraphene: {value: 130500, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},   // 
+  tetherFiberCostGraphene: {value: 220, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},           // 
+  tetherFiberDensityCustom: {value: 1790, units: "kg*m-3", autoMap: false, min: 10, max: 20000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  tetherFiberTensileStrengthCustom: {value: 7000, units: "MPa", autoMap: false, min: 10, max: 100000, updateFunction: adjustRingDesign, folder: folderMaterials},
+  tetherFiberCostCustom: {value: 22, units: "USD/kg", autoMap: false, min: .01, max: 1000, updateFunction: adjustRingDesign, folder: folderMaterials},
   coilConductorMaterialResistivityCopper: {value: 1.68e-8, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderMaterials},
   coilConductorMaterialResistivityAluminum: {value: 2.65e-8, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderMaterials},
   coilConductorMaterialResistivityCustom: {value: 2.65e-8, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderMaterials},
@@ -512,8 +512,9 @@ const guidParamWithUnits = {
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
-  tetherBaseOpacity: {value: 0.05, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherBaseOpacity, folder: folderRendering},
-  tetherOpacityFactor: {value: 6300000, units: '', autoMap: true, min: 1, max: 1e8, updateFunction: adjustTetherOpacityFactor, folder: folderRendering},
+  tetherMinOpacity: {value: 0.03, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
+  tetherMaxOpacity: {value: 0.70, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
+  tetherDistanceFactor: {value: -14.5, units: '', autoMap: true, min: -30, max: -10, updateFunction: adjustTetherDistanceFactor, folder: folderRendering},
   showMoon: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustMoonsVisibility, folder: folderRendering},
   showStars: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustStarsVisibility, folder: folderRendering},
   showEarthAxis: {value: false, units: '', autoMap: true, updateFunction: earthAxisObjectUpdate, folder: folderRendering},
@@ -558,7 +559,6 @@ const guidParamWithUnits = {
   animateLaunchSleds: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   elevatorCableOpacity: {value:0.3, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: updateTransitsystem, folder: folderRendering},
-  tetherVisibility: {value:0.13, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: adjustTetherOpacity, folder: folderRendering},
   tetherColor: {value:0x000000, units: "", autoMap: true, min: 0, max: 0xffffff, tweenable: false, updateFunction: adjustTetherColor, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
@@ -605,15 +605,17 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
 })
 
 // Add controls for color (perhaps we can add this to the dParamWithUnits structure?)
-guidParam["tetherColor"] = "#101010"
-guidParam["elevatorCableColor"] = "#102020"
-folderRendering.addColor(guidParam, "tetherColor").name("Tether Color").onChange(()=>{
+guidParam["tetherColor"] = "#8699c6"
+guidParam["elevatorCableColor"] = "#598282"
+folderRendering.addColor(guidParam, "tetherColor").name("tetherColor").onChange(()=>{
   // tetherMaterial.color.set(tetherColor)
-    tetherMaterial.uniforms["color"].value = new THREE.Color(guidParam["tetherColor"]);
-    tetherMaterial.uniformsNeedUpdate = true;
+  tetherMaterial.uniforms["color"].value = new THREE.Color(guidParam["tetherColor"]);
+  tetherMaterial.uniformsNeedUpdate = true;
 })
-folderRendering.addColor(guidParam, "elevatorCableColor").name("Elevator Cable Color").onChange(()=>{
+folderRendering.addColor(guidParam, "elevatorCableColor").name("elevatorCableColor").onChange(()=>{
   // elevatorCableMaterial.color.set(tetherColor)
+  elevatorCableMaterial.uniforms["color"].value = new THREE.Color(guidParam["elevatorCableColor"]);
+  elevatorCableMaterial.uniformsNeedUpdate = true;
 })
 
 const nonGUIParams = {}
@@ -624,7 +626,7 @@ const enableLaunchSystem = nonGUIParams['enableLaunchSystem'] || true
 // Add sliders for each entry in guidParamWithUnits to the gui...
 
 // Constants controlled by pull-pown lists
-const tetherMaterials = {
+const tetherFibers = {
   Custom: 'CUSTOM',
   CarbonFiber: 'CARBON_FIBER',
   Graphene: 'GRAPHENE',
@@ -635,12 +637,12 @@ const coilConductorMaterials = {
   Custom: 'CUSTOM',
 }
 
-guidParam['TetherMaterial'] = tetherMaterials.CarbonFiber
-guidParam['CoilConductorMaterial'] = coilConductorMaterials.Aluminum
-guidParam['CameraPreset'] = cameraPresets.Default
-folderMaterials.add(guidParam, 'TetherMaterial', tetherMaterials).onChange(updateTetherMaterial)
-folderMaterials.add(guidParam, 'CoilConductorMaterial', coilConductorMaterials ).onChange(updateCoilConductorMaterial)
-folderCamera.add(guidParam, 'CameraPreset', cameraPresets)
+guidParam['tetherFiber'] = tetherFibers.CarbonFiber
+guidParam['coilConductorMaterial'] = coilConductorMaterials.Aluminum
+guidParam['cameraPreset'] = cameraPresets.Default
+folderMaterials.add(guidParam, 'tetherFiber', tetherFibers).onChange(updateTetherFiber)
+folderMaterials.add(guidParam, 'coilConductorMaterial', coilConductorMaterials ).onChange(updateCoilConductorMaterial)
+folderCamera.add(guidParam, 'cameraPreset', cameraPresets)
 
 // Add automapped sliders
 Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -652,22 +654,22 @@ Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   }
 })
 
-function updateTetherMaterial() {
-  switch (guidParam['TetherMaterial']) {
-    case tetherMaterials.CarbonFiber:
-      dParamWithUnits['tetherMaterialDensity'] = {value: guidParamWithUnits['tetherMaterialDensityCarbonFiber'].value, units: guidParamWithUnits['tetherMaterialDensityCarbonFiber'].units}
-      dParamWithUnits['tetherMaterialTensileStrength'] = {value: guidParamWithUnits['tetherMaterialTensileStrengthCarbonFiber'].value, units: guidParamWithUnits['tetherMaterialTensileStrengthCarbonFiber'].units}
-      dParamWithUnits['tetherMaterialCost'] = {value: guidParamWithUnits['tetherMaterialCostCarbonFiber'].value, units: guidParamWithUnits['tetherMaterialCostCarbonFiber'].units}
+function updateTetherFiber() {
+  switch (guidParam['tetherFiber']) {
+    case tetherFibers.CarbonFiber:
+      dParamWithUnits['tetherFiberDensity'] = {value: guidParamWithUnits['tetherFiberDensityCarbonFiber'].value, units: guidParamWithUnits['tetherFiberDensityCarbonFiber'].units}
+      dParamWithUnits['tetherFiberTensileStrength'] = {value: guidParamWithUnits['tetherFiberTensileStrengthCarbonFiber'].value, units: guidParamWithUnits['tetherFiberTensileStrengthCarbonFiber'].units}
+      dParamWithUnits['tetherFiberCost'] = {value: guidParamWithUnits['tetherFiberCostCarbonFiber'].value, units: guidParamWithUnits['tetherFiberCostCarbonFiber'].units}
       break;
-    case tetherMaterials.Graphene:
-      dParamWithUnits['tetherMaterialDensity'] = {value: guidParamWithUnits['tetherMaterialDensityGraphene'].value, units: guidParamWithUnits['tetherMaterialDensityGraphene'].units}
-      dParamWithUnits['tetherMaterialTensileStrength'] = {value: guidParamWithUnits['tetherMaterialTensileStrengthGraphene'].value, units: guidParamWithUnits['tetherMaterialTensileStrengthGraphene'].units}
-      dParamWithUnits['tetherMaterialCost'] = {value: guidParamWithUnits['tetherMaterialCostGraphene'].value, units: guidParamWithUnits['tetherMaterialCostGraphene'].units}
+    case tetherFibers.Graphene:
+      dParamWithUnits['tetherFiberDensity'] = {value: guidParamWithUnits['tetherFiberDensityGraphene'].value, units: guidParamWithUnits['tetherFiberDensityGraphene'].units}
+      dParamWithUnits['tetherFiberTensileStrength'] = {value: guidParamWithUnits['tetherFiberTensileStrengthGraphene'].value, units: guidParamWithUnits['tetherFiberTensileStrengthGraphene'].units}
+      dParamWithUnits['tetherFiberCost'] = {value: guidParamWithUnits['tetherFiberCostGraphene'].value, units: guidParamWithUnits['tetherFiberCostGraphene'].units}
       break;
-    case tetherMaterials.Custom:
-      dParamWithUnits['tetherMaterialDensity'] = {value: guidParamWithUnits['tetherMaterialDensityCustom'].value, units: guidParamWithUnits['tetherMaterialDensityCustom'].units}
-      dParamWithUnits['tetherMaterialTensileStrength'] = {value: guidParamWithUnits['tetherMaterialTensileStrengthCustom'].value, units: guidParamWithUnits['tetherMaterialTensileStrengthCustom'].units}
-      dParamWithUnits['tetherMaterialCost'] = {value: guidParamWithUnits['tetherMaterialCostCustom'].value, units: guidParamWithUnits['tetherMaterialCostCustom'].units}
+    case tetherFibers.Custom:
+      dParamWithUnits['tetherFiberDensity'] = {value: guidParamWithUnits['tetherFiberDensityCustom'].value, units: guidParamWithUnits['tetherFiberDensityCustom'].units}
+      dParamWithUnits['tetherFiberTensileStrength'] = {value: guidParamWithUnits['tetherFiberTensileStrengthCustom'].value, units: guidParamWithUnits['tetherFiberTensileStrengthCustom'].units}
+      dParamWithUnits['tetherFiberCost'] = {value: guidParamWithUnits['tetherFiberCostCustom'].value, units: guidParamWithUnits['tetherFiberCostCustom'].units}
       break;
   }
 }
@@ -728,7 +730,7 @@ function updatedParam() {   // Read as "update_dParam"
   const alpha = guidParamWithUnits['moveRingFactor'].value
   dParamWithUnits['ringEccentricity'] = {value: tram.lerp(guidParamWithUnits['buildLocationRingEccentricity'].value, guidParamWithUnits['finalLocationRingEccentricity'].value, alpha), units: ""}
   dParamWithUnits['massDriverLength'] = {value: dParamWithUnits['launcherMassDriverExitVelocity'].value**2 / 2 / dParamWithUnits['launcherMassDriverForwardAcceleration'].value, units: "m"}
-  updateTetherMaterial()
+  updateTetherFiber()
   updateCoilConductorMaterial()
 
   if (genSpecsFile) {
@@ -796,15 +798,16 @@ function adjustEarthTextureOpacity() {
   })
 }
 
-function adjustTetherBaseOpacity() {
+function adjustTetherOpacity() {
   updatedParam()
-  tetherMaterial.uniforms["baseOpacity"].value = guidParamWithUnits['tetherBaseOpacity'].value;
+  tetherMaterial.uniforms["tetherMinOpacity"].value = guidParamWithUnits['tetherMinOpacity'].value;
+  tetherMaterial.uniforms["tetherMaxOpacity"].value = guidParamWithUnits['tetherMaxOpacity'].value;
   tetherMaterial.uniformsNeedUpdate = true
 }
 
-function adjustTetherOpacityFactor() {
+function adjustTetherDistanceFactor() {
   updatedParam()
-  tetherMaterial.uniforms["opacityFactor"].value = guidParamWithUnits['tetherOpacityFactor'].value;
+  tetherMaterial.uniforms["tetherDistanceFactor"].value = guidParamWithUnits['tetherDistanceFactor'].value;
   tetherMaterial.uniformsNeedUpdate = true
 }
 
@@ -844,12 +847,6 @@ function adjustStarsVisibility() {
 
 function adjustCableOpacity() {
   updatedParam()
-}
-
-function adjustTetherOpacity() {
-  updatedParam()
-  tetherMaterial.opacity = dParamWithUnits['tetherVisibility'].value
-  console.log("Updating" + dParamWithUnits['tetherVisibility'].value)
 }
 
 function adjustTetherColor() {
@@ -1289,21 +1286,13 @@ const transparentMaterial1 = new THREE.MeshPhongMaterial( {transparent: true, op
 const transparentMaterial2 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0.35})
 const transparentMaterial3 = new THREE.MeshLambertMaterial({color: 0xffff80, transparent: true, opacity: 0})
 
-  /* new THREE.LineBasicMaterial({
-  vertexColors: false,
-  //color: 0x4897f8,
-  //color: 0x000000,
-  //color: 0x808080,
-  color: 0xc0c0f0,
-  transparent: true,
-  opacity: dParamWithUnits['tetherVisibility'].value
-}) */
 const tetherMaterial = new THREE.ShaderMaterial( {
-  uniforms: 
-  { 'baseOpacity': { value: guidParamWithUnits['tetherBaseOpacity'].value  },
-    'opacityFactor': {value: guidParamWithUnits['tetherOpacityFactor'].value },
+  uniforms: {
+    'tetherMinOpacity': { value: guidParamWithUnits['tetherMinOpacity'].value  },
+    'tetherMaxOpacity': { value: guidParamWithUnits['tetherMaxOpacity'].value  },
+    'tetherDistanceFactor': {value: guidParamWithUnits['tetherDistanceFactor'].value },
     'color': {value: new THREE.Color(guidParam["tetherColor"]) }
-    },
+  },
   vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
   fragmentShader: document.getElementById( 'tetherFragmentShader' ).textContent,
   transparent: true,
@@ -1404,7 +1393,7 @@ function constructTethers(tetheredRingRefCoordSys) {
   const tethers = []
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile && (index==0), kmlFile, genSpecs && (index==0), planetCoordSys, tetheredRingRefCoordSys)
+    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     tempTetherMesh.name = 'tether'
     tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
@@ -1493,7 +1482,7 @@ function calculateAdditionalSpecs() {
   // Calculate equivalent space elevator mass and cost
   let T
   for (let f = 0; f<1; f++) {
-    T = dParamWithUnits['tetherMaterialTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
+    T = dParamWithUnits['tetherFiberTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
     T *= 2**f
     const hoursInSiderealDay = 23.9344696
   	const ClimberEmptyMass = 1000 //kg
@@ -1507,7 +1496,7 @@ function calculateAdditionalSpecs() {
     const SurfaceTerminusAnchoringForce = 10000 // N
     const TotalLoadForce = GravityForce + CentripetalForce + ClimberMaxAcceleration * ClimberTotalMass + SurfaceTerminusAnchoringForce
     const A_s = TotalLoadForce / (T*1000000)
-    const ρ = dParamWithUnits['tetherMaterialDensity'].value
+    const ρ = dParamWithUnits['tetherFiberDensity'].value
     const R = radiusOfPlanet
     const R_g = R+35786000 //m
     const R_a = R_g * 2
@@ -1525,7 +1514,7 @@ function calculateAdditionalSpecs() {
       A_prev = A
     }
     const M = V * ρ
-    const spaceElevatorCost = M * dParamWithUnits['tetherMaterialCost'].value
+    const spaceElevatorCost = M * dParamWithUnits['tetherFiberCost'].value
 
     if (f==1) {
       specs['spaceElevatorTetherVolumeWithSameMaterials'] = {value: V, units: "m3"}
@@ -1595,16 +1584,16 @@ function updateRing() {
     // Tethers
     const listOfTethers = constructTethers(tetheredRingRefCoordSys)
     listsOfTethers.push(listOfTethers)
-    
   })
-  
   if (verbose) console.log('constructTethers ')
+
+  if (genSpecs) tram.updateMovingRingSpecs(dParamWithUnits, crv, specs)
 
   tram.updateTransitSystemSpecs(dParamWithUnits, crv, specs)
 
   if (enableLaunchSystem) {
     updateLauncher()
-    //tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
+    if (genSpecs) tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
   }
 
   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
@@ -2704,9 +2693,9 @@ function onKeyDown( event ) {
           // camera.up.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
 
           // At 100m
-          orbitControls.target.set(1085408.7079911088, -3902883.3998442916, -4926548.893294112)
+          orbitControls.target.set(1087829.3440702243, -3907631.0156934406, -4941146.498730386)
           orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
-          orbitControls.object.position.set(1085463.215633545, -3902889.599048284, -4926536.032567127)
+          orbitControls.object.position.set(1119741.0157521453, -3910186.450747938, -4935023.659581899)
           camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
           
           // Start of short launcher (exit velocity = 1000)
@@ -2735,10 +2724,10 @@ function onKeyDown( event ) {
         break
       case 1:
         // Near the end of the launcher's evacuated tube
-        orbitControls.target.set(-64116.82692233341, -4116054.3628965816, -4913457.139967706)
-        orbitControls.upDirection.set(-0.01000280458757129, -0.642130285605539, -0.7665302604649942)
-        orbitControls.object.position.set(-66322.1417664079, -4117102.1433902932, -4913316.0184534425)
-        camera.up.set(-0.01000280458757129, -0.642130285605539, -0.7665302604649942)
+        orbitControls.target.set(1087829.3440702243, -3907631.0156934406, -4941146.498730386)
+        orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+        orbitControls.object.position.set(1119741.0157521453, -3910186.450747938, -4935023.659581899)
+        camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)        
         break
       case 2:
         // Close to Ring at 22 km altitude
@@ -2867,7 +2856,6 @@ function onKeyDown( event ) {
           guidParamWithUnits['showLaunchVehiclePointLight'].value = false
           guidParamWithUnits['pKeyAltitudeFactor'].value = 1
           guidParamWithUnits['mainRingSpacing'].value = 30
-          guidParamWithUnits['tetherVisibility'].value = .3
 
           camera.near = 0.1
           break
@@ -2925,7 +2913,6 @@ function onKeyDown( event ) {
           guidParamWithUnits['tetherEngineeringFactor'].value = 0.6
           //guidParamWithUnits['numElevatorCables'].value = 180
           // guidParamWithUnits['elevatorCableOpacity'].value = 0.1
-          guidParamWithUnits['tetherVisibility'].value = 0.8
           guidParamWithUnits['showMainRingCurve'].value = false
           guidParamWithUnits['showTethers'].value = true
           guidParamWithUnits['showTransitSystem'].value = false

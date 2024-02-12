@@ -171,14 +171,15 @@
           }
         </script>
         <script id="tetherFragmentShader" type="x-shader/x-fragment">
-          uniform float opacityFactor;
-          uniform float baseOpacity;
+          uniform float tetherDistanceFactor;
+          uniform float tetherMinOpacity;
+          uniform float tetherMaxOpacity;
           uniform vec3 color;
           varying float eyeDistance;
           varying float fThickness;
           void main() {
-            float opacityDropOff = opacityFactor / pow(eyeDistance, 2.0);
-            float opacity = (baseOpacity + opacityDropOff) * fThickness;
+            float apparentThickness = fThickness / (eyeDistance * pow(2.0, tetherDistanceFactor)); // ToDo: Move this multiply to the vertex shader
+            float opacity = tetherMinOpacity + apparentThickness * (tetherMaxOpacity - tetherMinOpacity);
             gl_FragColor.rgb = color;
             gl_FragColor.a = opacity;
           }

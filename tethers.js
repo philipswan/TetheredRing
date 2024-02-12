@@ -17,6 +17,7 @@ class TetherGeometry extends BufferGeometry {
     const thicknesses = []
     const tetherIndices = []  // These indices index points in tetherPoints, reusing them to save memory
     const tetherStrips = []   // This array will store other arrays that will each define a "strip" of points
+    const tetherThicknesses = []   // This array will store other arrays that will each define a "strip" of points
     const mrr = 10000 //crv.mainRingRadius
     const finalCatenaryTypes = [[], []]                          // Shape of the catenary after the ring is raised to full height - used to "design" the thethers.
     const currentCatenaryTypes = [[], []]                        // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
@@ -28,7 +29,7 @@ class TetherGeometry extends BufferGeometry {
       // Inputs:
       // gravitationalConstant, radiusOfPlanet, massOfPlanet
       // dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value, dParamWithUnits['massPerMeterOfRing'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['tetherEngineeringFactor'].value, dParamWithUnits['numForkLevels'].value, dParamWithUnits['tetherPointBxAvePercent'].value, dParamWithUnits['tetherPointBxDeltaPercent'].value
-      // tetherMaterialDensity, tetherStress
+      // tetherFiberDensity, tetherStress
   
       const final_r = radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value
   
@@ -48,8 +49,8 @@ class TetherGeometry extends BufferGeometry {
       fG.z = -forceExertedByGravityOnRing * Math.sin(dParamWithUnits['equivalentLatitude'].value)
       fT.z = -fG.z                     // Eq 6
   
-      // const factor = dParamWithUnits['tetherMaterialTensileStrength'].prefixfactor
-      const tetherStress = dParamWithUnits['tetherMaterialTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
+      // const factor = dParamWithUnits['tetherFiberTensileStrength'].prefixfactor
+      const tetherStress = dParamWithUnits['tetherFiberTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
       const accelerationOfGravityAtSeaLevel = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
       const accelerationOfGravityAtRing = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
       const accelerationOfGravityApproximation = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
@@ -59,7 +60,7 @@ class TetherGeometry extends BufferGeometry {
         specs['accelerationOfGravityAtRing'] = {value: accelerationOfGravityAtRing, units: "m/s2"}
         specs['howMuchLessThingsWeighAtRing'] = {value: howMuchLessThingsWeighAtRing, units: ""}
       }
-      const c = tetherStress / dParamWithUnits['tetherMaterialDensity'].value / accelerationOfGravityApproximation
+      const c = tetherStress / dParamWithUnits['tetherFiberDensity'].value / accelerationOfGravityApproximation
       
       // Initially we will assume that PointB is at x=0 on the catenary. This is done just so that we can calculate a temporary "PointP.x", 
       // and then set PointB.x as a percentage of this temporarty PointP.x. 
@@ -112,6 +113,8 @@ class TetherGeometry extends BufferGeometry {
           CatenaryEndpoints.forEach((point, k) => {
             // These are simplifed rough calculations. They will help to reveal errors in more precice calculations performed later.
             // There's a cosine effect that will increase stress on the tethers in proportion to their ω angle
+
+            // Calcualte the number of attachment points for the tether
             Nappt[j][k] = 2**(k*dParamWithUnits['numForkLevels'].value)
             specs['numAttachmentPointsPerTether_'+label[k]+j] = {value: Nappt[j][k], units: ""}
             specs['tetherAngleAtAttachmentPoint_'+label[k]+j] = {value: point.θ, units: "radians"}
@@ -128,7 +131,7 @@ class TetherGeometry extends BufferGeometry {
           specs['tetherLength'+j] = {value: L[j], units: "m"}
           V[j] = L[j] * ((Acs[j][0] * Nappt[j][0]) + (Acs[j][1] * Nappt[j][1])) / 2      // Note: Rough calculation that does not account for forks
           specs['tetherVolume'+j] = {value: V[j], units: "m3"}
-          M[j] = V[j] * dParamWithUnits['tetherMaterialDensity'].value
+          M[j] = V[j] * dParamWithUnits['tetherFiberDensity'].value
           specs['tetherMass'+j] = {value: M[j], units: "kg"}
           I[j] = fI.ρ
         }
@@ -139,16 +142,16 @@ class TetherGeometry extends BufferGeometry {
         let movingRingBillOfMaterials = []
 
         // A lot of these calculation are really more about the moving ring than the tethers. Probably should move them elsewhere
-        const tetherMaterialTotalMass = (M[0] + M[1]) / 2 * dParamWithUnits['numTethers'].value
-        specs['tetherMaterialTotalMass'] = {value: tetherMaterialTotalMass, units: "kg"}
-        const tetherMaterialMassPerMeterOfRing = tetherMaterialTotalMass / (2 * Math.PI * crv.mainRingRadius)
-        specs['tetherMaterialMassPerMeterOfRing'] = {value: tetherMaterialMassPerMeterOfRing, units: "kg"}
-        const tetherEqCO2TotalMass = tetherMaterialTotalMass * 44/12
+        const tetherFiberTotalMass = (M[0] + M[1]) / 2 * dParamWithUnits['numTethers'].value
+        specs['tetherFiberTotalMass'] = {value: tetherFiberTotalMass, units: "kg"}
+        const tetherFiberMassPerMeterOfRing = tetherFiberTotalMass / (2 * Math.PI * crv.mainRingRadius)
+        specs['tetherFiberMassPerMeterOfRing'] = {value: tetherFiberMassPerMeterOfRing, units: "kg"}
+        const tetherEqCO2TotalMass = tetherFiberTotalMass * 44/12
         specs['tetherEqCO2TotalMass'] = {value: tetherEqCO2TotalMass, units: "kg"}
         const oneBillion = 1000000000
-        const tetherMaterialTotalCost = tetherMaterialTotalMass * dParamWithUnits['tetherMaterialCost'].value / oneBillion
-        //console.log(tetherMaterialTotalMass, tetherMaterialTotalCost, tetherMaterialTotalCost/tetherMaterialTotalMass)
-        specs['tetherMaterialTotalCost'] = {value: tetherMaterialTotalCost, units: "Billion USD"}
+        const tetherFiberTotalCost = tetherFiberTotalMass * dParamWithUnits['tetherFiberCost'].value / oneBillion
+        //console.log(tetherFiberTotalMass, tetherFiberTotalCost, tetherFiberTotalCost/tetherFiberTotalMass)
+        specs['tetherFiberTotalCost'] = {value: tetherFiberTotalCost, units: "Billion USD"}
         //specs['tenileAverageForceDirection'] = {value: (Theta[0][1] + Theta[1][1])/2, units: "radians"}
         // Calculate the required inertial force
         const inertialForcePerMeter =  (I[0] + I[1]) / 2
@@ -393,11 +396,11 @@ class TetherGeometry extends BufferGeometry {
           movingRingsCostPerMeter2 += material['costPerMeter']
         })
         
-        const tetheredRingMassPerMeterOfRingUnloaded = stationaryRingsMassPerMeter2 + movingRingsMassPerMeter2 + tetherMaterialMassPerMeterOfRing
+        const tetheredRingMassPerMeterOfRingUnloaded = stationaryRingsMassPerMeter2 + movingRingsMassPerMeter2 + tetherFiberMassPerMeterOfRing
         specs['tetheredRingMassPerMeterOfRingUnloaded'] = {value: tetheredRingMassPerMeterOfRingUnloaded, units: 'kg'}
         if (verbose) console.log('stationaryRingsMassPerMeter2', stationaryRingsMassPerMeter2)
         if (verbose) console.log('movingRingsMassPerMeter2', movingRingsMassPerMeter2)
-        if (verbose) console.log('tetherMaterialMassPerMeterOfRing', tetherMaterialMassPerMeterOfRing)
+        if (verbose) console.log('tetherFiberMassPerMeterOfRing', tetherFiberMassPerMeterOfRing)
         if (verbose) console.log('tetheredRingMassPerMeterOfRingUnloaded', tetheredRingMassPerMeterOfRingUnloaded)
         const tetheredRingTotalMassUnloaded = tetheredRingMassPerMeterOfRingUnloaded * 2 * Math.PI * crv.mainRingRadius
         specs['tetheredRingTotalMassUnloaded'] = {value: tetheredRingTotalMassUnloaded, units: 'kg'}
@@ -412,7 +415,7 @@ class TetherGeometry extends BufferGeometry {
         if (verbose) console.log('loadMassPortion', loadMassPortion)
 
         let sumOfAllCapitalCosts = 0
-        sumOfAllCapitalCosts += tetherMaterialTotalCost
+        sumOfAllCapitalCosts += tetherFiberTotalCost
         sumOfAllCapitalCosts += movingRingsTotalKineticEnergyCost
         sumOfAllCapitalCosts += totalCoilMaterialCost
         sumOfAllCapitalCosts += totalCoreMaterialCost
@@ -468,6 +471,7 @@ class TetherGeometry extends BufferGeometry {
       tempPointP.s = c * Math.acosh(Math.exp(tempPointP.y/c))      // Eq 13b
       
       const pointB_s = []
+      const ω_P = -(Math.PI/2 - crv.currentEquivalentLatitude)   // negative rotation angle because the angle increases in clockwise direction
       
       currentCatenaryTypes.forEach((catenaryType, j) => {
         const pointB = new tram.cateneryVector()
@@ -481,7 +485,7 @@ class TetherGeometry extends BufferGeometry {
         pointP.x = c * Math.acos(Math.exp(-pointP.y/c))      // Eq 11
         pointP.s = c * Math.acosh(Math.exp(pointP.y/c))      // Eq 13b
         pointP.θ = pointP.x / c                                  // Eq 12
-        const ω_P = -(Math.PI/2 - crv.currentEquivalentLatitude)   // negative because angle increases in clockwise direction
+        // These are the forces at the ring, that is, at PointP.
         fT.ρ = fT.z / (Math.tan(pointP.θ+ω_P))         // Eq 20
         fI.ρ = -fG.ρ - fT.ρ                           // Eq 21
         fI.z = 0
@@ -507,14 +511,19 @@ class TetherGeometry extends BufferGeometry {
           const r = radiusOfPlanet + (y - pointB.y)
           const ω_anchor = ω_P + (pointP.x-pointB.x) / radiusOfPlanet     // Left this unreduced to make it a bit easier to understand the logic
           const ω = ω_anchor - (x-pointB.x) / radiusOfPlanet
-          catenaryType.push(new tram.CatenaryPolarVec3(r, ω, s))
+          const θ = x / c
+          const tensileForcePerMeterRhoComponentAtX = fT.z / Math.tan(θ + ω_P)
+          const tensileForcePerMeterAtX = Math.sqrt(fT.z**2 + tensileForcePerMeterRhoComponentAtX**2)
+          const crossSectionalArea = tensileForcePerMeterAtX * tetherSpacing / tetherStress
+          catenaryType.push(new tram.CatenaryPolarVec3(r, ω, s, crossSectionalArea))
         }
+        console.log('catenaryType (r, ω, s, area)', j, catenaryType)
       })
 
       // Dang it!!! I reused 'θ' here so now it has two meanings. It has one meaning in the catenary-of-constant-stress formula and another in the spherical coordinate system in which the tethers are generated.
       // Super sorry! Will add to my backlog.
       class Branch {
-        constructor(base_point, base_dr, base_dω, base_dθ, target_point, target_dr, target_dω, target_dθ) {
+        constructor(base_point, base_dr, base_dω, base_dθ, target_point, target_dr, target_dω, target_dθ, crossSectionalAreaFraction, cosineFactor) {
           this.base_point = base_point
           this.base_dr = base_dr                   // This is the distance from the root tether segment to the base of the current branch in the r-axis
           this.base_dω = base_dω                   // This is the distance from the root tether segment to the base of the current branch in the r-axis
@@ -530,6 +539,8 @@ class TetherGeometry extends BufferGeometry {
           this.dθ_0 = base_dθ
           this.dθ_1 = 0
           this.stripIndex = -1     // '-1' indicates that a strip has not been started for this branch yet
+          this.crossSectionalAreaDivider = crossSectionalAreaFraction
+          this.cosineFactor = cosineFactor
         }
       }
   
@@ -554,29 +565,40 @@ class TetherGeometry extends BufferGeometry {
       }
   
       function makeTetherStrips(j, θ, referencePoint) {
+        const numMainRings = dParamWithUnits['numMainRings'].value
+        const mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
+
         const jModNumTypes = j % currentCatenaryTypes.length
         const catenaryPoints = currentCatenaryTypes[jModNumTypes]
         // Spherical coordinates (r, ω, θ) are defined using three.js convention, where ω is the polar angle, θ is the equitorial angle 
         let r_0 = catenaryPoints[0].r
         let ω_0 = catenaryPoints[0].ω
         let s_0 = catenaryPoints[0].s
+        let crossSectionalArea_0 = catenaryPoints[0].crossSectionalArea
         let r_1
         let ω_1
         let s_1
+        let crossSectionalArea_1
         let branches = []
-        branches.push(new Branch(0, 0.0, 0.0, 0.0, numTetherPoints, 0.0, 0.0, 0.0))  // This defines the trunk of the tether
+        branches.push(new Branch(0, 0.0, 0.0, 0.0, numTetherPoints, 0.0, 0.0, 0.0, 1.0, 1.0))  // This defines the trunk of the tether
   
         const mro = (dParamWithUnits['numMainRings'].value - 1)/2
+
+        // Generate a (very) rough estimate of the maximum thickness of the tether
+        let maxThickness = 2 * Math.sqrt(catenaryPoints[catenaryPoints.length>>1].crossSectionalArea / Math.PI)
+
         for (let i = 0; i<=numTetherPoints-2; i++) {
           r_1 = catenaryPoints[i+1].r
           ω_1 = catenaryPoints[i+1].ω
           s_1 = catenaryPoints[i+1].s
+          crossSectionalArea_1 = catenaryPoints[i+1].crossSectionalArea
   
           if ((s_0<pointB_s[jModNumTypes]) && (pointB_s[jModNumTypes]<s_1)) {
-            // We need to recalculate the r_0, ω_0 values more accurately by using lerps...
+            // Since part of this tether segment is still on the spool, we need to recalculate the r_0, ω_0, and crossSectionalArea_0 values more accurately by using lerps...
             const frac = (pointB_s[jModNumTypes]-s_0)/(s_1-s_0)
             r_0 = tram.lerp(r_0, r_1, frac)
             ω_0 = tram.lerp(ω_0, ω_1, frac)
+            crossSectionalArea_0 = tram.lerp(crossSectionalArea_0, crossSectionalArea_1, frac)
           }
   
           if ((i>0) && (Number.isInteger(Math.log2(numTetherPoints-i)))) {      // If we're at a point where the tether segments fork...
@@ -585,16 +607,17 @@ class TetherGeometry extends BufferGeometry {
             const target_dθ_Alteration = tetherSpan/(2**(logNumStays+1))
             branches.forEach((branch, index) => {
               if (i<numTetherPoints-2) {
-                // Create two new branches, then delete the original
-                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ + target_dθ_Alteration))
-                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ - target_dθ_Alteration))
+                // Create two new branches (left and right), then delete the original
+                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ + target_dθ_Alteration, 2**(-logNumStays), 1.0))
+                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ - target_dθ_Alteration, 2**(-logNumStays), 1.0))
               }
               else {
-                for (let k = 0; k<dParamWithUnits['numMainRings'].value; k++) {
-                  const target_dr_Alteration = (k-mro)*dParamWithUnits['mainRingSpacing'].value * Math.sin(crv.constructionEquivalentLatitude)
-                  const target_dω_Alteration = (k-mro)*dParamWithUnits['mainRingSpacing'].value * Math.cos(crv.constructionEquivalentLatitude) / r_0    // Dividing by r_0 is an approximation, a better r value may be needed for perfect accuracy
-                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr + target_dr_Alteration, branch.target_dω + target_dω_Alteration, branch.target_dθ + target_dθ_Alteration))
-                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr - target_dr_Alteration, branch.target_dω - target_dω_Alteration, branch.target_dθ - target_dθ_Alteration))
+                // For the last branching, create numMainRings up/down branches to connect to the rings
+                for (let k = 0; k<numMainRings; k++) {
+                  const target_dr_Alteration = (k-mro)*mainRingSpacing * Math.sin(crv.constructionEquivalentLatitude)
+                  const target_dω_Alteration = (k-mro)*mainRingSpacing * Math.cos(crv.constructionEquivalentLatitude) / r_0    // Dividing by r_0 is an approximation, a better r value may be needed for perfect accuracy
+                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr + target_dr_Alteration, branch.target_dω + target_dω_Alteration, branch.target_dθ + target_dθ_Alteration, (2**(-logNumStays))/numMainRings, 1.0))
+                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr - target_dr_Alteration, branch.target_dω - target_dω_Alteration, branch.target_dθ - target_dθ_Alteration, (2**(-logNumStays))/numMainRings, 1.0))
                 }
               }
               delete branches[index]    // Some advice out there says not to use delete because then len() will return wrong results, but it's efficient at this task
@@ -617,13 +640,16 @@ class TetherGeometry extends BufferGeometry {
               if (branch.stripIndex==-1) {
                 // Start a new array for the strip, add it to the array of arrays, and register its index with the branch object 
                 branch.stripIndex = tetherStrips.push( [] ) - 1
+                tetherThicknesses.push( [] )
                 // Push the branch's first point onto the tether stirps array 
-                const point = new Vector3().setFromSphericalCoords(r_0 + branch.dr_0, ω_0 + branch.dω_0, θ + branch.dθ_0)
                 const absolutePoint = new Vector3().setFromSphericalCoords(r_0 + branch.dr_0, ω_0 + branch.dω_0, θ + branch.dθ_0)
                 tetherStrips[branch.stripIndex].push( absolutePoint.sub(referencePoint) )
+                // a = pi*(d/2)^2, so d = 2*sqrt(a/pi)
+                tetherThicknesses[branch.stripIndex].push( 2 * Math.sqrt(crossSectionalArea_0 * branch.crossSectionalAreaDivider * branch.cosineFactor / Math.PI) / maxThickness) 
               }
               const absolutePoint = new Vector3().setFromSphericalCoords(r_1 + branch.dr_1, ω_1 + branch.dω_1, θ + branch.dθ_1)
               tetherStrips[branch.stripIndex].push( absolutePoint.sub(referencePoint) )
+              tetherThicknesses[branch.stripIndex].push(2 * Math.sqrt(crossSectionalArea_1 * branch.crossSectionalAreaDivider * branch.cosineFactor / Math.PI) / maxThickness)
             }
             branch.dr_0 = branch.dr_1
             branch.dω_0 = branch.dω_1
@@ -649,18 +675,19 @@ class TetherGeometry extends BufferGeometry {
       	// some index gymnastics to figure out what level this strip is on
 
       	// We have two seperate tether structures, get the strip index within a single tether
-      	const cateneryNormalizedIndex = stripIndex < segmentsPerCatenaryType ? stripIndex : stripIndex - segmentsPerCatenaryType // Account for the fact that we hae two different forking cateneries 
+      	//const cateneryNormalizedIndex = stripIndex < segmentsPerCatenaryType ? stripIndex : stripIndex - segmentsPerCatenaryType // Account for the fact that we hae two different forking cateneries 
       	// Do we need to care about the last however many segments that attach to the ring?
-        const beforeFinalFork = cateneryNormalizedIndex < numNonFinalSegments
-        const stripLevel = beforeFinalFork ? Math.floor(Math.log2(cateneryNormalizedIndex + 1)) : numLevels
+        //const beforeFinalFork = cateneryNormalizedIndex < numNonFinalSegments
+        //const stripLevel = beforeFinalFork ? Math.floor(Math.log2(cateneryNormalizedIndex + 1)) : numLevels
 
-      	// now we can compute the opacity
-      	const crossAreaDivision = beforeFinalFork ? 2 ** stripLevel : 2 ** stripLevel * numFinalSegments
-      	const opacity = 1.0 / Math.sqrt(crossAreaDivision);
+      	// Compute the tether thickness
+      	//const crossAreaDivision = beforeFinalFork ? 2 ** stripLevel : 2 ** stripLevel * numFinalSegments
+      	//const thickness = 1.0 / Math.sqrt(crossAreaDivision);
+        const tetherThickness = tetherThicknesses[stripIndex]
 
         strip.forEach((point, i) => {
           tetherPoints.push(point)
-          thicknesses.push(opacity)
+          thicknesses.push(tetherThickness[i])
           if (i>0) {
             tetherIndices.push(numIndices-1)
             tetherIndices.push(numIndices)

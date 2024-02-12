@@ -636,7 +636,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value // m/s
   const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
   const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
-  //console.log('Error: Unfinished Code')  // ToDo: These calculation need to include the ramp
+  console.log('Error: Unfinished Code')  // ToDo: These calculations need to be updated
   const launcherMassDriverExitAngleInRadians = launcherMassDriverExitAngleInDegrees * Math.PI / 180
   const R0 = new THREE.Vector2(0, crv.radiusOfPlanet + launcherMassDriverAltitude)
   const V0 = new THREE.Vector2(
@@ -645,7 +645,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const tStep = 0.125
 
   let propellantConsumed = 0 
-  let lastvehiclePositionVector = new THREE.Vector2(R0_x, R0_y)
+  let lastVehiclePositionVector = new THREE.Vector2(R0.x, R0.y)
   let launcherSuspendedTubeLength = 0
   for (let t = 0; t < 100; t += tStep) {
     // Determine the altitude and velocity of the vehicle. 't' in this case represents the time relative to the initial conditions, R0_x, R0_y, V0_x, V0_y
@@ -663,8 +663,8 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
     const thrustRS25 = 2279000  // N
     propellantConsumed += launchVehicleRocketFuelFlowRate * tStep
     if (vehicleAltitude <= crv.currentMainRingAltitude) {
-      launcherSuspendedTubeLength += vehiclePositionVector.clone().sub(lastvehiclePositionVector).length()
-      lastvehiclePositionVector.copy(vehiclePositionVector)     
+      launcherSuspendedTubeLength += vehiclePositionVector.clone().sub(lastVehiclePositionVector).length()
+      lastVehiclePositionVector.copy(vehiclePositionVector)     
     }
     if ((t%1==0) || ((vehicleAltitude>31000) && (vehicleAltitude<33000))) {
       //console.log(Math.atan2(vehicleVelocityVector.x, vehicleVelocityVector.y) - Math.PI/2, Math.atan2(vehiclePositionVector.x, vehiclePositionVector.y))
@@ -901,6 +901,27 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   //console.log('launcherTotalCost', launcherTotalCost/1e6, 'M USD')
 
 }
+
+export function updateMovingRingSpecs(dParamWithUnits, crv, specs) {
+
+  // Eddy Current Power Losses
+  if (!specs.hasOwnProperty('movingRingsSpeed')) {
+    console.error('Error: movingRingSpeed not defined')
+  }
+  const movingRingSpeed = specs['movingRingsSpeed'].value // m/s
+  const movingRingNonuniformityLength = 1  // m
+  const movingRingAverageMagneticFluxDensityVariation = 0.00001 // T  Assuming field uniformity is on average +/-10 ppm from nominal
+  const peakMagneticField = movingRingAverageMagneticFluxDensityVariation * 2
+  const thicknessOfSheet = 0.001  // m
+  const frequencyOfField = movingRingSpeed / movingRingNonuniformityLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
+  const constantK = 1
+  const materialResistivity = 4.6e-7  // Ohm*m, for Grain-oriented electrical steel rom https://www.thoughtco.com/table-of-electrical-resistivity-conductivity-608499
+  const materialDensity = 7650  // kg/m3
+  const movingRingEddyCurrentPowerLossesPerKg = 2 * (Math.PI * peakMagneticField * thicknessOfSheet * frequencyOfField)**2 / (6 * constantK * materialResistivity * materialDensity)
+  specs['movingRingEddyCurrentPowerLossesPerKg'] = {value: movingRingEddyCurrentPowerLossesPerKg, units: 'W'}
+
+}
+
 
 export function updateTransitSystemSpecs(dParamWithUnits, crv, specs) {
   const metersPerKilometer = 1000
