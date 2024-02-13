@@ -14,10 +14,11 @@ class TetherGeometry extends BufferGeometry {
 		super();
 
     const tetherPoints = []
-    const thicknesses = []
+    const tetherThicknesses = []
     const tetherIndices = []  // These indices index points in tetherPoints, reusing them to save memory
     const tetherStrips = []   // This array will store other arrays that will each define a "strip" of points
-    const tetherThicknesses = []   // This array will store other arrays that will each define a "strip" of points
+    const tetherStripThicknesses = []   // This array will store other arrays that will each define a "strip" of points
+    const tetherStripCrossSectionalAreas = []   // This array will store other arrays that will each define a "strip" of points
     const mrr = 10000 //crv.mainRingRadius
     const finalCatenaryTypes = [[], []]                          // Shape of the catenary after the ring is raised to full height - used to "design" the thethers.
     const currentCatenaryTypes = [[], []]                        // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
@@ -517,7 +518,6 @@ class TetherGeometry extends BufferGeometry {
           const crossSectionalArea = tensileForcePerMeterAtX * tetherSpacing / tetherStress
           catenaryType.push(new tram.CatenaryPolarVec3(r, ω, s, crossSectionalArea))
         }
-        console.log('catenaryType (r, ω, s, area)', j, catenaryType)
       })
 
       // Dang it!!! I reused 'θ' here so now it has two meanings. It has one meaning in the catenary-of-constant-stress formula and another in the spherical coordinate system in which the tethers are generated.
@@ -580,13 +580,15 @@ class TetherGeometry extends BufferGeometry {
         let s_1
         let crossSectionalArea_1
         let branches = []
+
+        // The first "branch" is the main trunck of the tether.
         branches.push(new Branch(0, 0.0, 0.0, 0.0, numTetherPoints, 0.0, 0.0, 0.0, 1.0, 1.0))  // This defines the trunk of the tether
   
         const mro = (dParamWithUnits['numMainRings'].value - 1)/2
 
         // Generate a (very) rough estimate of the maximum thickness of the tether
         let maxThickness = 2 * Math.sqrt(catenaryPoints[catenaryPoints.length>>1].crossSectionalArea / Math.PI)
-
+        
         for (let i = 0; i<=numTetherPoints-2; i++) {
           r_1 = catenaryPoints[i+1].r
           ω_1 = catenaryPoints[i+1].ω
@@ -607,28 +609,33 @@ class TetherGeometry extends BufferGeometry {
             const target_dθ_Alteration = tetherSpan/(2**(logNumStays+1))
             branches.forEach((branch, index) => {
               if (i<numTetherPoints-2) {
+                const crossSectionalAreaFraction =  2**(-logNumStays)
                 // Create two new branches (left and right), then delete the original
-                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ + target_dθ_Alteration, 2**(-logNumStays), 1.0))
-                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ - target_dθ_Alteration, 2**(-logNumStays), 1.0))
+                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ + target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
+                branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ - target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
               }
               else {
                 // For the last branching, create numMainRings up/down branches to connect to the rings
+                const crossSectionalAreaFraction =  (2**(-logNumStays))/numMainRings
                 for (let k = 0; k<numMainRings; k++) {
                   const target_dr_Alteration = (k-mro)*mainRingSpacing * Math.sin(crv.constructionEquivalentLatitude)
                   const target_dω_Alteration = (k-mro)*mainRingSpacing * Math.cos(crv.constructionEquivalentLatitude) / r_0    // Dividing by r_0 is an approximation, a better r value may be needed for perfect accuracy
-                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr + target_dr_Alteration, branch.target_dω + target_dω_Alteration, branch.target_dθ + target_dθ_Alteration, (2**(-logNumStays))/numMainRings, 1.0))
-                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr - target_dr_Alteration, branch.target_dω - target_dω_Alteration, branch.target_dθ - target_dθ_Alteration, (2**(-logNumStays))/numMainRings, 1.0))
+                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr + target_dr_Alteration, branch.target_dω + target_dω_Alteration, branch.target_dθ + target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
+                  branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr + target_dr_Alteration, branch.target_dω + target_dω_Alteration, branch.target_dθ - target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
                 }
               }
               delete branches[index]    // Some advice out there says not to use delete because then len() will return wrong results, but it's efficient at this task
             })
           }
+
+          // As we travel up the catenery curve, we use the branch descriptions to generate "tether strips" which are lists of 3D points that define the tether's geometry.
           branches.forEach((branch) => {
             const alpha = (i+1 - branch.base_point)/(numTetherPoints-1 - branch.base_point)
             branch.dr_1 = tram.lerp(branch.base_dr, branch.target_dr, alpha)
             branch.dω_1 = tram.lerp(branch.base_dω, branch.target_dω, alpha)
             branch.dθ_1 = tram.lerp(branch.base_dθ, branch.target_dθ, alpha)
             if (s_1>pointB_s[jModNumTypes]) {   // When raising the ring, points on the parts of the tether that are on the spool have all have the same coordinates (i.e. the spool's coordinates).
+              let branch_r0, branch_r1, branch_ω0, branch_ω1, branch_θ0, branch_θ1, branch_s0, branch_s1
               if (s_0<pointB_s[jModNumTypes]) {
                 // We need to recalculate the branch.dr_0 and branch.dθ_0 values more accurately by using a lerp...
                 // Note, this code doesn't recalculate the values correctly for the final tether branches that fork away vertically 
@@ -636,20 +643,50 @@ class TetherGeometry extends BufferGeometry {
                 branch.dr_0 = tram.lerp(branch.dr_0, branch.dr_1, frac)
                 branch.dω_0 = tram.lerp(branch.dω_0, branch.dω_1, frac)
                 branch.dθ_0 = tram.lerp(branch.dθ_0, branch.dθ_1, frac)
+                branch_s0 = pointB_s[jModNumTypes]
               }
-              if (branch.stripIndex==-1) {
+              else {
+                branch_s0 = s_0
+              }
+
+              branch_s1 = s_1 
+              branch_r0 = r_0 + branch.dr_0
+              branch_r1 = r_1 + branch.dr_1
+              branch_ω0 = ω_0 + branch.dω_0
+              branch_ω1 = ω_1 + branch.dω_1
+              branch_θ0 = θ + branch.dθ_0
+              branch_θ1 = θ + branch.dθ_1
+
+              // The cosine factor is used to adjust for the increased thickness of the various tether branches due to fanout.
+              const branchCurveLength = branch_s1-branch_s0
+
+              const firstPointFlag = (branch.stripIndex==-1) 
+              if (firstPointFlag) {
                 // Start a new array for the strip, add it to the array of arrays, and register its index with the branch object 
                 branch.stripIndex = tetherStrips.push( [] ) - 1
-                tetherThicknesses.push( [] )
+                tetherStripCrossSectionalAreas.push( [] )
+                tetherStripThicknesses.push( [] )
                 // Push the branch's first point onto the tether stirps array 
-                const absolutePoint = new Vector3().setFromSphericalCoords(r_0 + branch.dr_0, ω_0 + branch.dω_0, θ + branch.dθ_0)
+                const absolutePoint = new Vector3().setFromSphericalCoords(branch_r0, branch_ω0, branch_θ0)
                 tetherStrips[branch.stripIndex].push( absolutePoint.sub(referencePoint) )
-                // a = pi*(d/2)^2, so d = 2*sqrt(a/pi)
-                tetherThicknesses[branch.stripIndex].push( 2 * Math.sqrt(crossSectionalArea_0 * branch.crossSectionalAreaDivider * branch.cosineFactor / Math.PI) / maxThickness) 
               }
-              const absolutePoint = new Vector3().setFromSphericalCoords(r_1 + branch.dr_1, ω_1 + branch.dω_1, θ + branch.dθ_1)
+              const absolutePoint = new Vector3().setFromSphericalCoords(branch_r1, branch_ω1, branch_θ1)
               tetherStrips[branch.stripIndex].push( absolutePoint.sub(referencePoint) )
-              tetherThicknesses[branch.stripIndex].push(2 * Math.sqrt(crossSectionalArea_1 * branch.crossSectionalAreaDivider * branch.cosineFactor / Math.PI) / maxThickness)
+              const stripSegmentLength = tetherStrips[branch.stripIndex][tetherStrips[branch.stripIndex].length-1].distanceTo(tetherStrips[branch.stripIndex][tetherStrips[branch.stripIndex].length-2])
+              
+              // Cross sectional area increases as we travel up the catenary of constant stress.
+              // It decreases (that is, it is distributed across multiple branches) when the tether forks.
+              // It also increases when the tether branches are not perpendicular to the ring (the one-over-cosine factor).
+              const thicknessCosineFactor = stripSegmentLength/branchCurveLength
+              // a = pi*(d/2)^2, so d = 2*sqrt(a/pi)
+              if (firstPointFlag) {
+                const branchCrossSectionalArea = crossSectionalArea_0 * branch.crossSectionalAreaDivider * thicknessCosineFactor
+                tetherStripCrossSectionalAreas[branch.stripIndex].push(branchCrossSectionalArea)
+                tetherStripThicknesses[branch.stripIndex].push(2 * Math.sqrt(branchCrossSectionalArea / Math.PI) / maxThickness)
+              }
+              const branchCrossSectionalArea = crossSectionalArea_1 * branch.crossSectionalAreaDivider * thicknessCosineFactor
+              tetherStripCrossSectionalAreas[branch.stripIndex].push(branchCrossSectionalArea)
+              tetherStripThicknesses[branch.stripIndex].push(2 * Math.sqrt(branchCrossSectionalArea / Math.PI) / maxThickness)
             }
             branch.dr_0 = branch.dr_1
             branch.dω_0 = branch.dω_1
@@ -672,22 +709,11 @@ class TetherGeometry extends BufferGeometry {
       const numNonFinalSegments = 2 ** numLevels - 1
       const segmentsPerCatenaryType = numFinalSegments + numNonFinalSegments 
       tetherStrips.forEach((strip, stripIndex) => {
-      	// some index gymnastics to figure out what level this strip is on
-
-      	// We have two seperate tether structures, get the strip index within a single tether
-      	//const cateneryNormalizedIndex = stripIndex < segmentsPerCatenaryType ? stripIndex : stripIndex - segmentsPerCatenaryType // Account for the fact that we hae two different forking cateneries 
-      	// Do we need to care about the last however many segments that attach to the ring?
-        //const beforeFinalFork = cateneryNormalizedIndex < numNonFinalSegments
-        //const stripLevel = beforeFinalFork ? Math.floor(Math.log2(cateneryNormalizedIndex + 1)) : numLevels
-
-      	// Compute the tether thickness
-      	//const crossAreaDivision = beforeFinalFork ? 2 ** stripLevel : 2 ** stripLevel * numFinalSegments
-      	//const thickness = 1.0 / Math.sqrt(crossAreaDivision);
-        const tetherThickness = tetherThicknesses[stripIndex]
+        const tetherStripThickness = tetherStripThicknesses[stripIndex]
 
         strip.forEach((point, i) => {
           tetherPoints.push(point)
-          thicknesses.push(tetherThickness[i])
+          tetherThicknesses.push(tetherStripThickness[i])
           if (i>0) {
             tetherIndices.push(numIndices-1)
             tetherIndices.push(numIndices)
@@ -702,7 +728,6 @@ class TetherGeometry extends BufferGeometry {
         planetCoordSys.updateWorldMatrix(true)
         tetheredRingRefCoordSys.updateMatrixWorld(true)
   
-        console.log(tetherStrips.length + ' tether strips')
         kmlFile  = ''
         tetherStrips.forEach(strip => {
           if (kmlFile.length<1000000) {   // Don't let the file get too big
@@ -729,7 +754,7 @@ class TetherGeometry extends BufferGeometry {
     this.userData['catenaryTypes'] = currentCatenaryTypes
     this.setFromPoints(tetherPoints)
     const numThicknessComponents = 1
-    const thicknessAttribute = new BufferAttribute(new Float32Array(thicknesses), numThicknessComponents)
+    const thicknessAttribute = new BufferAttribute(new Float32Array(tetherThicknesses), numThicknessComponents)
     this.setAttribute('thickness', thicknessAttribute)
     this.setIndex(tetherIndices)
     // this.setAttribute( 'position', new THREE.Float32BufferAttribute( tetherPoints, 3 ) );
@@ -738,6 +763,9 @@ class TetherGeometry extends BufferGeometry {
     tetherPoints.splice(0, tetherPoints.length)   // Frees the memory used for these points
     tetherIndices.splice(0, tetherIndices.length)   // Frees the memory used for these points
     tetherStrips.splice(0, tetherStrips.length)   // Frees the memory used for these points
+    tetherThicknesses.splice(0, tetherThicknesses.length)   // Frees the memory used for these points
+    tetherStripThicknesses.splice(0, tetherStripThicknesses.length)   // Frees the memory used for these points
+    tetherStripCrossSectionalAreas.splice(0, tetherStripCrossSectionalAreas.length)   // Frees the memory used for these points
   }
 }
 

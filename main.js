@@ -182,7 +182,7 @@ const guidParamWithUnits = {
 
   // Engineering Parameters - Stationary Rings
   transitSystemNumZones: {value: 1024, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
-  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: updateTransitsystem, folder: folderEngineering},
+  numMainRings: {value: 5, units: "", autoMap: true, min: 1, max: 7, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   mainRingTubeRadius: {value: 0.5, units: "m", autoMap: true, min: .1, max: 5, updateFunction: updateTransitsystem, folder: folderEngineering}, // ToDo - Retire this parameter
 
@@ -807,7 +807,7 @@ function adjustTetherOpacity() {
 
 function adjustTetherDistanceFactor() {
   updatedParam()
-  tetherMaterial.uniforms["tetherDistanceFactor"].value = guidParamWithUnits['tetherDistanceFactor'].value;
+  tetherMaterial.uniforms["tetherDistanceFactor"].value = 2**guidParamWithUnits['tetherDistanceFactor'].value;
   tetherMaterial.uniformsNeedUpdate = true
 }
 
@@ -1290,7 +1290,7 @@ const tetherMaterial = new THREE.ShaderMaterial( {
   uniforms: {
     'tetherMinOpacity': { value: guidParamWithUnits['tetherMinOpacity'].value  },
     'tetherMaxOpacity': { value: guidParamWithUnits['tetherMaxOpacity'].value  },
-    'tetherDistanceFactor': {value: guidParamWithUnits['tetherDistanceFactor'].value },
+    'tetherDistanceFactor': {value: 2**guidParamWithUnits['tetherDistanceFactor'].value },
     'color': {value: new THREE.Color(guidParam["tetherColor"]) }
   },
   vertexShader: document.getElementById( 'tetherVertexShader' ).textContent,
@@ -2693,10 +2693,15 @@ function onKeyDown( event ) {
           // camera.up.set(0.1700612807252515, -0.6119573789279946, -0.7723906570988971)
 
           // At 100m
-          orbitControls.target.set(1087829.3440702243, -3907631.0156934406, -4941146.498730386)
-          orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
-          orbitControls.object.position.set(1119741.0157521453, -3910186.450747938, -4935023.659581899)
-          camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+          orbitControls.target.set(1087400.0760552743, -3885289.039740853, -4979888.789462031)
+          orbitControls.upDirection.set(0.1696873352049711, -0.6062407349576369, -0.7769674250244086)
+          orbitControls.object.position.set(1086726.0160455098, -3882487.201004774, -4986263.639147207)
+          camera.up.set(0.1696873352049711, -0.6062407349576369, -0.7769674250244086)
+
+          // orbitControls.target.set(1087829.3440702243, -3907631.0156934406, -4941146.498730386)
+          // orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
+          // orbitControls.object.position.set(1119741.0157521453, -3910186.450747938, -4935023.659581899)
+          // camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
           
           // Start of short launcher (exit velocity = 1000)
           // orbitControls.target.set(397938.59305886156, -4034234.6848072577, -4924228.909297606)
