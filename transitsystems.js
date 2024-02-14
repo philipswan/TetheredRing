@@ -96,7 +96,7 @@ export class transitSystem {
     this.refFrames.push(rf3)
 
     // Static reference frame
-    const rf4 = new referenceFrame(mainRingCurve, numZones, 20000, 0, 1, 1, 'staticReferenceFrame')
+    const rf4 = new referenceFrame(mainRingCurve, numZones, 20000, 0, 1, 1, 'staticMediumRangeRefFrame')
     rf4.addVirtualObject('virtualStationaryRingSegments')
     rf4.addVirtualObject('virtualRingTerminuses')
     rf4.addVirtualObject('virtualGroundTerminuses')
@@ -119,14 +119,14 @@ export class transitSystem {
     this.refFrames.push(rf5)
 
     // Static reference frame with much greater camera range
-    const rf6 = new referenceFrame(mainRingCurve, numZones, 500000, 0, 1, 1, 'staticReferenceFrameLongCameraRange')
+    const rf6 = new referenceFrame(mainRingCurve, numZones, 500000, 0, 1, 1, 'staticLongRangeRefFrame')
     rf6.addVirtualObject('virtualTransitTubeSegments')
     rf6.addVirtualObject('virtualElevatorCables')
     rf6.initialize()
     this.refFrames.push(rf6)
 
     // Static reference frame with much shorter camera range
-    const rf7 = new referenceFrame(mainRingCurve, numZones, 1000, 0, 1, 1, 'staticReferenceFrameSmallCameraRange')
+    const rf7 = new referenceFrame(mainRingCurve, numZones, 1000, 0, 1, 1, 'staticShortRangeRefFrame')
     rf7.addVirtualObject('virtualStatorMagnetSegments')
     rf7.initialize()
     this.refFrames.push(rf7)
@@ -790,6 +790,7 @@ export class transitSystem {
     const allTracks = [this.refFrames[0], this.refFrames[1], this.refFrames[2], this.refFrames[3]]
     this.removeOldVirtualObjects(allTracks, 'virtualTransitVehicles', this.unallocatedTransitVehicleModels)
     const staticMediumRangeRefFrame = [this.refFrames[4]]
+    this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
     this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualRingTerminuses', this.unallocatedRingTerminusModels)
     this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualHabitats', this.unallocatedHabitatModels)
     this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualElevatorCars', this.unallocatedElevatorCarModels)
@@ -804,7 +805,6 @@ export class transitSystem {
     this.removeOldVirtualObjects(staticMediumRangeRefFrame, 'virtualSolarArrays', this.unallocatedSolarArrayModels)
     const staticLongRangeRefFrame = [this.refFrames[6]]
     this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualElevatorCables', this.unallocatedElevatorCableModels)
-    this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualStationaryRingSegments', this.unallocatedStationaryRingSegmentModels)
     this.removeOldVirtualObjects(staticLongRangeRefFrame, 'virtualTransitTubeSegments', this.unallocatedTransitTubeSegmentModels)
     const movingRingReferenceFrame = [this.refFrames[5]]
     this.removeOldVirtualObjects(movingRingReferenceFrame, 'virtualMovingRingSegments', this.unallocatedMovingRingSegmentModels)
@@ -948,7 +948,7 @@ export class transitSystem {
           const cameraRangeFinish = (nearestTrackPositionToCamera + cameraRangeDelta + 1) % 1
           cameraRangeStartForFrame = (cameraRangeStart - refFrame.p + 1 ) % 1
           cameraRangeFinishForFrame = (cameraRangeFinish - refFrame.p + 1 ) % 1
-          // if (refFrame.name==='staticReferenceFrameLongCameraRange') {
+          // if (refFrame.name==='staticLongRangeRefFrame') {
           //   const pointOnRingAtNearestTrackPosition2 = mainRingCurve.getPoint(cameraRangeStartForFrame)
           //   const pointOnRingAtNearestTrackPosition3 = mainRingCurve.getPoint(cameraRangeFinishForFrame)
           //   this.nearestPositionMarker2.position.copy(pointOnRingAtNearestTrackPosition2)
