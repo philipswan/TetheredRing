@@ -675,7 +675,7 @@ function updateTetherFiber() {
 }
 
 function updateCoilConductorMaterial() {
-  switch (guidParam['CoilConductorMaterial']) {
+  switch (guidParam['coilConductorMaterial']) {
     case coilConductorMaterials.Copper:
       dParamWithUnits['coilConductorMaterialResistivity'] = {value: guidParamWithUnits['coilConductorMaterialResistivityCopper'].value, units: guidParamWithUnits['coilConductorMaterialResistivityCopper'].units}
       dParamWithUnits['coilConductorMaterialDensity'] = {value: guidParamWithUnits['coilConductorMaterialDensityCopper'].value, units: guidParamWithUnits['coilConductorMaterialDensityCopper'].units}
