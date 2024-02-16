@@ -160,7 +160,7 @@ const guidParamWithUnits = {
   //movingRingsRotationalPeriod: {value: 1800, units: "s", autoMap: true, min: 0, max: 3600, updateFunction: adjustRingDesign, folder: folderEngineering},
   movingRingsMassPortion: {value: 0.382, units: "", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   numControlPoints: {value: 256, units: '', autoMap: true, min: 4, max: 1024, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  totalMassPerMeterOfRing: {value: 100, units: "kg", autoMap: true, min: 1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  totalMassPerMeterOfRings: {value: 100, units: "kg", autoMap: true, min: 1, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},
   statorMassPerUnitOfLoad: {value: 0.02, units: "kg/N", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   relativePermeabilityOfCore: {value: 8000, units: "", autoMap: true, min: 0, max: 100000, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringMaglevFieldLoopLength: {value: 0.1, units: "m", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -174,6 +174,7 @@ const guidParamWithUnits = {
   // Engineering Parameters - Tethers
   numTethers: {value: 3600, units: "", autoMap: true, min: 4, max: 7200, step: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
   numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
+  whenToForkVertically: {value: 2, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
   tetherSpanOverlapFactor: {value: 2, units: "%", autoMap: true, min: 0.5, max: 4, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxAvePercent: {value: 50, units: "%", autoMap: true, min: 0, max: 100, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxDeltaPercent: {value: 40, units: "%", autoMap: true, min: 0, max: 50, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -732,18 +733,6 @@ function updatedParam() {   // Read as "update_dParam"
   dParamWithUnits['massDriverLength'] = {value: dParamWithUnits['launcherMassDriverExitVelocity'].value**2 / 2 / dParamWithUnits['launcherMassDriverForwardAcceleration'].value, units: "m"}
   updateTetherFiber()
   updateCoilConductorMaterial()
-
-  if (genSpecsFile) {
-    specsFile = specsFile.concat('// GUI Parameters\n')
-    Object.entries(guidParamWithUnits).forEach(([k, v]) => {
-      specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
-    })
-
-    specsFile = specsFile.concat('// Design Parameters\n')
-    Object.entries(dParamWithUnits).forEach(([k, v]) => {
-      specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
-    })
-  }
 }
 
 updatedParam()
@@ -1547,6 +1536,19 @@ function updateRing() {
 
   // Update the parameters prior to reconsrructing the scene
   updatedParam()
+  if (genSpecsFile) {
+    specsFile = specsFile.concat('// GUI Parameters\n')
+    Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+      specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
+    })
+
+    specsFile = specsFile.concat('// Design Parameters\n')
+    Object.entries(dParamWithUnits).forEach(([k, v]) => {
+      if (!guidParamWithUnits.hasOwnProperty(k) || guidParamWithUnits[k].autoMap===false) {
+        specsFile = specsFile.concat(k + ',' + v.value + ',' + v.units + '\n')
+      }
+    })
+  }
 
   // Reconstruction Section
  
@@ -1733,9 +1735,10 @@ function renderFrame() {
     // }
   }
   
-  const delta = clock.getDelta()
-  timeSinceStart += delta
-  if (timeSinceStart>45) {
+  const clockDelta = clock.getDelta()
+  timeSinceStart += clockDelta
+
+  if ((timeSinceStart>45) && (guidParam['showLogo']===true)) {
     guidParam['showLogo'] = false
     updateLogoSprite()
   }
@@ -1818,17 +1821,17 @@ function renderFrame() {
   orbitControls.update()
 
   if (animateRingRaising || animateRingLowering) {
-    if (verbose) console.log('Raise/Lower Start ' + clock.getDelta())
+    if (verbose) console.log('Raise/Lower Start ' + clockDelta)
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
       v.value = guidParam[k]
     })
     const ringRaiseRateFactor = 0.25
     if (animateRingRaising) {
-      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.min(1, guidParamWithUnits['ringAmountRaisedFactor'].value+delta*ringRaiseRateFactor)
+      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.min(1, guidParamWithUnits['ringAmountRaisedFactor'].value+clockDelta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==1) animateRingRaising = false
     }
     if (animateRingLowering) {
-      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.max(0, guidParamWithUnits['ringAmountRaisedFactor'].value-delta*ringRaiseRateFactor)
+      guidParamWithUnits['ringAmountRaisedFactor'].value = Math.max(0, guidParamWithUnits['ringAmountRaisedFactor'].value-clockDelta*ringRaiseRateFactor)
       if (guidParamWithUnits['ringAmountRaisedFactor'].value==0) animateRingLowering = false
     }
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -1846,17 +1849,17 @@ function renderFrame() {
   }
 
   if (animateRingMovingOut || animateRingMovingBack) {
-    if (verbose) console.log('Raise/Lower Start ' + clock.getDelta())
+    if (verbose) console.log('Raise/Lower Start ' + clockDelta)
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
       v.value = guidParam[k]
     })
     const ringRaiseRateFactor = 0.25
     if (animateRingMovingOut) {
-      guidParamWithUnits['moveRingFactor'].value = Math.min(1, guidParamWithUnits['moveRingFactor'].value+delta*ringRaiseRateFactor)
+      guidParamWithUnits['moveRingFactor'].value = Math.min(1, guidParamWithUnits['moveRingFactor'].value+clockDelta*ringRaiseRateFactor)
       if (guidParamWithUnits['moveRingFactor'].value==1) animateRingMovingOut = false
     }
     if (animateRingMovingBack) {
-      guidParamWithUnits['moveRingFactor'].value = Math.max(0, guidParamWithUnits['moveRingFactor'].value-delta*ringRaiseRateFactor)
+      guidParamWithUnits['moveRingFactor'].value = Math.max(0, guidParamWithUnits['moveRingFactor'].value-clockDelta*ringRaiseRateFactor)
       if (guidParamWithUnits['moveRingFactor'].value==0) animateRingMovingBack = false
     }
     Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -2044,7 +2047,7 @@ function renderFrame() {
   if (followTransitVehicles) {
     const axis = new THREE.Vector3(0,1,0).applyQuaternion(ringToPlanetRotation)
     const driftFactor = 0.95
-    const angle = driftFactor * delta * dParamWithUnits['transitVehicleCruisingSpeed'].value / crv.mainRingRadius
+    const angle = driftFactor * clockDelta * dParamWithUnits['transitVehicleCruisingSpeed'].value / crv.mainRingRadius
     camera.position.applyAxisAngle(axis, angle)
     orbitControls.target.applyAxisAngle(axis, angle)
   }

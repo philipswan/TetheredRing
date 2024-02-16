@@ -774,7 +774,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   //console.log('flywheelKineticEnergyChangePerMeterOfScrewAtExit', flywheelKineticEnergyChangePerMeterOfScrewAtExit)
   specs['flywheelKineticEnergyChangePerMeterOfScrewAtExit'] = {value:flywheelKineticEnergyChangePerMeterOfScrewAtExit, units: 'J'}
   
-  // Eddy Current Power Losses
+  // Eddy Current Power Losses in the twin screw launcher
   const peakMagneticField = launchSledAMBAverageMagneticFluxDensity * 2
   const thicknessOfSheet = 0.0001  // m
   const frequencyOfField = launcherMassDriverExitVelocity / launchSledBodyLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
@@ -904,22 +904,33 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
 export function updateMovingRingSpecs(dParamWithUnits, crv, specs) {
 
-  // Eddy Current Power Losses
+  // Eddy Current Power Losses in the Moving Rings
   if (!specs.hasOwnProperty('movingRingsSpeed')) {
     console.error('Error: movingRingSpeed not defined')
   }
+  if (!specs.hasOwnProperty('ringMaglevCoreMassPerMeter')) {
+    console.error('Error: ringMaglevCoreMassPerMeter not defined')
+  }
   const movingRingSpeed = specs['movingRingsSpeed'].value // m/s
-  const movingRingNonuniformityLength = 1  // m
-  const movingRingAverageMagneticFluxDensityVariation = 0.00001 // T  Assuming field uniformity is on average +/-10 ppm from nominal
-  const peakMagneticField = movingRingAverageMagneticFluxDensityVariation * 2
-  const thicknessOfSheet = 0.001  // m
+  const ringMaglevCoreMassPerMeter = specs['ringMaglevCoreMassPerMeter'].value // kg/m
+  const movingRingNonuniformityLength = 1  // m - this means that the magnetic field is non-uniform over a length of 1 meter
+  const movingRingAverageMagneticFieldVariation = 0.000005 // T  Assuming field uniformity is on average +/-5 ppm from nominal
+  const movingRingNominalMagneticField = 0.1 // T 
+  const peakMagneticField = movingRingAverageMagneticFieldVariation * movingRingNominalMagneticField
+  const thicknessOfSheets = 0.001  // m
   const frequencyOfField = movingRingSpeed / movingRingNonuniformityLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
-  const constantK = 1
+  const constantK = 1  // This is constant for a thin sheet. We will assume that the core is laminated to reduce eddy current losses
   const materialResistivity = 4.6e-7  // Ohm*m, for Grain-oriented electrical steel rom https://www.thoughtco.com/table-of-electrical-resistivity-conductivity-608499
   const materialDensity = 7650  // kg/m3
-  const movingRingEddyCurrentPowerLossesPerKg = 2 * (Math.PI * peakMagneticField * thicknessOfSheet * frequencyOfField)**2 / (6 * constantK * materialResistivity * materialDensity)
+  // From: https://en.wikipedia.org/wiki/Eddy_current
+  const movingRingEddyCurrentPowerLossesPerKg = (Math.PI * peakMagneticField * thicknessOfSheets * frequencyOfField)**2 / (6 * constantK * materialResistivity * materialDensity)
   specs['movingRingEddyCurrentPowerLossesPerKg'] = {value: movingRingEddyCurrentPowerLossesPerKg, units: 'W'}
-
+  // We'll assume that there is a primary magnet that pulls inwards and two half-mass secondary magnets that can activate and pull outwards to keep the moving ring centered
+  const movingRingEddyCurrentPowerLossesPerMeter = movingRingEddyCurrentPowerLossesPerKg * ringMaglevCoreMassPerMeter * (1 + 0.5 + 0.5)
+  specs['movingRingEddyCurrentPowerLossesPerMeter'] = {value: movingRingEddyCurrentPowerLossesPerMeter, units: 'W/m'}
+  const ringCircumference = crv.mainRingRadius * 2 * Math.PI
+  const movingRingEddyCurrentPowerLossesTotal = movingRingEddyCurrentPowerLossesPerMeter * ringCircumference
+  specs['movingRingEddyCurrentPowerLossesTotal'] = {value: movingRingEddyCurrentPowerLossesTotal, units: 'W'}
 }
 
 
