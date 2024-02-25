@@ -164,7 +164,7 @@ const guidParamWithUnits = {
   statorMassPerUnitOfLoad: {value: 0.02, units: "kg/N", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   relativePermeabilityOfCore: {value: 8000, units: "", autoMap: true, min: 0, max: 100000, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringMaglevFieldLoopLength: {value: 0.1, units: "m", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
-  ringMaglevCoreCrossSectionLength: {value: 0.01, units: "m", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
+  ringMaglevCoreCrossSectionLength: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringMaglevCoreCrossSectionWidth: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringMaglevAirGap: {value: 0.0005, units: "m", autoMap: true, min: 0, max: 0.01, updateFunction: adjustRingDesign, folder: folderEngineering},
   ringMaglevCoilsNumLoops: {value: 100, units: "", autoMap: true, min: 0, max: 1000, updateFunction: adjustRingDesign, folder: folderEngineering},

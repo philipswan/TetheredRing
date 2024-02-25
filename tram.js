@@ -911,13 +911,17 @@ export function updateMovingRingSpecs(dParamWithUnits, crv, specs) {
   if (!specs.hasOwnProperty('ringMaglevCoreMassPerMeter')) {
     console.error('Error: ringMaglevCoreMassPerMeter not defined')
   }
+  if (!specs.hasOwnProperty('magneticFieldStrengthInAirgap')) {
+    console.error('Error: magneticFieldStrengthInAirgap not defined')
+  }
+
   const movingRingSpeed = specs['movingRingsSpeed'].value // m/s
   const ringMaglevCoreMassPerMeter = specs['ringMaglevCoreMassPerMeter'].value // kg/m
-  const movingRingNonuniformityLength = 1  // m - this means that the magnetic field is non-uniform over a length of 1 meter
-  const movingRingAverageMagneticFieldVariation = 0.000005 // T  Assuming field uniformity is on average +/-5 ppm from nominal
-  const movingRingNominalMagneticField = 0.1 // T 
-  const peakMagneticField = movingRingAverageMagneticFieldVariation * movingRingNominalMagneticField
-  const thicknessOfSheets = 0.001  // m
+  const magneticFieldStrengthInAirgap = specs['magneticFieldStrengthInAirgap'].value // T
+  const movingRingNonuniformityLength = 0.3  // m - this means that the magnetic field is non-uniform over a length of 1 meter
+  const movingRingAverageMagneticFieldVariation = 0.000005 // T  Assuming magnetic field homogeneity (MFH) is 10 ppm (+/-5 ppm from nominal) 
+  const peakMagneticField = movingRingAverageMagneticFieldVariation * magneticFieldStrengthInAirgap
+  const thicknessOfSheets = 0.001  // m  The thickness of the laminated sheets in the core 
   const frequencyOfField = movingRingSpeed / movingRingNonuniformityLength  // Hz (assumes that the linear Bearing is continuous and its length equals the launch vehicle's body length)
   const constantK = 1  // This is constant for a thin sheet. We will assume that the core is laminated to reduce eddy current losses
   const materialResistivity = 4.6e-7  // Ohm*m, for Grain-oriented electrical steel rom https://www.thoughtco.com/table-of-electrical-resistivity-conductivity-608499

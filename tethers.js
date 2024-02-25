@@ -596,13 +596,19 @@ class TetherGeometry extends BufferGeometry {
       const coreWidth = dParamWithUnits['ringMaglevCoreCrossSectionWidth'].value
       const A = coreLength * coreWidth
       const n = dParamWithUnits['ringMaglevCoilsNumLoops'].value
-      const f = magneticForcePerMeter * coreLength
+      const magneticForcePerCore = magneticForcePerMeter * coreLength
       const alpha = 0
-      // f = u_0 * (n*i / (l_Fe/u_r + 2*s))**2 * A * cos(alpha)
+      // magneticForcePerCore = u_0 * (n*i / (l_Fe/u_r + 2*s))**2 * A * cos(alpha)
       // Rearrange to calculate the current...
-      const currentPerElectromagnet = (l_Fe/u_r + 2*s) / n * Math.sqrt(f / (u_0 * A * Math.cos(alpha)))
+      const currentPerElectromagnet = (l_Fe/u_r + 2*s) / n * Math.sqrt(magneticForcePerCore / (u_0 * A * Math.cos(alpha)))
       const currentPerMeterOfRing = currentPerElectromagnet / coreLength
       specs['currentPerMeterOfRing'] = {value: currentPerMeterOfRing, units: "A"}
+
+      // Field strength within the air gap
+      const airgapAreaPerMeter = coreWidth * 2
+      const magneticFieldStrengthInAirgap = Math.sqrt(magneticForcePerMeter * u_0 / airgapAreaPerMeter)
+      //const magneticFieldStrengthInAirgap = u_0 * (n * currentPerElectromagnet / (l_Fe/u_r + 2*s)) // (Some code that co-pilot suggested)
+      specs['magneticFieldStrengthInAirgap'] = {value: magneticFieldStrengthInAirgap, units: "T"}
 
       // Calculate the current needed to generate the magnetic field
       const wireRadius = dParamWithUnits['wireRadius'].value
