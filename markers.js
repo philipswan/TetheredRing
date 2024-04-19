@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { CircleSuperCurve3 } from './CircleSuperCurve3'
 // import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 // import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
 
@@ -285,4 +286,50 @@ export class gravityForceArrowsObject {
       this.gravityForceArrowMeshes.forEach(mesh => this.planetCoordSys.add(mesh))
     }
   }
+}
+
+export class randomFlightPathObject {
+
+  constructor(planetCoordSys, dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation) {
+    this.randomFlighPathMeshes = []
+    this.planetCoordSys = planetCoordSys
+    this.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, false, false, false)
+  }
+
+  update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows) {
+    this.randomFlighPathMeshes.forEach(mesh => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+      this.planetCoordSys.remove(mesh)
+    })
+    this.randomFlighPathMeshes.splice(0, this.randomFlighPathMeshes.length)
+
+    // Extrude a number of random flight paths
+    for (let i = 0; i<numFlightPaths; i++) {
+      // Randomize altitude, direction, and the position where the path crosses under the ring
+      const altitude = 1000 + 12000 * Math.random()
+      const direction = 0
+      const position = mainRingCurve.getPoint(i / n)
+
+      const targetPosition = new THREE.Vector3(402701.22087436507, -4015908.319093469, -4952967.081153212)
+      const targetPositionLocal = tetheredRingRefCoordSys.worldToLocal(targetPosition)
+      // Then compute it's theta value and convert it to a 0 to 1 value 
+      // Note: There is an implicate assumption here that mainRingCurve is a circle, so this code will need
+      // to be upgraded if we want to implement a non-circular mainRingCurve.
+      const nearestTrackPosition = (Math.atan2(targetPositionLocal.z, targetPositionLocal.x) / (2*Math.PI) + 1) % 1
+      const pointOnRingAtNearestTrackPosition = mainRingCurve.getPoint(nearestTrackPosition)
+      const axisOfRotation = mainRingCurve.getTangent(nearestTrackPosition)
+
+      // Now move this point down to the randomly selected altitude
+      const flightpathStartPoint = pointOnRingAtNearestTrackPosition.multiplyScalar((crv.radiusOfPlanet + altitude) / (crv.radiusOfPlanet + crv.currentMainRingAltitude))
+      const flightPathCurve = new CircleSuperCurve3(new THREE.Vector3(0, 0, 0), axisOfRotation, flightpathStartPoint, 100000)
+
+      // Create a curve to represent the flight path
+      // Extrude a square tube to represent the flight path
+
+    } 
+
+    this.randomFlighPathMeshes.forEach(mesh => this.planetCoordSys.add(mesh))
+  }
+
 }

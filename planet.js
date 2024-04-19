@@ -19,7 +19,7 @@ export class planet {
     }
 
     // opacity will now work with or without shaders, so warning is not needed.
-    const useShaders = true;
+    const useShaders = false;
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -287,6 +287,12 @@ export class planet {
     //atmosphereMesh.receiveShadow = true
     atmosphereMesh.visible = dParamWithUnits['showEarthsAtmosphere'].value
 
+    // const darkSphereMesh = new THREE.Mesh(
+    //   new THREE.SphereGeometry(planetSpec.radius*0.90, planetWidthSegments/4, planetHeightSegments/4),
+    //   new THREE.MeshBasicMaterial({color: 0x000000})
+    // )
+    // darkSphereMesh.name = 'darkSphereMesh'
+
     // const backgroundPatchDescriptor = {
     //   // textureFilename: './textures/LundHillWashington3.jpg'
     //   // textureFilename: './textures/ZionNationalPark.jpg'
@@ -331,6 +337,7 @@ export class planet {
     }
     const backgroundPatchMesh = this.addBackgroundPatch(backgroundPatchDescriptor, planetSpec)
 
+    //return [planetMeshes, atmosphereMesh, darkSphereMesh, backgroundPatchMesh]
     return [planetMeshes, atmosphereMesh, backgroundPatchMesh]
 
   }

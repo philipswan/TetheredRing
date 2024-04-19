@@ -44,8 +44,10 @@ import * as CapturePresets from './CapturePresets.js'
 
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
+import cameraControlData from './components/CameraControl/cameraPath1.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
+import { last } from 'lodash'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
@@ -943,7 +945,8 @@ function setRingLatLonWithPreset() {
     guidParam[k] = v.value
   })
   updatedParam()
-  gimbalMath(dParamWithUnits['ringCenterLatitude'].value, dParamWithUnits['ringCenterLongitude'].value, tetheredRingRefCoordSys)
+  adjustRingLatLon()
+  //tetheredRingSystems[0].gimbalTo(dParamWithUnits['ringCenterLatitude'].value, dParamWithUnits['ringCenterLongitude'].value)
   adjustRingDesign()
 }
 
@@ -1122,6 +1125,15 @@ if (enableVR) {
   planetCoordSys.rotation.x = Math.PI * -4 / 16
   planetCoordSys.matrixValid = false
 }
+
+const fakeCamera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
+fakeCamera.name = 'fakeCamera'
+planetCoordSys.add(fakeCamera)
+const fakeCameraHelper = new THREE.CameraHelper( fakeCamera )
+fakeCameraHelper.name = 'fakeCameraHelper'
+planetCoordSys.add( fakeCameraHelper )
+
+
 
 const planetSpec = {
   name: 'Earth',
@@ -1302,6 +1314,14 @@ function earthAxisObjectUpdate() {updatedParam(); earthAxisObject.update(dParamW
 const earthEquatorObject = new markers.earthEquatorObject(planetCoordSys, dParamWithUnits, radiusOfPlanet)
 function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(dParamWithUnits, radiusOfPlanet)}
 
+const redBoxObject = new THREE.Mesh(
+  new THREE.BoxGeometry(radiusOfPlanet/1000, radiusOfPlanet/1000, radiusOfPlanet/500),
+  new THREE.MeshLambertMaterial({color: 0xff0000}))
+redBoxObject.name = 'redBox'
+redBoxObject.position.set(0, 0, 0)
+planetCoordSys.add(redBoxObject)
+
+
 // const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), grayMaterial)
 // orbitControlsCenterMarker.name = 'orbitControlsCenterMarker'
 // let orbitControlsCenterMarkerSize = 5000
@@ -1435,6 +1455,11 @@ let closestVirtualTransitVehicle = null
 let closestVirtualElevatorCar = null
 let tweeningTime = 2000
 let tweeningActive = false
+
+let cameraControlActive = false
+let lastCameraControlActive = false
+let cameraControlStartTime = 0
+let cameraControlDataIndex = 0
 
 let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 9, 9), grayMaterial)
 trackingPointMarkerMesh.name = 'trackingPointMarkerMesh'
@@ -1805,6 +1830,55 @@ function renderFrame() {
       }
     }
     lastTrackingPoint = (trackingPoint) ? trackingPoint.clone() : null
+  }
+
+  if (cameraControlActive) {
+    let cameraControlCurrentTime
+    if (!lastCameraControlActive) {
+      // Initialize the camera control variables
+      cameraControlStartTime = timeSinceStart
+      cameraControlCurrentTime = 0
+      cameraControlDataIndex = 0
+    }
+    else {
+      cameraControlCurrentTime = timeSinceStart - cameraControlStartTime
+    }
+    // Need to calculate which time indices that are "<= cameraControlCurrentTime" and ""> cameraControlCurrentTime"
+    const cameraControlFrame = cameraControlCurrentTime * cameraControlData['frameRate']
+    const prevFrame = Math.min(Math.floor(cameraControlFrame), cameraControlData['numFrames'] - 1)
+    const nextFrame = Math.min(prevFrame+1, cameraControlData['numFrames'] - 1)
+    const alpha = Math.min(cameraControlFrame - prevFrame, 1)
+    const prevData = cameraControlData['cameraFrames'][prevFrame]
+    const nextData = cameraControlData['cameraFrames'][nextFrame]
+    const pIOver180 = Math.PI/180
+    const prevDataPosition = new THREE.Vector3(prevData['position'].y, prevData['position'].z, prevData['position'].x)
+    const nextDataPosition = new THREE.Vector3(nextData['position'].y, nextData['position'].z, nextData['position'].x)
+    const prevDataRotation = new THREE.Vector3(prevData['rotation'].y*pIOver180, prevData['rotation'].z*pIOver180, prevData['rotation'].x*pIOver180)
+    const nextDataRotation = new THREE.Vector3(nextData['rotation'].y*pIOver180, nextData['rotation'].z*pIOver180, nextData['rotation'].x*pIOver180)
+    const interpolatedPosition = new THREE.Vector3().lerpVectors(prevDataPosition, nextDataPosition, alpha)
+    const interpolatedRotation = new THREE.Vector3().lerpVectors(prevDataRotation, nextDataRotation, alpha)
+    const interpolatedFovVertical = THREE.MathUtils.lerp(prevData['fovVertical'], nextData['fovVertical'], alpha)
+    interpolatedPosition.multiplyScalar(1.01)
+    //console.log(interpolatedRotation)
+    //camera.position.copy(interpolatedPosition)
+    fakeCamera.position.copy(interpolatedPosition)
+    console.log(fakeCamera.position)
+    fakeCamera.rotation.setFromVector3(interpolatedRotation)
+    fakeCamera.updateProjectionMatrix()
+    fakeCameraHelper.update()
+    redBoxObject.position.copy(interpolatedPosition)
+    redBoxObject.rotation.setFromVector3(interpolatedRotation)
+    camera.near = 1
+    camera.far = 100000000
+    //orbitControls.object.position.copy(interpolatedPosition)
+    //camera.rotation.copy(interpolatedRotation)
+    lastCameraControlActive = cameraControlActive
+    if (cameraControlFrame>cameraControlData['numFrames']) {
+      cameraControlActive = false
+    }
+  }
+  else {
+    lastCameraControlActive = cameraControlActive
   }
 
   //planetMesh.rotation.y += 0.000001
@@ -2564,23 +2638,27 @@ function onKeyDown( event ) {
     // case 67: /*C*/
     //   console.userdata['capture'] = 1
     //   break;
-    case 84: /*T*/
-      // Toggle Display of the Tensile Force Arrows
-      showTensileForceArrows = !showTensileForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      break
+    // case 84: /*T*/
+    //   // Toggle Display of the Tensile Force Arrows
+    //   showTensileForceArrows = !showTensileForceArrows
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   break
+    // case 71: /*G*/
+    //   // Toggle Display of the Tensile Force Arrows
+    //   showGravityForceArrows = !showGravityForceArrows
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   break
+    // case 73: /*I*/
+    //   // Toggle Display of the Tensile Force Arrows
+    //   showInertialForceArrows = !showInertialForceArrows
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   break
     case 71: /*G*/
-      // Toggle Display of the Tensile Force Arrows
-      showGravityForceArrows = !showGravityForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      break
-    case 73: /*I*/
-      // Toggle Display of the Tensile Force Arrows
-      showInertialForceArrows = !showInertialForceArrows
-      gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-      //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+      // Initiate (or cancel) control of the camera's position and orientation from the data in the Google Earth Studio provided json file.
+      cameraControlActive = !cameraControlActive
       break
     case 86: /*V*/
       lockUpToRingAxis = !lockUpToRingAxis

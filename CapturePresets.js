@@ -19,7 +19,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     }]
   }
 
-  switch (0) {
+  switch (1) {
     case 0:
       defaultBehaviour()
       break
@@ -74,6 +74,12 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 17:
       starship()
       break
+    case 18:
+      christmasIslandLauncher()
+      break
+    case 19:
+      flightPaths()
+      break
   }
 
   Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -116,40 +122,39 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showEarthsAtmosphere'].value = false
     guidParamWithUnits['showMoon'].value = true
     guidParamWithUnits['showStars'].value = true
-    guidParamWithUnits['showEarthAxis'].value = false
+    guidParamWithUnits['showEarthAxis'].value = true
     guidParamWithUnits['showBackgroundPatch'].value = false
-    guidParamWithUnits['showEarthEquator'].value = false
+    guidParamWithUnits['showEarthEquator'].value = true
     guidParamWithUnits['showMainRingCurve'].value = false
     guidParamWithUnits['showGravityForceArrows'].value = false
     guidParamWithUnits['showGyroscopicForceArrows'].value = false
-    guidParamWithUnits['showTethers'].value = false
+    guidParamWithUnits['showTethers'].value = true
     guidParamWithUnits['showStationaryRings'].value = true
     guidParamWithUnits['showMovingRings'].value = false
     guidParamWithUnits['showTransitTube'].value = true
     guidParamWithUnits['showTransitVehicles'].value = true
-    guidParamWithUnits['showRingTerminuses'].value = false
+    guidParamWithUnits['showRingTerminuses'].value = true
     guidParamWithUnits['showGroundTerminuses'].value = false
-    guidParamWithUnits['showElevatorCables'].value = false
+    guidParamWithUnits['showElevatorCables'].value = true
     guidParamWithUnits['showElevatorCars'].value = false
     guidParamWithUnits['showHabitats'].value = true
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80000
     guidParamWithUnits['launcherMassDriverScrewBracketThickness'].value = 0.02
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 100
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 5
     guidParamWithUnits['orbitControlsRotateSpeed'].value = -.0001
     guidParamWithUnits['logZoomRate'].value = -3
 
@@ -184,10 +189,15 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
     // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(480331.6551612802, -4195149.259355443, -4883519.833408484)
     // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
-
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2165961.395604829, 2151545.706611093, -5567865.682549198)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1894419.9636432864, 1725570.1470296388, -6162027.437464318)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
+        
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
       ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8))
+      ((i!=0) || (j!=8)) &&
+      ((i!=1) || (j!=4))
     )} // New Zealand North Island and ocean to the east and west
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
@@ -243,8 +253,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -343,8 +351,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -446,8 +452,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['pKeyAltitudeFactor'].value = 1
     guidParamWithUnits['showMarkers'].value = false
 
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .13
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -544,8 +548,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['pKeyAltitudeFactor'].value = 1
     guidParamWithUnits['showMarkers'].value = false
 
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .13
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -626,8 +628,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['pKeyAltitudeFactor'].value = 1
     guidParamWithUnits['showMarkers'].value = false
 
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .13
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -723,8 +723,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 3000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -824,7 +822,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = true
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -900,7 +897,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = true
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -977,7 +973,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 3000
     guidParamWithUnits['launchSledCameraRange'].value = 1000000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -1070,8 +1065,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['pKeyAltitudeFactor'].value = 1
     guidParamWithUnits['showMarkers'].value = false
 
-    //guidParamWithUnits['tetherVisibility'].value = .3
-    guidParamWithUnits['tetherVisibility'].value = .13
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -1156,7 +1149,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 300
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -1432,7 +1424,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 300
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -1603,7 +1594,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 300
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -2053,7 +2043,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['tetherVisibility'].value = .3
     guidParamWithUnits['massDriverCameraRange'].value = 300
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
@@ -2155,6 +2144,183 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // Reduce the rate at which the camera orbits the launch vehicle
     // Add the sled to the shot
 
+  }
+
+  function christmasIslandLauncher() {
+
+    // Uses Monna Kea launch location
+    guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74
+    guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
+    guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.6815
+
+    // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
+    // guidParamWithUnits['numTethers'].value = 1300
+    // guidParamWithUnits['numForkLevels'].value = 10
+    
+    guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
+    guidParamWithUnits['showXYChart'].value = false
+    guidParamWithUnits['showEarthsSurface'].value = true
+    //guidParamWithUnits['earthTextureOpacity'].value = 0.25
+    guidParamWithUnits['showEarthsAtmosphere'].value = true
+    guidParamWithUnits['showMoon'].value = true
+    guidParamWithUnits['showStars'].value = true
+    guidParamWithUnits['showEarthAxis'].value = false
+    guidParamWithUnits['showBackgroundPatch'].value = false
+    guidParamWithUnits['showEarthEquator'].value = false
+    guidParamWithUnits['showMainRingCurve'].value = false
+    guidParamWithUnits['showGravityForceArrows'].value = false
+    guidParamWithUnits['showGyroscopicForceArrows'].value = false
+    guidParamWithUnits['showTethers'].value = false
+    guidParamWithUnits['showTransitSystem'].value = false
+    guidParamWithUnits['showStationaryRings'].value = false
+    guidParamWithUnits['showMovingRings'].value = false
+    guidParamWithUnits['showTransitTube'].value = false
+    guidParamWithUnits['showTransitVehicles'].value = false
+    guidParamWithUnits['showRingTerminuses'].value = false
+    guidParamWithUnits['showGroundTerminuses'].value = false
+    guidParamWithUnits['showElevatorCables'].value = false
+    guidParamWithUnits['showElevatorCars'].value = false
+    guidParamWithUnits['showHabitats'].value = true
+    guidParamWithUnits['showSolarArrays'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = false
+    guidParamWithUnits['showMarkers'].value = false
+    guidParamWithUnits['launcherMarkerRadius'].value = 500
+
+    guidParamWithUnits['showMassDriverTube'].value = true
+    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverRail'].value = false
+    guidParamWithUnits['showMassDriverBrackets'].value = false
+    guidParamWithUnits['showLaunchSleds'].value = false
+    guidParamWithUnits['showLaunchVehicles'].value = true
+    guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
+    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
+    guidParamWithUnits['pKeyAltitudeFactor'].value = 0
+    guidParamWithUnits['massDriverCameraRange'].value = 300
+    guidParamWithUnits['launchSledCameraRange'].value = 10000
+    guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
+    guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 6
+    guidParamWithUnits['logZoomRate'].value = -3
+
+    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
+    guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
+
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 200
+    guidParamWithUnits['launchSledScaleFactor'].value = 1
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+    guidParamWithUnits['numVirtualLaunchSleds'].value = 1
+    guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40
+    guidParamWithUnits['launchVehicleRadius'].value = 1.5
+    guidParamWithUnits['launchVehicleBodyLength'].value = 10
+
+    guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
+    guidParamWithUnits['launcherCoastTime'].value = 93*60 / 2
+    guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
+    guidParamWithUnits['launchVehiclePayloadMass'].value = 100
+
+    // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
+    const r = guidParamWithUnits['launchVehicleRadius'].value
+    const bl = guidParamWithUnits['launchVehicleBodyLength'].value
+    const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
+    const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
+    const π = Math.PI
+    const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
+    const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
+    const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
+    const skinMaterialDensity = 8000 // kg/m3
+    const rocketEngineMass = 3177 // kg (based on RS-25)
+    const avionicsEtcMass = 1000 // kg
+
+    // Hack
+    const dryMass = 0 //skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
+    // Allocate the volume between the payload and the propellant
+    const propellantDensity = 360 // kg/m3
+    const payloadDensity = 360 // kg/m3
+    const propellantMass = interiorVolume * propellantDensity
+    const payloadMass = 0 // (interiorVolume - propellantMass / propellantDensity) * payloadDensity
+    console.log('dryMass', dryMass)
+    console.log('payloadMass', payloadMass)
+    console.log('propellantMass', payloadMass)
+    console.log('totalMass', payloadMass + dryMass)
+
+    guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
+    guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
+    guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
+    // Parameters that are going to effect the launch system's performance...
+    // Launch Angle (launcherRampUpwardAcceleration)
+    // Propellant Mass (launchVehiclePropellantMass)
+    // Altitude of Ramp Exit
+    // Altitude of Evauated Tube Exit
+    // Desired Orbital Altitude
+
+    // The optimiztion loop will need to adjust the launch angle and propellant mass to achieve the desired orbit
+    // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
+    // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
+
+    guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+    guidParamWithUnits['launcherRampDesignMode'].value = 0
+    //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
+    guidParamWithUnits['launcherRampTurningRadius'].value = 381000
+    guidParamWithUnits['launcherRampTurningRadius'].value = 49096
+    //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
+    guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
+    guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit plus ~300 meters)
+    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 5000  // m
+    guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+    guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
+    guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
+    //guidParamWithUnits['launchVehicleRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(6039536.488690861, -1159413.4880529183, -1690491.6664801068)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.946942914984838, -0.18178520654778604, -0.2650533049037438)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(6130406.766382722, -1186149.4229390235, -1730293.0171118996)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.946942914984838, -0.18178520654778604, -0.2650533049037438)
+
+    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+      ((i!=19) || (j!=5)) &&
+      ((i!=19) || (j!=6)) // Christmas Island
+    )} 
+
+    nonGUIParams['overrideClipPlanes'] = true
+    nonGUIParams['nearClip'] = 10
+    nonGUIParams['farClip'] = 40000000
+
+    // Improvements...
+    // Add watermark
+    // Update bounding sphere on the mass driver tube?
+    // Put the moon in the background near the end of the shot
+    // Put Mars in the background at the end of the shot
+    // Reduce the rate at which the camera orbits the launch vehicle
+    // Add the sled to the shot
+
+  }
+
+  function flightPaths() {
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(402701.22087436507, -4015908.319093469, -4952967.081153212)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06409308160535271, -0.6302146235738024, -0.7737710288735681)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(448508.6471684609, -4007299.454096686, -4996083.6711664805)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06409308160535271, -0.6302146235738024, -0.7737710288735681)
+
+    nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
+      ((i!=3) || (j!=2)) &&
+      ((i!=1) || (j!=4)) &&
+      ((i!=18) || (j!=3)) &&
+      ((i!=18) || (j!=4)) &&
+      ((i!=23) || (j!=8))  // New Zealand North Island
+    )}
+    nonGUIParams['overrideClipPlanes'] = false
+    nonGUIParams['nearClip'] = 0.1
+    nonGUIParams['farClip'] = 600000000
+
+    //guidParamWithUnits['tetherMinOpacity'].value = 0.3
+    
   }
 
 
