@@ -215,6 +215,16 @@ class TetherGeometry extends BufferGeometry {
       }
     }
 
+    const numMainRings = dParamWithUnits['numMainRings'].value
+    const mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
+    const whenToForkVertically = dParamWithUnits['whenToForkVertically'].value
+    const numForkLevels = dParamWithUnits['numForkLevels'].value
+    const numTethers = dParamWithUnits['numTethers'].value
+    const tetherSpanOverlapFactor = dParamWithUnits['tetherSpanOverlapFactor'].value
+    const tetherFiberDensity = dParamWithUnits['tetherFiberDensity'].value
+    let tetherBranchesLength = [1]  // Using a one element array because we want the function to return a value
+    let tetherVolume = [1]
+
     if (fastTetherRender) {
       // The 'j' index is used to stagger the tethers 
       // We are assuming here that the ring has a constant altitude, so we can create just two types of tethers and reuse them over and over again, all the way around the ring. 
@@ -222,26 +232,44 @@ class TetherGeometry extends BufferGeometry {
       // not perfectly circular nor at a constant atitude.
       const referencePoint = new Vector3().setFromSphericalCoords(radiusOfPlanet + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), 0)
       tetherTypes.forEach((tetherType, j) => {
+        const jModNumTypes = j % currentCatenaryTypes.length
+        const catenaryPoints = currentCatenaryTypes[jModNumTypes]
+        const selectedPointB_s = pointB_s[jModNumTypes]
         const θ = j / dParamWithUnits['numTethers'].value * 2.0 * Math.PI
-        makeTetherStrips(j, θ, referencePoint, dParamWithUnits, genSpecs, specs)
+        makeTetherStrips(θ, referencePoint, catenaryPoints, selectedPointB_s, numTetherPoints, numMainRings, mainRingSpacing, whenToForkVertically, numForkLevels, numTethers, tetherSpanOverlapFactor, tetherFiberDensity, genSpecs, specs, tetherBranchesLength, tetherVolume)
+        if (genSpecs) {
+          V[j] = tetherVolume[0]
+          M[j] = tetherVolume[0] * tetherFiberDensity
+  
+          specs['tetherBranchesLength'+j] = {value: tetherBranchesLength[0], units: "m"}
+          specs['tetherVolume_'+j] = {value: tetherVolume[0], units: "m^3"}
+          specs['tetherMass_'+j] = {value: M[j], units: "kg"}
+        }
       })
     }
     else {
       for (let j = 0; j<dParamWithUnits['numTethers'].value; j++) {
       //for (let j = dParamWithUnits['numTethers'].value*28/32; j<dParamWithUnits['numTethers'].value*29/32; j++) {
+        const jModNumTypes = j % currentCatenaryTypes.length
+        const catenaryPoints = currentCatenaryTypes[jModNumTypes]
+        const selectedPointB_s = pointB_s[jModNumTypes]
         const θ = j / dParamWithUnits['numTethers'].value * 2.0 * Math.PI
         const referencePoint = new Vector3(0, 0, 0)
-        makeTetherStrips(j, θ, referencePoint, dParamWithUnits, genSpecs, specs)
+        makeTetherStrips(θ, referencePoint, catenaryPoints, selectedPointB_s, numTetherPoints, numMainRings, mainRingSpacing, whenToForkVertically, numForkLevels, numTethers, tetherSpanOverlapFactor, tetherFiberDensity, genSpecs, specs, tetherBranchesLength, tetherVolume)
+        if (genSpecs && (j < tetherTypes.length)) {
+          V[j] = tetherVolume[0]
+          M[j] = tetherVolume[0] * tetherFiberDensity
+  
+          specs['tetherBranchesLength'+j] = {value: tetherBranchesLength[0], units: "m"}
+          specs['tetherVolume_'+j] = {value: tetherVolume[0], units: "m^3"}
+          specs['tetherMass_'+j] = {value: M[j], units: "kg"}
+        }
       }
     }
 
-    function makeTetherStrips(j, θ, referencePoint, dParamWithUnits, genSpecs, specs) {
-      const numMainRings = dParamWithUnits['numMainRings'].value
-      const mainRingSpacing = dParamWithUnits['mainRingSpacing'].value
-      const whenToForkVertically = dParamWithUnits['whenToForkVertically'].value
+    function makeTetherStrips(θ, referencePoint, catenaryPoints, pointB_s, numTetherPoints, numMainRings, mainRingSpacing, whenToForkVertically, numForkLevels, numTethers, tetherSpanOverlapFactor, tetherFiberDensity, genSpecs, specs, tetherBranchesLength, tetherVolume) {
+      const tetherSpan = 2 * Math.PI / numTethers * tetherSpanOverlapFactor
 
-      const jModNumTypes = j % currentCatenaryTypes.length
-      const catenaryPoints = currentCatenaryTypes[jModNumTypes]
       // Spherical coordinates (r, ω, θ) are defined using three.js convention, where ω is the polar angle, θ is the equitorial angle 
       let r_0 = catenaryPoints[0].r
       let ω_0 = catenaryPoints[0].ω
@@ -252,13 +280,13 @@ class TetherGeometry extends BufferGeometry {
       let s_1
       let crossSectionalArea_1
       let branches = []
-      let tetherBranchesLength = 0
-      let tetherVolume = 0
+      tetherBranchesLength[0] = 0
+      tetherVolume[0] = 0
 
       // The first "branch" is the main trunck of the tether.
       branches.push(new Branch(0, 0.0, 0.0, 0.0, numTetherPoints, 0.0, 0.0, 0.0, 1.0, 1.0))  // This defines the trunk of the tether
 
-      const mro = (dParamWithUnits['numMainRings'].value - 1)/2
+      const mro = (numMainRings - 1)/2
 
       // Generate a (very) rough estimate of the maximum thickness of the tether
       let maxThickness = 2 * Math.sqrt(catenaryPoints[catenaryPoints.length>>1].crossSectionalArea / Math.PI)
@@ -271,9 +299,9 @@ class TetherGeometry extends BufferGeometry {
         s_1 = catenaryPoints[i+1].s
         crossSectionalArea_1 = catenaryPoints[i+1].crossSectionalArea
 
-        if ((s_0<pointB_s[jModNumTypes]) && (pointB_s[jModNumTypes]<s_1)) {
+        if ((s_0<pointB_s) && (pointB_s<s_1)) {
           // Since part of this tether segment is still on the spool, we need to recalculate the r_0, ω_0, and crossSectionalArea_0 values more accurately by using lerps...
-          const frac = (pointB_s[jModNumTypes]-s_0)/(s_1-s_0)
+          const frac = (pointB_s-s_0)/(s_1-s_0)
           r_0 = tram.lerp(r_0, r_1, frac)
           ω_0 = tram.lerp(ω_0, ω_1, frac)
           crossSectionalArea_0 = tram.lerp(crossSectionalArea_0, crossSectionalArea_1, frac)
@@ -281,8 +309,7 @@ class TetherGeometry extends BufferGeometry {
 
         const logOfDistanceFromTether = Math.log2(numTetherPoints-i)
         if ((i>0) && (Number.isInteger(logOfDistanceFromTether))) {      // If we're at a point where the tether segments fork...
-          const logNumStays = dParamWithUnits['numForkLevels'].value + 1 - Math.log2(numTetherPoints-i)
-          const tetherSpan = 2 * Math.PI / dParamWithUnits['numTethers'].value * dParamWithUnits['tetherSpanOverlapFactor'].value
+          const logNumStays = numForkLevels + 1 - logOfDistanceFromTether
           const target_dθ_Alteration = tetherSpan/(2**(logNumStays+1))
           if (logOfDistanceFromTether!=whenToForkVertically) {
             crossSectionalAreaFraction *= 0.5
@@ -292,7 +319,7 @@ class TetherGeometry extends BufferGeometry {
           }
           branches.forEach((branch, index) => {
             if (logOfDistanceFromTether!=whenToForkVertically) {
-              const checkCrossSectionalAreaFraction =  2**(-logNumStays)
+              //const checkCrossSectionalAreaFraction =  2**(-logNumStays)
               // Create two new branches (left and right), then delete the original
               branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ + target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
               branches.push(new Branch(i, branch.dr_0, branch.dω_0, branch.dθ_0, numTetherPoints, branch.target_dr, branch.target_dω, branch.target_dθ - target_dθ_Alteration, crossSectionalAreaFraction, 1.0))
@@ -316,16 +343,16 @@ class TetherGeometry extends BufferGeometry {
           branch.dr_1 = tram.lerp(branch.base_dr, branch.target_dr, alpha)
           branch.dω_1 = tram.lerp(branch.base_dω, branch.target_dω, alpha)
           branch.dθ_1 = tram.lerp(branch.base_dθ, branch.target_dθ, alpha)
-          if (s_1>pointB_s[jModNumTypes]) {   // When raising the ring, points on the parts of the tether that are on the spool have all have the same coordinates (i.e. the spool's coordinates).
+          if (s_1>pointB_s) {   // When raising the ring, points on the parts of the tether that are on the spool have all have the same coordinates (i.e. the spool's coordinates).
             let branch_r0, branch_r1, branch_ω0, branch_ω1, branch_θ0, branch_θ1, branch_s0, branch_s1
-            if (s_0<pointB_s[jModNumTypes]) {
+            if (s_0<pointB_s) {
               // We need to recalculate the branch.dr_0 and branch.dθ_0 values more accurately by using a lerp...
               // Note, this code doesn't recalculate the values correctly for the final tether branches that fork away vertically 
-              const frac = (pointB_s[jModNumTypes]-s_0)/(s_1-s_0)
+              const frac = (pointB_s-s_0)/(s_1-s_0)
               branch.dr_0 = tram.lerp(branch.dr_0, branch.dr_1, frac)
               branch.dω_0 = tram.lerp(branch.dω_0, branch.dω_1, frac)
               branch.dθ_0 = tram.lerp(branch.dθ_0, branch.dθ_1, frac)
-              branch_s0 = pointB_s[jModNumTypes]
+              branch_s0 = pointB_s
             }
             else {
               branch_s0 = s_0
@@ -373,8 +400,8 @@ class TetherGeometry extends BufferGeometry {
             if (genSpecs) {
               const csAreas = tetherStripCrossSectionalAreas[branch.stripIndex]
               const n = csAreas.length
-              tetherBranchesLength += stripSegmentLength
-              tetherVolume += (csAreas[n-2] + csAreas[n-1]) / 2 * stripSegmentLength
+              tetherBranchesLength[0] += stripSegmentLength
+              tetherVolume[0] += (csAreas[n-2] + csAreas[n-1]) / 2 * stripSegmentLength
             }
   
           }
@@ -386,14 +413,6 @@ class TetherGeometry extends BufferGeometry {
         ω_0 = ω_1
         s_0 = s_1
       }
-
-      V[j] = tetherVolume
-      M[j] = tetherVolume * dParamWithUnits['tetherFiberDensity'].value
-
-      specs['tetherBranchesLength'+j] = {value: tetherBranchesLength, units: "m"}
-      specs['tetherVolume_'+j] = {value: tetherVolume, units: "m^3"}
-      specs['tetherMass_'+j] = {value: M[j], units: "kg"}
-
     }
 
     // Convert all of the tetherStrips into indexed lines
@@ -523,6 +542,16 @@ class TetherGeometry extends BufferGeometry {
       specs['movingRingsTotalKineticEnergyCost'] = {value: movingRingsTotalKineticEnergyCost, units: "Billion USD"}
       const movingRingsKineticEnergyCostPerMeterOfRing = movingRingsTotalKineticEnergyCost * oneBillion / mainRingCircumference
       specs['movingRingsKineticEnergyCostPerMeterOfRing'] = {value: movingRingsKineticEnergyCostPerMeterOfRing, units: "USD"}
+
+      // Consider the case of an emergency shutdown of one ring where that ring's energy is transferred to the other rings. 
+      const energyTransferEfficiency = 0.9
+      const energyLostDuringTransfer = movingRingsTotalKineticEnergy/numMainRings*(1-energyTransferEfficiency)
+      const energyRemainingAfterTransfer = movingRingsTotalKineticEnergy - energyLostDuringTransfer
+      const speedOfOtherRingsAfterOneRingToOthersEnergyTransfer = Math.sqrt(energyRemainingAfterTransfer/0.5/(movingRingsTotalMass*(numMainRings-1)/numMainRings))
+      specs['speedOfOtherRingsAfterOneRingToOthersEnergyTransfer'] = {value: speedOfOtherRingsAfterOneRingToOthersEnergyTransfer, units: "m/s"}
+      const powerTransferTime = 24*3600 // seconds (one day)
+      const powerDissipatedDuringOneRingToOthersEnergyTransferPerMeterOfRing = energyLostDuringTransfer / powerTransferTime / mainRingCircumference
+      specs['powerDissipatedDuringOneRingToOthersEnergyTransferPerMeterOfRing'] = {value: powerDissipatedDuringOneRingToOthersEnergyTransferPerMeterOfRing, units: "W"}
 
       // Power to accellerate the moving ring
       const movingRingLinearMotorEfficiency = dParamWithUnits['movingRingLinearMotorEfficiency'].value

@@ -562,7 +562,6 @@ const guidParamWithUnits = {
   animateLaunchSleds: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   elevatorCableOpacity: {value:0.3, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: updateTransitsystem, folder: folderRendering},
-  tetherColor: {value:0x000000, units: "", autoMap: true, min: 0, max: 0xffffff, tweenable: false, updateFunction: adjustTetherColor, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, updateFunction: updateOrbitControlsRotateSpeed, folder: folderRendering},
@@ -571,6 +570,7 @@ const guidParamWithUnits = {
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
   pKeyAltitudeFactor: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updatedParam, folder: folderRendering},
+  jsonFileCameraControlHelper: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
   // earthCloudsOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthCloudsOpacity, folder: folderRendering},
@@ -1128,12 +1128,14 @@ if (enableVR) {
 
 const fakeCamera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
 fakeCamera.name = 'fakeCamera'
+fakeCamera.rotateX(Math.PI/2)
+fakeCamera.rotateZ(Math.PI/2)
 planetCoordSys.add(fakeCamera)
 const fakeCameraHelper = new THREE.CameraHelper( fakeCamera )
 fakeCameraHelper.name = 'fakeCameraHelper'
-planetCoordSys.add( fakeCameraHelper )
-
-
+fakeCameraHelper.visible = false
+planetCoordSys.add(fakeCameraHelper)
+planetCoordSys.add(fakeCamera)
 
 const planetSpec = {
   name: 'Earth',
@@ -1314,14 +1316,6 @@ function earthAxisObjectUpdate() {updatedParam(); earthAxisObject.update(dParamW
 const earthEquatorObject = new markers.earthEquatorObject(planetCoordSys, dParamWithUnits, radiusOfPlanet)
 function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(dParamWithUnits, radiusOfPlanet)}
 
-const redBoxObject = new THREE.Mesh(
-  new THREE.BoxGeometry(radiusOfPlanet/1000, radiusOfPlanet/1000, radiusOfPlanet/500),
-  new THREE.MeshLambertMaterial({color: 0xff0000}))
-redBoxObject.name = 'redBox'
-redBoxObject.position.set(0, 0, 0)
-planetCoordSys.add(redBoxObject)
-
-
 // const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), grayMaterial)
 // orbitControlsCenterMarker.name = 'orbitControlsCenterMarker'
 // let orbitControlsCenterMarkerSize = 5000
@@ -1459,7 +1453,11 @@ let tweeningActive = false
 let cameraControlActive = false
 let lastCameraControlActive = false
 let cameraControlStartTime = 0
-let cameraControlDataIndex = 0
+let savedPosition
+let savedRotation
+let savedRotationOrder
+let savedFov
+let printLater = false
 
 let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 9, 9), grayMaterial)
 trackingPointMarkerMesh.name = 'trackingPointMarkerMesh'
@@ -1833,12 +1831,18 @@ function renderFrame() {
   }
 
   if (cameraControlActive) {
+    orbitControls.enabled = false
     let cameraControlCurrentTime
     if (!lastCameraControlActive) {
       // Initialize the camera control variables
       cameraControlStartTime = timeSinceStart
       cameraControlCurrentTime = 0
-      cameraControlDataIndex = 0
+      if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
+        savedPosition = camera.position.clone()
+        savedRotation = camera.rotation.clone()
+        savedRotationOrder = camera.rotation.order
+        savedFov = camera.fov
+      }
     }
     else {
       cameraControlCurrentTime = timeSinceStart - cameraControlStartTime
@@ -1858,28 +1862,49 @@ function renderFrame() {
     const interpolatedPosition = new THREE.Vector3().lerpVectors(prevDataPosition, nextDataPosition, alpha)
     const interpolatedRotation = new THREE.Vector3().lerpVectors(prevDataRotation, nextDataRotation, alpha)
     const interpolatedFovVertical = THREE.MathUtils.lerp(prevData['fovVertical'], nextData['fovVertical'], alpha)
-    interpolatedPosition.multiplyScalar(1.01)
-    //console.log(interpolatedRotation)
-    //camera.position.copy(interpolatedPosition)
-    fakeCamera.position.copy(interpolatedPosition)
-    console.log(fakeCamera.position)
-    fakeCamera.rotation.setFromVector3(interpolatedRotation)
-    fakeCamera.updateProjectionMatrix()
-    fakeCameraHelper.update()
-    redBoxObject.position.copy(interpolatedPosition)
-    redBoxObject.rotation.setFromVector3(interpolatedRotation)
-    camera.near = 1
-    camera.far = 100000000
-    //orbitControls.object.position.copy(interpolatedPosition)
-    //camera.rotation.copy(interpolatedRotation)
-    lastCameraControlActive = cameraControlActive
+    // All json file rotation parameters are initially zero (because the camera is directly above the south pole, and up is at lon = 90)
+    // Tilt Up from 0 to 90 degrees increases the rotate x parameter in the json file, which three.js interprets as the z parameter
+    // Panning from -90 to 0 causes a counter-clockwise twist and increases the rotate z parameter in the json file, which three.js interprets as the y parameter
+    if (dParamWithUnits['jsonFileCameraControlHelper'].value) {
+      fakeCamera.position.copy(interpolatedPosition)
+      fakeCamera.rotation.order = 'ZXY'  // z must be before y, so not 0, 2, or 3. 
+      fakeCamera.rotation.setFromVector3(interpolatedRotation) // This is rotating around z by 90 degrees
+      fakeCamera.rotateX(Math.PI/2)
+      fakeCamera.rotateZ(Math.PI/2)
+      fakeCamera.fov = interpolatedFovVertical
+      fakeCamera.updateProjectionMatrix()
+      fakeCameraHelper.visible = true
+      fakeCameraHelper.update()
+    }
+    else {
+      fakeCameraHelper.visible = false
+      camera.position.copy(interpolatedPosition)
+      camera.rotation.order = 'ZXY'
+      camera.rotation.setFromVector3(interpolatedRotation)
+      camera.rotateX(Math.PI/2)
+      camera.rotateZ(Math.PI/2)
+      camera.fov = interpolatedFovVertical
+    }
     if (cameraControlFrame>cameraControlData['numFrames']) {
       cameraControlActive = false
     }
+    printLater = !lastCameraControlActive
   }
-  else {
-    lastCameraControlActive = cameraControlActive
+  if (!cameraControlActive && lastCameraControlActive) {
+    // Restore the camera back to its original position and rotation
+    if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
+      camera.position.copy(savedPosition)
+      camera.rotation.copy(savedRotation)
+      camera.rotation.order = savedRotationOrder
+      camera.fov = savedFov
+      orbitControls.enabled = true
+      // End capture here as well?
+    }
+    else {
+      fakeCameraHelper.visible = false
+    }
   }
+  lastCameraControlActive = cameraControlActive
 
   //planetMesh.rotation.y += 0.000001
   if (animateZoomingIn || animateZoomingOut) {
@@ -1892,7 +1917,6 @@ function renderFrame() {
     }
     orbitControls.object.position.copy( orbitControls.target ).add( offset )
   }
-  orbitControls.update()
 
   if (animateRingRaising || animateRingLowering) {
     if (verbose) console.log('Raise/Lower Start ' + clockDelta)
@@ -2134,7 +2158,9 @@ function renderFrame() {
   //   orbitControlsTargetPoint.add(trackingOffset)
   //   setOrbitControlsTargetUpVector()
   // }
-  orbitControls.enabled = true
+  if (!cameraControlActive || dParamWithUnits['jsonFileCameraControlHelper'].value) {
+    orbitControls.enabled = true
+  }
   orbitControls.update()
 
   if (console.userdata['capture']==1) {
@@ -2143,6 +2169,7 @@ function renderFrame() {
   }
 
   //stats.update();
+
 }
 
 if (verbose) console.log("Adding resize event listener")
