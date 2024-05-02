@@ -570,6 +570,7 @@ const guidParamWithUnits = {
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
   pKeyAltitudeFactor: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updatedParam, folder: folderRendering},
+  controlCameraFromJsonDuringCapture: {value: true, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   jsonFileCameraControlHelper: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
@@ -958,6 +959,13 @@ const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
 const renderToBuffer = false // Hack - needs a GUI control still
 
+// Background image camera (will be created/defined during capture)
+let backgroundCamera = null
+let backgroundScene = null
+let background = null
+const backgroundTextureLoader = new THREE.TextureLoader()
+const backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/googleEarthImages/NewZealandLaunchSite_240.jpeg', function(texture) {})
+
 // Overlay an XY chart over the scene
 let sceneOrtho = new THREE.Scene()
 let logoSprite, logoSpriteWidth, logoSpriteHeight
@@ -1008,6 +1016,7 @@ if (renderToBuffer) {
   const imageDumpWidth = 128
   const imageDumpHeight = 72
   bufferTexture = new THREE.WebGLRenderTarget( imageDumpWidth, imageDumpHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter});
+  //bufferTexture = new THREE.WebGLRenderTarget( imageDumpWidth, imageDumpHeight, { samples: 4, type: THREE.HalfFloatType });
 }
 
 //scene.matrixAutoUpdate = false
@@ -1068,9 +1077,12 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  //alpha: true,  // Make the background transparent
+  alpha: true,  // Make the background transparent
   //logarithmicDepthBuffer: true,
-  canvas: document.querySelector('canvas')
+  canvas: document.querySelector('canvas'),
+  // These extra parameters may improve quaily. Need to test.
+  // samples: 4,
+  // type: THREE.HalfFloatType
 })
 //renderer.setSize(innerWidth, innerHeight)
 renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
@@ -1118,7 +1130,7 @@ scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
-//planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
+planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
 scene.add(planetCoordSys)
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
@@ -1455,8 +1467,10 @@ let lastCameraControlActive = false
 let cameraControlStartTime = 0
 let savedPosition
 let savedRotation
-let savedRotationOrder
 let savedFov
+let savedRenderWidth
+let savedRenderHeight
+let savedRendererAlpha
 let printLater = false
 
 let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 9, 9), grayMaterial)
@@ -1840,8 +1854,39 @@ function renderFrame() {
       if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
         savedPosition = camera.position.clone()
         savedRotation = camera.rotation.clone()
-        savedRotationOrder = camera.rotation.order
         savedFov = camera.fov
+        const contextAttributes = renderer.getContextAttributes()
+        savedRendererAlpha = renderer.getClearAlpha() //contextAttributes.alpha
+        const drawingBufferSize = new THREE.Vector2()
+        renderer.getSize(drawingBufferSize)
+        savedRenderWidth = drawingBufferSize.x
+        savedRenderHeight = drawingBufferSize.y
+        renderer.setClearAlpha(0)  // Make the background transparent
+        const width = cameraControlData['width']
+        const height = cameraControlData['height']
+        renderer.setSize(width, height)
+        planetMeshes.traverse(planetMesh => {
+          planetMesh.visible = false
+        })
+        atmosphereMesh.visible = false
+  
+        backgroundScene = new THREE.Scene()
+        backgroundCamera = new THREE.OrthographicCamera( - width / 2, width / 2, height / 2, - height / 2, 1, 100 );
+        backgroundCamera.position.z = 10
+        backgroundScene.add(backgroundCamera)
+        // const backgroundTextureLoader = new THREE.TextureLoader()
+        // const backgroundTexture = backgroundTextureLoader.load('./textures/googleEarthImages/NewZealandLaunchSite_000.jpeg')
+        const backgroundMaterial = new THREE.MeshBasicMaterial( { map: backgroundTexture } )
+        const backgroundWidth = backgroundMaterial.map.image.width
+        const backgroundHeight = backgroundMaterial.map.image.height
+        background = new THREE.Sprite( backgroundMaterial )
+        background.center.set( 0.5, 0.5 )
+        background.scale.set( backgroundWidth, backgroundHeight, 1 )
+        backgroundScene.add( background )
+      
+        //backgroundCanvas = new THREE.CanvasTexture(document.getElementById('backgroundCanvas'))
+        //sceneBackground.
+        // ToDo: We probably add a feature to allow capturing at an integer multiple of the recolution from GoogleEarthStudio
       }
     }
     else {
@@ -1895,10 +1940,22 @@ function renderFrame() {
     if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
       camera.position.copy(savedPosition)
       camera.rotation.copy(savedRotation)
-      camera.rotation.order = savedRotationOrder
       camera.fov = savedFov
+      // If we are capturing a video, then stop the capture as well
+      if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value && capturer) captureStop()
+      // Restore the renderer back to its original configuration
+      renderer.setClearAlpha(savedRendererAlpha)
+      renderer.setSize(savedRenderWidth, savedRenderHeight)
+      // Restore the planet and atmosphere textures
+      planetMeshes.traverse(planetMesh => {
+        planetMesh.visible = dParamWithUnits['showEarthsSurface'].value
+      })
+      atmosphereMesh.visible = dParamWithUnits['showEarthsAtmosphere'].value
+      backgroundScene.remove(backgroundCamera)
+      backgroundScene.remove(background)
+      backgroundScene = null
+      backgroundCamera = null
       orbitControls.enabled = true
-      // End capture here as well?
     }
     else {
       fakeCameraHelper.visible = false
@@ -2122,6 +2179,10 @@ function renderFrame() {
   }
   else {
     renderer.clear()
+    if (backgroundScene && backgroundCamera) {
+      renderer.render(backgroundScene, backgroundCamera)
+      renderer.clearDepth()
+    }
     renderer.render( scene, camera )
     renderer.clearDepth()
     renderer.render( sceneOrtho, cameraOrtho )
@@ -3532,7 +3593,15 @@ progress = document.getElementById( 'progress' );
 
 sCB.addEventListener( 'click', function( e ) {
 
-  var framerate = document.querySelector('input[name="framerate"]:checked').value;
+  let framerate
+
+  if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
+    framerate = cameraControlData['frameRate']
+    cameraControlActive = true
+  }
+  else {
+    framerate = document.querySelector('input[name="framerate"]:checked').value;
+  }
 
   capturer = new CCapture( {
     verbose: false,
@@ -3555,10 +3624,15 @@ sCB.addEventListener( 'click', function( e ) {
 }, false );
 
 dVB.addEventListener( 'click', function( e ) {
+  captureStop()
+}, false );
+
+function captureStop() {
   capturer.stop();
-  this.style.display = 'none';
+  dVB.style.display = 'none';
   //this.setAttribute( 'href',  );
   console.log(capturer, 'Saving...')
   capturer.save();
   sCB.style.display = 'block';
-}, false );
+
+}

@@ -53,8 +53,10 @@ export class earthEquatorObject {
     }
     else if (this.equatorMesh) {
       this.planetCoordSys.remove(this.equatorMesh)
-      this.equatorMesh.geometry.dispose()
-      this.equatorMesh.material.dispose()
+      this.equatorMesh.children.forEach(mesh => {
+        mesh.geometry.dispose()
+        mesh.material.dispose()
+      })
       this.equatorMesh = null
     }
   }
