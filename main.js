@@ -570,7 +570,7 @@ const guidParamWithUnits = {
   perfOptimizedThreeJS: {value: false, units: '', autoMap: true, min: 5, max: 90, updateFunction: updatePerfOptimzation, folder: folderRendering},
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
   pKeyAltitudeFactor: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updatedParam, folder: folderRendering},
-  controlCameraFromJsonDuringCapture: {value: true, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
+  controlCameraFromJsonDuringCapture: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   jsonFileCameraControlHelper: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
@@ -964,7 +964,14 @@ let backgroundCamera = null
 let backgroundScene = null
 let background = null
 const backgroundTextureLoader = new THREE.TextureLoader()
-const backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/googleEarthImages/NewZealandLaunchSite_240.jpeg', function(texture) {})
+let backgroundTexture = null
+if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
+  backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/googleEarthImages/NewZealandLaunchSite_240.jpeg', function(texture) {})
+}
+else {
+  // Hack to avoid error if above file is missing
+  backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
+}
 
 // Overlay an XY chart over the scene
 let sceneOrtho = new THREE.Scene()
