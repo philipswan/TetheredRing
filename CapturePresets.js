@@ -19,7 +19,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     }]
   }
 
-  switch (1) {
+  switch (0) {
     case 0:
       defaultBehaviour()
       break
@@ -193,15 +193,24 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1894419.9636432864, 1725570.1470296388, -6162027.437464318)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
-        
+    
+
+    // Hawaii
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2307593.902230268, 2191199.386457382, -5527259.744988217)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.36181387751791044, 0.3435640671709055, -0.866633976823226)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(780917.2197601651, 1247175.8999634252, -8913282.292151898)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.36181387751791044, 0.3435640671709055, -0.866633976823226)
+
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
+      // ((i!=1) || (j!=4))
       ((i!=23) || (j!=8)) &&
       ((i!=0) || (j!=8)) &&
       ((i!=1) || (j!=4))
     )} // New Zealand North Island and ocean to the east and west
-    nonGUIParams['overrideClipPlanes'] = true
-    nonGUIParams['nearClip'] = 1
-    nonGUIParams['farClip'] = 10000000
+    //nonGUIParams['getCapturePresetRegions'] = (i, j) => {return true}
+    // nonGUIParams['overrideClipPlanes'] = true
+    nonGUIParams['nearClip'] = 100
+    nonGUIParams['farClip'] = 1000000000
 
     // Improvements...
     // Add watermark

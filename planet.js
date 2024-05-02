@@ -327,7 +327,8 @@ export class planet {
     //   patchScale: 50.84
     // }
     const backgroundPatchDescriptor = {
-      textureFilename: './textures/LundHillWashington1.jpg',
+      //textureFilename: './textures/LundHillWashington1.jpg',
+      textureFilename: './textures/myakka_oli_2022031_lrg.jpg',
       patchAltitude: 1200,
       patchImageWidth: 2239,
       patchImageHeight: 1260,
