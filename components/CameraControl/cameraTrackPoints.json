@@ -1,0 +1,12 @@
+{"trackPoints":
+[{
+  "name":"Track Point 1",
+  "color":"#148fbc",
+  "visible":true,
+  "position":{"type":"position","attributes":[
+    {"type":"longitude","value":{"relative":0.06823153855858403}},
+    {"type":"latitude","value":{"relative":0.6088249977053197}},
+    {"type":"altitude","value":{"maxValueRange":65117481,"minValueRange":-500,"relative":0.000028440885743478724,"logarithmic":false}}
+  ]
+  },"isOrigin":true}
+],"logarithmic":false,"modelVersion":2}
