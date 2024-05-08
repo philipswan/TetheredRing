@@ -45,11 +45,16 @@ import * as CapturePresets from './CapturePresets.js'
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
 import cameraControlData from './components/CameraControl/cameraPath1.json'
+import cameraTrackPoints from './components/CameraControl/cameraTrackPoints.json'
+import googleEarthProjectFile from './components/CameraControl/googleEarthStudioSampleProjectFile.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
 import { last } from 'lodash'
 
 //import { makePlanetTexture } from './planetTexture.js'
+
+// Hack - just want to be able to browse the object in the console
+console.log(googleEarthProjectFile)
 
 // Get the URL of the current page
 const url = new URL(window.location.href)
@@ -71,6 +76,7 @@ let genSpecsFile = false
 let fastTetherRender = true   // Fast render also uses the jitter reduction technique of creating a mesh with coordinates relative to a point near the ring, and then setting these mesh positions near the ring as well. However, this technique generates coordinates that are not useful for kml file generation.
 let majorRedesign = true // False enables work in progress...
 let capturer = null
+let trackPointLogger = null
 let animationState = 0
 const keyFrames = []
 let keyFrameDelay = 0
@@ -351,7 +357,7 @@ const guidParamWithUnits = {
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   
   // Engineering Parameters - Launch System - Appearance
-  launcherFeederRailLength: {value: 200, units: "m", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherFeederRailLength: {value: 20, units: "m", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSystemForwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSystemUpwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSystemRightwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -841,12 +847,6 @@ function adjustCableOpacity() {
   updatedParam()
 }
 
-function adjustTetherColor() {
-  updatedParam()
-  tetherMaterial.color = dParamWithUnits['tetherColor'].value
-  console.log("Updating Color " + dParamWithUnits['tetherColor'].value)
-}
-
 function adjustLaunchTrajectoryOpacity() {
   updatedParam()
   //launchTrajectoryMaterial.opacity = dParamWithUnits['launchTrajectoryVisibility'].value
@@ -964,13 +964,16 @@ let backgroundCamera = null
 let backgroundScene = null
 let background = null
 const backgroundTextureLoader = new THREE.TextureLoader()
-let backgroundTexture = null
+let backgroundTexture = []
+let backgroundMaterial
 if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
-  backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/googleEarthImages/NewZealandLaunchSite_240.jpeg', function(texture) {})
+  for (let i=0; i<400; i++) {
+    backgroundTexture[i] = await backgroundTextureLoader.loadAsync(`./textures/googleEarthImages/NewZealandLaunchSite_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
+  }
 }
 else {
   // Hack to avoid error if above file is missing
-  backgroundTexture = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
+    backgroundTexture[0] = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
 }
 
 // Overlay an XY chart over the scene
@@ -1782,7 +1785,8 @@ function renderFrame() {
   const clockDelta = clock.getDelta()
   timeSinceStart += clockDelta
 
-  if ((timeSinceStart>45) && (guidParam['showLogo']===true)) {
+  // Cause the logo to disappear after a few seconds
+  if ((timeSinceStart>10) && (guidParam['showLogo']===true)) {
     guidParam['showLogo'] = false
     updateLogoSprite()
   }
@@ -1883,7 +1887,7 @@ function renderFrame() {
         backgroundScene.add(backgroundCamera)
         // const backgroundTextureLoader = new THREE.TextureLoader()
         // const backgroundTexture = backgroundTextureLoader.load('./textures/googleEarthImages/NewZealandLaunchSite_000.jpeg')
-        const backgroundMaterial = new THREE.MeshBasicMaterial( { map: backgroundTexture } )
+        backgroundMaterial = new THREE.MeshBasicMaterial( { map: backgroundTexture[0] } )
         const backgroundWidth = backgroundMaterial.map.image.width
         const backgroundHeight = backgroundMaterial.map.image.height
         background = new THREE.Sprite( backgroundMaterial )
@@ -1903,6 +1907,9 @@ function renderFrame() {
     const cameraControlFrame = cameraControlCurrentTime * cameraControlData['frameRate']
     const prevFrame = Math.min(Math.floor(cameraControlFrame), cameraControlData['numFrames'] - 1)
     const nextFrame = Math.min(prevFrame+1, cameraControlData['numFrames'] - 1)
+    if (prevFrame<400) {
+      backgroundMaterial.map = backgroundTexture[prevFrame]
+    }
     const alpha = Math.min(cameraControlFrame - prevFrame, 1)
     const prevData = cameraControlData['cameraFrames'][prevFrame]
     const nextData = cameraControlData['cameraFrames'][nextFrame]
@@ -2197,6 +2204,9 @@ function renderFrame() {
   if (capturer) {
     capturer.capture( renderer.domElement );
     //capturer.capture( bufferTexture );  // Doesn't work because bufferTexture doesn't support the toBlob method
+  }
+  if (trackPointLogger) {
+    trackPointLogger.capture(camera.position.clone())
   }
 
   //requestAnimationFrame(animate)
@@ -3594,11 +3604,12 @@ if (enableSpecsFileFeature) {
 }
 
 // Synchronized Frame Capture
-var sCB = document.getElementById( 'start-capturing-button' ),
-dVB = document.getElementById( 'download-video-button' ),
-progress = document.getElementById( 'progress' );
+var startCapturingFramesButton = document.getElementById( 'start-capturing-frames-button' )
+var startCapturingTrackPointsButton = document.getElementById( 'start-capturing-track-points-button' )
+var stopCapturingAndDownloadButton = document.getElementById( 'stop-capturing-and-download-button' )
+var progress = document.getElementById( 'progress' )
 
-sCB.addEventListener( 'click', function( e ) {
+startCapturingFramesButton.addEventListener( 'click', function( e ) {
 
   let framerate
 
@@ -3626,20 +3637,34 @@ sCB.addEventListener( 'click', function( e ) {
 
   capturer.start();
   this.style.display = 'none';
-  dVB.style.display = 'block';
+  startCapturingTrackPointsButton.style.display = 'none';
+  stopCapturingAndDownloadButton.style.display = 'initial';
   e.preventDefault();
 }, false );
 
-dVB.addEventListener( 'click', function( e ) {
-  captureStop()
+startCapturingTrackPointsButton.addEventListener( 'click', function( e ) {
+  trackPointLogger = new trackPointLogger()
+})
+
+stopCapturingAndDownloadButton.addEventListener( 'click', function( e ) {
+  if (capturer) captureStop()
+  if (trackPointLogger) trackPointLoggerStop()
 }, false );
 
 function captureStop() {
   capturer.stop();
-  dVB.style.display = 'none';
+  stopCapturingAndDownloadButton.style.display = 'none';
   //this.setAttribute( 'href',  );
-  console.log(capturer, 'Saving...')
+  // console.log(capturer, 'Saving...')
   capturer.save();
-  sCB.style.display = 'block';
+  startCapturingTrackPointsButton.style.display = 'initial';
+  startCapturingFramesButton.style.display = 'initial';
+}
 
+function trackPointLoggerStop() {
+  trackPointLogger.stop()
+  stopCapturingAndDownloadButton.style.display = 'none';
+  trackPointLogger.save()
+  startCapturingTrackPointsButton.style.display = 'initial';
+  startCapturingFramesButton.style.display = 'initial';
 }
