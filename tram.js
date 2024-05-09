@@ -358,12 +358,13 @@ export function xyz2lla(x,y,z) {
   //   y: coordinate y meters
   //   z: coordinate z meters
   // Output
-  //   lat: latitude rad
-  //   lon: longitude rad
+  //   lat: latitude degrees (-90 to +90)
+  //   lon: longitude degrees (-180 to +180)
   //   h: height meters
   // '''
 
   // Note that z is toward the north pole in the ECEF coordinate system, and x is toward the equator below Greenwich
+  // But in the three.js coordinate system 'y' is towards the north pole, 'z' is towards the equator below Greenwich, and 'x' is towards the equator east of Greenwich
   const ECEF_x = z
   const ECEF_y = x
   const ECEF_z = y
@@ -397,6 +398,7 @@ export function xyz2lla(x,y,z) {
 export function lla2xyz(lat, lon, alt) {
   
   // Function to convert lat-lon-altitude (llh) to three.js model xyz
+  // lat and lon inputs are in degrees, alt in meters
 
   const equitorialRadiusOfEarth = 6378137.0
   const flattening = 0// 1.0 / 298.257223563
@@ -1300,7 +1302,8 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  return Math.max(0, timeSinceStart - 10) * slowDownPassageOfTime
+  const launcherStartDelayInSeconds = 0
+  return Math.max(0, timeSinceStart - launcherStartDelayInSeconds) * slowDownPassageOfTime
 }
 
 export function findCircleSphereIntersections(circleCenter, circleNormal, circleRadius, sphereCenter, sphereRadius) {

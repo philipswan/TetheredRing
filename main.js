@@ -45,11 +45,10 @@ import * as CapturePresets from './CapturePresets.js'
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
 import cameraControlData from './components/CameraControl/cameraPath1.json'
-import cameraTrackPoints from './components/CameraControl/cameraTrackPoints.json'
+import { trackPointLogger } from './trackPointLogger.js'
 import googleEarthProjectFile from './components/CameraControl/googleEarthStudioSampleProjectFile.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
-import { last } from 'lodash'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
@@ -76,7 +75,7 @@ let genSpecsFile = false
 let fastTetherRender = true   // Fast render also uses the jitter reduction technique of creating a mesh with coordinates relative to a point near the ring, and then setting these mesh positions near the ring as well. However, this technique generates coordinates that are not useful for kml file generation.
 let majorRedesign = true // False enables work in progress...
 let capturer = null
-let trackPointLogger = null
+let trackPointLoggerObject = null
 let animationState = 0
 const keyFrames = []
 let keyFrameDelay = 0
@@ -2205,8 +2204,13 @@ function renderFrame() {
     capturer.capture( renderer.domElement );
     //capturer.capture( bufferTexture );  // Doesn't work because bufferTexture doesn't support the toBlob method
   }
-  if (trackPointLogger) {
-    trackPointLogger.capture(camera.position.clone())
+  if (trackPointLoggerObject) {
+    trackPointLoggerObject.capture(
+      camera.position.clone(),
+      camera.up.clone(),
+      orbitControls.target.clone(),
+      orbitControls.upDirection.clone()
+    )
   }
 
   //requestAnimationFrame(animate)
@@ -3643,12 +3647,13 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
 }, false );
 
 startCapturingTrackPointsButton.addEventListener( 'click', function( e ) {
-  trackPointLogger = new trackPointLogger()
+  trackPointLoggerObject = new trackPointLogger()
+  trackPointLoggerObject.start(googleEarthProjectFile)
 })
 
 stopCapturingAndDownloadButton.addEventListener( 'click', function( e ) {
   if (capturer) captureStop()
-  if (trackPointLogger) trackPointLoggerStop()
+  if (trackPointLoggerObject) trackPointLoggerStop()
 }, false );
 
 function captureStop() {
@@ -3662,9 +3667,9 @@ function captureStop() {
 }
 
 function trackPointLoggerStop() {
-  trackPointLogger.stop()
+  trackPointLoggerObject.stop()
   stopCapturingAndDownloadButton.style.display = 'none';
-  trackPointLogger.save()
+  trackPointLoggerObject.save()
   startCapturingTrackPointsButton.style.display = 'initial';
   startCapturingFramesButton.style.display = 'initial';
 }
