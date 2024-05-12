@@ -1158,53 +1158,8 @@ fakeCameraHelper.visible = false
 planetCoordSys.add(fakeCameraHelper)
 planetCoordSys.add(fakeCamera)
 
-const planetSpec = {
-  name: 'Earth',
-  mass: 5.97E+24,                           // kg
-  radius: 6378100,                          // m
-  WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
-  lengthOfSiderealDay: 86164.0905,          // seconds
-  
-  // Hack!!!!!
-  //lengthOfSiderealDay: 1e4,          // seconds // Warning, orbitalMath.js can't handle values greater than around 1e8
+const planetSpec = tram.getPlanetSpec('Earth')
 
-  upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
-}
-
-
-planetSpec['airTemperatureInKelvinAtAltitude'] = function(a) {
-
-  const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
-  return temperatureInKelvin
-
-}
-
-planetSpec['airDensityAtAltitude'] = function(a) {
-
-  // Input in meters
-  const c_4	= -3.957854E-19
-  const c_3	= 6.657616E-14
-  const c_2	= -3.47217E-09
-  const c_1	= -8.61651E-05
-  const c_0	= 2.16977E-01
-  const airDensityAtAltitude = Math.exp(c_4 * a**4 + c_3 * a**3 + c_2 * a**2 + c_1 * a + c_0)
-  return airDensityAtAltitude  // In kg/m^3
-
-}
-
-planetSpec['airPressureAtAltitude'] = function(a) {
-
-  // Input in meters, Output in Pa
-  // https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
-  // Also ...\Atlantis\Engineering\ArchModel-ThreeJS\AtmosphericData.xlsx
-  const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) * 10000: 0
-  return pressurePa;
-
-}
-
-planetSpec['speedOfSoundAtAltitude'] = function(a) {
-  return Math.sqrt(1.4 * 287.058 * planetSpec['airTemperatureInKelvinAtAltitude'](a))
-}
 
 let planetMeshes, atmosphereMesh, backgroundPatchMesh
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
