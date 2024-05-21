@@ -392,7 +392,7 @@ const guidParamWithUnits = {
   launcherMassDriverBracketHeight: {value: 0.125, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketNumModels: {value: 32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewShaftOuterRadius: {value: 0.375, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverScrewShaftInnerRadius: {value: 0, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewShaftInnerRadius: {value: 0.3, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.05, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
@@ -1139,7 +1139,14 @@ scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
+if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
+  // We need to modify the planet's shape from sperical to oblate spheroid to match Google Earth's shape
+  // This modification seems to have undesirable side effects though, so lots more work will be needed to get this right.
 planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
+}
+else {
+  planetCoordSys.scale.y = 1.0
+}
 scene.add(planetCoordSys)
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
@@ -1437,11 +1444,15 @@ let savedRenderHeight
 let savedRendererAlpha
 let printLater = false
 
-let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(9, 9, 9), grayMaterial)
+let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(700, 700, 700), grayMaterial)
 trackingPointMarkerMesh.name = 'trackingPointMarkerMesh'
 trackingPointMarkerMesh.visible = false
 planetCoordSys.add(trackingPointMarkerMesh)
-let orbitControlsMarkerMesh = new THREE.Mesh(new THREE.SphereGeometry(5, 10, 10), greenMaterial)
+let targetPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(700, 700, 700), blueMaterial)
+targetPointMarkerMesh.name = 'targetPointMarkerMesh'
+targetPointMarkerMesh.visible = false
+planetCoordSys.add(targetPointMarkerMesh)
+let orbitControlsMarkerMesh = new THREE.Mesh(new THREE.SphereGeometry(500, 500, 500), greenMaterial)
 orbitControlsMarkerMesh.visible = false
 planetCoordSys.add(orbitControlsMarkerMesh)
 
@@ -2228,7 +2239,7 @@ function onWindowResize() {
   updateLogoSprite()
   updateXYChart()
 
-  renderer.setSize( width, height)
+  renderer.setSize(width, height)
   //console.log("resizing...", simContainer.offsetWidth, simContainer.offsetHeight)
 }
 
@@ -2472,6 +2483,8 @@ function onKeyDown( event ) {
         //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
       }
       if ((planetIntersects.length>0) || (objectIntersects.length>0)) {
+        targetPointMarkerMesh.position.copy(targetPoint)
+        targetPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
         setupTweeningOperation()
         
         // previousTargetPoint.copy(orbitControls.target.clone())

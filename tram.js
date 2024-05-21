@@ -1398,6 +1398,7 @@ export function getPlanetSpec(planet) {
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 86164.0905,          // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalConstant: 0.0000000000667408, // m^3/kg/s^2
         airTemperatureInKelvinAtAltitude: function(a) {
           const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
           return temperatureInKelvin
@@ -1420,7 +1421,8 @@ export function getPlanetSpec(planet) {
           return pressurePa;
         },
         speedOfSoundAtAltitude: function(a) {
-          return Math.sqrt(1.4 * 287.058 * planetSpec['airTemperatureInKelvinAtAltitude'](a))
+          const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
+          return Math.sqrt(1.4 * 287.058 * temperatureInKelvin)
         }
       }
       break

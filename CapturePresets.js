@@ -189,12 +189,11 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
     // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(480331.6551612802, -4195149.259355443, -4883519.833408484)
     // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.009956572807877009, -0.6421261414357942, -0.7665343339620867)
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2165961.395604829, 2151545.706611093, -5567865.682549198)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1894419.9636432864, 1725570.1470296388, -6162027.437464318)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2165961.395604829, 2151545.706611093, -5567865.682549198)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1894419.9636432864, 1725570.1470296388, -6162027.437464318)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3665540565881692, 0.3276645652229013, -0.8707893294569269)
     
-
     // Hawaii
     nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2307593.902230268, 2191199.386457382, -5527259.744988217)
     nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.36181387751791044, 0.3435640671709055, -0.866633976823226)
@@ -1418,44 +1417,46 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showGroundTerminuses'].value = false
     guidParamWithUnits['showElevatorCables'].value = false
     guidParamWithUnits['showElevatorCars'].value = false
-    guidParamWithUnits['showHabitats'].value = true
+    guidParamWithUnits['showHabitats'].value = false
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMarkers'].value = false
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
-    guidParamWithUnits['showMassDriverRail'].value = false
-    guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showLaunchSleds'].value = false
+    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverRail'].value = true
+    guidParamWithUnits['showMassDriverBrackets'].value = true
+    guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['massDriverCameraRange'].value = 300
+    guidParamWithUnits['massDriverCameraRange'].value = 10000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 6
-    guidParamWithUnits['logZoomRate'].value = -3
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = -.4
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+    guidParamWithUnits['logZoomRate'].value = -2
 
-    guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
-    guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
-    guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
-    guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
-    guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
+    // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
+    // guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
+    // guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
+    // guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
+    // guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
 
-    guidParamWithUnits['launchVehicleScaleFactor'].value = 200
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
+    //guidParamWithUnits['launcherMassDriverTubeRadius'].value = 1
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
-    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40
-    guidParamWithUnits['launchVehicleRadius'].value = 1.5
-    guidParamWithUnits['launchVehicleBodyLength'].value = 10
+    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 1000
+    guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 8  // m
+
+    //guidParamWithUnits['launchVehicleRadius'].value = 1.5
+    //guidParamWithUnits['launchVehicleBodyLength'].value = 10
 
     guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
     guidParamWithUnits['launcherCoastTime'].value = 93*60 / 2
@@ -1521,22 +1522,27 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2353919.4598949375, 1882125.1810429322, -5788929.236748725)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2447303.054002276, 2131697.443510971, -5513884.545953701)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2609848.661827688, 2033982.0935899257, -5527446.623460379)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2141299.931502703, 2114722.5368433706, -5619536.116728196)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2134661.4309153776, 2101371.730378247, -5635563.822049001)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
 
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2112519.5324192257, 2119219.738697768, -5632499.571435554)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33122058591904685, 0.3322692062977853, -0.8831138646911185)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2112384.9163022134, 2119124.770983503, -5632607.237614656)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33122058591904685, 0.3322692062977853, -0.8831138646911185)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2138622.027473265, 2120063.832549798, -5622552.560326888)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2138568.504086628, 2119994.796780028, -5622621.973677439)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
       ((i!=1) || (j!=4)) // Hawaii??
     )} 
 
     nonGUIParams['overrideClipPlanes'] = true
-    nonGUIParams['nearClip'] = 10
+    nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 40000000
 
     // Improvements...

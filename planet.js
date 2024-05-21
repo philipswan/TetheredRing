@@ -116,6 +116,7 @@ export class planet {
               //displacementScale: 500000,
             )
             planetMesh.name = 'planet'
+            planetMesh.scale.y = 1.0 //- 1.0/planetSpec.WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
             planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
             planetMesh.matrixValid = false
             if (dParamWithUnits['perfOptimizedThreeJS'].value) planetMesh.freeze()
