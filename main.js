@@ -3612,6 +3612,14 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
   startCapturingTrackPointsButton.style.display = 'none';
   stopCapturingAndDownloadButton.style.display = 'initial';
   e.preventDefault();
+
+  // Hack - forces the CCapture resolution
+  // const width = 3840
+  // const height = 2160
+  // renderer.setSize(width, height)
+  // camera.aspect = width/height
+  // camera.updateProjectionMatrix()
+
 }, false );
 
 startCapturingTrackPointsButton.addEventListener( 'click', function( e ) {
@@ -3632,6 +3640,11 @@ function captureStop() {
   capturer.save();
   startCapturingTrackPointsButton.style.display = 'initial';
   startCapturingFramesButton.style.display = 'initial';
+  const width = simContainer.offsetWidth
+  const height = simContainer.offsetHeight
+  renderer.setSize(width, height)
+  camera.aspect = width/height
+  camera.updateProjectionMatrix()
 }
 
 function trackPointLoggerStop() {

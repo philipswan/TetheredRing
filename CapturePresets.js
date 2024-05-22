@@ -1411,14 +1411,17 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showTransitSystem'].value = false
     guidParamWithUnits['showStationaryRings'].value = false
     guidParamWithUnits['showMovingRings'].value = false
+    guidParamWithUnits['showStatorMagnets'].value = false
     guidParamWithUnits['showTransitTube'].value = false
     guidParamWithUnits['showTransitVehicles'].value = false
+    guidParamWithUnits['showTransitTracks'].value = false
     guidParamWithUnits['showRingTerminuses'].value = false
     guidParamWithUnits['showGroundTerminuses'].value = false
     guidParamWithUnits['showElevatorCables'].value = false
     guidParamWithUnits['showElevatorCars'].value = false
     guidParamWithUnits['showHabitats'].value = false
     guidParamWithUnits['showSolarArrays'].value = false
+
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMarkers'].value = false
     guidParamWithUnits['launcherMarkerRadius'].value = 500
@@ -1436,9 +1439,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['orbitControlsRotateSpeed'].value = -.4
+    guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
-    guidParamWithUnits['logZoomRate'].value = -2
+    guidParamWithUnits['logZoomRate'].value = -3
 
     // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
     // guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
@@ -1448,7 +1451,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    //guidParamWithUnits['launcherMassDriverTubeRadius'].value = 1
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 30
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
@@ -1503,6 +1506,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
     guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+    guidParamWithUnits['launcherRampUpwardAcceleration'].value = 70
     guidParamWithUnits['launcherRampDesignMode'].value = 0
     //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
     guidParamWithUnits['launcherRampTurningRadius'].value = 381000
@@ -1510,8 +1514,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
     guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
-    guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit plus ~300 meters)
-    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 5000  // m
+    guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
+    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000  // m
     guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
     guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
     guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
@@ -1522,20 +1526,20 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2353919.4598949375, 1882125.1810429322, -5788929.236748725)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2141299.931502703, 2114722.5368433706, -5619536.116728196)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2134661.4309153776, 2101371.730378247, -5635563.822049001)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2141299.931502703, 2114722.5368433706, -5619536.116728196)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2134661.4309153776, 2101371.730378247, -5635563.822049001)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2138622.027473265, 2120063.832549798, -5622552.560326888)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2138568.504086628, 2119994.796780028, -5622621.973677439)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2138622.027473265, 2120063.832549798, -5622552.560326888)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2138568.504086628, 2119994.796780028, -5622621.973677439)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
       ((i!=1) || (j!=4)) // Hawaii??
@@ -1543,7 +1547,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
-    nonGUIParams['farClip'] = 40000000
+    nonGUIParams['farClip'] = 100000000
 
     // Improvements...
     // Add watermark
