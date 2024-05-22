@@ -21,6 +21,8 @@ export class massDriverTubeModel {
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
     const orientation = curve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
 
+    const tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
+
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
       const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverTubeSegments
@@ -37,7 +39,7 @@ export class massDriverTubeModel {
     const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, radius, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
     //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, depthWrite: false, opacity: 0.25})
-    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: 0.25})
+    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {map: tubeTexture, side: THREE.FrontSide, transparent: true, shininess: 0.5})
     const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
     massDriverTubeMesh.renderOrder = 999
 
