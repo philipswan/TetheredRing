@@ -38,8 +38,8 @@ export class massDriverTubeModel {
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
     const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, radius, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
-    //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, depthWrite: false, opacity: 0.25})
-    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {map: tubeTexture, side: THREE.FrontSide, transparent: true, shininess: 0.5})
+    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, depthWrite: false, opacity: 0.25})
+    //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {map: tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 0.2, shininess: 0.5})
     const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
     massDriverTubeMesh.renderOrder = 999
 

@@ -103,6 +103,7 @@ gui.close()
 const folderGeography = gui.addFolder('Location (V6)').close()
 const folderEngineering = gui.addFolder('Engineering').close()
 const folderLauncher = gui.addFolder('Launcher').close()
+const folderGrapplers = gui.addFolder('Grapplers').close()
 const folderMaterials = gui.addFolder('Materials').close()
 const folderEconomics = gui.addFolder('Economics').close()
 const folderRendering = gui.addFolder('Rendering').close()
@@ -416,14 +417,6 @@ const guidParamWithUnits = {
   launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledNumModels: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledNumGrapplers: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledGrapplerMagnetThickness: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledBetweenGrapplerFactor: {value: 0.01, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherGrapplerPadLiftAwayDistance: {value: 0.15, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherGrapplerBallJointRadius: {value: 0.04, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  grapplerFactor: {value: .01, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  grapplerMaxRangeOfMotion: {value: 0.125, units: '', autoMap: true, min: 0, max: 0.5, updateFunction: updateLauncher, folder: folderLauncher},
 
   // ToDo: Values for launchVehicleEmptyMass and launchVehiclePropellantMass will be calculated later from other parameters 
   launcherFlywheelRadius: {value: 0.225, units: 'm', autoMap: true, min: 0.01, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
@@ -455,6 +448,20 @@ const guidParamWithUnits = {
   launchSledCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   vehicleInTubeCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+
+  // Grapplers
+  launchSledNumGrapplers: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerMagnetThickness: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledBetweenGrapplerFactor: {value: 0.01, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadLiftAwayDistance: {value: 0.15, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadLiftAwayPortion: {value: 0.25, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerClearanceFactor: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadRadialPortion: {value: 0.25, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerBallJointRadius: {value: 0.04, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerRangeFactor: {value: .01, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerMaxRangeOfMotion: {value: 0.125, units: '', autoMap: true, min: 0, max: 0.5, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerTopDeadCenterRotation: {value: 0.5, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
 
   // Engineering Parameters - Power
   powerRequirement: {value: 1000, units: "W/m", autoMap: true, min: 1, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},   // This is the power that is consumed by the rings maglev systems and all equipment supported by the ring, per meter length of the ring.
@@ -517,6 +524,7 @@ const guidParamWithUnits = {
   showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
 
   // Hack
+  backgroundOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustBackgroundOpacity, folder: folderRendering},
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
@@ -763,6 +771,11 @@ function updateLauncher() {
 
 function adjustRingDesign() {
   updateRing()
+}
+
+function adjustBackgroundOpacity() {
+  updatedParam()
+  renderer.setClearAlpha(guidParamWithUnits['backgroundOpacity'].value)
 }
 
 function adjustEarthSurfaceVisibility() {
@@ -1086,7 +1099,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: true,  // Make the background transparent
+  alpha: dParamWithUnits['backgroundOpacity'].value,  // Make the background transparent
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas'),
   // These extra parameters may improve quaily. Need to test.

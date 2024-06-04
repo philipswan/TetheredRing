@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import * as tram from './tram.js'
+import { grapplerEngineeringPresets } from './presets/grapplerEngineeringPresets.js'
 
 export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -79,6 +80,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       break
     case 19:
       flightPaths()
+      break
+    case 20:
+      grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
   }
 
@@ -1451,7 +1455,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 30
+    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
@@ -1536,10 +1540,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2138568.504086628, 2119994.796780028, -5622621.973677439)
     // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
 
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
       ((i!=1) || (j!=4)) // Hawaii??
@@ -2341,6 +2345,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     //guidParamWithUnits['tetherMinOpacity'].value = 0.3
     
   }
+
 
 
 }

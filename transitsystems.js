@@ -264,17 +264,27 @@ export class transitSystem {
     //gltfloader.load('models/TransitCar.glb', addTransitVehicles, progressFunction, errorFunction )
 
     const fbxloader = new FBXLoader()
-    console.log('Loading TransitCar.fbx')
-    fbxloader.load('models/TransitCar.fbx', addTransitVehicles, progressFunction, errorFunction )
-    console.log('Loading RingTerminus.fbx')
-    fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
-    console.log('Loading GroundTerminus.fbx')
-    fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
-    //gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
-    fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
-    console.log('Loading Elevator.fbx')
-    fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
-    //gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
+    if (dParamWithUnits['showTransitVehicles'].value) {
+      console.log('Loading TransitCar.fbx')
+      fbxloader.load('models/TransitCar.fbx', addTransitVehicles, progressFunction, errorFunction )
+    }
+    if (dParamWithUnits['showRingTerminuses'].value) {
+      console.log('Loading RingTerminus.fbx')
+      fbxloader.load('models/RingTerminus.fbx', addRingTerminuses, progressFunction, errorFunction )
+    }
+    if (dParamWithUnits['showGroundTerminuses'].value) {
+      console.log('Loading GroundTerminus.fbx')
+      fbxloader.load('models/GroundTerminus.fbx', addGroundTerminuses, progressFunction, errorFunction )
+      //gltfloader.load('models/GroundTerminus.gltf', addGroundTerminuses, progressFunction, errorFunction )
+    }
+    if (dParamWithUnits['showHabitats'].value) {
+      fbxloader.load('models/RingTerminus.fbx', addHabitats, progressFunction, errorFunction )  // This is hacky - borrowed RingTerminus model and modified it to make a habitat
+      console.log('Loading Elevator.fbx')
+    }
+    if (dParamWithUnits['showElevatorCars'].value) {
+      fbxloader.load('models/Elevator.fbx', addElevatorCars, progressFunction, errorFunction )
+      //gltfloader.load('models/Elevator.gltf', addElevatorCars, progressFunction, errorFunction )
+    }
 
     // Manually create the stationary rings
     const nt = dParamWithUnits['numVirtualRingTerminuses'].value

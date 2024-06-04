@@ -13,7 +13,7 @@ export class launchSledModel {
     const numGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
     const objName = 'launchSled'
     const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
-    const ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
+    const ballJointRadius = dParamWithUnits['launchSledGrapplerBallJointRadius'].value
 
     // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
     const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
@@ -137,9 +137,10 @@ export class launchSledModel {
       const magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
       const betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       const shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
-      const ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
+      const ballJointRadius = dParamWithUnits['launchSledGrapplerBallJointRadius'].value
       const additionalRotation = 0
-      const grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
+      const launchSledGrapplerMaxRangeOfMotion = dParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value
+      const launchSledGrapplerTopDeadCenterRotation = dParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value
     
       const info = new SledGrapplerPlacementInfo(
         shaftOuterRadius,
@@ -157,7 +158,8 @@ export class launchSledModel {
         betweenGrapplerFactor,
         shaftToGrapplerPad,
         additionalRotation,
-        grapplerMaxRangeOfMotion,
+        launchSledGrapplerMaxRangeOfMotion,
+        launchSledGrapplerTopDeadCenterRotation,
         virtualLaunchSled.minMaxArray
       )
       info.generatePlacementInfo(grapplerDistance, 1)
@@ -236,11 +238,11 @@ export class virtualLaunchSled {
       virtualLaunchSled.magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
       virtualLaunchSled.betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
       virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
-      virtualLaunchSled.ballJointRadius = dParamWithUnits['launcherGrapplerBallJointRadius'].value
+      virtualLaunchSled.ballJointRadius = dParamWithUnits['launchSledGrapplerBallJointRadius'].value
       virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualLaunchSled.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
       virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
-      virtualLaunchSled.grapplerFactor = dParamWithUnits['grapplerFactor'].value
+      virtualLaunchSled.launchSledGrapplerRangeFactor = dParamWithUnits['launchSledGrapplerRangeFactor'].value
 
       // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
       virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
@@ -251,10 +253,15 @@ export class virtualLaunchSled {
       virtualLaunchSled.launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
       virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-      virtualLaunchSled.padRActuation = virtualLaunchSled.launcherMassDriverScrewThreadRadius - virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
-      virtualLaunchSled.padLiftActuation = dParamWithUnits['launcherGrapplerPadLiftAwayDistance'].value
+      virtualLaunchSled.padLiftActuation = dParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value
+      virtualLaunchSled.padLiftPortion = dParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value
+      const r1 = virtualLaunchSled.launcherMassDriverScrewThreadRadius
+      const r2 = virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
+      virtualLaunchSled.padRadialActuation = (r1 - r2) * (1 + dParamWithUnits['launchSledGrapplerClearanceFactor'].value)
+      virtualLaunchSled.padRadialPortion = dParamWithUnits['launchSledGrapplerPadRadialPortion'].value
       virtualLaunchSled.launchSledWidth = dParamWithUnits['launchSledWidth'].value
-      virtualLaunchSled.grapplerMaxRangeOfMotion = dParamWithUnits['grapplerMaxRangeOfMotion'].value
+      virtualLaunchSled.launchSledGrapplerMaxRangeOfMotion = dParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value
+      virtualLaunchSled.launchSledGrapplerTopDeadCenterRotation = dParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value
       virtualLaunchSled.minMaxArray = [0, 0]
       
       virtualLaunchSled.isDynamic =  true
@@ -305,7 +312,8 @@ export class virtualLaunchSled {
         const betweenGrapplerFactor = virtualLaunchSled.betweenGrapplerFactor
         const shaftToGrapplerPad = virtualLaunchSled.shaftToGrapplerPad
         const ballJointRadius = virtualLaunchSled.ballJointRadius
-        const grapplerMaxRangeOfMotion = virtualLaunchSled.grapplerMaxRangeOfMotion
+        const launchSledGrapplerMaxRangeOfMotion = virtualLaunchSled.launchSledGrapplerMaxRangeOfMotion
+        const launchSledGrapplerTopDeadCenterRotation = virtualLaunchSled.launchSledGrapplerTopDeadCenterRotation 
         const grapplersSidewaysOffset = screwSidewaysOffset
         const grapplerUpwardsOffset = screwUpwardsOffset
         const padCenterToEdge = (threadRadius - (shaftOuterRadius + shaftToGrapplerPad))/2
@@ -344,12 +352,13 @@ export class virtualLaunchSled {
           betweenGrapplerFactor,
           shaftToGrapplerPad,
           additionalRotation,
-          grapplerMaxRangeOfMotion,
+          launchSledGrapplerMaxRangeOfMotion,
+          launchSledGrapplerTopDeadCenterRotation,
           virtualLaunchSled.minMaxArray
         )
   
         for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-          info.generatePlacementInfo(grapplerDistance, virtualLaunchSled.grapplerFactor)
+          info.generatePlacementInfo(grapplerDistance, virtualLaunchSled.launchSledGrapplerRangeFactor)
           grapplerOffset[i] = info.offset
           grapplerPivotPoints[i] = info.pivotPoints
           grapplerSwitchoverSignal[i] = info.switchoverSignal
@@ -396,13 +405,27 @@ export class virtualLaunchSled {
             // Engage the grapplers only if we're on the part of the curve path that has the twin-screws
             const switchoverSignal = (res.relevantCurve.name=='massDriver2Curve') ? grapplerSwitchoverSignal[grapplerIndex]: 1
             const threadPitch = grapplerThreadPitch[grapplerIndex]
-            const padRActuation = Math.max(0, Math.min(1, (switchoverSignal*4-1))) * virtualLaunchSled.padRActuation
-            const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal*4-2)/2))
-            const padLiftActuation = Math.min(1, switchoverSignal*4) * virtualLaunchSled.padLiftActuation
+            
+            // The switchover signal pushed the grappler back towards the top dead center position
+            // It's range is divided into three parts:
+            // The first, padLiftPortion, causes the pad to move away from the screw face,
+            // The second, padRadialPortion, causes the pad to move radially outwards,
+            // The third (the remainder) causes the pad to move circumferentially back towards top dead center
+            virtualLaunchSled.launchSledGrapplerLiftAwayPortion
+
+            // Forwards motion of the grappler's magnetic pad
+            const padLiftActuation = Math.min(1, switchoverSignal/virtualLaunchSled.padLiftPortion) * virtualLaunchSled.padLiftActuation
+            // Radial (outwards) motion of the grappler's magnetic pad
+            const padRadialActuation = Math.max(0, Math.min(1, (switchoverSignal-virtualLaunchSled.padLiftPortion)/virtualLaunchSled.padRadialPortion)) * virtualLaunchSled.padRadialActuation
+            // Angular (circumferencial) motion of the grappler's magnetic pad
+            const alreadyUsedPortion = virtualLaunchSled.padLiftPortion + virtualLaunchSled.padRadialPortion
+            const remainingPortion = 1 - alreadyUsedPortion
+            const padThetaFactor = 1 - Math.max(0, Math.min(1, (switchoverSignal-alreadyUsedPortion)/remainingPortion))
+
             const grapplerScrewAngle = Math.atan(threadPitch)
             const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
             const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
-            const rOffset = offset.x + padRActuation
+            const rOffset = offset.x + padRadialActuation
 
             const rawTheta = offset.z
             const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
