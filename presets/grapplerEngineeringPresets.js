@@ -50,7 +50,7 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
   guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .01
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .1
   guidParamWithUnits['logZoomRate'].value = -3
 
   // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
@@ -67,15 +67,16 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['launcherFeederRailLength'].value = 0
   guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 150
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
-  guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 2
+  guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 4
 
-  guidParamWithUnits['launchSledNumGrapplers'].value = 128
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.1  // m
+  guidParamWithUnits['launchSledNumGrapplers'].value = 64
+  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
   guidParamWithUnits['launchSledShaftToGrapplerPad'].value = 0.02
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.15
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.05
+  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.01
+  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.1
   guidParamWithUnits['launchSledGrapplerClearanceFactor'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerPadRadialPortion'].value = 0.05
+  guidParamWithUnits['launchSledGrapplerPadTwistPortion'].value = 0.1
+  guidParamWithUnits['launchSledGrapplerBallJointClearance'].value = 0.1
   guidParamWithUnits['launchSledGrapplerBallJointRadius'].value = 0.04
   guidParamWithUnits['launchSledGrapplerRangeFactor'].value = .01
   guidParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value = 0.125

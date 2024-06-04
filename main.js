@@ -399,7 +399,7 @@ const guidParamWithUnits = {
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
   launcherMassDriverScrewModelRoughLength: {value: 5, units: "", autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   
-  launcherMassDriverScrewSidewaysOffset: {value: 2, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewSidewaysOffset: {value: 3, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewUpwardsOffset: {value: -1.75, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewRevolutionsPerSecond: {value: 200, units: "", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewBracketThickness: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -454,10 +454,11 @@ const guidParamWithUnits = {
   launchSledGrapplerMagnetThickness: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledBetweenGrapplerFactor: {value: 0.01, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
-  launchSledGrapplerPadLiftAwayDistance: {value: 0.15, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
-  launchSledGrapplerPadLiftAwayPortion: {value: 0.25, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadLiftAwayDistance: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadLiftAwayPortion: {value: 0.1, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledGrapplerClearanceFactor: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
-  launchSledGrapplerPadRadialPortion: {value: 0.25, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerPadTwistPortion: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledGrapplerBallJointClearance: {value: 0.1, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledGrapplerBallJointRadius: {value: 0.04, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledGrapplerRangeFactor: {value: .01, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledGrapplerMaxRangeOfMotion: {value: 0.125, units: '', autoMap: true, min: 0, max: 0.5, updateFunction: updateLauncher, folder: folderGrapplers},

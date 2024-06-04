@@ -27,7 +27,7 @@ class SledGrapplerPlacementInfo {
     betweenGrapplerFactor = 0.1,
     shaftToGrapplerPad = 0.01, // m
     additionalRotation = 0,
-    launchSledGrapplerMaxRangeOfMotion = 0.5, // Full range of motion is (+/-) 0.125 // Represents the percentage of the full circumference of the screws where grapler's are engaged.
+    launchSledGrapplerMaxRangeOfMotion = 0.5, // Full range of motion is (+/-) 0.5. By design, the grapplers can engage only a fraction of the full circumference of the screws. This value represents half of that fraction.
     launchSledGrapplerTopDeadCenterRotation = 0.5, // The rotation that we'll define as the top dead center
     minMaxArray = [0, 0]) {
 
@@ -92,82 +92,56 @@ class SledGrapplerPlacementInfo {
     const angleRange2 = 0.125 * this.threadStarts
     const angleRange3 = 1 - angleRange2
 
-    //if ((rotationsFrac < angleRange2) || (rotationsFrac > angleRange3)) {
-      const rotationsWithTwist = rotations - angleRange1
-      const rotationsWithTwistFrac = rotationsWithTwist - Math.floor(rotationsWithTwist)
-      // Only need the midRib version of the next two signals, but we'll calculate it for all of them for now.
-      const nearestThread = (this.threadStarts-1) - Math.floor(rotationsWithTwistFrac * this.threadStarts)
+    const rateOfChangeInForwardDisplacement = this.initialVelocity + this.acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
+    const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
+    const rateOfChangeInRotationalDistance2 = 2 * Math.PI * this.threadRadius * Math.abs(this.revolutionsPerSecond)
+    const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
+    const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
 
-      const rateOfChangeInForwardDisplacement = this.initialVelocity + this.acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
-      const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
-      const rateOfChangeInRotationalDistance2 = 2 * Math.PI * this.threadRadius * Math.abs(this.revolutionsPerSecond)
-      const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
-      const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
+    const rotationsWithTwist = rotations - angleRange1
+    const rotationsWithTwistFrac = rotationsWithTwist - Math.floor(rotationsWithTwist)
+    // Only need the midRib version of the next two signals, but we'll calculate it for all of them for now.
+    const rotationsMeasuredInThreadStartsInt = Math.floor(rotationsWithTwistFrac * this.threadStarts)
+    const rotationsMeasuredInThreadStartsFrac = rotationsWithTwistFrac * this.threadStarts - rotationsMeasuredInThreadStartsInt
+    const nearestThread = (this.threadStarts-1) - rotationsMeasuredInThreadStartsInt
 
-      const rotationAwayFromTopDeadCenterToNearestThreadFace = (((rotationsWithTwistFrac * this.threadStarts) % 1)  - this.launchSledGrapplerTopDeadCenterRotation) / this.threadStarts
-      // The zeroth range limit is the maximum theoretical range for rotationAwayFromTopDeadCenterToNearestThreadFace
-      const rangeLimit0 = 0.5 / this.threadStarts
-      // The first range limit is the specified maximum range of motion of the grapplers (a value of +/- 0.5 would represent be "unlimited range of motion").
-      const rangeLimit1 = this.launchSledGrapplerMaxRangeOfMotion
-      // The second range limit is needed to cause the grappler move from thread to thread even before the grappler's range of motion is exceeded. 
-      const rangeLimit2 = Math.max(0, rangeLimit0 - launchSledGrapplerRangeFactor / Math.abs(outerThreadPitch))
-      const lesserRangeLimit = Math.min(rangeLimit1, rangeLimit2)
+    // Convert the 0 to 1 value to a -0.5 to +0.5 value, annd then scale it down by the number of thread starts
+    const rotationAwayFromMidPoint = (rotationsMeasuredInThreadStartsFrac - 0.5) / this.threadStarts
+    // Calculate the maximum theoretical value for rotationAwayFromMidPoint
+    const maxRotationAwayFromMidPoint = 0.5 / this.threadStarts
+    // The first range limit is the specified maximum range of motion of the grapplers (a value of +/- 0.5 would represent be "unlimited range of motion").
+    const rangeLimit1 = this.launchSledGrapplerMaxRangeOfMotion
+    // The second range limit is needed to cause the grappler move from thread to thread even before the grappler's range of motion is exceeded. 
+    const rangeLimit2 = Math.max(0, maxRotationAwayFromMidPoint - launchSledGrapplerRangeFactor / Math.abs(outerThreadPitch))
+    const rotationAwayLimit = Math.min(rangeLimit1, rangeLimit2)
 
-      // The switchover a signal is a number from 0 to 1 that represents how much the grapper is pushed back towards the top dead center "parked" positon
-      this.switchoverSignal = Math.max(0, Math.abs(rotationAwayFromTopDeadCenterToNearestThreadFace) - lesserRangeLimit) / (rangeLimit0 - lesserRangeLimit)
-      //chartRow = ''
-      // for (let i = 0; i<=this.switchoverSignal; i++) {
-      //   chartRow += ' ' + Math.round(1000 * this.switchoverSignal) / 1000
-      // }
-      //console.log(grapplerDistance, this.switchoverSignal)
+    // Before the grappler rotates away from the midpoint all the way to maxRotationAwayFromMidPoint, it will hit rotationAwayLimit. At this point it
+    // will start to move from thread to adjacent thread. The switchover a signal is a number from 0 to 1 that represents how much the grapper is pushed back towards
+    // the midpoint position. It will push teh grappler to teh midpoimt and then allow it to return to the rotationAwayLimit position on the adjacent thread.
+    this.switchoverSignal = Math.max(0, Math.abs(rotationAwayFromMidPoint) - rotationAwayLimit) / (maxRotationAwayFromMidPoint - rotationAwayLimit)
 
-      // The second range limit is the 
-      // if (grapplerDistance===0) {
-      //   this.minMaxArray[0] = Math.min(rotationAwayFromTopDeadCenterToNearestThreadFace, this.minMaxArray[0])
-      //   this.minMaxArray[1] = Math.max(rotationAwayFromTopDeadCenterToNearestThreadFace, this.minMaxArray[1])
-      //   console.log('rotationAwayFromTopDeadCenterToNearestThreadFace', rotationAwayFromTopDeadCenterToNearestThreadFace, this.minMaxArray[0], this.minMaxArray[1])
-      // }
-
-      // if (true || (rotationsFrac < angleRange2) || (rotationsFrac > angleRange3)) {
-      //   const f = launchSledGrapplerRangeFactor //16 * Math.abs(outerThreadPitch)
-      //   // If the grappler's rate of motion will be slow enough, direct it to move as needed. Otherwise, park it.
-      //   if (Math.abs(deltaAngle) < 0.5) {
-      //     this.switchoverSignal = Math.max(Math.abs(rotationAwayFromTopDeadCenterToNearestThreadFace) * 2 * f - (f-1), 0)
-      //     // If f was zero there would be no switchover signal, at 0.5 it's half swichover, half following the screw
-      //   }
-      //   else {
-      //     this.switchoverSignal = 1
-      //   }
-      // }
-      // else {
-      //   this.switchoverSignal = 1
-      // }
-
-
-      this.threadPitch = (innerThreadPitch + outerThreadPitch) / 2
-
-      const shaftRadiusPlus = this.shaftRadius + this.shaftToGrapplerPad
-      const r0 = shaftRadiusPlus - this.shaftToGrapplerPad/2
-      const r1 = (shaftRadiusPlus + this.threadRadius) / 2
-      const r2 = this.threadRadius + this.shaftToGrapplerPad/2
-      const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations + nearestThread / this.threadStarts) % 1)
-      const outerThreadPitchAngle = Math.atan(outerThreadPitch)
-      const innerThreadPitchAngle = Math.atan(innerThreadPitch)
-      const precomputedPartOfAngle2 = precomputedPartOfAngle1 + this.magnetThickness * Math.sin(outerThreadPitchAngle)
-      const precomputedPartOfAngle3 = precomputedPartOfAngle1 + this.magnetThickness * Math.sin(innerThreadPitchAngle)
-      const theta = (precomputedPartOfAngle1 + precomputedPartOfAngle1 + precomputedPartOfAngle2 + precomputedPartOfAngle3) / 4
-      const y = gPlus - this.magnetThickness * (Math.cos(outerThreadPitchAngle) + Math.cos(innerThreadPitchAngle)) / 2
-      this.offset = new Vector3(r1, y, theta)
-      // These are the points where the grppler struts connect to the grappler pads.
-      // Just two points for now to reduce clutter, but we'll need three or four in practice
-      this.pivotPoints = [new Vector3(r0, y, theta), new Vector3(r2, y, theta)] 
+    //chartRow = ''
+    // for (let i = 0; i<=this.switchoverSignal; i++) {
+    //   chartRow += ' ' + Math.round(1000 * this.switchoverSignal) / 1000
     // }
-    // else {
-    // 	this.switchoverSignal = 0
-    // 	this.threadPitch = 0
-    // 	this.offset = new Vector3(0, 0, 0)
-    //   this.pivotPoints = [new Vector3(0, 0, 0), new Vector3(0, 0, 0)] 
-    // }
+    //console.log(grapplerDistance, this.switchoverSignal)
+
+    this.threadPitch = (innerThreadPitch + outerThreadPitch) / 2
+
+    const shaftRadiusPlus = this.shaftRadius + this.shaftToGrapplerPad
+    const r0 = shaftRadiusPlus - this.shaftToGrapplerPad/2
+    const r1 = (shaftRadiusPlus + this.threadRadius) / 2
+    const r2 = this.threadRadius + this.shaftToGrapplerPad/2
+    const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations + nearestThread / this.threadStarts) % 1)
+    const outerThreadPitchAngle = Math.atan(outerThreadPitch)
+    const innerThreadPitchAngle = Math.atan(innerThreadPitch)
+    const averagePitchAngle = (outerThreadPitchAngle + innerThreadPitchAngle) / 2
+    const theta = precomputedPartOfAngle1 + this.magnetThickness / 2 / r1 * Math.sin(averagePitchAngle)
+    const y = gPlus - this.magnetThickness / 2 * Math.cos(averagePitchAngle)
+    this.offset = new Vector3(r1, y, theta)
+    // These are the points where the grppler struts connect to the grappler pads.
+    // Just two points for now to reduce clutter, but we'll need three or four in practice
+    this.pivotPoints = [new Vector3(r0, y, theta), new Vector3(r2, y, theta)] 
   }
 }
 
@@ -276,8 +250,8 @@ class SledGrapplerGeometry extends BufferGeometry {
       const innerThreadPitch = []
       const outerThreadPitch = []
 
-      const angleRange1 = 0.5/threadStarts
-      const angleRange2 = 0.125*threadStarts
+      const angleRange1 = 0.5 / threadStarts
+      const angleRange2 = 0.125 * threadStarts
       const angleRange3 = 1 - angleRange2
 
       // Generate the offset to the pad in cylindrical coordinates
