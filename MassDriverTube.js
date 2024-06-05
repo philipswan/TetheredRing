@@ -9,7 +9,7 @@ export class massDriverTubeModel {
   constructor(dParamWithUnits, curve, segmentIndex) {
 
     const massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
-    const radius = dParamWithUnits['launcherMassDriverTubeRadius'].value
+    const radius = dParamWithUnits['launcherMassDriverTubeOuterRadius'].value
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []

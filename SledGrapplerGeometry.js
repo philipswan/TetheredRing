@@ -1,12 +1,10 @@
-import { forEach } from 'lodash';
 import {
   Float32BufferAttribute,
   BufferGeometry,
-  Vector2,
-  Vector3,
-  Quaternion,
-    RGBA_ASTC_6x5_Format
+  Vector3
 } from 'three'
+
+import { CylindricalVector3 } from './tram.js'
 
 import * as Curves from 'three/src/extras/curves/Curves.js';
 
@@ -59,6 +57,7 @@ class SledGrapplerPlacementInfo {
 
   }
 
+  // ToDo: I don't think we need launchSledGrapplerRangeFactor as a parameter. It should be a property of the class.
   generatePlacementInfo(grapplerDistance, launchSledGrapplerRangeFactor) {
     const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
     const betweenGrapplerSpacing = grapplerSpacing * this.betweenGrapplerFactor
@@ -79,26 +78,23 @@ class SledGrapplerPlacementInfo {
       time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
     }
 
-    // Code to calculate how rapidly the graplers are moving at the given grapplerDistance
-    const midGrapplerDistance = this.bodyLength / 2
-    const gPlus_Mid = midGrapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
-    const cC_Mid = this.initialDistance - (this.distanceToSledAft + gPlus_Mid)
-    const deltaAngle = ( -Math.sqrt(cBSqrd - 4*cA*cC)  + Math.sqrt(cBSqrd - 4*cA*cC_Mid)) / (2*cA) * this.revolutionsPerSecond
-
-    const rotations = this.additionalRotation + this.revolutionsPerSecond * time
-    const rotationsTimesThreadStarts = rotations * this.threadStarts
-    const rotationsFrac = rotationsTimesThreadStarts - Math.floor(rotationsTimesThreadStarts)
-    const angleRange1 = 0.5 / this.threadStarts
-    const angleRange2 = 0.125 * this.threadStarts
-    const angleRange3 = 1 - angleRange2
-
     const rateOfChangeInForwardDisplacement = this.initialVelocity + this.acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
     const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
     const rateOfChangeInRotationalDistance2 = 2 * Math.PI * this.threadRadius * Math.abs(this.revolutionsPerSecond)
     const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
     const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
 
-    const rotationsWithTwist = rotations - angleRange1
+    // Code to calculate how rapidly the graplers are moving at the given grapplerDistance
+    //const midGrapplerDistance = this.bodyLength / 2
+    //const gPlus_Mid = midGrapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+    //const cC_Mid = this.initialDistance - (this.distanceToSledAft + gPlus_Mid)
+    //const deltaAngle = ( -Math.sqrt(cBSqrd - 4*cA*cC)  + Math.sqrt(cBSqrd - 4*cA*cC_Mid)) / (2*cA) * this.revolutionsPerSecond
+
+    const rotations = this.additionalRotation + this.revolutionsPerSecond * time
+    // Calculate the maximum theoretical value for rotationAwayFromMidPoint
+    const maxRotationAwayFromMidPoint = 0.5 / this.threadStarts
+
+    const rotationsWithTwist = rotations - maxRotationAwayFromMidPoint
     const rotationsWithTwistFrac = rotationsWithTwist - Math.floor(rotationsWithTwist)
     // Only need the midRib version of the next two signals, but we'll calculate it for all of them for now.
     const rotationsMeasuredInThreadStartsInt = Math.floor(rotationsWithTwistFrac * this.threadStarts)
@@ -107,8 +103,6 @@ class SledGrapplerPlacementInfo {
 
     // Convert the 0 to 1 value to a -0.5 to +0.5 value, annd then scale it down by the number of thread starts
     const rotationAwayFromMidPoint = (rotationsMeasuredInThreadStartsFrac - 0.5) / this.threadStarts
-    // Calculate the maximum theoretical value for rotationAwayFromMidPoint
-    const maxRotationAwayFromMidPoint = 0.5 / this.threadStarts
     // The first range limit is the specified maximum range of motion of the grapplers (a value of +/- 0.5 would represent be "unlimited range of motion").
     const rangeLimit1 = this.launchSledGrapplerMaxRangeOfMotion
     // The second range limit is needed to cause the grappler move from thread to thread even before the grappler's range of motion is exceeded. 
@@ -138,10 +132,7 @@ class SledGrapplerPlacementInfo {
     const averagePitchAngle = (outerThreadPitchAngle + innerThreadPitchAngle) / 2
     const theta = precomputedPartOfAngle1 + this.magnetThickness / 2 / r1 * Math.sin(averagePitchAngle)
     const y = gPlus - this.magnetThickness / 2 * Math.cos(averagePitchAngle)
-    this.offset = new Vector3(r1, y, theta)
-    // These are the points where the grppler struts connect to the grappler pads.
-    // Just two points for now to reduce clutter, but we'll need three or four in practice
-    this.pivotPoints = [new Vector3(r0, y, theta), new Vector3(r2, y, theta)] 
+    this.offset = new CylindricalVector3(r1, theta, y)
   }
 }
 
@@ -164,7 +155,7 @@ class SledGrapplerGeometry extends BufferGeometry {
     shaftToGrapplerPad = 0.01, // m
     additionalRotation  = 0,
     grapplerDistance = 0,
-    offset = new Vector3(0, 0, 0)) {
+    offset = new CylindricalVector3(0, 0, 0)) {
 
     super();
 
@@ -192,27 +183,6 @@ class SledGrapplerGeometry extends BufferGeometry {
     const numGrapplerSegments = 4 // Must be an even number
     const midRib = numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
 
-    // const frames = path.computeFrenetFrames( tubularSegments, closed );
-
-    // expose internals
-
-    // this.tangents = frames.tangents;
-    // this.normals = frames.normals;
-    // this.binormals = frames.binormals;
-
-    // helper variables
-
-    const tubularSegments = 128
-    const radialSegments = 24 / Math.min(threadStarts, 4)
-
-    const vertex = new Vector3()
-    const normal = new Vector3()
-    const uv = new Vector2()
-    const vertexArray = []
-    const uvArray = []
-
-    // buffer
-
     const vertices = []
     const normals = []
     const uvs = []
@@ -229,7 +199,7 @@ class SledGrapplerGeometry extends BufferGeometry {
     this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) )
     this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) )
     this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) )
-    this.userData = {offset: new Vector3(), switchoverSignal: 0, threadPitch: 0}
+    this.userData = {offset: new CylindricalVector3(), switchoverSignal: 0, threadPitch: 0}
 
     // functions
 
@@ -240,7 +210,6 @@ class SledGrapplerGeometry extends BufferGeometry {
       const cA = 0.5 * acceleration
       const cB = initialVelocity
       const cBSqrd = initialVelocity**2
-      const nearTopRange = 0.125 * threadStarts
       const rateOfChangeInRotationalDistance1 = 2 * Math.PI * shaftRadius * Math.abs(revolutionsPerSecond)
       const rateOfChangeInRotationalDistance2 = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
       const gList = []
@@ -250,9 +219,7 @@ class SledGrapplerGeometry extends BufferGeometry {
       const innerThreadPitch = []
       const outerThreadPitch = []
 
-      const angleRange1 = 0.5 / threadStarts
-      const angleRange2 = 0.125 * threadStarts
-      const angleRange3 = 1 - angleRange2
+      const maxRotationAwayFromMidPoint = 0.5 / threadStarts
 
       // Generate the offset to the pad in cylindrical coordinates
 
@@ -274,7 +241,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         rotations[i] = additionalRotation + revolutionsPerSecond * time
         const rotationsTimesThreadStarts = rotations[i] * threadStarts
         rotationsFrac[i] = rotationsTimesThreadStarts - Math.floor(rotationsTimesThreadStarts)
-        const rotationsWithTwist = rotations[i] - angleRange1
+        const rotationsWithTwist = rotations[i] - maxRotationAwayFromMidPoint
         const rotationsWithTwistFrac = rotationsWithTwist - Math.floor(rotationsWithTwist)
         // Only need the midRib version of the next two signals, but we'll calculate it for all of them for now.
         nearestThread[i] = (threadStarts-1) - Math.floor(rotationsWithTwistFrac * threadStarts)
@@ -285,10 +252,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         outerThreadPitch[i] = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
       }
 
-      //if ((rotationsFrac[midRib] < angleRange2) || (rotationsFrac[midRib] > angleRange3)) {
-        generateGrapplerMagneticPad(gList, nearestThread, rotations, innerThreadPitch, outerThreadPitch, magnetThickness)
-        // generateGrapplerStruts
-      //}
+      generateGrapplerMagneticPad(gList, nearestThread, rotations, innerThreadPitch, outerThreadPitch, magnetThickness)
 
       SledGrapplerGeometry.alreadyPrinted = true
     }
@@ -330,10 +294,10 @@ class SledGrapplerGeometry extends BufferGeometry {
           const y = (j==2) ? -magnetThickness * Math.cos(outerThreadPitchAngle): (j==3) ? -magnetThickness * Math.cos(innerThreadPitchAngle) : 0   // Don't like this - doesn't look accurate...
 
           // Save as cylindrical coordinates...
-          const vertexCylindrical = new Vector3()
-          vertexCylindrical.x = r
+          const vertexCylindrical = new CylindricalVector3()
+          vertexCylindrical.r = r
+          vertexCylindrical.θ = theta[j] 
           vertexCylindrical.y = g[i] + y
-          vertexCylindrical.z = theta[j] 
           vertexArrayCylindrical[i*4+j] = vertexCylindrical
         }
       }
@@ -370,15 +334,15 @@ class SledGrapplerGeometry extends BufferGeometry {
 
       for (let i = 0; i<=numGrapplerSegments; i++) {
         for (let j = 0; j<4; j++) {
-          const r = vertexArrayCylindrical[i*4+j].x  // We won't subtract the 'r' offset as this would distort the geometry of the pad.
-          const theta = vertexArrayCylindrical[i*4+j].z - offset.z
+          const r = vertexArrayCylindrical[i*4+j].r  // We won't subtract the 'r' offset as this would distort the geometry of the pad.
+          const theta = vertexArrayCylindrical[i*4+j].θ - offset.θ
           const z = vertexArrayCylindrical[i*4+j].y - offset.y
           const sin = Math.sin(theta)
           const cos = Math.cos(theta)
           const vertex = new Vector3()
           vertex.x = r * (cos * B.x + sin * N.x) + z * T.x
           vertex.y = r * (cos * B.y + sin * N.y) + z * T.y
-          vertex.z = r * (cos * B.z + sin * N.z) + z * T.z - offset.x
+          vertex.z = r * (cos * B.z + sin * N.z) + z * T.z - offset.r
           vertexArray[i*4+j] = vertex
         }
       }

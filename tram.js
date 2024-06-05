@@ -58,6 +58,14 @@ export class cateneryVector {
   }
 }
 
+export class CylindricalVector3 {
+  constructor (r, θ, y) {
+    this.r = r
+    this.θ = θ
+    this.y = y
+  }
+}
+
 export class CatenaryPolarVec3 {
   constructor(r, ω, s, crossSectionalArea) {
     this.r = r            // Distance from the origin (center of planet)
@@ -613,13 +621,12 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['timeWithinMassDriverMinutes'] = {value: timeWithinMassDriverMinutes, units: "minutes"}
   //console.log('timeWithinMassDriverMinutes', timeWithinMassDriverMinutes)
 
-  const launcherScrewRadius = dParamWithUnits['launcherScrewRadius'].value // m
-  const launcherScrewToothRadius = dParamWithUnits['launcherScrewToothRadius'].value // m
+  const launcherMassDriverScrewThreadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value // m
   const launcherScrewRotationRate = dParamWithUnits['launcherScrewRotationRate'].value // rad/s
-  const launcherScrewToothCircumference = 2 * Math.PI * launcherScrewToothRadius
-  const launcherScrewToothSpeed = launcherScrewToothCircumference * launcherScrewRotationRate
-  //console.log('launcherScrewToothSpeed', launcherScrewToothSpeed)
-  specs['launcherScrewToothSpeed'] = {value: launcherScrewToothSpeed, units: "m/s"}
+  const launcherScrewThreadCircumference = 2 * Math.PI * launcherMassDriverScrewThreadRadius
+  const launcherScrewThreadRimSpeed = launcherScrewThreadCircumference * launcherScrewRotationRate
+  //console.log('launcherScrewThreadRimSpeed', launcherScrewThreadRimSpeed)
+  specs['launcherScrewThreadRimSpeed'] = {value: launcherScrewThreadRimSpeed, units: "m/s"}
   // The GE-90 has a fan diameter of 3124 mm and a rotational speed of 3475 RPM. Their circumferential velocity is d·π·57.917 = 568 m/s
   const GE90TurboFanDiameter = 3.124 // m
   const GE90TurboFanRotationRate = 3475 // RPM
@@ -627,7 +634,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['GE90TurboFanCircumferentialVelocity'] = {value: GE90TurboFanCircumferentialVelocity, units: "m/s"}
   //console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
   
-  const launcherScrewThreadPitchAtExit = launcherMassDriverExitVelocity / launcherScrewToothSpeed
+  const launcherScrewThreadPitchAtExit = launcherMassDriverExitVelocity / launcherScrewThreadRimSpeed
   //console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
   //const launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value // m
   const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value // m
@@ -757,7 +764,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   // ToDo: this math could be improved by using more accurate formulas for flywheel engineering
   specs['launcherFlywheelMassPerMeter'] = {value: launcherFlywheelMassPerMeter, units: 'kg/m'}
   //console.log('launcherFlywheelMassPerMeter', launcherFlywheelMassPerMeter)
-  const flywheelToThreadRadiusRatio = launcherFlywheelRadius / launcherScrewToothRadius
+  const flywheelToThreadRadiusRatio = launcherFlywheelRadius / launcherMassDriverScrewThreadRadius
   const flywheelDecelerationRateAtExit = launchSledSidewaysForcePerMeterOfScrewAtExit / flywheelToThreadRadiusRatio / launcherFlywheelMassPerMeter  // m/s^2
   specs['flywheelDecelerationRateAtExit'] = {value: flywheelDecelerationRateAtExit, units: 'm/s2'}
   //console.log('flywheelDecelerationRateAtExit', flywheelDecelerationRateAtExit)
@@ -770,7 +777,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['flywheelInitialRelativeRotationRate'] = {value: flywheelInitialRelativeRotationRate, units: 's-1'}
   //console.log('flywheelInitialRelativeRotationRate', flywheelInitialRelativeRotationRate)
 
-  const flywheelFinalAbsoluteRimSpeed = launcherScrewToothSpeed / launcherScrewToothRadius * launcherFlywheelRadius
+  const flywheelFinalAbsoluteRimSpeed = launcherScrewThreadRimSpeed / launcherMassDriverScrewThreadRadius * launcherFlywheelRadius
   const flywheelInitialAbsoluteRimSpeed = flywheelFinalAbsoluteRimSpeed + flywheelInitialRelativeRimSpeed
   const flywheelKineticEnergyChangePerMeterOfScrewAtExit = 0.5 * launcherFlywheelMassPerMeter * (flywheelInitialAbsoluteRimSpeed**2 - flywheelFinalAbsoluteRimSpeed**2)
   //console.log('flywheelKineticEnergyChangePerMeterOfScrewAtExit', flywheelKineticEnergyChangePerMeterOfScrewAtExit)
@@ -809,7 +816,6 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverConcreteTubeInnerRadius = dParamWithUnits['launcherMassDriverConcreteTubeInnerRadius'].value // m
   const launcherMassDriverConcreteTubeOuterRadius = dParamWithUnits['launcherMassDriverConcreteTubeOuterRadius'].value // m
   const launcherMassDriverConcreteTubeJacketThickness = dParamWithUnits['launcherMassDriverConcreteTubeJacketThickness'].value // m
-  const launcherMassDriverScrewThreadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value // m
   const launcherMassDriverScrewShaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value // m
   const launcherMassDriverScrewShaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value // m
   const launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value // m

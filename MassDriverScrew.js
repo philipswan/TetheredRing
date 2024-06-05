@@ -158,7 +158,7 @@ export class virtualMassDriverScrew {
                         modelRadialSegments,
                         minLengthSegmentsPerMeter)
                     om.children[1].geometry = om.children[0].geometry
-                    const select = (((this.index % 1024) <= 32) && (this.index<256*128)) ? 1 : 0
+                    const select = (((this.index % 1024) <= 32) && (this.index<256*128)) ? 0 : 1
                     om.children[0].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
                     om.children[1].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
                     om.userData = this.index

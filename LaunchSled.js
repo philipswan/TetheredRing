@@ -15,6 +15,7 @@ export class launchSledModel {
     const launchSledNumModels = dParamWithUnits['launchSledNumModels'].value
     const ballJointClearance = dParamWithUnits['launchSledGrapplerBallJointClearance'].value
     const ballJointRadius = dParamWithUnits['launchSledGrapplerBallJointRadius'].value
+    const cylinderRadius = dParamWithUnits['launchSledGrapplerCylinderRadius'].value
 
     // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
     const launchSledBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
@@ -36,8 +37,8 @@ export class launchSledModel {
     function prepareACallbackFunctionForFBXLoader (myScene) {
       // This is the additional work we want to do later, after the loader get's around to loading our model...
       return function(object) {
-        object.children[0].scale.set(0.6, 1, 2)  // A bit hacky - Alastair's sled model is too wide and thin
-        object.children[0].position.set(0, 0, 1400) // reposition vertically after making the sled thicker
+        object.children[0].scale.set(0.6, 1, 6)  // A bit hacky - Alastair's sled model is too wide and thin
+        object.children[0].position.set(0, 0, 1400*4.5) // reposition vertically after making the sled thicker
         object.scale.set(0.001, 0.001, 0.001)  // Correct for units - mm to m
         object.name = 'launchSled_bodyFromModel'
         object.children[0].material.color.setHex(0x2f1f50)
@@ -82,69 +83,86 @@ export class launchSledModel {
       const lastGrapplerDistance = bodyLength
       const grapplerSpacing = 1.0 / numGrapplers * bodyLength
       
-      for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
-        const grapplerGroup = new THREE.Group()
-        grapplerGroup.name = 'grappler'
-        grapplerGroup.userData = i  // Save the index of the grappler here
-        launchSledMesh.add(grapplerGroup)
-        for (let leftRight = -1; leftRight<=1; leftRight+=2) {
-          const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture)
+      const midwayPositionList = ['top', 'bottom']
+      midwayPositionList.forEach(midwayPosition => {
+        const midwayRotation = (midwayPosition==='top') ? 0.5 : 0
+        for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+          const grapplerGroup = new THREE.Group()
+          grapplerGroup.name = 'grappler'
+          grapplerGroup.userData = {index: i, midwayRotation: midwayRotation}  // Save the index of the grappler here
+          launchSledMesh.add(grapplerGroup)
+
+          const launchSledGrapplerMesh = createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, midwayRotation, grapplerDistance, massDriverScrewTexture)
           launchSledGrapplerMesh.name = 'grappler'
-          launchSledGrapplerMesh.userData = leftRight
-          launchSledGrapplerMesh.scale.set(-leftRight, 1, 1)
-          grapplerGroup.add(launchSledGrapplerMesh.clone())
-        }
-        const launchSledPivotGeometry = new THREE.SphereGeometry(ballJointRadius, 16, 8)
-        const launchSledPivotMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
-        const launchSledPivot = new THREE.Mesh(launchSledPivotGeometry, launchSledPivotMaterial)
 
-        // Hack - Adding 2 cm so that there's no gap between the pad and the post
-        const postLength = .02 + ballJointClearance + ballJointRadius*5
-        const launchSledPostGeometry = new THREE.CylinderGeometry(ballJointRadius/2, ballJointRadius/2, postLength, 16, 1)
-        launchSledPostGeometry.translate(0, postLength/2, 0)
-        const launchSledPostMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
-        const launchSledPost = new THREE.Mesh(launchSledPostGeometry, launchSledPostMaterial)
+          const launchSledPivotGeometry = new THREE.SphereGeometry(ballJointRadius, 16, 8)
+          const launchSledPivotMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+          const launchSledPivot = new THREE.Mesh(launchSledPivotGeometry, launchSledPivotMaterial)
+          launchSledPivot.name = 'pivot'
 
-        // Hack - need to calculate the length properly...
-        // Hack - Added a 1.25 factor to make the strut a little longer
-        const strutLength = (dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value + dParamWithUnits['launcherMassDriverScrewThreadRadius'].value * 1.25 - dParamWithUnits['launchSledWidth'].value / 2) / 2
-        const launchSledStrutGeometry = new THREE.CylinderGeometry(ballJointRadius/2, ballJointRadius/2, strutLength, 16, 1)
-        launchSledStrutGeometry.translate(0, strutLength/2, 0)
-        const launchSledStrutMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
-        const launchSledStrut = new THREE.Mesh(launchSledStrutGeometry, launchSledStrutMaterial)
-        
-        const cylinderLength = strutLength
-        const launchSledCylinderGeometry = new THREE.CylinderGeometry(ballJointRadius, ballJointRadius, cylinderLength, 16, 1)
-        launchSledCylinderGeometry.translate(0, cylinderLength/2, 0)
-        const launchSledCylinderMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
-        const launchSledCylinder = new THREE.Mesh(launchSledCylinderGeometry, launchSledCylinderMaterial)
-        
-        const leftRightList = ['left', 'right']
-        const innerOuterList = ['Inner', 'Middle', 'Outer']
-        leftRightList.forEach(leftRight => {
-          innerOuterList.forEach(innerOuter => {
-            const tempPivot = launchSledPivot.clone()
-            tempPivot.name = 'pivot'
-            tempPivot.userData = {leftRightSign: (leftRight==='left') ? -1 : 1, innerMiddleOuterSign: (innerOuter==='Inner') ? -1 : (innerOuter==='Middle') ? 0 : 1}  
-            grapplerGroup.add(tempPivot)
-            const tempPost = launchSledPost.clone()
-            tempPost.name = 'post'
-            tempPost.userData = {leftRightSign: (leftRight==='left') ? -1 : 1}
-            grapplerGroup.add(tempPost)
-            const tempStrut = launchSledStrut.clone()
-            tempStrut.name = 'strut'
-            tempStrut.userData = {leftRightSign: (leftRight==='left') ? -1 : 1, innerMiddleOuterSign: (innerOuter==='Inner') ? -1 : (innerOuter==='Middle') ? 0 : 1}
-            grapplerGroup.add(tempStrut)
-            const tempCylinder = launchSledCylinder.clone()
-            tempCylinder.name = 'cylinder'
-            tempCylinder.userData = {leftRightSign: (leftRight==='left') ? -1 : 1, innerMiddleOuterSign: (innerOuter==='Inner') ? -1 : (innerOuter==='Middle') ? 0 : 1}
-            grapplerGroup.add(tempCylinder)
+          // Hack - Adding 2 cm so that there's no gap between the pad and the post
+          const postLength = .02 + ballJointClearance + ballJointRadius*5
+          const launchSledPostGeometry = new THREE.CylinderGeometry(ballJointRadius/2, ballJointRadius/2, postLength, 16, 1)
+          launchSledPostGeometry.translate(0, postLength/2, 0)
+          const launchSledPostMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+          const launchSledPost = new THREE.Mesh(launchSledPostGeometry, launchSledPostMaterial)
+          launchSledPost.name = 'post'
+
+          // Hack - need to calculate the length properly...
+          // Hack - Added a 1.25 factor to make the strut a little longer
+          const strutLength = (dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value + dParamWithUnits['launcherMassDriverScrewThreadRadius'].value * 1.25 - dParamWithUnits['launchSledWidth'].value / 2) / 2
+          const launchSledStrutGeometry = new THREE.CylinderGeometry(cylinderRadius/2, cylinderRadius/2, strutLength, 16, 1)
+          launchSledStrutGeometry.translate(0, strutLength/2, 0)
+          const launchSledStrutMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+          const launchSledStrut = new THREE.Mesh(launchSledStrutGeometry, launchSledStrutMaterial)
+          launchSledStrut.name = 'strut'
+          
+          const cylinderLength = strutLength
+          const launchSledCylinderGeometry = new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, cylinderLength, 16, 1)
+          launchSledCylinderGeometry.translate(0, cylinderLength/2, 0)
+          const launchSledCylinderMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
+          const launchSledCylinder = new THREE.Mesh(launchSledCylinderGeometry, launchSledCylinderMaterial)
+          launchSledCylinder.name = 'cylinder'
+          
+          const leftRightList = ['left', 'right']
+          const innerOuterList = ['Inner', 'Middle', 'Outer']
+          leftRightList.forEach(leftRight => {
+            const leftRightSign = (leftRight==='left') ? -1 : 1
+            const tempLaunchSledGrapplerMesh = launchSledGrapplerMesh.clone()
+            tempLaunchSledGrapplerMesh.userData = {leftRightSign: leftRightSign}
+            tempLaunchSledGrapplerMesh.scale.set(-leftRightSign, 1, 1)
+            grapplerGroup.add(tempLaunchSledGrapplerMesh)
+
+            innerOuterList.forEach(innerOuter => {
+              const innerMiddleOuterSign1 = (innerOuter==='Inner') ? -2 : (innerOuter==='Middle') ? 0.5 : 2
+              const innerMiddleOuterSign2 = (innerOuter==='Inner') ? -2 : (innerOuter==='Middle') ? -1 : 2
+              const tempPivot = launchSledPivot.clone()
+              tempPivot.userData = {leftRightSign: leftRightSign, innerMiddleOuterSign1: innerMiddleOuterSign1}  
+              grapplerGroup.add(tempPivot)
+              const tempPost = launchSledPost.clone()
+              tempPost.userData = {leftRightSign: leftRightSign}
+              grapplerGroup.add(tempPost)
+              const tempStrut = launchSledStrut.clone()
+              tempStrut.userData = {
+                topBottomOffset: (midwayPosition==='top') ? -1: 1,
+                leftRightSign: leftRightSign,
+                innerMiddleOuterSign1: innerMiddleOuterSign1,
+                innerMiddleOuterSign2: innerMiddleOuterSign2}
+              grapplerGroup.add(tempStrut)
+              const tempCylinder = launchSledCylinder.clone()
+              tempCylinder.userData = {
+                topBottomOffset: (midwayPosition==='top') ? -1: 1,
+                leftRightSign: leftRightSign,
+                innerMiddleOuterSign1: innerMiddleOuterSign1,
+                innerMiddleOuterSign2: innerMiddleOuterSign2}
+              grapplerGroup.add(tempCylinder)
+            })
           })
-        })
-      }
+        }
+      })
     }
 
-    function createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, grapplerDistance, massDriverScrewTexture) {
+    function createSledGrapplerMesh(dParamWithUnits, distanceToSledAft, bodyLength, midwayRotation, grapplerDistance, massDriverScrewTexture) {
       // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
       // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
       // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
@@ -245,7 +263,7 @@ export class virtualLaunchSled {
   
     static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
       virtualLaunchSled.clock = clock
-      virtualLaunchSled.updatePeriod = .5  // seconds
+      virtualLaunchSled.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)
   
       virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
       virtualLaunchSled.launcherMassDriverLength = launcherMassDriverLength
@@ -273,6 +291,8 @@ export class virtualLaunchSled {
       virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
       virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
       virtualLaunchSled.launcherMassDriverScrewShaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
+      virtualLaunchSled.intraAnchorUpwardsSeparation = dParamWithUnits['launchSledIntraAnchorUpwardsSeparation'].value // We could make this the function of launcherMassDriverScrewThreadRadius and the launchSledGrapplerClearanceFactor
+      virtualLaunchSled.interAnchorUpwardsSeparation = dParamWithUnits['launchSledInterAnchorUpwardsSeparation'].value
       virtualLaunchSled.launcherMassDriverScrewThreadRadius =  dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
       virtualLaunchSled.launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
       virtualLaunchSled.launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
@@ -328,8 +348,9 @@ export class virtualLaunchSled {
         const threadThickness = virtualLaunchSled.launcherMassDriverScrewThreadThickness
         const shaftOuterRadius = virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
         const shaftInnerRadius = virtualLaunchSled.launcherMassDriverScrewShaftInnerRadius
-        const upwardsOffsetToAnchors = virtualLaunchSled.upwardsOffset - 1.35
-        const anchorUpwardsSeparation = 0.1 //virtualLaunchSled.anchorUpwardsSeparation
+        const upwardsOffsetToAnchors = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset // Anchors' upward position will track the screws'
+        const intraAnchorUpwardsSeparation = virtualLaunchSled.intraAnchorUpwardsSeparation
+        const interAnchorUpwardsSeparation = virtualLaunchSled.interAnchorUpwardsSeparation
         const screwSidewaysOffset = virtualLaunchSled.launcherMassDriverScrewSidewaysOffset
         const screwUpwardsOffset = virtualLaunchSled.launcherMassDriverScrewUpwardsOffset
         const numGrapplers = virtualLaunchSled.launchSledNumGrapplers
@@ -354,7 +375,6 @@ export class virtualLaunchSled {
   
         let grapplerGeometry = []
         let grapplerOffset = []
-        let grapplerPivotPoints = []
         let grapplerSwitchoverSignal = []
         let grapplerThreadPitch = []
   
@@ -386,7 +406,6 @@ export class virtualLaunchSled {
         for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
           info.generatePlacementInfo(grapplerDistance, virtualLaunchSled.launchSledGrapplerRangeFactor)
           grapplerOffset[i] = info.offset
-          grapplerPivotPoints[i] = info.pivotPoints
           grapplerSwitchoverSignal[i] = info.switchoverSignal
           grapplerThreadPitch[i] = info.threadPitch
           if (updateNow) {
@@ -426,7 +445,8 @@ export class virtualLaunchSled {
 
             // ToDo: Now that we're using unit vectors internally, we should be able to improve the performance of this code
     
-            const grapplerIndex = child.userData
+            const grapplerIndex = child.userData.index
+            const midwayRotation = child.userData.midwayRotation
             const offset = grapplerOffset[grapplerIndex]
             // Engage the grapplers only if we're on the part of the curve path that has the twin-screws
             const switchoverSignal = (res.relevantCurve.name=='massDriver2Curve') ? grapplerSwitchoverSignal[grapplerIndex]: 1
@@ -453,12 +473,13 @@ export class virtualLaunchSled {
             const grapplerScrewAngle = Math.atan(threadPitch)
             const padLiftActuationThetaComponent = padLiftActuation * Math.sin(grapplerScrewAngle)
             const padLiftActuationYComponent = padLiftActuation * Math.cos(grapplerScrewAngle)
-            const rOffset = offset.x + padRadialActuation
+            const rOffset = offset.r + padRadialActuation
 
-            const rawTheta = offset.z
+            const rawTheta = offset.θ
+            const midTheta = 2*Math.PI * midwayRotation
             const thetaOffset = ((rawTheta + 3*Math.PI) % (2*Math.PI) - Math.PI) * padThetaFactor + padLiftActuationThetaComponent
-            const sinThetaOffset = Math.sin(thetaOffset)
-            const cosThetaOffset = Math.cos(thetaOffset)
+            const sinThetaOffset = Math.sin(thetaOffset + midTheta)
+            const cosThetaOffset = Math.cos(thetaOffset + midTheta)
 
             // Precalculated values for all pivot points...
             const rOffsetPlus = rOffset + padCenterToEdge + ballJointClearance + ballJointRadius * 3
@@ -466,7 +487,7 @@ export class virtualLaunchSled {
 
             child.children.forEach(grapplerComponent => {
               if (grapplerComponent.name==='launchSled_grappler') {
-                const leftRightSign = grapplerComponent.userData
+                const leftRightSign = grapplerComponent.userData.leftRightSign
                 if (updateNow) {
                   grapplerComponent.geometry.dispose()
                   grapplerComponent.geometry = grapplerGeometry[grapplerIndex]
@@ -479,14 +500,14 @@ export class virtualLaunchSled {
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
                 grapplerComponent.setRotationFromQuaternion(internalOrientation)
-                grapplerComponent.rotateY(leftRightSign*thetaOffset)
+                grapplerComponent.rotateY(leftRightSign*thetaOffset + midTheta)
                 grapplerComponent.rotateZ(-leftRightSign*padTwistActuation)
               }
               else if (grapplerComponent.name==='launchSled_pivot') {
                 // Update the positions of the ends of the struts that are attached to the grapplers
                 const leftRightSign = grapplerComponent.userData.leftRightSign
-                const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
-                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*ballJointRadius*2
+                const innerMiddleOuterSign1 = grapplerComponent.userData.innerMiddleOuterSign1
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign1*ballJointRadius
                 const xOffset = rOffsetPlusMinus * -sinThetaOffset
                 const zOffset = rOffsetPlusMinus * cosThetaOffset
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
@@ -499,7 +520,6 @@ export class virtualLaunchSled {
               else if (grapplerComponent.name==='launchSled_post') {
                 // Update the positions of the ends of the post that connects the pads to the pivots
                 const leftRightSign = grapplerComponent.userData.leftRightSign
-                const innerMiddleOuterSign = 1
                 const rOffsetPlusMinus0 = rOffset + padCenterToEdge
                 const xOffset0 = rOffsetPlusMinus0 * -sinThetaOffset
                 const zOffset0 = rOffsetPlusMinus0 * cosThetaOffset
@@ -524,11 +544,13 @@ export class virtualLaunchSled {
                 q0.setFromUnitVectors(grapplerComponent.up, tangent)
                 grapplerComponent.setRotationFromQuaternion(q0)
               }
-              else if (grapplerComponent.name==='launchSled_strut') {
+              else if (grapplerComponent.name==='launchSled_strut') {  // Strut means the piston part
                 // Update the positions of the ends of the struts that are attached to the grapplers
+                const topBottomOffset = grapplerComponent.userData.topBottomOffset
                 const leftRightSign = grapplerComponent.userData.leftRightSign
-                const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
-                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*ballJointRadius*2
+                const innerMiddleOuterSign1 = grapplerComponent.userData.innerMiddleOuterSign1
+                const innerMiddleOuterSign2 = grapplerComponent.userData.innerMiddleOuterSign2
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign1*ballJointRadius
                 const xOffset = rOffsetPlusMinus * -sinThetaOffset
                 const zOffset = rOffsetPlusMinus * cosThetaOffset
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
@@ -538,22 +560,23 @@ export class virtualLaunchSled {
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
 
-                const forwardAnchorOffset = (innerMiddleOuterSign==0) ? grapplerSpacing/2 : 0
                 const anchorPoint = internalPosition.clone()
                   .add(internalRightward.clone().multiplyScalar(leftRightSign*launchSledWidthDiv2))
-                  .add(internalUpward.clone().multiplyScalar(upwardsOffsetToAnchors + innerMiddleOuterSign*anchorUpwardsSeparation))
-                  .add(internalForward.clone().multiplyScalar(offset.y + forwardAnchorOffset))
+                  .add(internalUpward.clone().multiplyScalar(upwardsOffsetToAnchors + topBottomOffset*intraAnchorUpwardsSeparation + topBottomOffset*innerMiddleOuterSign2*interAnchorUpwardsSeparation ))
+                  .add(internalForward.clone().multiplyScalar(offset.y))
                 // Create a unit vector towards the anchorPoint
                 const q1 = new THREE.Quaternion
                 const tangent = anchorPoint.clone().sub(grapplerComponent.position).normalize()
                 q1.setFromUnitVectors(grapplerComponent.up, tangent)
                 grapplerComponent.setRotationFromQuaternion(q1)
               }
-              else if (grapplerComponent.name==='launchSled_cylinder') {
+              else if (grapplerComponent.name==='launchSled_cylinder') {  // cylinder means the piston cylinder part
                 // Update the positions of the ends of the cylinders that are attached to the grapplers
+                const topBottomOffset = grapplerComponent.userData.topBottomOffset
                 const leftRightSign = grapplerComponent.userData.leftRightSign
-                const innerMiddleOuterSign = grapplerComponent.userData.innerMiddleOuterSign
-                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign*ballJointRadius*2
+                const innerMiddleOuterSign1 = grapplerComponent.userData.innerMiddleOuterSign1
+                const innerMiddleOuterSign2 = grapplerComponent.userData.innerMiddleOuterSign2
+                const rOffsetPlusMinus = rOffsetPlus + innerMiddleOuterSign1*ballJointRadius
                 const xOffset = rOffsetPlusMinus * -sinThetaOffset
                 const zOffset = rOffsetPlusMinus * cosThetaOffset
                 const yOffset = offset.y - padLiftActuationYComponent + pivotPointYComponent
@@ -563,11 +586,10 @@ export class virtualLaunchSled {
                   .add(internalUpward.clone().multiplyScalar(grapplerUpwardsOffset + zOffset))
                   .add(internalForward.clone().multiplyScalar(yOffset))
 
-                const forwardAnchorOffset = (innerMiddleOuterSign==0) ? grapplerSpacing/2 : 0
                 grapplerComponent.position.copy(internalPosition)
                   .add(internalRightward.clone().multiplyScalar(leftRightSign*launchSledWidthDiv2))
-                  .add(internalUpward.clone().multiplyScalar(upwardsOffsetToAnchors + innerMiddleOuterSign*anchorUpwardsSeparation))
-                  .add(internalForward.clone().multiplyScalar(offset.y + forwardAnchorOffset))
+                  .add(internalUpward.clone().multiplyScalar(upwardsOffsetToAnchors + topBottomOffset*intraAnchorUpwardsSeparation + topBottomOffset*innerMiddleOuterSign2*interAnchorUpwardsSeparation))
+                  .add(internalForward.clone().multiplyScalar(offset.y))
 
                 // Create a unit vector towards the anchorPoint
                 const q1 = new THREE.Quaternion

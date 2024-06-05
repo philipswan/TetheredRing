@@ -164,7 +164,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 3
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -273,7 +273,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['logZoomRate'].value = -3
 
     // Launcher parameters
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 4
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .5
     guidParamWithUnits['launcherMassDriverAltitude'].value = 800
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -371,7 +371,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['logZoomRate'].value = -3
 
     // Launcher parameters
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 4
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .5
     guidParamWithUnits['launcherMassDriverAltitude'].value = 800
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -744,7 +744,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['cameraFieldOfView'].value = 20
 
     // Launcher parameters
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 4
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .5
     guidParamWithUnits['launcherMassDriverAltitude'].value = 800
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -838,7 +838,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 500
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 500
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
     //guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -913,7 +913,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 500
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 500
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
     //guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -998,7 +998,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
     //guidParamWithUnits['launchSledUpwardsOffset'].value = 
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 1000
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 1000
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
@@ -1171,7 +1171,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 3
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
     guidParamWithUnits['numVirtualLaunchSleds'].value = 6
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
@@ -1455,7 +1455,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 100
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
@@ -1627,7 +1627,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 3
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
     guidParamWithUnits['numVirtualLaunchSleds'].value = 6
     guidParamWithUnits['launchVehicleRadius'].value = 1.5
@@ -1943,7 +1943,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 0.45
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 0.45
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launchVehicleRadius'].value = 1.5
@@ -2076,7 +2076,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 3
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 3
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
     guidParamWithUnits['numVirtualLaunchSleds'].value = 6
     guidParamWithUnits['launchVehicleRadius'].value = 1.5
@@ -2234,7 +2234,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     guidParamWithUnits['launchVehicleScaleFactor'].value = 200
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeRadius'].value = 100
+    guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 100
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
     guidParamWithUnits['numVirtualLaunchSleds'].value = 1
     guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2

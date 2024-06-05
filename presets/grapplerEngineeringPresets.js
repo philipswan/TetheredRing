@@ -61,7 +61,7 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
 
   guidParamWithUnits['launchVehicleScaleFactor'].value = 1
   guidParamWithUnits['launchSledScaleFactor'].value = 1
-  guidParamWithUnits['launcherMassDriverTubeRadius'].value = 10
+  guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 5
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   guidParamWithUnits['launcherFeederRailLength'].value = 0
