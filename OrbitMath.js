@@ -79,16 +79,25 @@ export function define_kepler_U() {
     // Iterate on Equation 3.62 until convergence occurs within the error tolerance
     let n = 0
     let ratio = 1
+    const sqrtMu = Math.sqrt(this.mu)
+    const sqrtMuTimesDt = sqrtMu * dt
+    const roTimesvroDivSqrtMu = ro * vro / sqrtMu
+    const oneMinusATimesRo = 1 - a * ro
 
     while ((Math.abs(ratio) > error) && (n <= nMax)) {
       n = n + 1
-      C = this.stumpC(a * x**2)
-      S = this.stumpS(a * x**2)
-      F = ro * vro / Math.sqrt(this.mu) * x**2 * C + (1 - a * ro) * x*x*x * S + ro * x - Math.sqrt(this.mu)*dt
-      dFdx = ro * vro / Math.sqrt(this.mu) * x * (1 - a * x**2 * S) + (1 - a * ro) * x**2 * C + ro
+      const xSqrd = x*x
+      const aTimesXSqrd = a * xSqrd
+      C = this.stumpC(aTimesXSqrd)
+      S = this.stumpS(aTimesXSqrd)
+      const xSqrdTimesC = xSqrd * C
+      const xSqrdTimesS = xSqrd * S
+      F = roTimesvroDivSqrtMu * xSqrdTimesC + oneMinusATimesRo * xSqrdTimesS * x + ro * x - sqrtMuTimesDt
+      dFdx = roTimesvroDivSqrtMu * x * (1 - a * xSqrdTimesS) + oneMinusATimesRo * xSqrdTimesC + ro
       ratio = F / dFdx
       x = x - ratio
     }
+
     return x
   }
 }
