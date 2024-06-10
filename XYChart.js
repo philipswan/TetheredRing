@@ -203,6 +203,11 @@ export class XYChart {
   }
 
   addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName, curveMaxY = null) {
+
+    if (curveXYPoints.length === 0) {
+      console.error('No points provided for '+curveName+'.')
+      return
+    }
     let maxX = 0.001
     let maxY = 0.001
     let maxZ = 0.001
