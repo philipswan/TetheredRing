@@ -26,12 +26,12 @@ export class massDriverBracketModel {
         const modelRadialSegments = 32
         const shape = new THREE.Shape()
         // The bracket shape is centered on the middle of the rail (for now) so we need to subtract railUpwardsOffset from all the points
-        shape.moveTo( railWidth/2, -railHeight/2 )
-        // Create an arc length tubeOuterRadius - ribWidth, from x = railWidth/2 to y = screwUpwardsOffset - bracketHeight/2
+        shape.moveTo( railWidth/4, -railHeight/2 )
+        // Create an arc length tubeOuterRadius - ribWidth, from x = railWidth/# to y = screwUpwardsOffset - bracketHeight/2
         const innerRibRadius = tubeOuterRadius - tubeThickness - ribWidth
         const outerRibRadius = tubeOuterRadius - tubeThickness
         // Counter-clockwise from right side of the base of rail support to bottom of right screw support
-        const arc1StartAngle = -Math.acos(railWidth/2/innerRibRadius)
+        const arc1StartAngle = -Math.acos(railWidth/4/innerRibRadius)
         const arc1EndAngle = Math.asin((screwUpwardsOffset - bracketHeight/2)/innerRibRadius)
         for (let i = 0; i<=16; i++) {
           const a = arc1StartAngle + i*(arc1EndAngle-arc1StartAngle)/16
@@ -60,14 +60,13 @@ export class massDriverBracketModel {
         }
         // Counter-clockwise from bottom of right screw support to the left side of the rail support
         const arc3StartAngle = -Math.PI - Math.asin((screwUpwardsOffset - bracketHeight/2) / innerRibRadius) 
-        const arc3EndAngle = -Math.PI + Math.acos(railWidth/2/innerRibRadius)
-        console.log(arc3StartAngle, arc3EndAngle, Math.acos(railWidth/2/innerRibRadius)/Math.PI/2)
+        const arc3EndAngle = -Math.PI + Math.acos(railWidth/4/innerRibRadius)
         for (let i = 0; i<=16; i++) {
           const a = arc3StartAngle + i*(arc3EndAngle-arc3StartAngle)/16
           shape.lineTo( innerRibRadius*Math.cos(a), innerRibRadius*Math.sin(a)-railUpwardsOffset )
         }
-        shape.lineTo(-railWidth/2, -railHeight/2)
-        shape.lineTo(+railWidth/2, -railHeight/2)
+        shape.lineTo(-railWidth/4, -railHeight/2)
+        shape.lineTo(+railWidth/4, -railHeight/2)
 
         // Now we need a reference point in the middle of this segment of the whole mass driver
         const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
