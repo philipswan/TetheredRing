@@ -6,10 +6,12 @@ export class massDriverTubeModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, curve, segmentIndex) {
+  constructor() {}
+  
+  createModel(dParamWithUnits, curve, segmentIndex) {
 
     const massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
-    const radius = dParamWithUnits['launcherMassDriverTubeOuterRadius'].value
+    const radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []
@@ -50,6 +52,25 @@ export class massDriverTubeModel {
 
     return massDriverTubeMesh
   }
+
+  genSpecs(dParamWithUnits, specs) {
+    const launcherMassDriverTubeInnerRadius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
+    const launcherMassDriverTubeWallThickness = dParamWithUnits['launcherMassDriverTubeLinerThickness'].value
+    const launcherMassDriverTubeLinerThickness = dParamWithUnits['launcherMassDriverTubeLinerThickness'].value
+    // Let's assume that we want the tube to be buoyant. We'll use tension lines to moore it to the sea floor.
+    // We need enough concrete to provide stuctural rigidity.
+
+    const launcherMassDriverTubeMaterial0Density = dParamWithUnits['launcherMassDriverTubeMaterial0Density'].value
+    const launcherMassDriverTubeMaterial0Cost = dParamWithUnits['launcherMassDriverTubeMaterial0Cost'].value
+    const launcherMassDriverTubeMaterial1Density = dParamWithUnits['launcherMassDriverTubeMaterial1Density'].value
+    const launcherMassDriverTubeMaterial1Cost = dParamWithUnits['launcherMassDriverTubeMaterial1Cost'].value
+
+    const massDriverTubeWallCrosssectionalArea = Math.PI * ((launcherMassDriverTubeInnerRadius+launcherMassDriverTubeWallThickness)**2 - launcherMassDriverTubeInnerRadius**2)
+    const massDriverTubeLinerCrosssectionalArea = Math.PI * ((launcherMassDriverTubeInnerRadius+launcherMassDriverTubeWallThickness+launcherMassDriverTubeLinerThickness)**2 - (launcherMassDriverTubeInnerRadius+launcherMassDriverTubeWallThickness)**2)
+    specs['massDriverTubeWallCrosssectionalArea'] = {value: massDriverTubeWallCrosssectionalArea, units: "m2"}
+    specs['massDriverTubeLinerCrosssectionalArea'] = {value: massDriverTubeLinerCrosssectionalArea, units: "m2"}
+  }
+
 }
 
 export class virtualMassDriverTube {

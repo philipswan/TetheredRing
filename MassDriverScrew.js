@@ -3,11 +3,15 @@ import { ScrewGeometry } from './ScrewGeometry.js'
 import * as tram from './tram.js'
 
 export class massDriverScrewModel {
+
+    constructor() {
+    }
+
     // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
     // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
     // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
     // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-    constructor(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials, highRes = false) {
+    createModel(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, massDriverScrewMaterials, highRes = false) {
 
         if (highRes) {
           console.log('High Res Mass Driver Screw')
@@ -53,6 +57,32 @@ export class massDriverScrewModel {
         const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterials[segmentIndex%2])
 
         return massDriverScrewMesh
+    }
+
+    genSpecs(dParamWithUnits, specs) {
+
+      const shaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+      const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
+      const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+      const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+      const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
+      const screwRoughLength = dParamWithUnits['launcherMassDriverScrewRoughLength'].value
+
+      const shaftInnerArea = Math.PI * shaftInnerRadius**2
+      const shaftOuterArea = Math.PI * shaftOuterRadius**2
+      const threadHeight = threadRadius - shaftOuterRadius
+      
+      const massDriverScrewCrosssectionalArea = shaftOuterArea - shaftInnerArea + threadHeight * threadThickness * threadStarts
+      specs['massDrivermassDriverScrewCrosssectionalArea'] = {value: massDriverScrewCrosssectionalArea, units: "m2"}
+      const massDriverScrewVolume = massDriverScrewCrosssectionalArea * screwRoughLength
+      specs['massDriverScrewVolume'] = {value: massDriverScrewVolume, units: "m3"}
+      const densityOfMaterial = dParamWithUnits['launcherMassDriverScrewBracketDensity'].value
+      const massDriverScrewMass = massDriverScrewVolume * densityOfMaterial
+      specs['massDriverScrewMass'] = {value: massDriverScrewMass, units: "kg"}
+      const costOfMaterial = dParamWithUnits['launcherMassDriverScrewBracketMaterialCost'].value
+      const screwCost = massDriverScrewMass * costOfMaterial
+      specs['massDriverScrewMaterialCost'] = {value: screwCost, units: "USD"}  
+
     }
 }
 

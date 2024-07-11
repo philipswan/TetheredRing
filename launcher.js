@@ -13,6 +13,7 @@ import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.
 import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
+import * as EngineeringDetails from './EngineeringDetails.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
@@ -171,12 +172,13 @@ export class launcher {
     this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
     const screwModels = new THREE.Group()
+    const screwModelObject = new massDriverScrewModel()
     screwModels.name = 'massDriverScrews'
     screwModels.userData = -1  // This is the index of the model starting from the breach of the mass driver. -1 is an invalid index which will force the model to be regenerated.
     const tempIndex = 0
-    const leftModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, false)
+    const leftModel = screwModelObject.createModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, false)
     if (dParamWithUnits['saveMassDriverScrewSTL'].value) {
-      const saveModel = new massDriverScrewModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, true)
+      const saveModel = screwModelObject.createModel(dParamWithUnits, this.launcherMassDriver2Length, this.massDriverScrewSegments, tempIndex, this.massDriverScrewMaterials, true)
       this.saveGeometryAsSTL(saveModel, 'massDriverScrew.stl')
     }
     leftModel.userData = 0
@@ -190,7 +192,8 @@ export class launcher {
 
     // Create bracket models
     for (let i = 0; i<1; i++) {
-      const tempModel = new massDriverBracketModel(dParamWithUnits, this.massDriver2Curve, this.launcherMassDriver2Length, (this.massDriverScrewSegments+1), i)
+      const tempObject = new massDriverBracketModel()
+      const tempModel = tempObject.createMesh(dParamWithUnits, this.massDriver2Curve, this.launcherMassDriver2Length, (this.massDriverScrewSegments+1), i)
       tempModel.name = 'massDriver2Bracket'
       this.unallocatedMassDriver2BracketModels.push(tempModel)
     }
@@ -426,7 +429,8 @@ export class launcher {
         for (let i = 0; i < n; i++) {
           const d = (i+0.5)/n
           const vmdt = new virtualMassDriverTube(d, this.unallocatedMassDriverTubeModels)
-          vmdt.model = new massDriverTubeModel(dParamWithUnits, refFrame.curve, i)
+          const tubeModelObject = new massDriverTubeModel()
+          vmdt.model = tubeModelObject.createModel(dParamWithUnits, refFrame.curve, i)
           vmdt.model.name = 'massDriverTube'
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
           if (zoneIndex>=this.numZones) {
@@ -572,7 +576,7 @@ export class launcher {
     this.launchTrajectoryMarker6.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
 
     // Update 2D chart
-    this.xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
+    this.xyChart.visible = dParamWithUnits['showXYChart'].value
 
   }
 
@@ -586,7 +590,7 @@ export class launcher {
 
     let prevVehiclePosition, currVehiclePosition
     
-    let tStep = 0.1 // second
+    let tStep = 1 // second
     let deltaT = 0
     let res, relevantCurve, i
 
@@ -607,13 +611,17 @@ export class launcher {
       res = this.polyCurveForrf3.findRelevantCurve(deltaT)
       relevantCurve = res.relevantCurve
       //d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-      const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+      //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+      //const t = deltaT - res.relevantCurveStartTime
+      const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
       try {
-        currVehiclePosition = relevantCurve.getPoint(i).sub(refPosition)
+        //currVehiclePosition = relevantCurve.getPoint(t).sub(refPosition)
+        currVehiclePosition = relevantCurve.getPointAt(d).sub(refPosition)
       }
       catch (e) {
         console.log(e)
-        currVehiclePosition = relevantCurve.getPoint(i).sub(refPosition)
+        //currVehiclePosition = relevantCurve.getPoint(t).sub(refPosition)
+        currVehiclePosition = relevantCurve.getPointAt(d).sub(refPosition)
       } 
       launchTrajectoryPoints.push(prevVehiclePosition)
       launchTrajectoryPoints.push(currVehiclePosition)
@@ -1096,4 +1104,5 @@ launcher.prototype.getAltitudeDistanceAndVelocity = OrbitMath.define_getAltitude
 launcher.prototype.getAirDensity = OrbitMath.define_getAirDensity()
 launcher.prototype.getAerodynamicDrag = OrbitMath.define_getAerodynamicDrag()
 launcher.prototype.saveGeometryAsSTL = SaveGeometryAsSTL.define_SaveGeometryAsSTL()
+launcher.prototype.genLauncherSpecs = EngineeringDetails.define_genLauncherSpecs()
 

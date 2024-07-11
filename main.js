@@ -320,11 +320,12 @@ const guidParamWithUnits = {
   solarArrayUpwardOffset: {value: -50, units: "m", autoMap: true, min: -100, max: 100, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},
   
   // Engineering Parameters - Launch System - Performance
+  evacuatedTubeEntrancePositionAroundRing: {value: 0.76081, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMaxEyesInAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherRampTurningRadius: {value: 5000, units: 'm*s-2', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampTurningRadius: {value: 5000, units: 'm', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherGroundAssistLaunchMode: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
@@ -340,19 +341,15 @@ const guidParamWithUnits = {
   launchVehicleSeaLevelRocketExhaustVelocity: {value: 3590, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleVacuumRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehiclePropellantMass: {value: 9500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  
-  launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleDesiredOrbitalAltitude: {value: 420000, units: 'm', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
-
+  launchVehicleEffectiveRadius: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchVehiclePropellantMassFlowRate: {value: 20, units: 'kg/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleAdaptiveThrust: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherCoastTime: {value: 1250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherXyChartMaxT: {value: 450, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   
@@ -367,11 +364,13 @@ const guidParamWithUnits = {
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleFlameLength: {value: 15, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  // Launch sled body length is now calculated from other parameters to accont for the amount of magnetic coupling needed
-  //launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateTransitsystem, folder: folderLauncher},
   launchVehicleNoseconeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 50, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRocketEngineLength: {value: 4.3, units: 'm', autoMap: true, min: .1, max: 50, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleShockwaveConeLength: {value: 30, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehiclePropellantMass: {value: 9500, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -379,12 +378,6 @@ const guidParamWithUnits = {
 
   launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeRadius: {value: 4, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  //launcherUpwardOffset: {value: -250, units: "m", autoMap: true, min: -200, max: 0, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
-  //launcherOutwardOffset: {value: 5, units: 'm', autoMap: true, min: -11, max: -9, step: 0.001, updateFunction: updateTransitsystem, folder: folderLauncher},
-  launcherMassDriverRampAcceleration: {value: 50, units: 'm/s', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  evacuatedTubeEntrancePositionAroundRing: {value: 0.76081, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverTubeOuterRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverTubeThickness: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -399,13 +392,24 @@ const guidParamWithUnits = {
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.05, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
-  launcherMassDriverScrewModelRoughLength: {value: 5, units: "", autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  
+  launcherMassDriverScrewRoughLength: {value: 5, units: "", autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewSidewaysOffset: {value: 3, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewUpwardsOffset: {value: -1.75, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewRevolutionsPerSecond: {value: 200, units: "", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverScrewBracketThickness: {value: 0.02, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewBracketThickness: {value: 0.005, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewBracketDensity: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewBracketMaterialCost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewNumBrackets: {value: 800, units: "", autoMap: true, min: 0, max: 20000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewMaterialDensity: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewMaterialCost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  // Assuming Concrete with a stainless steel outer liner for the ,assdriver tube
+  launcherMassDriverTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeLinerThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeWallThickness: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeMaterial0Density: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeMaterial0Cost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeMaterial1Density: {value: 2400, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverTubeMaterial1Cost: {value: 0.022425547, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMarkerRadius: {value: 50, units: "m", autoMap: true, min: 1, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
@@ -573,6 +577,19 @@ const guidParamWithUnits = {
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMarkers: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showForwardAccelerationVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showUpwardAccelerationVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showAirPressureVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showDownrangeDistanceVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showAirSpeedVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showAerodynamicDragVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showFuelMassFlowRateVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showTotalMassVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showApogeeAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showPerigeeAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  //showConvectiveHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  //showRadiativeHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRingSegments: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -1023,17 +1040,32 @@ function updateLogoSprite() {
   }
 }
 
-const xyChart = new XYChart(sceneOrtho)
+const xyChart = new XYChart()
+xyChart.setWidth(1000)
+xyChart.setHeight(300)
+xyChart.setMinX(0)
+xyChart.setMinY(0)
+xyChart.setMaxX(500)
+xyChart.setMaxY(100)
+xyChart.setMajorX(100)
+xyChart.setMajorY(10)
+xyChart.setMinorX(10)
+xyChart.setMinorY(10)
+xyChart.setLegendPosition(1000-300, 80)
+xyChart.name = 'xyChart'
+sceneOrtho.add(xyChart)
+
 updateXYChart()
 
 function updateXYChart() {
   updatedParam()
   const width = simContainer.offsetWidth
   const height = simContainer.offsetHeight
-  xyChart.chartGroup.position.set(-width/2 + 0.05*xyChart.width/2, height/2 - 1.15*xyChart.height, 1 );
-  xyChart.chartGroup.visible = dParamWithUnits['showXYChart'].value
+  xyChart.position.set(-width/2 + 0.15*xyChart.width/2, height/2 - 1.15*xyChart.height, 1 );
+  xyChart.visible = dParamWithUnits['showXYChart'].value
   xyChart.drawAxes()
-  xyChart.labelAxes()
+  xyChart.drawGridlines()
+  xyChart.labelAxes("Time (s)", "")
 }
 
 // Used for saving the rendered images to series of numbered files
@@ -1624,7 +1656,10 @@ function updateRing() {
 
   if (enableLaunchSystem) {
     updateLauncher()
-    if (genSpecs) tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
+    if (genSpecs) {
+      tram.updateLauncherSpecs(dParamWithUnits, crv, launchSystemObject, specs)
+      launchSystemObject.genLauncherSpecs(dParamWithUnits, specs)
+    }
   }
 
   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)

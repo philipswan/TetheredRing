@@ -611,10 +611,20 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
   //console.log('launcherMassDriverExitVelocity', launcherMassDriverExitVelocity)
 
-  specs['launcherMassDriverLength'] = {value: launcher.launcherMassDriverLength, units: "m"}
-  //console.log('launcherMassDriverLength', launcher.launcherMassDriverLength)
+  specs['launcherMassDriver1Length'] = {value: launcher.launcherMassDriver1Length, units: "m"}
+  specs['launcherMassDriver2Length'] = {value: launcher.launcherMassDriver2Length, units: "m"}
+  specs['launcherRampLength'] = {value: launcher.launcherRampLength, units: "m"}
+  specs['launcherSuspendedEvacuatedTubeLength'] = {value: launcher.launcherSuspendedEvacuatedTubeLength, units: "m"}
+  specs['totalLengthOfLaunchSystem'] = {value: launcher.totalLengthOfLaunchSystem, units: "m"}
+  specs['totalLengthOfLaunchSystem'] = {value: launcher.totalLengthOfLaunchSystem, units: "m"}
 
-  specs['timeWithinMassDriver'] = {value: launcher.timeWithinMassDriver, units: "s"}
+  specs['launcherTimeWIthinFeederRail'] = {value: launcher.timeWithinFeederRail, units: "s"}
+  specs['launcherTimeWithinMassDriver1'] = {value: launcher.timeWithinMassDriver1, units: "s"}
+  specs['launcherTimeWithinMassDriver2'] = {value: launcher.timeWithinMassDriver2, units: "s"}
+  specs['launcherTimeWithinRamp'] = {value: launcher.timeWithinRamp, units: "s"}
+  specs['launcherTimeWithinSuspendedEvacuatedTube'] = {value: launcher.timeWithinSuspendedEvacuatedTube, units: "s"}
+  specs['totalTimeWithinLaunchSystem'] = {value: launcher.totalTimeWithinLaunchSystem, units: "s"}
+
   //console.log('timeWithinMassDriver', launcher.timeWithinMassDriver)
   
   const timeWithinMassDriverMinutes = launcher.timeWithinMassDriver / 60
@@ -625,17 +635,17 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launcherScrewRotationRate = dParamWithUnits['launcherScrewRotationRate'].value // rad/s
   const launcherScrewThreadCircumference = 2 * Math.PI * launcherMassDriverScrewThreadRadius
   const launcherScrewThreadRimSpeed = launcherScrewThreadCircumference * launcherScrewRotationRate
-  //console.log('launcherScrewThreadRimSpeed', launcherScrewThreadRimSpeed)
+  console.log('launcherScrewThreadRimSpeed', launcherScrewThreadRimSpeed)
   specs['launcherScrewThreadRimSpeed'] = {value: launcherScrewThreadRimSpeed, units: "m/s"}
   // The GE-90 has a fan diameter of 3124 mm and a rotational speed of 3475 RPM. Their circumferential velocity is d·π·57.917 = 568 m/s
   const GE90TurboFanDiameter = 3.124 // m
   const GE90TurboFanRotationRate = 3475 // RPM
   const GE90TurboFanCircumferentialVelocity = GE90TurboFanDiameter * Math.PI * GE90TurboFanRotationRate / 60
   specs['GE90TurboFanCircumferentialVelocity'] = {value: GE90TurboFanCircumferentialVelocity, units: "m/s"}
-  //console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
+  console.log('GE90TurboFanCircumferentialVelocity', GE90TurboFanCircumferentialVelocity)
   
   const launcherScrewThreadPitchAtExit = launcherMassDriverExitVelocity / launcherScrewThreadRimSpeed
-  //console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
+  console.log('launcherScrewThreadPitchAtExit', launcherScrewThreadPitchAtExit)
   //const launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value // m
   const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value // m
 
@@ -644,13 +654,10 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle witha very pointy nose.
   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value // m/s
   const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
-  const launcherMassDriverExitAngleInDegrees = 0 // dParamWithUnits['launcherMassDriverExitAngleInDegrees'].value * 180 / Math.PI
-  console.log('Error: Unfinished Code')  // ToDo: These calculations need to be updated
-  const launcherMassDriverExitAngleInRadians = launcherMassDriverExitAngleInDegrees * Math.PI / 180
   const R0 = new THREE.Vector2(0, crv.radiusOfPlanet + launcherMassDriverAltitude)
   const V0 = new THREE.Vector2(
-    launcherMassDriverExitVelocity * Math.cos(launcherMassDriverExitAngleInRadians),
-    launcherMassDriverExitVelocity * Math.sin(launcherMassDriverExitAngleInRadians))
+    launcherMassDriverExitVelocity * Math.cos(this.upwardAngleAtEndOfRamp),
+    launcherMassDriverExitVelocity * Math.sin(this.upwardAngleAtEndOfRamp))
   const tStep = 0.125
 
   let propellantConsumed = 0 
@@ -697,7 +704,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   const launchVehicleClassifiedAsPayloadMass = (launchVehicleEmptyMass - launchVehicleNonPayloadMass) + (launchVehiclePropellantMass - propellantConsumed) + launchVehiclePayloadMass  // kg 
   specs['launchVehicleClassifiedAsPayloadMass'] = {value: launchVehicleClassifiedAsPayloadMass, units: 'kg'}
 
-  // Per kg Propelant Costs
+  // Per kg Propellant Costs
   // Fuel cost per kg calculation
   const liquidHydrogenCostPerKg = dParamWithUnits['liquidHydrogenCostPerKg'].value
   const liquidHeliumCostPerKg = dParamWithUnits['liquidHeliumCostPerKg'].value
@@ -741,8 +748,8 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['launcherScrewToothContactPatchLength'] = {value: launcherScrewToothContactPatchLength, units: 'm'}
   //console.log('launcherScrewToothContactPatchLength', launcherScrewToothContactPatchLength)
 
-  const threadTurnsOverCouplingPatchLength = launcherScrewToothContactPatchLength / launcherScrewThreadPitchAtExit / (2 * launcherScrewToothRadius * Math.PI)
-  specs['threadTurnsOverCouplingPatchLength'] = {value: threadTurnsOverCouplingPatchLength, units: 'turns'}
+  // const threadTurnsOverCouplingPatchLength = launcherScrewToothContactPatchLength / launcherScrewThreadPitchAtExit / (2 * launcherScrewToothRadius * Math.PI)
+  // specs['threadTurnsOverCouplingPatchLength'] = {value: threadTurnsOverCouplingPatchLength, units: 'turns'}
   //console.log('threadTurnsOverCouplingPatchLength', threadTurnsOverCouplingPatchLength)
 
   const launchSledBodyLength = launcherScrewToothContactPatchLength

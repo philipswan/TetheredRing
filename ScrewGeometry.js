@@ -378,8 +378,6 @@ class ScrewGeometry extends BufferGeometry {
           break;
         }
 
-        
-        //, verticesTag, normalsTag, uvsTag)
         // Generate the normals and vertices that define the curves for the outer surface of the shaft
         for (let j = 0; j <= radialSegments; j++) {
 
