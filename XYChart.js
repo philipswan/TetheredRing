@@ -133,7 +133,7 @@ export class XYChart extends THREE.Group {
 
     // Create the x axis line and label
     const xAxisGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(this.minX*xScale, 0, 0), new THREE.Vector3(this.maxX*xScale, 0, 0)])
-    const xAxisMaterial = new THREE.LineBasicMaterial({ color: 0 });
+    const xAxisMaterial = new THREE.LineBasicMaterial({ color: 0x808080 });
     const xAxisLine = new THREE.Line(xAxisGeometry, xAxisMaterial);
     this.add(xAxisLine);
     //const xAxisLabel = makeTextSprite("X", { fontsize: 32, borderColor: {r:1, g:1, b:1, a:1.0}, backgroundColor: {r:255, g:100, b:100, a:0.8} });
@@ -142,7 +142,7 @@ export class XYChart extends THREE.Group {
 
     // Create the y axis line and label
     const yAxisGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, this.minY*yScale, 0), new THREE.Vector3(0, this.maxY*yScale, 0)]);
-    const yAxisMaterial = new THREE.LineBasicMaterial({ color: 0 });
+    const yAxisMaterial = new THREE.LineBasicMaterial({ color: 0x808080 });
     const yAxisLine = new THREE.Line(yAxisGeometry, yAxisMaterial);
     this.add(yAxisLine);
     //const yAxisLabel = makeTextSprite("Y", { fontsize: 32, borderColor: {r:1, g:1, b:1, a:1.0}, backgroundColor: {r:255, g:100, b:100, a:0.8} });
@@ -154,13 +154,10 @@ export class XYChart extends THREE.Group {
     const xScale = this.width / (this.maxX - this.minX);
     const yScale = this.height / (this.maxY - this.minY);
     const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x606060 });
+    const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0x303030 });
 
     // Create the grid lines and labels
     for (let x = this.minX; x <= this.maxX; x += this.majorX) {
-      // Skip the middle line to leave room for the y axis label
-      if (x === 0) {
-        continue;
-      }
       // Calculate the pixel coordinates of the grid line
       const xPos = (x - this.minX) * xScale;
       // Create the grid line
@@ -170,11 +167,19 @@ export class XYChart extends THREE.Group {
       // Create a text description for the grid label and specify that that the anchor point should be on the right.
       this.textDescriptions.push({text: x.toString(), name: 'y-axis labels', x: xPos, y: -4, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'top'})
     }
-    for (let y = this.minY; y <= this.maxY; y += this.majorY) {
-      // Skip the middle line to leave room for the x axis label
-      if (y === 0) {
+    for (let x = this.minX; x <= this.maxX; x += this.minorX) {
+      // Skip the positions of the y axis and the major Grid lines
+      if ((x-this.minX)%this.majorX==0) {
         continue;
       }
+      // Calculate the pixel coordinates of the grid line
+      const xPos = (x - this.minX) * xScale;
+      // Create the grid line
+      const gridLineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xPos, this.minY*yScale, -1), new THREE.Vector3(xPos, this.maxY*yScale, -1)]);
+      const gridLine = new THREE.Line(gridLineGeometry, faintGridLineMaterial);
+      this.add(gridLine);
+    }
+    for (let y = this.minY; y <= this.maxY; y += this.majorY) {
       // Calculate the pixel coordinates of the grid line
       const yPos = (y - this.minY) * yScale;
       // Create the grid line
