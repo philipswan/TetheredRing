@@ -45,12 +45,12 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
 
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-  guidParamWithUnits['massDriverCameraRange'].value = 1000
+  guidParamWithUnits['massDriverCameraRange'].value = 100
   guidParamWithUnits['launchSledCameraRange'].value = 1000
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
   guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .1
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .01
   guidParamWithUnits['logZoomRate'].value = -3
 
   // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
@@ -61,7 +61,7 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
 
   guidParamWithUnits['launchVehicleScaleFactor'].value = 1
   guidParamWithUnits['launchSledScaleFactor'].value = 1
-  guidParamWithUnits['launcherMassDriverTubeOuterRadius'].value = 5
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   guidParamWithUnits['launcherFeederRailLength'].value = 0
