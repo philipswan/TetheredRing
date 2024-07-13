@@ -332,7 +332,7 @@ const guidParamWithUnits = {
   launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverAltitude: {value: 100, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -1000, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriver1InitialVelocity: {value: 2, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1046,7 +1046,7 @@ xyChart.setHeight(300)
 xyChart.setMinX(0)
 xyChart.setMinY(0)
 xyChart.setMaxX(500)
-xyChart.setMaxY(105)
+xyChart.setMaxY(125)
 xyChart.setMajorX(100)
 xyChart.setMajorY(10)
 xyChart.setMinorX(10)

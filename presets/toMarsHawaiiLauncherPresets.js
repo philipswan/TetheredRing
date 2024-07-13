@@ -36,13 +36,13 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Launch latitude
   const launchLatitude = 19.5 // degrees
   // Velocity at 10km above earth's surface due to earth's rotation
-  const v_earth_rotation = 2*Math.PI*(r_earth+10000) * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
-  // Velocity of spacecraft 10km above earth's surface
-  const spacecraftAirspeed = Math.sqrt(g_earth * 2 / (6371000 + 10000) + g_earth / Math.abs(a_earth)) - v_earth_rotation // m/s
-  // Velocity of spacecraft in 200km LEO orbit
-  const v_spacecraft_LEO = Math.sqrt(g_earth / (6371000 + 200000)) // m/s
+  const v_earth_rotation = 2*Math.PI*r_earth * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
+  // Velocity of spacecraft at earth's surface in ECEF coordinates
+  const launchVehicleAirspeed = Math.sqrt(g_earth * 2 / r_earth + g_earth / Math.abs(a_earth)) - v_earth_rotation // m/s
+  // Velocity of a satellite in 200km LEO orbit
+  const v_spacecraft_LEO = Math.sqrt(g_earth / (r_earth + 200000)) // m/s
   // Difference in velocity between spacecraft in LEO and 10km above earth's surface
-  const v_minus_vleo = spacecraftAirspeed - v_spacecraft_LEO // m/s
+  const v_minus_vleo = launchVehicleAirspeed - v_spacecraft_LEO // m/s
 
   console.log('v_earth', v_earth)
   console.log('v_mars', v_mars)
@@ -51,17 +51,17 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   console.log('v_earth_excess', v_earth_excess)
   console.log('v_mars_excess', v_mars_excess)
   console.log('a_earth', a_earth)
-  console.log('spacecraftAirspeed', spacecraftAirspeed)
+  console.log('launchVehicleAirspeed', launchVehicleAirspeed)
   console.log('v_spacecraft_LEO', v_spacecraft_LEO)
   console.log('v_minus_vleo', v_minus_vleo)
 
   // Uses Monna Kea launch location
   guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
-  guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.6815
+  guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.6810
 
   guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 80
+  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
@@ -72,12 +72,12 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
+  guidParamWithUnits['launcherMassDriverAltitude'].value = -200         // m
   guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
   guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000  // m
   //guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
-  guidParamWithUnits['launcherMassDriverExitVelocity'].value = spacecraftAirspeed     // m/s
+  guidParamWithUnits['launcherMassDriverExitVelocity'].value = launchVehicleAirspeed     // m/s
   guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
   //guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
   guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
@@ -165,7 +165,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launcherMassDriverScrewNumBrackets
   //launcherMassDriverScrewMaterialDensity
   //launcherMassDriverScrewMaterialCost
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 1500
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 50 // 4.5
   //launcherMassDriverTubeLinerThickness
   //launcherMassDriverTubeWallThickness
   //launcherMassDriverTubeMaterial0Density
