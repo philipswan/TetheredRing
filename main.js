@@ -49,6 +49,7 @@ import { trackPointLogger } from './trackPointLogger.js'
 import googleEarthProjectFile from './components/CameraControl/googleEarthStudioSampleProjectFile.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
+import mountainList from './components/mountainList.json'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
@@ -86,6 +87,7 @@ let followLaunchVehicles = false
 let lastPointOnLaunchTrajectoryCurve
 let followLaunchVehiclesStartTime
 let flyToLocation = 0
+let mountainSelector = 0
 
 const mtm = new MultiModeTrial()
 
@@ -327,10 +329,12 @@ const guidParamWithUnits = {
   launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampTurningRadius: {value: 5000, units: 'm', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherGroundAssistLaunchMode: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLocationMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampEndLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -1000, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -895,6 +899,7 @@ function adjustRingLatLon() {
   }
   const moveRingFactor = dParamWithUnits['moveRingFactor'].value
   tetheredRingSystems[0].adjustLatLon(ringLocationSpec, moveRingFactor)
+  updateLauncher()
 }
 
 function adjustRingLatLon2() {
@@ -2804,31 +2809,16 @@ function onKeyDown( event ) {
       //backgroundPatchMesh.lookAt(camera.position)
       break
     case 77: /*M*/
-      let positionObject = {
-        "orbitTarget":{
-          "X":orbitControls.target.x.toString(),
-          "Y":orbitControls.target.y.toString(),
-          "Z":orbitControls.target.z.toString()
-        },
-        "orbitUpDirection":{
-          "X":orbitControls.upDirection.x.toString(),
-          "Y":orbitControls.upDirection.y.toString(),
-          "Z":orbitControls.upDirection.z.toString()
-        },
-        "orbitObjectPosition":{
-          "X":orbitControls.object.position.x.toString(),
-          "Y":orbitControls.object.position.y.toString(),
-          "Z":orbitControls.object.position.z.toString()
-        },
-        "cameraUp":{
-          "X":camera.up.x.toString(),
-          "Y":camera.up.y.toString(),
-          "Z":camera.up.z.toString()
-        }
-      }
-      console.log("Current Position Vectors\n%s", JSON.stringify(positionObject, null, 2))
+      mountainSelector = (mountainSelector+1) % 120 //mountainList.length
+      const element = mountainList[mountainSelector]
+      guidParamWithUnits['launcherRampEndLatitude'].value = element.lat
+      guidParamWithUnits['launcherRampEndLongitude'].value = element.lon
+      Object.entries(guidParamWithUnits).forEach(([k, v]) => {
+        guidParam[k] = v.value
+      })
+
       break
-      case 87: /*W*/
+    case 87: /*W*/
       // This executes and instantaneous "Warp" to a position much closer to the ring
       console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
 

@@ -56,9 +56,9 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   console.log('v_minus_vleo', v_minus_vleo)
 
   // Uses Monna Kea launch location
-  guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74
+  guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74.34
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
-  guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.6810
+  guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
   guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
   guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120
@@ -71,9 +71,19 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
   // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  guidParamWithUnits['launcherLocationMode'].value = 1
+  // Mauna Kea (19.820667, -155.468056)
+  guidParamWithUnits['launcherRampEndLatitude'].value = 19.820667
+  guidParamWithUnits['launcherRampEndLongitude'].value = -155.468056 + .048056 // moving the end of the ranp a little bit east 
+  // Mount Everest
+  // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
+  // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   guidParamWithUnits['launcherMassDriverAltitude'].value = -200         // m
-  guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
+  // Hawaii Big Island
+  guidParamWithUnits['launcherRampExitAltitude'].value = 3800           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
+  // Mount Everest
+  // guidParamWithUnits['launcherRampExitAltitude'].value = 8000           // m  (rougly the altitute of Mount Everest summit)
   guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000  // m
   //guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
@@ -173,7 +183,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launcherMassDriverTubeMaterial1Density
   //launcherMassDriverTubeMaterial1Cost
   //launcherEvacuatedTubeNumModels
-  guidParamWithUnits['launcherMarkerRadius'].value = 1500
+  guidParamWithUnits['launcherMarkerRadius'].value = 500
   //launchSledSpacingInSeconds
   //launchSledWidth
   //launchSledHeight
@@ -228,7 +238,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showHabitats'].value = false
   guidParamWithUnits['showSolarArrays'].value = false
   guidParamWithUnits['showLaunchTrajectory'].value = true
-  guidParamWithUnits['showMarkers'].value = false
+  guidParamWithUnits['showMarkers'].value = true
   guidParamWithUnits['showMassDriverTube'].value = true
   guidParamWithUnits['showMassDriverScrews'].value = false
   guidParamWithUnits['showMassDriverRail'].value = true
@@ -260,20 +270,30 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
 
   // Launch Trajectory Parameters
 
-
+  // Hawaii Big Island
   nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2485252.833291091, 2139838.026337634, -5469810.453140184)
   nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
   nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2004542.2348935166, 1914991.4645450646, -6064638.482857945)
   nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
 
+  // Mount Everest
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(5624095.830121477, 2994721.514383685, 333102.4562004242)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.8819834230776509, 0.46865418712915813, 0.04968394411213295)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(5717756.521284462, 2869550.0022072233, 414273.2894226406)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(0.8819834230776509, 0.46865418712915813, 0.04968394411213295)  
+
+  // Hawaii Big Island
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-    //true
-    ((i!=1) || (j!=4)) // Hawaii??
+    ((i!=1) || (j!=4))
   )} 
+  // Mount Everest
+  // nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+  //   ((i!=17) || (j!=4))
+  // )} 
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 1
-  nonGUIParams['farClip'] = 100000000
+  nonGUIParams['nearClip'] = 1000
+  nonGUIParams['farClip'] = 1000000000
 
   // Improvements...
   // Add watermark

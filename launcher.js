@@ -71,6 +71,7 @@ export class launcher {
     const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
     const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
     const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
+    const orangeMaterial = new THREE.MeshLambertMaterial({color: 'orange'})
     this.launchTrajectoryMarker0 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
     const launchTrajectoryMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
     this.launchTrajectoryMarker0.scale.set(launchTrajectoryMarkerSize, launchTrajectoryMarkerSize, launchTrajectoryMarkerSize)
@@ -81,6 +82,7 @@ export class launcher {
     this.launchTrajectoryMarker3 = this.launchTrajectoryMarker0.clone()
     this.launchTrajectoryMarker3.material = blueMaterial
     this.launchTrajectoryMarker4 = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryMarker4.material = orangeMaterial
     this.launchTrajectoryMarker5 = this.launchTrajectoryMarker0.clone()
     this.launchTrajectoryMarker6 = this.launchTrajectoryMarker0.clone()
     planetCoordSys.add(this.launchTrajectoryMarker0)

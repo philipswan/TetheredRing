@@ -651,7 +651,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
   // Launcher Propellant Mass Calculation
   const vehicleCrossSectionalArea = Math.PI * launchVehicleRadius*2
-  const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle witha very pointy nose.
+  const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value // Coefficient of drag for hypersonic vehicle with a very pointy nose.
   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value // m/s
   const launcherMassDriverAltitude = dParamWithUnits['launcherMassDriverAltitude'].value // m
   const R0 = new THREE.Vector2(0, crv.radiusOfPlanet + launcherMassDriverAltitude)

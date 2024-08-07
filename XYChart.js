@@ -248,7 +248,7 @@ export class XYChart extends THREE.Group {
     this.curveInfo = []
   }
 
-  addCurve(curveName, curveUnits, curveXYPoints, curveColor, curveColorName, legendText) {
+  addCurve(curveName, curveUnits, curveScaledUnits, curveXYPoints, curveYScale, curveColor, curveColorName, legendText) {
 
     const xScale = this.width / (this.maxX - this.minX);
     const yScale = this.height / (this.maxY - this.minY);
@@ -256,6 +256,10 @@ export class XYChart extends THREE.Group {
     let alreadyReported = false
     let lastUnculledPoint = null
     let culledCurvePoints = []
+    let largestX = null
+    let largestY = null
+    const localLegendText = legendText || (curveName + ' (' + curveScaledUnits + ')')
+
     curveXYPoints.forEach(point => {
       if (!isFinite(point.x) || !isFinite(point.y) || !isFinite(point.z)) {
         if (!alreadyReported) {
@@ -265,13 +269,19 @@ export class XYChart extends THREE.Group {
         point.y = 0
       }
       else {
-        if ((point.x >= this.minX) && (point.x <= this.maxX) && (point.y >= this.minY) && (point.y <= this.maxY)) {
-          const currentPoint = new THREE.Vector3((point.x-this.minX)*xScale, (point.y-this.minY)*yScale, 0)
+        if ((point.x >= this.minX) && (point.x <= this.maxX) && (point.y*curveYScale >= this.minY) && (point.y*curveYScale <= this.maxY)) {
+          const currentPoint = new THREE.Vector3((point.x-this.minX)*xScale, (point.y*curveYScale-this.minY)*yScale, 0)
           if (!lastUnculledPoint || (lastUnculledPoint.distanceToSquared(currentPoint) > 0.5)) {
             lastUnculledPoint = currentPoint
             culledCurvePoints.push(currentPoint)
           }
         }
+      }
+      if ((largestX === null) || (point.x > largestX)) {
+        largestX = point.x
+      }
+      if ((largestY === null) || (point.y > largestY)) {
+        largestY = point.y
       }
     })
 
@@ -283,7 +293,7 @@ export class XYChart extends THREE.Group {
       // Recreate the line's geometry using the new points
       curveLine.geometry.setFromPoints(culledCurvePoints)
       //curveLine.material.color = curveColor
-      this.curveInfo[index] = {name: curveName, units: curveUnits, color: curveColor, colorName: curveColorName, legendText: legendText, maxX: this.maxX, maxY: this.maxY, maxZ: 0, mesh: curveLine}
+      this.curveInfo[index] = {name: curveName, units: curveUnits, yScale: curveYScale, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine}
     }
     else {
       const curveGeometry = new THREE.BufferGeometry().setFromPoints(culledCurvePoints);
@@ -291,7 +301,7 @@ export class XYChart extends THREE.Group {
       curveLine = new THREE.Line(curveGeometry, curveMaterial);
       curveLine.name = curveName
       this.add(curveLine);
-      this.curveInfo.push({name: curveName, units: curveUnits, color: curveColor, colorName: curveColorName, legendText: legendText, maxX: this.maxX, maxY: this.maxY, maxZ: 0, mesh: curveLine})
+      this.curveInfo.push({name: curveName, units: curveUnits, yScale: curveYScale, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine})
     }
     curveLine.geometry.computeBoundingSphere() // This checks for invalid values in the geometry
 
