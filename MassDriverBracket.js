@@ -7,16 +7,23 @@ export class massDriverBracketModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor() {}
-  
-  createMesh(dParamWithUnits, massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex) {
+  constructor(dParamWithUnits) {
 
-    this.genSpecs = 22 //this.genSpecs
-    const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
+    this.update(dParamWithUnits)
+
+  }
+  
+  update(dParamWithUnits) {
+
+    this.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
+    this.shape = this.createShape(dParamWithUnits)
+
+  }
+
+  createModel(massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex) {
+
     const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
     const modelLengthSegments = 1    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-
-    const shape = this.createShape(dParamWithUnits)
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
     const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
@@ -28,7 +35,7 @@ export class massDriverBracketModel {
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     const tubePoints = []
     for (let i = 0; i<=modelLengthSegments; i++) {
-        const modelsCurvePosition = (segmentIndex + (i-modelLengthSegments/2)/modelLengthSegments * bracketThickness/segmentSpacing) / massDriverScrewSegments
+        const modelsCurvePosition = (segmentIndex + (i-modelLengthSegments/2)/modelLengthSegments * this.bracketThickness/segmentSpacing) / massDriverScrewSegments
         tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
     }
     const upDirection = new THREE.Vector3(-1, 0, 0)
@@ -38,7 +45,7 @@ export class massDriverBracketModel {
         depth: 1,
         extrudePath: massDriverSegmentCurve
     }
-    const massDriverBracketGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+    const massDriverBracketGeometry = new THREE.ExtrudeGeometry( this.shape, extrudeSettings )
     massDriverBracketGeometry.name = "massDriverBracketGeometry"
     const massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
     const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, massDriverBracketMaterial)

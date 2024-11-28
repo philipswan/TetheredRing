@@ -39,19 +39,19 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['showMassDriverTube'].value = true
   guidParamWithUnits['showMassDriverScrews'].value = true
   guidParamWithUnits['showMassDriverRail'].value = true
-  guidParamWithUnits['showMassDriverBrackets'].value = true
+  guidParamWithUnits['showMassDriverBrackets'].value = false
   guidParamWithUnits['showLaunchSleds'].value = true
   guidParamWithUnits['showLaunchVehicles'].value = true
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
 
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-  guidParamWithUnits['massDriverCameraRange'].value = 100
+  guidParamWithUnits['massDriverCameraRange'].value = 1000
   guidParamWithUnits['launchSledCameraRange'].value = 1000
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
   guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .01
-  guidParamWithUnits['logZoomRate'].value = -3
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+  guidParamWithUnits['logZoomRate'].value = -4
 
   // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
   // guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
@@ -59,9 +59,11 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   // guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
   // guidParamWithUnits['launcherMassDriverScrewModelRoughLength'].value = .25 //* .25/5
 
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+  //guidParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value = 5
+
+  guidParamWithUnits['launchVehicleScaleFactor'].value = 1.6
   guidParamWithUnits['launchSledScaleFactor'].value = 1
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4.0
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   guidParamWithUnits['launcherFeederRailLength'].value = 0
@@ -151,6 +153,12 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33720117313376846, 0.33220019495681974, -0.8808736568361357)
   nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150719.7539519947, 2118839.8358160397, -5618399.697956475)
   nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33720117313376846, 0.33220019495681974, -0.8808736568361357)
+
+  // To see tube side on...
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2152520.5214642677, 2118897.819865572, -5617686.007873287)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3374807371345877, 0.3322092361166716, -0.880763177875797)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2152518.030219181, 2118889.906518018, -5617699.491232116)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3374807371345877, 0.3322092361166716, -0.880763177875797)
 
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
     true

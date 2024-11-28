@@ -30,7 +30,8 @@ export class movingRingSegmentModel {
     }
 
     const movingRingGeometry = new THREE.ExtrudeGeometry(movingRingShape, movingRingExtrudeSettings)
-    const movingRingTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
+    //const movingRingTexture = new THREE.TextureLoader().load( './textures/steelTexture.jpg' )
+    const movingRingTexture = new THREE.TextureLoader().load( './textures/movingRingTexture.jpg' )
     //movingRingTexture.wrapS = THREE.RepeatWrapping;
     movingRingTexture.wrapT = THREE.MirrorWrapping;
     movingRingTexture.repeat.set( 1, 2 );

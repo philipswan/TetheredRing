@@ -19,14 +19,36 @@ export class launchVehicleModel {
 
     // Proceedurally generate the Launch Vehicle body, flame, and point light meshes
 
-    // Create the vehicle's body
-    const launchVehicleBodyGeometry = new THREE.CylinderGeometry(radius, radius, bodyLength, radialSegments, lengthSegments, false)
-    launchVehicleBodyGeometry.name = "body"
-    launchVehicleBodyGeometry.translate(0, bodyLength/2, 0)
-    // Create the nose cone
-    const launchVehicleNoseconeGeometry = new THREE.ConeGeometry(radius, noseconeLength, radialSegments, lengthSegments, true)
-    launchVehicleNoseconeGeometry.name = "nosecone"
-    launchVehicleNoseconeGeometry.translate(0, (bodyLength+noseconeLength)/2 + bodyLength/2, 0)
+    const profile = []
+    // Move to the starting point which is at the back of teh combustion chamber
+    profile.push(new THREE.Vector2(0, 3.61674418604651))
+    profile.push(new THREE.Vector2(0.178604651162791, 3.61674418604651))
+    profile.push(new THREE.Vector2(0.20093023255814, 3.60558139534884))
+    profile.push(new THREE.Vector2(0.223255813953488, 3.57209302325581))
+    profile.push(new THREE.Vector2(0.234418604651163, 3.53860465116279))
+    profile.push(new THREE.Vector2(0.234418604651163, 3.13674418604651))
+    profile.push(new THREE.Vector2(0.223255813953488, 3.09209302325581))
+    profile.push(new THREE.Vector2(0.156279069767442, 2.98046511627907))
+    profile.push(new THREE.Vector2(0.133953488372093, 2.9246511627907))
+    profile.push(new THREE.Vector2(0.133953488372093, 2.86883720930233))
+    profile.push(new THREE.Vector2(0.167441860465116, 2.80186046511628))
+    profile.push(new THREE.Vector2(0.312558139534884, 2.58976744186046))
+    profile.push(new THREE.Vector2(0.491162790697674, 2.24372093023256))
+    profile.push(new THREE.Vector2(0.658604651162791, 1.85302325581395))
+    profile.push(new THREE.Vector2(0.814883720930233, 1.38418604651163))
+    profile.push(new THREE.Vector2(0.937674418604651, 0.915348837209302))
+    profile.push(new THREE.Vector2(1.02697674418605, 0.502325581395349))
+    profile.push(new THREE.Vector2(1.11627906976744, 0))
+    const totalLength = bodyLength+noseconeLength
+    const CValue = 1.0 // The C value optimized the hull profile for a given length and radius to minimize drag. Formulas from Haack series (https://en.wikipedia.org/wiki/Nose_cone_design)
+    for (let x = 0; x <= totalLength; x++) {
+      const theta = Math.acos(1-2*(totalLength-x)/totalLength)
+      const y = radius/Math.sqrt(Math.PI)*Math.sqrt(theta-Math.sin(2*theta)/2+CValue*Math.sin(theta)**3)
+      console.log(theta, y)
+      profile.push(new THREE.Vector2(y, x))
+    }
+    const launchVehicleHullGeometry = new THREE.LatheGeometry(profile, 32)
+    
     // Create the fins
     const finLength = bodyLength * 0.5
     const finThickness = 0.2
@@ -44,7 +66,7 @@ export class launchVehicleModel {
         3, 2, 1
     ]
     const launchVehicleFin0Geometry = new FacesGeometry(finVertices, finIndices)
-
+    launchVehicleFin0Geometry.rotateY(Math.PI/3)
     launchVehicleFin0Geometry.name = "fin0"
     const launchVehicleFin1Geometry = launchVehicleFin0Geometry.clone()
     launchVehicleFin1Geometry.name = "fin1"
@@ -53,8 +75,19 @@ export class launchVehicleModel {
     launchVehicleFin2Geometry.name = "fin2"
     launchVehicleFin2Geometry.rotateY(-Math.PI*2/3)
     // Merge the nosecone into the body
-    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleBodyGeometry, launchVehicleNoseconeGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry], false)
-    const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0x7f3f00})
+    // Temporary model until the real one loads...
+    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleHullGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry], false)
+    const launchVehicleTexture = new THREE.TextureLoader().load('textures/launchVehicleTexture.jpg', function(texture) {launchVehicleMaterial.needsUpdate = true})
+    const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0xcfd4d9})
+    // const launchVehicleMaterial = new THREE.MeshPhysicalMaterial( {
+    //   clearcoat: 1.0,
+    //   clearcoatRoughness: 0.1,
+    //   metalness: 0.9,
+    //   roughness: 0.5,
+    //   color: 0x0000ff,
+    //   normalMap: normalMap3,
+    //   normalScale: new THREE.Vector2( 0.15, 0.15 )
+    // } );
     let launchVehicleBodyMesh = new THREE.Mesh(launchVehicleGeometry, launchVehicleMaterial)
     launchVehicleBodyMesh.name = 'body'
 
@@ -79,7 +112,11 @@ export class launchVehicleModel {
       return function(object) {
         object.scale.set(scaleFactor, scaleFactor, scaleFactor)
         object.name = 'launchVehicle_bodyFromModel'
-        object.children[0].material.color.setHex(0xcfd4d9)
+        //object.children[0].material.color.setHex(0xcfd4d9)
+        //object.children[0].material.map = launchVehicleTexture
+        object.children[0].material = launchVehicleMaterial
+        //object.children[0].material.wireframe = true
+        object.needsUpdate = true
         myScene.traverse(child=> {
           if (child.name==='launchVehicle_body') {
             const parent = child.parent
@@ -96,6 +133,7 @@ export class launchVehicleModel {
             }
           })
         })
+        if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
       }
 
     }
@@ -106,7 +144,7 @@ export class launchVehicleModel {
     const modelScaleFactor = 0.001 // Because Alastair's launch vehicle model used mm instead of meters
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchVehicleNumModels, perfOptimizedThreeJS)
         
-    loader.loadAsync('models/LaunchVehicle.obj').then(addLaunchVehicles)
+    //loader.loadAsync('models/LaunchVehicle.obj').then(addLaunchVehicles)
 
     function makeFlame() {
 

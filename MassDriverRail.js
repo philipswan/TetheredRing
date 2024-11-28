@@ -1,26 +1,24 @@
 import * as THREE from 'three'
 import { CatmullRomSuperCurve3 } from './SuperCurves'
+import { ShapeUtils } from 'three'
 
 export class massDriverRailModel {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor(dParamWithUnits, curve, index, count, massDriverRailMaterials) {
+  constructor(dParamWithUnits) {
+    this.update(dParamWithUnits)
+  }
 
-    const width = dParamWithUnits['launcherMassDriverRailWidth'].value
-    const height = dParamWithUnits['launcherMassDriverRailHeight'].value
+  update(dParamWithUnits) {
+    this.shape = this.createShape(dParamWithUnits)
+  }
+
+  createModel(curve, index, count, massDriverRailMaterials) {
+
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    const modelRadialSegments = 32
     const tubePoints = []
-    const shape = new THREE.Shape()
-
-    // This is minor repeated work and duplicated memory - same shape can be used for all models
-    shape.moveTo( width/2 , height/2 )
-    shape.lineTo( width/2 , -height/2 )
-    shape.lineTo( -width/2 , -height/2 )
-    shape.lineTo( -width/2 , height/2 )
-    shape.lineTo( width/2 , height/2 )
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
     const modelCenterPosition = (index + 0.5) / count
@@ -40,13 +38,45 @@ export class massDriverRailModel {
       depth: 1,
       extrudePath: massDriverSegmentCurve
     }
-    const massDriverRailGeometry = new THREE.ExtrudeGeometry( shape, extrudeSettings )
+    const massDriverRailGeometry = new THREE.ExtrudeGeometry(this.shape, extrudeSettings)
     massDriverRailGeometry.name = "massDriverRailGeometry"
     // ToDo: We are creating multiple identical materials here.  We should create one material and reuse it.
     const massDriverRailMaterial = massDriverRailMaterials[(index % 16 == 0) ? 1 : 0]
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
     return massDriverRailMesh
   }
+
+  createShape(dParamWithUnits) {
+    const width = dParamWithUnits['launcherMassDriverRailWidth'].value
+    const height = dParamWithUnits['launcherMassDriverRailHeight'].value
+    const shape = new THREE.Shape()
+
+    shape.moveTo( width/2 , height/2 )
+    shape.lineTo( width/2 , -height/2 )
+    shape.lineTo( -width/2 , -height/2 )
+    shape.lineTo( -width/2 , height/2 )
+    shape.lineTo( width/2 , height/2 )
+
+    return shape
+
+  }
+
+  genSpecs(dParamWithUnits, specs) {
+
+    const shape = this.createShape(dParamWithUnits)
+    const contour = []
+
+    contour.push(shape.curves[0].v1)
+    shape.curves.forEach(curve => {
+      contour.push(curve.v2)
+    })
+
+    const massDriverRailCrosssectionalArea = Math.abs(ShapeUtils.area(contour))
+    console.log("massDriverRailCrosssectionalArea:", massDriverRailCrosssectionalArea)
+    specs['massDriverRailCrosssectionalArea'] = {value: massDriverRailCrosssectionalArea, units: "m2"}
+
+  }
+
 }
 
 export class virtualMassDriverRail {

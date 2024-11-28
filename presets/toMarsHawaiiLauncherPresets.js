@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import g from 'three/examples/jsm/libs/lil-gui.module.min.js'
+import { cos } from 'three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.js'
 
 export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -24,21 +26,64 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Apohelion speed of earth-mars transfer orbit
   const v_apohelion = Math.sqrt(2 * g_sun / r_marsOrbit - g_sun / a_transferOrbit) // m/s
   // Excess speed at earth of earth-mars transfer orbit
-  const v_earth_excess = v_perihelion - v_earth // m/s
+  let v_earth_excess = v_perihelion - v_earth // m/s
+
+  const C3Value = (v_earth_excess/1000)**2 // km2/s2
+  console.log('C3Value', C3Value, "km2/s2")
+
+  // This works out to be 2943 m/s, but this source (https://web.archive.org/web/20210331135639/https://trs.jpl.nasa.gov/bitstream/handle/2014/44336/13-0679_A1b.pdf?sequence=1#expand)
+  // Which does a more detailed analysis of the transfer orbit, says on table 3 that the that the excess speed (ΔV1) varies between 2990 m/s and 4030 m/s
+  // In practice, after orbital eccentricity, inclination, and rotated apsides are taken into consideration.
+  // 10/2/2024 - 3360 m/s
+  // 10/31/2026 - 3040 m/s
+  // 11/24/2028 - 3020 m/s
+  // 12/29/2030 - 3220 m/s
+  // 4/16/2033 - 3000 m/s
+  // 6/26/2035 - 3210 m/s
+  // 8/20/2037 - 4030 m/s
+  // 9/21/2039 - 3540 m/s
+  // 10/20/2041 - 3130 m/s
+  // 11/15/2043 - 3000 m/s
+  // 12/14/2045 - 3110 m/s
+  // 3/20/2048 - 3260 m/s
+  // 5/26/2050 - 2830 m/s
+  // 8/9/2052 - 3980 m/s
+
+  // Hack...
+  //v_earth_excess = 4030 // m/s - value for 8/20/2037
+  //v_earth_excess = Math.sqrt(41.65)*1000 // C3 value is from Figure 1 of https://dataverse.jpl.nasa.gov/file.xhtml?fileId=91111&version=2.0
+
+  console.log('v_earth_excess', v_earth_excess)
+
+  // Also we need to consider that we will want to use the launcher over a period of several days, and that only one of these days will
+  // be associated with the optimal launch window.
+  
   // Excess speed at mars of earth-mars transfer orbit
   const v_mars_excess = v_mars - v_apohelion // m/s
   // Negative semi-major of Earth hyperbolic trajectory with excess speed of v_earth_excess
   const a_earth = -g_earth / v_earth_excess**2
+  console.log('a_earth', a_earth)
   // Radius of the earth
-  const r_earth = 6371000 // m
+  const r_earth = 6378100 // m  
+
+  console.log('g_earth', g_earth, 'r_earth', r_earth)
+
   // Length of earth's sideral day in seconds
-  const t_earth = 86164.1 // s
+  const t_earth = 86164.0905 // s
   // Launch latitude
-  const launchLatitude = 19.5 // degrees
-  // Velocity at 10km above earth's surface due to earth's rotation
-  const v_earth_rotation = 2*Math.PI*r_earth * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
+  const launchLatitude = 19.820667 // ° N (Hawaii Big Island)
+  const massDriverAltitude = 200 // m
+  //const launchLatitude = 28.5744 // ° N (Kennedy Space Center)
+  // Velocity of spacecraft at earth's surface at the hyperbolic orbit perigee in the inertial reference frame
+  const launchVehiclePerigeeSpeed = Math.sqrt(g_earth * 2 / (r_earth+massDriverAltitude) + g_earth / Math.abs(a_earth)) // m/s
+  //const launchVehiclePerigeeSpeed2 = Math.sqrt(g_earth * 2 / (r_earth+200000) + g_earth / Math.abs(a_earth)) // m/s
+  console.log('*** launchVehiclePerigeeSpeed', launchVehiclePerigeeSpeed)
+  //console.log('*** launchVehiclePerigeeSpeed2', launchVehiclePerigeeSpeed2)
+  // Velocity at earth's surface due to earth's rotation
+  const v_earth_rotation = 2*Math.PI*(r_earth+massDriverAltitude) * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
+  console.log('v_earth_rotation', v_earth_rotation)
   // Velocity of spacecraft at earth's surface in ECEF coordinates
-  const launchVehicleAirspeed = Math.sqrt(g_earth * 2 / r_earth + g_earth / Math.abs(a_earth)) - v_earth_rotation // m/s
+  const launchVehicleAirspeed = launchVehiclePerigeeSpeed - v_earth_rotation // m/s
   // Velocity of a satellite in 200km LEO orbit
   const v_spacecraft_LEO = Math.sqrt(g_earth / (r_earth + 200000)) // m/s
   // Difference in velocity between spacecraft in LEO and 10km above earth's surface
@@ -79,7 +124,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
   // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  guidParamWithUnits['launcherMassDriverAltitude'].value = -200         // m
+  guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude         // m
   // Hawaii Big Island
   guidParamWithUnits['launcherRampExitAltitude'].value = 3800           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
   // Mount Everest
@@ -91,10 +136,12 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
   //guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
   guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
-  //launchSledEmptyMass
+  //launchVehicleSledMass
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleEffectiveRadius
   //launcherPayloadDeliveredToOrbit
+  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
   guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
   guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
   //launchVehicleCoefficientOfDrag
@@ -145,12 +192,11 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   //launchVehicleNonPayloadMass
 
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+  guidParamWithUnits['launchVehicleScaleFactor'].value = 1 //300
   //launchVehicleSpacingInSeconds
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   //launchVehicleNumModels
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
-  //launcherEvacuatedTubeRadius
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1 //5
   //numVirtualMassDriverTubes
   //launcherMassDriverRailWidth
   //launcherMassDriverRailHeight
@@ -175,7 +221,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launcherMassDriverScrewNumBrackets
   //launcherMassDriverScrewMaterialDensity
   //launcherMassDriverScrewMaterialCost
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 50 // 4.5
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4.5 //200.0
   //launcherMassDriverTubeLinerThickness
   //launcherMassDriverTubeWallThickness
   //launcherMassDriverTubeMaterial0Density
@@ -195,6 +241,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   //launchSledNumModels
   
+  //guidParamWithUnits['launcherScrewRotationRate'].value = 200
+
   // Grappler Parameters
   guidParamWithUnits['launchSledNumGrapplers'].value = 64
   guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
@@ -211,7 +259,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
 
 
   guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-  guidParamWithUnits['showXYChart'].value = true
+  guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showEarthsSurface'].value = true
   //guidParamWithUnits['earthTextureOpacity'].value = 0.25
   guidParamWithUnits['showEarthsAtmosphere'].value = true
@@ -237,8 +285,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showElevatorCars'].value = false
   guidParamWithUnits['showHabitats'].value = false
   guidParamWithUnits['showSolarArrays'].value = false
-  guidParamWithUnits['showLaunchTrajectory'].value = true
-  guidParamWithUnits['showMarkers'].value = true
+  guidParamWithUnits['showLaunchTrajectory'].value = false
+  guidParamWithUnits['showMarkers'].value = false
   guidParamWithUnits['showMassDriverTube'].value = true
   guidParamWithUnits['showMassDriverScrews'].value = false
   guidParamWithUnits['showMassDriverRail'].value = true
@@ -276,6 +324,12 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2004542.2348935166, 1914991.4645450646, -6064638.482857945)
   nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
 
+  // Hawaii for tracking shot
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1913174.8068502536, 2051872.8119204757, -5679238.61182404)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2589667.296365839, 2335558.762770908, -5428604.592928227)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+
   // Mount Everest
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(5624095.830121477, 2994721.514383685, 333102.4562004242)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.8819834230776509, 0.46865418712915813, 0.04968394411213295)
@@ -292,8 +346,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // )} 
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 1000
-  nonGUIParams['farClip'] = 1000000000
+  nonGUIParams['nearClip'] = 100
+  nonGUIParams['farClip'] = 100000000
 
   // Improvements...
   // Add watermark

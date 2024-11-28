@@ -6,28 +6,32 @@ export class massDriverTubeModel {
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
   // We can't dynamically reallocate these models, since each model always has to be placed in the location that it was designed for.
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
-  constructor() {}
-  
-  createModel(dParamWithUnits, curve, segmentIndex) {
+  constructor(dParamWithUnits) {
+    this.update(dParamWithUnits)
+  }
 
-    const massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
-    const radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
+  update(dParamWithUnits) {
+    this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
+    this.radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
+    this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
+  }
+  
+  createModel(curve, segmentIndex) {
+
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverTubeSegments
+    const modelsCurvePosition = (segmentIndex + 0.5) / this.massDriverTubeSegments
     const refPoint = curve.getPointAt(modelsCurvePosition)
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
     const orientation = curve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
 
-    const tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
-
     // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / massDriverTubeSegments
+      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / this.massDriverTubeSegments
       try {
         tubePoints.push(curve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
       }
@@ -38,9 +42,9 @@ export class massDriverTubeModel {
     }
 
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
-    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, radius, modelRadialSegments, false)
+    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
-    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, depthWrite: false, opacity: 0.25})
+    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, depthWrite: false, opacity: 0.25})
     //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {map: tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 0.2, shininess: 0.5})
     const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
     massDriverTubeMesh.renderOrder = 999
@@ -55,7 +59,7 @@ export class massDriverTubeModel {
 
   genSpecs(dParamWithUnits, specs) {
     const launcherMassDriverTubeInnerRadius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
-    const launcherMassDriverTubeWallThickness = dParamWithUnits['launcherMassDriverTubeLinerThickness'].value
+    const launcherMassDriverTubeWallThickness = dParamWithUnits['launcherMassDriverTubeWallThickness'].value
     const launcherMassDriverTubeLinerThickness = dParamWithUnits['launcherMassDriverTubeLinerThickness'].value
     // Let's assume that we want the tube to be buoyant. We'll use tension lines to moore it to the sea floor.
     // We need enough concrete to provide stuctural rigidity.

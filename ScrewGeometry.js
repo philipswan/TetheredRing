@@ -58,6 +58,25 @@ class ScrewGeometry extends BufferGeometry {
     const normals = []
     const uvs = []
     const indices = []
+    // We'll create arrays of points each of which represents an edge of one of the the screw's flights.
+    // Each flight is a helix that wraps around the screw's shaft.
+    const screwFlightEdgeVerticies = []
+    const screwFlightEdgeNormals = []
+    const screwFlightEdgeUVs = []
+    const numScrewFlightEdges = 4
+    const numScrewFlightFaces = 3
+    const numFlightStarts = threadStarts
+    for (let flightStartIndex = 0; flightStartIndex<numFlightStarts; flightStartIndex++) {
+      // Each flight has four edges
+      for (let flightEdgeIndex = 0; flightEdgeIndex<numScrewFlightEdges; flightEdgeIndex++) {
+        screwFlightEdgeVerticies.push([])
+        screwFlightEdgeUVs.push([])
+      }
+      // Each thread has three faces, and each face has two edges, so there are six arrays containing normals per flight
+      for (let flightEdgeIndex = 0; flightEdgeIndex<numScrewFlightFaces*2; flightEdgeIndex++) {
+        screwFlightEdgeNormals.push([])
+      }
+    }
 
     const renderInnerSurface = shaftInnerRadius > 0
 
@@ -85,8 +104,9 @@ class ScrewGeometry extends BufferGeometry {
     const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
     const rateOfChangeInForwardDisplacement = initialVelocity + acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
 
-    const minimumTubularSegments = Math.floor(minLengthSegmentsPerMeter * screwLength)
-    const tubularSegments = Math.ceil(Math.sqrt(rateOfChangeInRotationalDistance**2 + rateOfChangeInForwardDisplacement**2) / rateOfChangeInForwardDisplacement * minimumTubularSegments)
+    const minimumTubularSegments = Math.ceil(minLengthSegmentsPerMeter * screwLength)
+    // Increase the number of segment based on the pitch of the screw
+    const tubularSegments = Math.ceil(minimumTubularSegments * Math.sqrt(rateOfChangeInRotationalDistance**2 + rateOfChangeInForwardDisplacement**2) / rateOfChangeInForwardDisplacement)
 
     // create buffer data
     generateBufferData();
@@ -116,94 +136,98 @@ class ScrewGeometry extends BufferGeometry {
       const twoPi = 2 * Math.PI
 
       for ( let i = 0; i <= tubularSegments; i++) {
-        generateSegmentsAndUVs( i, screwLength, 0);
+        const screwSegmentLengthOffset = i / tubularSegments
+        generateSegmentsAndUVs( screwSegmentLengthOffset, screwLength, 0);
       }
       // Need an extra vertices at each end of the screw to construct the flat surfaces that cap the ends
       const vertexAnglesBreachEnd = []
       const vertexAnglesMuzzleEnd = []
-      generateSegmentsAndUVs(0, screwLength, 1, vertexAnglesBreachEnd);
-      generateSegmentsAndUVs(tubularSegments, screwLength, 2, vertexAnglesMuzzleEnd);
+      generateSegmentsAndUVs(0.0, screwLength, 1, vertexAnglesBreachEnd);
+      generateSegmentsAndUVs(1.0, screwLength, 2, vertexAnglesMuzzleEnd);
 
       if (renderInnerSurface) {
-        const interiorPlateMuzzleEndInset = 0.003
-        const nubOuterRadius = 0.008
-        const nubInnerRadius = 0.005
-        const bracketThickness = 0.002
-        const motorMountingDiskThickness = 0.01
-        const interiorPlateBreachEndInset = 0.052
-        const motorShaftRadius = 0.0025
+        const interiorPlateMuzzleEndInset = 0.003 * screwLength/0.25
+        const nubOuterRadius = 0.008 * screwLength/0.25
+        const nubInnerRadius = 0.005 * screwLength/0.25
+        const bracketThickness = 0.002 * screwLength/0.25
+        const motorMountingDiskThickness = 0.01 * screwLength/0.25
+        const interiorPlateBreachEndInset = 0.052 * screwLength/0.25
+        const motorShaftRadius = 0.0025 * screwLength/0.25
 
-        const profilePoints = [
-          // Start at the muzzle-facing end of the screw and work back towards the breach-facing end
-          // Shaft end face
-          {r: shaftInnerRadius, y: 0.5 * screwLength, normalAngleOffset: Math.PI/2},
-          // Interior Shaft Wall
-          {r: shaftInnerRadius, y: 0.5 * screwLength, normalAngleOffset: -Math.PI},
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: -Math.PI},
+        const profilePoints = []
+        // Start at the muzzle-facing end of the screw and work back towards the breach-facing end
+        // Shaft end face
+        profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength, normalAngleOffset: Math.PI/2})
+        // Interior Shaft Wall
+        profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength, normalAngleOffset: -Math.PI})
+        const drawScrewInternalStructure = false
+        if (drawScrewInternalStructure) {
+          profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: -Math.PI})
           // Motor mounting disk muzzle facing face 
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: Math.PI/2},
-          {r: nubOuterRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: Math.PI/2},
+          profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: Math.PI/2})
+          profilePoints.push({r: nubOuterRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: Math.PI/2})
           // Nub outer wall
-          {r: nubOuterRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: 0},
-          {r: nubOuterRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: 0},
+          profilePoints.push({r: nubOuterRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset, normalAngleOffset: 0})
+          profilePoints.push({r: nubOuterRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: 0})
           // Nub muzzle facing face
-          {r: nubOuterRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: Math.PI/2},
-          {r: nubInnerRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: Math.PI/2},
+          profilePoints.push({r: nubOuterRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: Math.PI/2})
+          profilePoints.push({r: nubInnerRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: Math.PI/2})
           // Nub inner wall
-          {r: nubInnerRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: -Math.PI},
-          {r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI},
+          profilePoints.push({r: nubInnerRadius, y: 0.5 * screwLength + bracketThickness, normalAngleOffset: -Math.PI})
+          profilePoints.push({r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI})
           // Motor mounting disk breach facing face
-          {r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI/2},
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI/2},
+          profilePoints.push({r: nubInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness, normalAngleOffset: -Math.PI/2})
+          profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI/2})
           // Interior shaft wall
-          {r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI},
-          {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: -Math.PI},
+          profilePoints.push({r: shaftInnerRadius, y: 0.5 * screwLength - interiorPlateMuzzleEndInset - motorMountingDiskThickness - shaftInnerRadius, normalAngleOffset: -Math.PI})
+          profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: -Math.PI})
           // Motor mounting disk muzzle facing face
-          {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: Math.PI/2},
-          {r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: Math.PI/2},
+          profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: Math.PI/2})
+          profilePoints.push({r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: Math.PI/2})
           // Motor shaft inner wall
-          {r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: -Math.PI},
-          {r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI},
+          profilePoints.push({r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset + motorMountingDiskThickness, normalAngleOffset: -Math.PI})
+          profilePoints.push({r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI})
           // Motor mounting disk breach facing face
-          {r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI/2},
-          {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI/2},
+          profilePoints.push({r: motorShaftRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI/2})
+          profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI/2})
           // Interior shaft wall
-          {r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI},
-          {r: shaftInnerRadius, y: -0.5 * screwLength, normalAngleOffset: -Math.PI},
-          // Shaft end face
-          {r: shaftInnerRadius, y: -0.5 * screwLength, normalAngleOffset: -Math.PI/2},
-        ]
+          profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength + interiorPlateBreachEndInset, normalAngleOffset: -Math.PI})
+        }
+        profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength, normalAngleOffset: -Math.PI})
+        // Shaft end face
+        profilePoints.push({r: shaftInnerRadius, y: -0.5 * screwLength, normalAngleOffset: -Math.PI/2})
 
         const T = new Vector3(0, 1, 0)
         const N = new Vector3(-1, 0, 0)  // z-axis is down
         const B = new Vector3(0, 0, 1)   // x-axis is to the right when looking at the back of the launcher
-        const numPointsOuter = (radialSegments + 1) * threadStarts
-        const numPointsInner = (radialSegments + 1) * threadStarts * 2
         const extraOffsetToOuterShaftFirstVertex = 6
         const verticesPerFlightOnShaft = (radialSegments + 1)
         const verticesPerFlight = extraOffsetToOuterShaftFirstVertex + verticesPerFlightOnShaft  // Each flight comprises 3 faces with 2 verticies per face plus the vertices on the shaft between two adjacent flights
+        const numPointsOuter = verticesPerFlightOnShaft * threadStarts
+        const numPointsInner = (radialSegments + 1) * threadStarts * 2
         const lastProfileEntry = profilePoints.length-1
 
         const ringOfVerticesOffset = []
 
-        ringOfVerticesOffset[0] = verticesPerFlight * threadStarts * (tubularSegments+2) // Offset to the start of the vertices for the tubular segment for the muzzle-facing face
+        ringOfVerticesOffset[0] = verticesPerFlight * threadStarts * (tubularSegments+3-1) // Offset to the start of the vertices for the tubular segment for the muzzle-facing face
         profilePoints.forEach((profilePoint, k) => {
           P = new Vector3(0, profilePoint.y, 0);
           ringOfVerticesOffset[k+1] = addRingOfVertices(P, T, N, B, numPointsInner, profilePoint.r, profilePoint.normalAngleOffset, 0.5+profilePoint.y, threadRadius, vertices, normals, uvs)
         })
-        ringOfVerticesOffset[lastProfileEntry+2] = verticesPerFlight * threadStarts * (tubularSegments+1)  // Offset to the start of the vertices for the tubular segment for the breach-facing face
+        ringOfVerticesOffset[lastProfileEntry+2] = 0 //verticesPerFlight * threadStarts * (tubularSegments+1)  // Offset to the start of the vertices for the tubular segment for the breach-facing face
         
         let indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2
 
-        // Muzzle end faces 
-        indexGenerator1 = (i) => {return ringOfVerticesOffset[0] + (Math.floor(i / verticesPerFlightOnShaft) * verticesPerFlight) + extraOffsetToOuterShaftFirstVertex + (i%verticesPerFlightOnShaft)}
-        indexGenerator2 = (i) => {return ringOfVerticesOffset[1]+i}
-        angleGenerator1 = (i) => {return vertexAnglesMuzzleEnd[i]}
-        angleGenerator2 = (i) => {return i * twoPi / numPointsInner}
-        smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPointsOuter, numPointsInner, indices, true)
+        // Muzzle end faces
+        // We only want to connect the endpoints that are on the screw shaft. The following function skips over the six points on the screw's flights.
+        indexGenerator1 = (i) => {return ringOfVerticesOffset[1]+i}
+        indexGenerator2 = (i) => {return ringOfVerticesOffset[0] + (Math.floor(i / verticesPerFlightOnShaft) * verticesPerFlight) + extraOffsetToOuterShaftFirstVertex + (i%verticesPerFlightOnShaft)}
+        angleGenerator1 = (i) => {return i * twoPi / numPointsInner}
+        angleGenerator2 = (i) => {return vertexAnglesMuzzleEnd[i]}
+        smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPointsInner, numPointsOuter, indices)
         
         // Inner profile of shaft
-        for (let k = 2; k < profilePoints.length-1; k+=2) {
+        for (let k = 2; k < lastProfileEntry; k+=2) {
           indexGenerator1 = (i) => {return ringOfVerticesOffset[k]+i}
           indexGenerator2 = (i) => {return ringOfVerticesOffset[k+1]+i}
           dumbStitch(indexGenerator1, indexGenerator2, numPointsInner, indices, true)
@@ -211,15 +235,15 @@ class ScrewGeometry extends BufferGeometry {
 
         // Breach end faces
         indexGenerator1 = (i) => {return ringOfVerticesOffset[lastProfileEntry+1]+i}
-        indexGenerator2 = (i) => { return ringOfVerticesOffset[lastProfileEntry+2] + (Math.floor(i / verticesPerFlightOnShaft) * verticesPerFlight) + extraOffsetToOuterShaftFirstVertex + (i%verticesPerFlightOnShaft)}
+        indexGenerator2 = (i) => {return ringOfVerticesOffset[lastProfileEntry+2] + (Math.floor(i / verticesPerFlightOnShaft) * verticesPerFlight) + extraOffsetToOuterShaftFirstVertex + (i%verticesPerFlightOnShaft)}
         angleGenerator1 = (i) => {return i * twoPi / numPointsInner}
         angleGenerator2 = (i) => {return vertexAnglesBreachEnd[i]}
-        smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPointsInner, numPointsOuter, indices, true)
+        smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPointsInner, numPointsOuter, indices)
       }
       else {
         // Need an extra vertex at the center of each end of the screw. These will be used to construct the flat surfaces that cap the ends
-        for (let i = 0; i <= tubularSegments; i+=tubularSegments) {
-          P = new Vector3(0, (i / tubularSegments - 0.5) * screwLength, 0);
+        for (let screwSegmentLengthOffset = 0; screwSegmentLengthOffset <= 1.0; screwSegmentLengthOffset+=1.0) {
+          P = new Vector3(0, (screwSegmentLengthOffset - 0.5) * screwLength, 0);
           vertices.push( P.x, P.y, P.z );
           //verticesTag.push( 'end' + i, 'end' + i, 'end' + i);
           const T = new Vector3(0, 1, 0);
@@ -240,18 +264,18 @@ class ScrewGeometry extends BufferGeometry {
 
     }
 
-    function generateSegmentsAndUVs( i, screwLength, sideOrEndsSelector, vertexAngles = null) {
+    function generateSegmentsAndUVs( screwSegmentLengthOffset, screwLength, sideOrEndsSelector, vertexAngles = null) {
 
       // we use getPointAt to sample evenly distributed points from the given path
 
-      P = new Vector3(0, (i / tubularSegments - 0.5) * screwLength, 0 );
-            // Note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
+      P = new Vector3(0, (screwSegmentLengthOffset - 0.5) * screwLength, 0 );
+      // Note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
       const T = new Vector3(0, 1, 0)
       const N = new Vector3(-1, 0, 0)  // z-axis is down
       const B = new Vector3(0, 0, 1)   // x-axis is to the right when looking at the back of the launcher
 
       // Figure out the start angle and end angle given the thickness, pitch, and the number of starts of the thread.
-      const distanceAlongScrew = baseDistanceAlongScrew + i / tubularSegments * screwLength
+      const distanceAlongScrew = baseDistanceAlongScrew + screwSegmentLengthOffset * screwLength
       //0 = 0.5 * a * t**2 + v0 * t - d
       const cA = 0.5 * acceleration
       const cB = initialVelocity
@@ -382,6 +406,9 @@ class ScrewGeometry extends BufferGeometry {
         for (let j = 0; j <= radialSegments; j++) {
 
           const v = precomputedPartOfAngle2 + j * angularStep1;
+          if (v==="NaN") {
+            console.error('v is NaN')
+          }
           if (vertexAngles!==null) {
             vertexAngles.push(v)
           }
@@ -425,12 +452,12 @@ class ScrewGeometry extends BufferGeometry {
           // Side faces
           case 0:
             // Screw flight back face
-            uv.x = i / tubularSegments;
+            uv.x = screwSegmentLengthOffset;
             uv.y = Math.abs(rotations + ( k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'tbf0', 'tbf0', 'tbf0');
 
-            uv.x = i / tubularSegments;
+            uv.x = screwSegmentLengthOffset;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'tbf1', 'tbf1', 'tbf1');
@@ -438,7 +465,7 @@ class ScrewGeometry extends BufferGeometry {
             // Screw flight top face
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'ttf1', 'ttf1', 'ttf1');
-            uv.x = i / tubularSegments;
+            uv.x = screwSegmentLengthOffset;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight + threadThickness) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'ttf2', 'ttf2', 'ttf2');
@@ -446,14 +473,14 @@ class ScrewGeometry extends BufferGeometry {
             // Screw flight front face
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'tff2', 'tff2', 'tff2');
-            uv.x = i / tubularSegments;
+            uv.x = screwSegmentLengthOffset;
             uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * shaftOuterRadius + threadSideWallHeight + threadThickness + threadSideWallHeight) / perimeterLength) % 1;
             uvs.push( uv.x, uv.y );
             //uvsTag.push( 'tff3', 'tff3', 'tff3');
 
             // Outer surface of shaft
             for ( let j = 0; j <= radialSegments; j++ ) {
-              uv.x = i / tubularSegments;
+              uv.x = screwSegmentLengthOffset;
               uv.y = Math.abs(rotations + (k * perimeterLength / threadStarts + (threadBaseEndAngle - threadBaseHalfAngle) * j / radialSegments * shaftOuterRadius) / perimeterLength) % 1;
               uvs.push( uv.x, uv.y );
               //uvsTag.push( 'out' + j, 'out' + j, 'out' + j);
@@ -571,7 +598,7 @@ class ScrewGeometry extends BufferGeometry {
 
     }
 
-    function smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPoints1, numPoints2, indices, wrapAround = false) {
+    function smartStitch(indexGenerator1, indexGenerator2, angleGenerator1, angleGenerator2, numPoints1, numPoints2, indices) {
       
       // This function creates a set of triangles between two rings of verticies. It analyzes the angles associated
       // with the verticies to determine how to construct the triangles optimally.
@@ -585,6 +612,7 @@ class ScrewGeometry extends BufferGeometry {
       angleA = angleA - Math.floor(angleA / twoPi) * twoPi
       indexA = indexGenerator1(a)
       
+      // Find the index on the second ring that is closest to the first index of the first ring
       let bestFirstB = 0
       let bestAngleB = 0
       let smallestDifference
@@ -603,8 +631,8 @@ class ScrewGeometry extends BufferGeometry {
       angleB = bestAngleB
       indexB = indexGenerator2(b)
 
-      c = (b+1) % numPoints1
-      d = (a+1) % numPoints2
+      c = (b+1) % numPoints2
+      d = (a+1) % numPoints1
       angleC = angleGenerator2(c)
       angleC = angleC - Math.floor(angleC / twoPi) * twoPi
       angleD = angleGenerator1(d)
@@ -623,12 +651,11 @@ class ScrewGeometry extends BufferGeometry {
         if (useC) {
           // Use point C to complete the triangle
           indices.push( indexA, indexB, indexC );
-          //console.log(a, b, c, angleA, angleB, angleC)
           k++
           b = c
           angleB = angleC
           indexB = indexC
-          moreCs = wrapAround ? (c != bestFirstB) : ((c+1) % numPoints2 != bestFirstB)
+          moreCs = (c != bestFirstB)
           if (moreCs) {
             c = (b+1) % numPoints2
             angleC = angleGenerator2(c)
@@ -644,7 +671,7 @@ class ScrewGeometry extends BufferGeometry {
           a = d
           angleA = angleD
           indexA = indexD
-          moreDs = wrapAround ? (d != 0) : ((d+1) % numPoints1 != 0)
+          moreDs = (d != 0)
           if (moreDs) {
             d = (a+1) % numPoints1
             angleD = angleGenerator1(d)

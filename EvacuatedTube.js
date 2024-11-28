@@ -9,7 +9,7 @@ export class evacuatedTubeModel {
     constructor(dParamWithUnits, evacuatedTubeCurve, segmentIndex) {
   
         const evacuatedTubeSegments = dParamWithUnits['launcherEvacuatedTubeNumModels'].value
-        const radius = dParamWithUnits['launcherEvacuatedTubeRadius'].value
+        const radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
         const modelLengthSegments = 32
         const modelRadialSegments = 32
         const tubePoints = []

@@ -690,13 +690,13 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['launcherSuspendedTubeLength'] = {value: launcherSuspendedTubeLength, units: "m"} 
   // End Launcher Propellant Mass Calculation
 
-  const launchSledEmptyMass = dParamWithUnits['launchSledEmptyMass'].value // kg
+  const launchVehicleSledMass = dParamWithUnits['launchVehicleSledMass'].value // kg
   const launchVehicleEmptyMass = dParamWithUnits['launchVehicleEmptyMass'].value // kg
   const launchVehiclePropellantMass = dParamWithUnits['launchVehiclePropellantMass'].value // kg
   const launchVehiclePayloadMass = dParamWithUnits['launchVehiclePayloadMass'].value // kg
   const launchVehicleNonPayloadMass = dParamWithUnits['launchVehicleNonPayloadMass'].value // kg
 
-  const launchSledAndVehicleTotalMass = launchSledEmptyMass + launchVehicleEmptyMass + launchVehiclePropellantMass + launchVehiclePayloadMass // kg
+  const launchSledAndVehicleTotalMass = launchVehicleSledMass + launchVehicleEmptyMass + launchVehiclePropellantMass + launchVehiclePayloadMass // kg
   //console.log('launchSledAndVehicleTotalMass', launchSledAndVehicleTotalMass)
   specs['launchSledAndVehicleTotalMass'] = {value: launchSledAndVehicleTotalMass, units: 'kg'}
   // Because most of the vehicle is needed to land at the destination, or because it is made from materials that we would need to ship anyway, we are classifying most of its mass as "mission payload", except for a small amount called "launchVehicleNonPayloadMass".
@@ -803,9 +803,9 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
   // Per kg Energy Costs
   const kineticEnergyPerKilogram = 0.5 * launcherMassDriverExitVelocity**2
-  const launcherEfficiency = dParamWithUnits['launcherEfficiency'].value
+  const launcherAccelerationEfficiency = dParamWithUnits['launcherAccelerationEfficiency'].value
   const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
-  const launcherEnergyCostPerKilogram = kineticEnergyPerKilogram * launchSledAndVehicleTotalMass * wholesaleCostOfElectricity / launchVehicleClassifiedAsPayloadMass / launcherEfficiency
+  const launcherEnergyCostPerKilogram = kineticEnergyPerKilogram * launchSledAndVehicleTotalMass * wholesaleCostOfElectricity / launchVehicleClassifiedAsPayloadMass / launcherAccelerationEfficiency
   specs['launcherEnergyCostPerKilogram'] = {value: launcherEnergyCostPerKilogram, units: 'USD/kg'}
   //console.log('launcherEnergyCostPerKilogram', launcherEnergyCostPerKilogram)
 
@@ -1411,7 +1411,7 @@ export function getPlanetSpec(planet) {
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 86164.0905,          // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
-        gravitationalConstant: 0.0000000000667408, // m^3/kg/s^2
+        gravitationalParameter: 3.986004418e14, // m^3/kg/s^2
         airTemperatureInKelvinAtAltitude: function(a) {
           const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
           return temperatureInKelvin
@@ -1534,3 +1534,14 @@ export function getPlanetSpec(planet) {
   };
 
 } 
+
+export function tunnelingCostPerMeter(tunnelRadius) {
+  //from "Cost Overruns in Tunnelling Projects: Investigating the Impact of Geological and Geotechnical Uncertainty Using Case Studies", Figure 4a
+  // file:///C:/Users/phils/Downloads/infrastructures-05-00073-v2%20(4).pdf
+  // Line slope is very roughly 60 million pounds stering per km, or 60,000 pounds per 18 meters diameter tunnel
+  
+  // Convert Great Britain Pounds to US Dollars
+  const GBPtoUSD = 1.31
+
+  return tunnelRadius*2 * 60000 / 18 * GBPtoUSD
+}
