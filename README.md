@@ -91,14 +91,25 @@ _**Note:** when working on the project, on occasion you may need to hard refresh
 
 # Capturing Video Clips
 Get the scene to do what you want ('0' tracks the launch vehicle, '1' trackes the adaptive nut, '2' tracks the nearest transit vehicle, '3' tracks the nearest elevator car. 'q' orbits the tracked object.)
-Scroll down slightly to reveal the buttons hidden at the bottome of the page.
+
+Scroll down slightly to reveal the buttons hidden at the bottom of the page.
+
 Click on "Start Capturing Frames". Progress is reported at the top of the screen.
+
 Click on "Stop Capturing and Download" when done.
+
 Open PowerShell (assuming a Windows 10 or 11 machine here).
+
 Create and cd to a working directory of your choosing. (e.g. ```cd Documents\VideoCaptures\MassDriverClip```)
-Move the tar files from your downloads folder to your working directory (e.g. ```move C:\Users\username\Downloads\TetheredRing*.tar .```)
+
+Move the .tar files from your downloads folder to your working directory (e.g. ```move C:\Users\username\Downloads\TetheredRing*.tar .```)
+
 Decompress all of the .tar files (e.g.  ```Get-ChildItem -Filter *.tar | ForEach-Object { 7z x $_.FullName; if ($?) { Remove-Item $_.FullName -Force } ```)
+
 Encode the files (e.g. ```c:\ffmpeg\ffmpeg -framerate 60 -i '%07d.png' -vf "crop=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -pix_fmt yuv420p threejsout.mp4```)
+
 You can optionally encode at a different resolution with {```c:\ffmpeg\ffmpeg -framerate 60 -i '%07d.png' -vf "crop=trunc(iw/2)*2:trunc(ih/2)*2" -s 1920x1080 -c:v libx264 -pix_fmt yuv420p threejsout.mp4```}
+
 If you're happy with the result, rename it and save it somewhere. Then delete everything in the working directory with ```del *.*```.
+
 The capture resolution is hard coded inside the startCapturingFramesButton event handler located near the bottom of the main.js file.
