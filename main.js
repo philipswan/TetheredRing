@@ -8,10 +8,7 @@ import { TWEEN } from 'three/addons/libs/tween.module.min'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 //import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
 import { VRButton } from 'three/addons/webxr/VRButton.js'
-import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js'
-import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js'
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js'
-import { XYChart } from './XYChart.js'
 
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
@@ -34,7 +31,12 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import { planet } from './planet.js'
 import { transitSystem } from './transitsystems.js'
 import { TetherGeometry } from './tethers.js'
+import { stars } from './stars.js'
+
 import { OrbitControls } from './OrbitControlsModified.js'
+import { ObjectTracker } from './ObjectTracker.js'
+import { XYChart } from './XYChart.js'
+import { backgroundScene } from './backgroundScene.js'
 
 import * as tram from './tram.js'
 import * as Launcher from './launcher.js'
@@ -44,9 +46,12 @@ import * as CapturePresets from './CapturePresets.js'
 
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json'
-import cameraControlData from './components/CameraControl/cameraPath1.json'
+//import cameraControlData from './components/CameraControl/cameraPath1.json'
+//import cameraControlData from './components/CameraControl/QuickTest2.json'
+import cameraControlData from './textures/googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json'
 import { trackPointLogger } from './trackPointLogger.js'
 import googleEarthProjectFile from './components/CameraControl/googleEarthStudioSampleProjectFile.json'
+//import googleEarthProjectFile from './components/CameraControl/HawaiiBigIsland.json'
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
 import mountainList from './components/mountainList.json'
@@ -54,7 +59,12 @@ import mountainList from './components/mountainList.json'
 //import { makePlanetTexture } from './planetTexture.js'
 
 // Hack - just want to be able to browse the object in the console
-console.log(googleEarthProjectFile)
+// console.log('googleEarthProjectFile', googleEarthProjectFile)
+// console.log('googleEarthProjectFile', googleEarthProjectFile.scenes[0].attributes)
+//const cameraPositions = []
+// cameraPositions.push({time: 0, latitude: 19, longitude: -155, altitude: 5000})
+// cameraPositions.push({time: 1, latitude: 19, longitude: -155, altitude: 5000})
+//googleEarthStudioESPModifier(googleEarthProjectFile, cameraPositions)
 
 // Get the URL of the current page
 const url = new URL(window.location.href)
@@ -95,7 +105,7 @@ const mtm = new MultiModeTrial()
 // ToDo - We need to output these to the specs file as well.
 const gravitationalConstant = 0.0000000000667408   // ToDo: Should add units here...
 let massOfPlanet = 5.97E+24   // kg   using mass of Earth for now
-let radiusOfPlanet = 6378100 // m   using radius of Earth for now
+let radiusOfEarth = 6378100 // m   using radius of Earth for now
 const WGS84FlattenningFactor = 298.257223563    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
 const lengthOfSiderealDay = 86164.0905 // seconds    using value for Earth for now
 
@@ -128,15 +138,13 @@ folderTextOutput.$children.appendChild( guiTextOutput );
 
 const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perfectly circular ring can be and still fits within the Pacific Ocean
 
-const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfPlanet + 32000)) * 180 / Math.PI
+const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfEarth + 32000)) * 180 / Math.PI
 
 const defaultShows = true // Set to false to reduce loading time
-// Hack - distort scale to better illustrate certain concepts
-// radiusOfPlanet = 637810
-// massOfPlanet = 5.97E+22
 
 // Constants controlled by sliders
 const guidParamWithUnits = {
+  planetName: {value: 'Earth', units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderGeography},
   equivalentLatitude: {value: equivalentLatitudePreset, units: "degrees", autoMap: false, min: 0, max: 89.9999, updateFunction: adjustRingDesign, folder: folderGeography},
   buildLocationRingCenterLatitude: {value: -19.2, units: "degrees", autoMap: true, min: -90, max: 90, updateFunction: adjustRingLatLon, folder: folderGeography},
   buildLocationRingCenterLongitude: {value: 213.7, units: "degrees", autoMap: true, min: 0, max: 360, updateFunction: adjustRingLatLon, folder: folderGeography},
@@ -155,6 +163,7 @@ const guidParamWithUnits = {
   finalLocationRingEccentricity: {value: 1, units: "", autoMap: false, min: 0.97, max: 1.03, step: 0.001, updateFunction: adjustRingDesign, folder: folderGeography},
   // ToDo: moveRingFactor needs to call adjustRingDesign when buildLocationRingEccentricity differs from finalLocationRingEccentricity
   locationPresetIndex: {value: 0, units: "", autoMap: true, min: 0, max: 6, step: 1, tweenable: false, updateFunction: setRingLatLonWithPreset, folder: folderGeography},
+  displacementMapOverride: {value: false, units: "", autoMap: true, folder: folderGeography},
   displacementBias: {value: -900, units: "", autoMap: true, min: -10000, max: 10000, tweenable: true, updateFunction: adjustDisplacementBias, folder: folderGeography},
   displacementScale: {value: 6400, units: "", autoMap: true, min: -10000, max: 10000, tweenable: true, updateFunction: adjustDisplacementScale, folder: folderGeography},
 
@@ -183,8 +192,8 @@ const guidParamWithUnits = {
 
   // Engineering Parameters - Tethers
   numTethers: {value: 3600, units: "", autoMap: true, min: 4, max: 7200, step: 2, updateFunction: adjustRingDesign, folder: folderEngineering},
-  numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
-  whenToForkVertically: {value: 2, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when travelling from base to a single attachment point)
+  numForkLevels: {value: 7, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when traveling from base to a single attachment point)
+  whenToForkVertically: {value: 2, units: "", autoMap: true, min: 0, max: 10, step: 1, updateFunction: adjustRingDesign, folder: folderEngineering},       // The number of times the we want to fork the tethers (i.e. num time you will encounter a fork when traveling from base to a single attachment point)
   tetherSpanOverlapFactor: {value: 2, units: "%", autoMap: true, min: 0.5, max: 4, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxAvePercent: {value: 50, units: "%", autoMap: true, min: 0, max: 100, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
   tetherPointBxDeltaPercent: {value: 40, units: "%", autoMap: true, min: 0, max: 50, tweenable: true, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -336,7 +345,8 @@ const guidParamWithUnits = {
   launcherRampEndLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -1000, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  adaptiveNutRampAcceleration: {value: -1500, units: 'm*s-2', autoMap: true, min: -10000, max: 0, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -1000, max: 4000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriver1InitialVelocity: {value: 2, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -367,7 +377,7 @@ const guidParamWithUnits = {
   launchSystemRightwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleForwardsOffset: {value: 13, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleForwardsOffset: {value: 23, units: 'm', autoMap: true, min: -20, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleFlameLength: {value: 15, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
@@ -379,7 +389,7 @@ const guidParamWithUnits = {
   launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCostPerKg: {value: 1000, units: 'USD/kg', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleScaleFactor: {value: 1, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleScaleFactor: {value: 1.5, units: 'm', autoMap: true, min: .1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -405,7 +415,7 @@ const guidParamWithUnits = {
   launcherMassDriverScrewSidewaysOffset: {value: 3, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewUpwardsOffset: {value: 0.5, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewRevolutionsPerSecond: {value: 200, units: "", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverScrewBracketThickness: {value: 0.005, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewBracketThickness: {value: 0.05, units: "m", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewBracketDensity: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewBracketMaterialCost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewNumBrackets: {value: 80000, units: "", autoMap: true, min: 0, max: 20000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -423,8 +433,11 @@ const guidParamWithUnits = {
   launcherEvacuatedTubeNumModels: {value:32, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMarkerRadius: {value: 50, units: "m", autoMap: true, min: 1, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
-  elevatedVacuumTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  elevatedVacuumTubeThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  elevatedEvacuatedTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  elevatedEvacuatedTubeThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+
+  elevateEvacuatedTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  elevateEvacuatedTubeThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   evacuatedTubeInteriorPressure: {value: 5, units: 'Pa', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
 
   launchSledSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
@@ -441,8 +454,8 @@ const guidParamWithUnits = {
   adaptiveNutSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   adaptiveNutWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   adaptiveNutHeight: {value: 3.7, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
-  adaptiveNutBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  adaptiveNutGrapplerLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  adaptiveNutBodyLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  adaptiveNutGrapplerLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   adaptiveNutSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   adaptiveNutUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   adaptiveNutForwardsOffset: {value: -3, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
@@ -481,7 +494,7 @@ const guidParamWithUnits = {
   lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
 
   // Grapplers
-  launchSledNumGrapplers: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+  launchSledNumGrapplers: {value: 128, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledGrapplerMagnetThickness: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledBetweenGrapplerFactor: {value: 0.01, units: '', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   launchSledShaftToGrapplerPad: {value: 0.02, units: 'm', autoMap: true, min: 0, max: 1, step: 1, updateFunction: updateLauncher, folder: folderGrapplers},
@@ -576,7 +589,7 @@ const guidParamWithUnits = {
   showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
 
   // Hack
-  backgroundOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustBackgroundOpacity, folder: folderRendering},
+  enableBackgroundAlpha: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustBackgroundOpacity, folder: folderRendering},
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
@@ -614,7 +627,8 @@ const guidParamWithUnits = {
   showMassDriverTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverRail: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverBrackets: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverAccelerationScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverDecelerationScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   saveMassDriverScrewSTL: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showEvacuatedTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchSleds: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -622,6 +636,8 @@ const guidParamWithUnits = {
   showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMarkers: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showTrackingMarkers: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  trackingMarkerSize: {value: 500, units: '', autoMap: true, min: 0, max: 10000, updateFunction: resizeTrackingMarkers, folder: folderRendering},
   showForwardAccelerationVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showUpwardAccelerationVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -641,6 +657,7 @@ const guidParamWithUnits = {
   animateLaunchSleds: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   animateAdaptiveNuts: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
+  animateElevatedEvacuatedTubeDeployment: {value: false, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRendering},
   elevatorCableOpacity: {value:0.3, units: "", autoMap: true, min: 0, max: 1, tweenable: true, updateFunction: updateTransitsystem, folder: folderRendering},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustLaunchTrajectoryOpacity, folder: folderRendering},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, updateFunction: updateCamerFieldOfView, folder: folderRendering},
@@ -651,6 +668,7 @@ const guidParamWithUnits = {
   tweeningDuration: {value: 6000, units: '', autoMap: true, min: 0, max: 1000000, updateFunction: updatedParam, folder: folderRendering},
   pKeyAltitudeFactor: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updatedParam, folder: folderRendering},
   controlCameraFromJsonDuringCapture: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
+  maxBackgroundVideoFrames: {value: 443, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   jsonFileCameraControlHelper: {value: false, autoMap: true, updateFunction: updatedParam, folder: folderRendering},
   //showStats: {value: false, units: '', autoMap: true, updateFunction: updateStats, folder: folderRendering},
   // showEarthClouds: {value: true, units: '', autoMap: true, updateFunction: adjustEarthCloudsVisibility, folder: folderRendering},
@@ -820,12 +838,15 @@ function updatedParam() {   // Read as "update_dParam"
 
 updatedParam()
 
+const planetSpec = tram.getPlanetSpec(dParamWithUnits['planetName'].value)
+const roughPlanetRadius = tram.radiusAtLatitude(0, planetSpec.ellipsoid)
+
 function updateTransitsystem() {
   updatedParam()
   crv = tetheredRingSystems[0].crv
-  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
+  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
 
-  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, timeSinceStart)
+  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, roughPlanetRadius, mainRingCurve, timeSinceStart)
 }
 
 function updateLauncher() {
@@ -842,7 +863,7 @@ function adjustRingDesign() {
 
 function adjustBackgroundOpacity() {
   updatedParam()
-  renderer.setClearAlpha(guidParamWithUnits['backgroundOpacity'].value)
+  renderer.setClearAlpha(guidParamWithUnits['enableBackgroundAlpha'].value)
 }
 
 function adjustEarthSurfaceVisibility() {
@@ -1039,22 +1060,10 @@ const raycaster = new THREE.Raycaster()
 const scene = new THREE.Scene()
 const renderToBuffer = false // Hack - needs a GUI control still
 
-// Background image camera (will be created/defined during capture)
-let backgroundCamera = null
-let backgroundScene = null
-let background = null
+// Background scene for sequencing images generated by Google Earth (scene will be created/defined at initiation of frames capture)
+let backgroundSceneObject = null
 const backgroundTextureLoader = new THREE.TextureLoader()
 let backgroundTexture = []
-let backgroundMaterial
-if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
-  for (let i=0; i<400; i++) {
-    backgroundTexture[i] = await backgroundTextureLoader.loadAsync(`./textures/googleEarthImages/NewZealandLaunchSite_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
-  }
-}
-else {
-  // Hack to avoid error if above file is missing
-    backgroundTexture[0] = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
-}
 
 // Overlay an XY chart over the scene
 let sceneOrtho = new THREE.Scene()
@@ -1129,8 +1138,14 @@ scene.matrixWorldAutoUpdate = true
 
 //scene.fog = new THREE.FogExp2(0x202040, 0.000005)
 
-//scene.background = new THREE.Color( 0xffffff )
-//scene.background = null
+if (dParamWithUnits['enableBackgroundAlpha'].value) {
+  // Set the background color to transparent
+  scene.background = null
+}
+else {
+  // Set the background color to whatever we like
+  //scene.background = new THREE.Color( 0xffffff )
+}
 const fov = dParamWithUnits['cameraFieldOfView'].value
 const aspectRatio = simContainer.offsetWidth/simContainer.offsetHeight
 //console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
@@ -1140,9 +1155,9 @@ if (enableVR) {
   nearClippingPlane = 0.1
 }
 else {
-  nearClippingPlane = 0.1 * radiusOfPlanet
+  nearClippingPlane = 0.1 * roughPlanetRadius
 }
-let farClippingPlane = 10 * radiusOfPlanet
+let farClippingPlane = 10 * roughPlanetRadius
 let extraDistanceForCamera = 10000
 
 const camera = new THREE.PerspectiveCamera(fov, aspectRatio, nearClippingPlane, farClippingPlane)
@@ -1154,7 +1169,7 @@ const cameraGroup = new THREE.Group()
 cameraGroup.name = 'cameraGroup'
 cameraGroup.add(camera)
 if (!enableVR) {
-  camera.position.z = -30 * radiusOfPlanet/8
+  camera.position.z = -30 * roughPlanetRadius/8
 }
 cameraGroup.matrixValid = false
 camera.matrixValid = false
@@ -1172,7 +1187,7 @@ function updateOrbitControlsRotateSpeed() {
 
 // Need to add these two lines to have the planet apper in VR
 if (enableVR) {
-  cameraGroup.position.z = -1.005 * radiusOfPlanet
+  cameraGroup.position.z = -1.005 * roughPlanetRadius
   cameraGroup.rotation.z = Math.PI / 2
   cameraGroup.rotation.y = -Math.PI / 2
   cameraGroup.rotateY(Math.PI)
@@ -1182,7 +1197,7 @@ scene.add(cameraGroup)
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: dParamWithUnits['backgroundOpacity'].value,  // Make the background transparent
+  alpha: dParamWithUnits['enableBackgroundAlpha'].value,  // Make the background transparent
   //logarithmicDepthBuffer: true,
   canvas: document.querySelector('canvas'),
   // These extra parameters may improve quaily. Need to test.
@@ -1205,26 +1220,11 @@ renderer.autoClear = false
 //const stats = new Stats()
 //simContainer.appendChild( stats.dom )
 
-const orbitControls = new OrbitControls(camera, renderer.domElement)
-orbitControls.addEventListener('change', orbitControlsEventHandler)
-
-//orbitControls.autoRotate = true
-orbitControls.autoRotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
-orbitControls.enableDamping = true
-//orbitControls.dampingFactor *= 0.1 
-//orbitControls.enablePan = true
-
-
-orbitControls.target.copy(nonGUIParams['orbitControlsTarget'])
-orbitControls.upDirection.copy(nonGUIParams['orbitControlsUpDirection'])
-orbitControls.object.position.copy(nonGUIParams['orbitControlsObjectPosition'])
-camera.up.copy(nonGUIParams['cameraUp'])
-
 
 const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
 sunLight.name = 'sunlight'
-sunLight.position.set(0, -6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
-//sunLight.position.set(0, 6 * radiusOfPlanet/8, -20 * radiusOfPlanet/8)
+sunLight.position.set(0, -6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
+//sunLight.position.set(0, 6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
 sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
@@ -1235,10 +1235,10 @@ scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
-if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
+if (false && dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
   // We need to modify the planet's shape from sperical to oblate spheroid to match Google Earth's shape
   // This modification seems to have undesirable side effects though, so lots more work will be needed to get this right.
-planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
+  planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
 }
 else {
   planetCoordSys.scale.y = 1.0
@@ -1261,16 +1261,14 @@ fakeCameraHelper.visible = false
 planetCoordSys.add(fakeCameraHelper)
 planetCoordSys.add(fakeCamera)
 
-const planetSpec = tram.getPlanetSpec('Earth')
-
 
 let planetMeshes, atmosphereMesh, backgroundPatchMesh
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value || dParamWithUnits['showBackgroundPatch'].value) {
   [planetMeshes, atmosphereMesh, backgroundPatchMesh] = new planet(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
-  if (dParamWithUnits['showEarthsSurface']) planetCoordSys.add(planetMeshes)
-  if (dParamWithUnits['showEarthsAtmosphere']) planetCoordSys.add(atmosphereMesh)
-  if (dParamWithUnits['showBackgroundPatch']) planetCoordSys.add(backgroundPatchMesh)
+  if (dParamWithUnits['showEarthsSurface'].value) planetCoordSys.add(planetMeshes)
+  if (dParamWithUnits['showEarthsAtmosphere'].value) planetCoordSys.add(atmosphereMesh)
+  if (dParamWithUnits['showBackgroundPatch'].value) planetCoordSys.add(backgroundPatchMesh)
 }
 
 let backgroundPatchActive = false
@@ -1291,7 +1289,7 @@ function updateBackgroundPatch() {
 const moonTexture = new THREE.TextureLoader().load("./textures/moon.jpg")
 moonTexture.name = 'moon'
 const moonMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(radiusOfPlanet * 0.27, 64, 32),
+  new THREE.SphereGeometry(radiusOfEarth * 0.27, 64, 32),
   new THREE.MeshStandardMaterial({
     map: moonTexture,
   })
@@ -1360,7 +1358,7 @@ let mainRingCurve = tetheredRingSystems[0].mainRingCurve
 
 const grayMaterial = new THREE.MeshBasicMaterial({color: 0x3f3f4f})
 const whiteMaterial = new THREE.MeshBasicMaterial({color: 0x5f5f5f})
-const greenMaterial = new THREE.MeshLambertMaterial({color: 0x00ff00})
+const greenMaterial = new THREE.MeshLambertMaterial({color: 0x00ff00, transparent: true, opacity: 0.15})
 const blueMaterial = new THREE.MeshLambertMaterial({color: 0x0000ff})
 const redMaterial = new THREE.MeshLambertMaterial({color: 0xff0000})
 const metalicMaterial = new THREE.MeshBasicMaterial({color: 0x878681, transparent: false})
@@ -1389,18 +1387,18 @@ var cableMaterial = new THREE.LineBasicMaterial({
 })
 
 
-const earthAxisObject = new markers.earthAxisObject(planetCoordSys, dParamWithUnits, radiusOfPlanet)
-function earthAxisObjectUpdate() {updatedParam(); earthAxisObject.update(dParamWithUnits, radiusOfPlanet)}
+const earthAxisObject = new markers.earthAxisObject(planetCoordSys, dParamWithUnits, roughPlanetRadius)
+function earthAxisObjectUpdate() {updatedParam(); earthAxisObject.update(dParamWithUnits, roughPlanetRadius)}
 
-const earthEquatorObject = new markers.earthEquatorObject(planetCoordSys, dParamWithUnits, radiusOfPlanet)
-function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(dParamWithUnits, radiusOfPlanet)}
+const earthEquatorObject = new markers.earthEquatorObject(planetCoordSys, dParamWithUnits, roughPlanetRadius)
+function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(dParamWithUnits, roughPlanetRadius)}
 
 // const orbitControlsCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), grayMaterial)
 // orbitControlsCenterMarker.name = 'orbitControlsCenterMarker'
 // let orbitControlsCenterMarkerSize = 5000
 // orbitControlsCenterMarker.position.x = 0
 // orbitControlsCenterMarker.position.y = 0
-// orbitControlsCenterMarker.position.z = -radiusOfPlanet
+// orbitControlsCenterMarker.position.z = -roughPlanetRadius
 // orbitControlsCenterMarker.scale.x = orbitControlsCenterMarkerSize
 // orbitControlsCenterMarker.scale.y = orbitControlsCenterMarkerSize
 // orbitControlsCenterMarker.scale.z = orbitControlsCenterMarkerSize
@@ -1412,7 +1410,7 @@ function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(d
 // let orbitControlsSurfaceMarkerSize = 50000
 // orbitControlsSurfaceMarker.position.x = 0
 // orbitControlsSurfaceMarker.position.y = 0
-// orbitControlsSurfaceMarker.position.z = -radiusOfPlanet
+// orbitControlsSurfaceMarker.position.z = -roughPlanetRadius
 // orbitControlsSurfaceMarker.scale.x = orbitControlsSurfaceMarkerSize
 // orbitControlsSurfaceMarker.scale.y = orbitControlsSurfaceMarkerSize
 // orbitControlsSurfaceMarker.scale.z = orbitControlsSurfaceMarkerSize
@@ -1421,38 +1419,16 @@ function earthEquatorObjectUpdate() {updatedParam(); earthEquatorObject.update(d
 // scene.add(orbitControlsSurfaceMarker)
 
 // Add Some Stars
-const starGeometry = new THREE.BufferGeometry()
-const starVertices = []
-for ( let i = 0; i < 10000;) {
-  // Probably should eliminate all of the stars that are too close to the planet 
-  // starVertices.push( THREE.MathUtils.randFloatSpread( 2000 * radiusOfPlanet/8 ) ) // x
-  // starVertices.push( THREE.MathUtils.randFloatSpread( 2000 * radiusOfPlanet/8 ) ) // y
-  // starVertices.push( THREE.MathUtils.randFloatSpread( 2000 * radiusOfPlanet/8 ) ) // z
-  // Better code...
-  // Create stars at random positions and then push them all 2,000,000 km away from the origin
-  const XYZ = new THREE.Vector3(
-    THREE.MathUtils.randFloat(-1, 1),
-    THREE.MathUtils.randFloat(-1, 1),
-    THREE.MathUtils.randFloat(-1, 1))
-  if (XYZ.length()<=1) {
-    // The random position needs to be not on the origin and also within a unit sphere
-    XYZ.normalize().multiplyScalar(256 * radiusOfPlanet)
-    starVertices.push(XYZ.x, XYZ.y, XYZ.z)
-    i++
-  }
-}
-starGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( starVertices, 3 ) )
-const starsMesh = new THREE.Points( starGeometry, new THREE.PointsMaterial( { color: 0xFFFFFF } ) )
-starsMesh.name = 'stars'
-scene.add(starsMesh)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
+const starsObject = new stars(dParamWithUnits, planetSpec)
+scene.add(starsObject)  // Todo: This might make the stars rotate with planet. Maybe need another Group...
 
 // Generate the main ring
 let ctv = new tram.commonTetherVariables()
-let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
-let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
+let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
+let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
 
 
-const referencePoint = new THREE.Vector3(0, radiusOfPlanet + crv.currentMainRingAltitude, 0)
+const referencePoint = new THREE.Vector3(0, roughPlanetRadius + crv.currentMainRingAltitude, 0)
 const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint)
 
 function mainRingCurveObjectUpdate() {
@@ -1475,7 +1451,7 @@ function constructTethers(tetheredRingRefCoordSys) {
   const tethers = []
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
+    const tetherGeometry = new TetherGeometry(roughPlanetRadius, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     tempTetherMesh.name = 'tether'
     tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
@@ -1484,7 +1460,7 @@ function constructTethers(tetheredRingRefCoordSys) {
       const k = 2 * Math.PI * 2 / n
       for (let i=0; i<n/2; i++) {     // Really should be currentCatenaryTypes.length, but that value is hidden from us here
         const theta = i * k
-        const referencePoint = new THREE.Vector3().setFromSphericalCoords(radiusOfPlanet + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), theta)
+        const referencePoint = new THREE.Vector3().setFromSphericalCoords(roughPlanetRadius + crv.currentMainRingAltitude, -(Math.PI/2 - crv.currentEquivalentLatitude), theta)
         tempTetherMesh.position.copy(referencePoint)
         tempTetherMesh.rotation.y = theta
         tempTetherMesh.matrixValid = false
@@ -1505,27 +1481,22 @@ function forceArrowsUpdate() {
   gyroscopicForceArrowsUpdate()
 }
 
-const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation)
+const gravityForceArrowsObject = new markers.gravityForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadius, ringToPlanetRotation)
 function gravityForceArrowsUpdate() {
   updatedParam()
   showTensileForceArrows = true
   showGravityForceArrows = true
   showInertialForceArrows = true
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadius, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
 }
 
-const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+const gyroscopicForceArrowsObject = new markers.gyroscopicForceArrowsObject(planetCoordSys, dParamWithUnits, mainRingCurve, crv, roughPlanetRadius, ringToPlanetRotation)
 function gyroscopicForceArrowsUpdate() {
   updatedParam()
-  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, roughPlanetRadius, ringToPlanetRotation)
 }
 
-let trackingPoint = null  // This is the location of the object which was under the sprite when user last pressed the 'P' key  
-let lastTrackingPoint = null
 let stationaryCameraTrackingMode = false
-let closestVirtualLaunchVehicle = null
-let closestVirtualTransitVehicle = null
-let closestVirtualElevatorCar = null
 let tweeningTime = 2000
 let tweeningActive = false
 
@@ -1540,17 +1511,30 @@ let savedRenderHeight
 let savedRendererAlpha
 let printLater = false
 
-let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(700, 700, 700), grayMaterial)
+const objectTracker = new ObjectTracker()
+
+const trackingMarkerSize = dParamWithUnits['trackingMarkerSize'].value
+let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), grayMaterial)
 trackingPointMarkerMesh.name = 'trackingPointMarkerMesh'
+trackingPointMarkerMesh.scale.set(trackingMarkerSize, trackingMarkerSize, trackingMarkerSize)
 trackingPointMarkerMesh.visible = false
 planetCoordSys.add(trackingPointMarkerMesh)
-let targetPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(700, 700, 700), blueMaterial)
+let targetPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), blueMaterial)
 targetPointMarkerMesh.name = 'targetPointMarkerMesh'
+targetPointMarkerMesh.scale.set(trackingMarkerSize, trackingMarkerSize, trackingMarkerSize)
 targetPointMarkerMesh.visible = false
 planetCoordSys.add(targetPointMarkerMesh)
-let orbitControlsMarkerMesh = new THREE.Mesh(new THREE.SphereGeometry(500, 500, 500), greenMaterial)
+let orbitControlsMarkerMesh = new THREE.Mesh(new THREE.SphereGeometry(5/7, 16, 16), greenMaterial)
+orbitControlsMarkerMesh.name = 'orbitControlsMarkerMesh'
+orbitControlsMarkerMesh.scale.set(trackingMarkerSize, trackingMarkerSize, trackingMarkerSize)
 orbitControlsMarkerMesh.visible = false
 planetCoordSys.add(orbitControlsMarkerMesh)
+
+function resizeTrackingMarkers(size) {
+  trackingPointMarkerMesh.scale.set(size, size, size)
+  targetPointMarkerMesh.scale.set(size, size, size)
+  orbitControlsMarkerMesh.scale.set(size, size, size)
+}
 
 const numWedges = 64   // Wedges are used to keep points within meshes from becoming too spread out, losing precision, and then starting to jitter
 
@@ -1558,7 +1542,7 @@ let start, end
 
 console.log("V6")
 
-const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, crv, ecv, radiusOfPlanet, mainRingCurve)
+const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, crv, ecv, roughPlanetRadius, mainRingCurve)
 
 // Launch Trajectory Line
 let launchSystemObject = null
@@ -1588,13 +1572,13 @@ function calculateAdditionalSpecs() {
     const ClimberInitialAltitude = 0 // m
     const ClimberMaxAcceleration = 9.8 // m/s2
     const ClimberTotalMass = ClimberEmptyMass + ClimberPayloadMass + ClimberFuelMass
-    const GravityForce = (gravitationalConstant * ClimberTotalMass * massOfPlanet) / (radiusOfPlanet + ClimberInitialAltitude)**2
-    const CentripetalForce = -ClimberTotalMass * (2 * Math.PI * (radiusOfPlanet + ClimberInitialAltitude) / (hoursInSiderealDay * 3600))**2 / (radiusOfPlanet + ClimberInitialAltitude)
+    const GravityForce = (gravitationalConstant * ClimberTotalMass * massOfPlanet) / (roughPlanetRadius + ClimberInitialAltitude)**2
+    const CentripetalForce = -ClimberTotalMass * (2 * Math.PI * (roughPlanetRadius + ClimberInitialAltitude) / (hoursInSiderealDay * 3600))**2 / (roughPlanetRadius + ClimberInitialAltitude)
     const SurfaceTerminusAnchoringForce = 10000 // N
     const TotalLoadForce = GravityForce + CentripetalForce + ClimberMaxAcceleration * ClimberTotalMass + SurfaceTerminusAnchoringForce
     const A_s = TotalLoadForce / (T*1000000)
     const ρ = dParamWithUnits['tetherFiberDensity'].value
-    const R = radiusOfPlanet
+    const R = roughPlanetRadius
     const R_g = R+35786000 //m
     const R_a = R_g * 2
     const g = 9.8  // m/s2
@@ -1681,11 +1665,11 @@ function updateRing() {
   mainRingCurve = tetheredRingSystems[0].mainRingCurve
   
   // ToDo, need to add crv parameters to the specs file. Specifically: crv.mainRingRadius, crv.mainRingCircumference, crv.mainRingMassPerMeter, 
-  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv)
+  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
 
-  const referencePoint = new THREE.Vector3(0, radiusOfPlanet + crv.currentMainRingAltitude, 0)
+  const referencePoint = new THREE.Vector3(0, roughPlanetRadius + crv.currentMainRingAltitude, 0)
   mainRingCurveObject.update(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint)
-  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, radiusOfPlanet, mainRingCurve, [timeSinceStart])
+  transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, roughPlanetRadius, mainRingCurve, [timeSinceStart])
   if (verbose) console.log('transitSystemObject.update ')
   
   tetheredRingSystems.forEach(tetheredRingSystem => {
@@ -1709,8 +1693,8 @@ function updateRing() {
     }
   }
 
-  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
-  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, radiusOfPlanet, ringToPlanetRotation)
+  gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadius, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+  gyroscopicForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, roughPlanetRadius, ringToPlanetRotation)
   //calculateAdditionalSpecs()
 
   if (genSpecs) {
@@ -1733,6 +1717,62 @@ function updateRing() {
   if (verbose) console.log('done ')
 }
 
+let firstFrame, lastFrame
+if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
+  firstFrame = 0
+  lastFrame = firstFrame + dParamWithUnits['maxBackgroundVideoFrames'].value - 1
+  for (let i = firstFrame; i<=lastFrame; i++) {
+    //const fileName = 'NewZealandLaunchSite'
+    const folderName = 'OrbitAroundLauncher4K'
+    const fileName = 'OrbitAroundLauncher'
+    backgroundTexture[i-firstFrame] = await backgroundTextureLoader.loadAsync(`./textures/googleEarthImages/${folderName}/footage/${fileName}_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
+  }
+}
+else {
+  // Hack to avoid error if above file is missing
+  //backgroundTexture[0] = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
+}
+
+let backgroundImage
+if (nonGUIParams['displayBackgroundImage']) {
+  backgroundImage = await backgroundTextureLoader.loadAsync(nonGUIParams['backgroundImageFilename']).then(function(texture) {
+    const width = texture.source.data.naturalWidth
+    const height = texture.source.data.naturalHeight
+    backgroundSceneObject = new backgroundScene(width, height, texture)
+    backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+  })
+}
+
+const orbitControls = new OrbitControls(camera, renderer.domElement)
+orbitControls.addEventListener('change', orbitControlsEventHandler)
+
+//orbitControls.autoRotate = true
+orbitControls.autoRotateSpeed = dParamWithUnits['orbitControlsRotateSpeed'].value
+orbitControls.enableDamping = true
+//orbitControls.dampingFactor *= 0.1 
+//orbitControls.enablePan = true
+
+// Find the intial reference point for the camera and orbit controls
+let initialReferencePoint
+switch (nonGUIParams['initialReferencePoint']) {
+  case 'feederRailEntrancePosition':
+    initialReferencePoint = launchSystemObject.feederRailEntrancePosition
+    break
+  default:
+    initialReferencePoint = new THREE.Vector3(0, 0, 0)
+    break
+}
+orbitControls.target.copy(initialReferencePoint).add(nonGUIParams['orbitControlsTarget'])
+// ToDo: we really need to do some rotations here to get the camera to point in the right direction
+orbitControls.object.position.copy(initialReferencePoint).add(nonGUIParams['orbitControlsObjectPosition'])
+if (orbitControls.target.length() == 0) {
+  orbitControls.target.copy(new THREE.Vector3(0, 0, 0))
+}
+else {
+  orbitControls.upDirection.copy(orbitControls.target.clone().normalize())
+}
+camera.up.copy(orbitControls.upDirection)
+
 const mouse = {
   x: undefined,
   y: undefined
@@ -1743,6 +1783,9 @@ let animateRingRaising = false
 let animateRingLowering = false
 let animateRingMovingOut = false
 let animateRingMovingBack = false
+let animateElevatedEvacuatedTubeDeploying = false
+let animateElevatedEvacuatedTubeRetracting = false
+let elevatedEvacuatedTubeDeploymentAlpha = 0
 let animateZoomingIn = false
 let animateZoomingOut = false
 //let animateCameraGoingUp = false
@@ -1840,7 +1883,7 @@ function renderFrame() {
     orbitControls.maxPolarAngle = orbitControlsNewMaxPolarAngle
     // const offTarget = orbitControls.target.clone().sub(orbitControlsTargetPoint).length()
     // console.log(offTarget)
-    // if ((offTarget>100) && (offTarget<10000) && (orbitControlsTargetPoint.length()>radiusOfPlanet)) {
+    // if ((offTarget>100) && (offTarget<10000) && (orbitControlsTargetPoint.length()>roughPlanetRadius)) {
     //   orbitControls.target.lerp(orbitControlsTargetPoint, 0.02)
     //   console.log("pulling towards last target")
     // }
@@ -1850,37 +1893,59 @@ function renderFrame() {
   timeSinceStart += clockDelta
 
   // Cause the logo to disappear after a few seconds
-  if ((timeSinceStart>10) && (guidParam['showLogo']===true)) {
+  if ((timeSinceStart>20) && (guidParam['showLogo']===true)) {
     guidParam['showLogo'] = false
     updateLogoSprite()
+    const startTimerParams = {animateZoomingOut: animateZoomingOut, orbitControlsAutoRotate: orbitControls.autoRotate}
+    nonGUIParams['startTimerActions'](startTimerParams)
+    animateZoomingOut = startTimerParams.animateZoomingOut
+    orbitControls.autoRotate = startTimerParams.orbitControlsAutoRotate
   }
 
   if (enableLaunchSystem) {
-    launchSystemObject.animate(timeSinceStart, camera.position.clone())
+    launchSystemObject.animate(timeSinceStart, camera.position.clone(), elevatedEvacuatedTubeDeploymentAlpha)
   }
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
 
-  if (trackingPoint) {
-    if (lastTrackingPoint) {
-      if (closestVirtualLaunchVehicle!==null) {
-        trackingPoint = closestVirtualLaunchVehicle.launchVehicle.getFuturePosition(closestVirtualLaunchVehicle.refFrame, 0)
+  if (objectTracker.trackingPoint) {
+    if (objectTracker.lastTrackingPoint) {
+      if (objectTracker.closestTrackedObject[0]!==null) {
+        objectTracker.trackingPoint = objectTracker.closestTrackedObject[0].trackableObject.getFuturePosition(objectTracker.closestTrackedObject[0].refFrame, 0)
+        objectTracker.trackingFrame = objectTracker.closestTrackedObject[0].trackableObject.getFutureFrame(objectTracker.closestTrackedObject[0].refFrame, 0)
       }
-      else if (closestVirtualTransitVehicle!==null) {
-        const localTrackingPoint = closestVirtualTransitVehicle.transitVehicle.getFuturePosition(closestVirtualTransitVehicle.refFrame, 0)
-        trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
+      else if (objectTracker.closestTrackedObject[1]!==null) {
+        objectTracker.trackingPoint = objectTracker.closestTrackedObject[1].trackableObject.getFuturePosition(objectTracker.closestTrackedObject[1].refFrame, 0)
+        objectTracker.trackingFrame = null
       }
-      else if (closestVirtualElevatorCar!==null) {
-        const localTrackingPoint = closestVirtualElevatorCar.elevatorCar.getFuturePosition(closestVirtualElevatorCar.refFrame, 0)
-        trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
+      else if (objectTracker.closestTrackedObject[2]!==null) {
+        objectTracker.trackingPoint = objectTracker.closestTrackedObject[2].trackableObject.getFuturePosition(objectTracker.closestTrackedObject[2].refFrame, 0)
+        objectTracker.trackingFrame = null
+      }
+      else if (objectTracker.closestTrackedObject[3]!==null) {
+        const localTrackingPoint = objectTracker.closestTrackedObject[3].trackableObject.getFuturePosition(objectTracker.closestTrackedObject[3].refFrame, 0)
+        objectTracker.trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
+        objectTracker.trackingFrame = null
+      }
+      else if (objectTracker.closestTrackedObject[4]!==null) {
+        const localTrackingPoint = objectTracker.closestTrackedObject[4].trackableObject.getFuturePosition(objectTracker.closestTrackedObject[4].refFrame, 0)
+        objectTracker.trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
+        objectTracker.trackingFrame = null
+      }
+      else if (objectTracker.closestTrackedObject[5]!==null) {
+        const localTrackingPoint = objectTracker.closestTrackedObject[5].position.clone()
+        objectTracker.trackingPoint = tetheredRingRefCoordSys.localToWorld(localTrackingPoint)
+        objectTracker.trackingFrame = null
       }
 
-      if (trackingPoint) {
-        trackingPointMarkerMesh.position.copy(trackingPoint)
-        trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
+      if (objectTracker.trackingPoint) {
+        trackingPointMarkerMesh.position.copy(objectTracker.trackingPoint)
+        const trackingPointDistanceToCamera = trackingPointMarkerMesh.position.clone().sub(camera.position).length()
+        trackingPointMarkerMesh.scale.set(trackingPointDistanceToCamera/64, trackingPointDistanceToCamera/64, trackingPointDistanceToCamera/64)
+        trackingPointMarkerMesh.visible = dParamWithUnits['showTrackingMarkers'].value
 
         if (stationaryCameraTrackingMode) {
           orbitControls.update()
-          const offset = trackingPoint.clone().sub(lastTrackingPoint)
+          const offset = objectTracker.trackingPoint.clone().sub(objectTracker.lastTrackingPoint)
           if (!tweeningActive) {
             orbitControls.target.add(offset)
             orbitControls.enableDamping = true
@@ -1892,14 +1957,24 @@ function renderFrame() {
           orbitControls.enable = true
         }
         else {
-          const offset = trackingPoint.clone().sub(lastTrackingPoint)
-          const angleOffset = new THREE.Quaternion().setFromUnitVectors(lastTrackingPoint.clone().normalize(), trackingPoint.clone().normalize())
+          const offset = objectTracker.trackingPoint.clone().sub(objectTracker.lastTrackingPoint)
+          let angleOffset
+          if ((objectTracker.trackingFrame!==null) && (objectTracker.lastTrackingFrame!==null)) {
+            // Selfie-stick mode - This should keep the camera positioned in the same direction relative to the object's orientation...
+            angleOffset = new THREE.Quaternion().setFromUnitVectors(objectTracker.lastTrackingFrame.forward, objectTracker.trackingFrame.forward)
+          }
+          else {
+            // Shadowing drone mode - This will keep the camera positioned in the same direction relative to the center of the planet
+            angleOffset = new THREE.Quaternion().setFromUnitVectors(objectTracker.lastTrackingPoint.clone().normalize(), objectTracker.trackingPoint.clone().normalize())
+          }
 
           if (!tweeningActive) {
+            const cameraPositionOffset = camera.position.clone().sub(orbitControls.target)
             orbitControls.target.add(offset)
             orbitControls.upDirection.applyQuaternion(angleOffset)
             camera.up.applyQuaternion(angleOffset)
-            orbitControls.object.position.add(offset)
+            const newCameraPosition = orbitControls.target.clone().add(cameraPositionOffset.applyQuaternion(angleOffset))
+            orbitControls.object.position.set(newCameraPosition.x, newCameraPosition.y, newCameraPosition.z)
             orbitControls.enableDamping = true
           }
           else {
@@ -1910,13 +1985,24 @@ function renderFrame() {
           orbitControls.enable = true
         }
         orbitControlsMarkerMesh.position.copy(orbitControls.target)
-        orbitControlsMarkerMesh.visible = dParamWithUnits['showMarkers'].value
+        const orbitControlsDistanceToCamera = orbitControlsMarkerMesh.position.clone().sub(camera.position).length()
+        orbitControlsMarkerMesh.scale.set(orbitControlsDistanceToCamera/64, orbitControlsDistanceToCamera/64, orbitControlsDistanceToCamera/64)
+        orbitControlsMarkerMesh.visible = dParamWithUnits['showTrackingMarkers'].value
       }
       else {
         trackingPointMarkerMesh.visible = false
       }
     }
-    lastTrackingPoint = (trackingPoint) ? trackingPoint.clone() : null
+    objectTracker.lastTrackingPoint = (objectTracker.trackingPoint) ? objectTracker.trackingPoint.clone() : null
+    if (objectTracker.trackingFrame) {
+      objectTracker.lastTrackingFrame = {}
+      for (let key in objectTracker.trackingFrame) {
+        objectTracker.lastTrackingFrame[key] = objectTracker.trackingFrame[key].clone()
+      }
+    }
+    else {
+      objectTracker.lastTrackingFrame = null
+    }
   }
 
   if (cameraControlActive) {
@@ -1937,31 +2023,22 @@ function renderFrame() {
         savedRenderWidth = drawingBufferSize.x
         savedRenderHeight = drawingBufferSize.y
         renderer.setClearAlpha(0)  // Make the background transparent
-        const width = cameraControlData['width']
-        const height = cameraControlData['height']
+        let width, height
+        if (nonGUIParams['setResolutionFromBackgroundVideo']) {
+          width = backgroundTexture[0].source.data.naturalWidth
+          height = backgroundTexture[0].source.data.naturalHeight
+        }
+        else {
+          width = cameraControlData['width']
+          height = cameraControlData['height']
+        }
         renderer.setSize(width, height)
-        planetMeshes.traverse(planetMesh => {
-          planetMesh.visible = false
-        })
-        atmosphereMesh.visible = false
   
-        backgroundScene = new THREE.Scene()
-        backgroundCamera = new THREE.OrthographicCamera( - width / 2, width / 2, height / 2, - height / 2, 1, 100 );
-        backgroundCamera.position.z = 10
-        backgroundScene.add(backgroundCamera)
-        // const backgroundTextureLoader = new THREE.TextureLoader()
-        // const backgroundTexture = backgroundTextureLoader.load('./textures/googleEarthImages/NewZealandLaunchSite_000.jpeg')
-        backgroundMaterial = new THREE.MeshBasicMaterial( { map: backgroundTexture[0] } )
-        const backgroundWidth = backgroundMaterial.map.image.width
-        const backgroundHeight = backgroundMaterial.map.image.height
-        background = new THREE.Sprite( backgroundMaterial )
-        background.center.set( 0.5, 0.5 )
-        background.scale.set( backgroundWidth, backgroundHeight, 1 )
-        backgroundScene.add( background )
-      
+        backgroundSceneObject = new backgroundScene(width, height, backgroundTexture[0])
+        backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+
         //backgroundCanvas = new THREE.CanvasTexture(document.getElementById('backgroundCanvas'))
-        //sceneBackground.
-        // ToDo: We probably add a feature to allow capturing at an integer multiple of the recolution from GoogleEarthStudio
+        // ToDo: We probably add a feature to allow capturing at an integer multiple of the resolution from GoogleEarthStudio
       }
     }
     else {
@@ -1971,10 +2048,19 @@ function renderFrame() {
     const cameraControlFrame = cameraControlCurrentTime * cameraControlData['frameRate']
     const prevFrame = Math.min(Math.floor(cameraControlFrame), cameraControlData['numFrames'] - 1)
     const nextFrame = Math.min(prevFrame+1, cameraControlData['numFrames'] - 1)
-    if (prevFrame<400) {
-      backgroundMaterial.map = backgroundTexture[prevFrame]
+    // Hack - limit to 450 frames for more efficient testing
+    if (!dParamWithUnits['jsonFileCameraControlHelper'].value && (prevFrame<dParamWithUnits['maxBackgroundVideoFrames'].value)) {
+      // Apply the background texture from the frames of the Google Earth video
+      backgroundSceneObject.sprite.material.map = backgroundTexture[prevFrame]
+      if (backgroundTexture[prevFrame-1]) {
+        backgroundTexture[prevFrame-1].dispose()
+        backgroundTexture[prevFrame-1] = null
+      }
     }
-    const alpha = Math.min(cameraControlFrame - prevFrame, 1)
+    
+    // Hack
+    const alpha = 0 // Math.min(cameraControlFrame - prevFrame, 1)
+
     const prevData = cameraControlData['cameraFrames'][prevFrame]
     const nextData = cameraControlData['cameraFrames'][nextFrame]
     const pIOver180 = Math.PI/180
@@ -1984,7 +2070,11 @@ function renderFrame() {
     const nextDataRotation = new THREE.Vector3(nextData['rotation'].y*pIOver180, nextData['rotation'].z*pIOver180, nextData['rotation'].x*pIOver180)
     const interpolatedPosition = new THREE.Vector3().lerpVectors(prevDataPosition, nextDataPosition, alpha)
     const interpolatedRotation = new THREE.Vector3().lerpVectors(prevDataRotation, nextDataRotation, alpha)
+
+    // Hack - expand the field of view to 180 degrees
     const interpolatedFovVertical = THREE.MathUtils.lerp(prevData['fovVertical'], nextData['fovVertical'], alpha)
+    //console.print(prevFrame, nextFrame, interpolatedPosition.x, interpolatedPosition.y, interpolatedPosition.z, interpolatedRotation.x, interpolatedRotation.y, interpolatedRotation.z)
+    //console.print(prevData['rotation'].y, prevData['rotation'].z, prevData['rotation'].x)
     // All json file rotation parameters are initially zero (because the camera is directly above the south pole, and up is at lon = 90)
     // Tilt Up from 0 to 90 degrees increases the rotate x parameter in the json file, which three.js interprets as the z parameter
     // Panning from -90 to 0 causes a counter-clockwise twist and increases the rotate z parameter in the json file, which three.js interprets as the y parameter
@@ -2013,6 +2103,7 @@ function renderFrame() {
     }
     printLater = !lastCameraControlActive
   }
+
   if (!cameraControlActive && lastCameraControlActive) {
     // Restore the camera back to its original position and rotation
     if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
@@ -2025,14 +2116,10 @@ function renderFrame() {
       renderer.setClearAlpha(savedRendererAlpha)
       renderer.setSize(savedRenderWidth, savedRenderHeight)
       // Restore the planet and atmosphere textures
-      planetMeshes.traverse(planetMesh => {
-        planetMesh.visible = dParamWithUnits['showEarthsSurface'].value
-      })
-      atmosphereMesh.visible = dParamWithUnits['showEarthsAtmosphere'].value
-      backgroundScene.remove(backgroundCamera)
-      backgroundScene.remove(background)
-      backgroundScene = null
-      backgroundCamera = null
+      backgroundSceneObject.restorePlanet([planetMeshes, atmosphereMesh])
+      backgroundSceneObject.remove()
+      backgroundSceneObject = null
+
       orbitControls.enabled = true
     }
     else {
@@ -2073,6 +2160,7 @@ function renderFrame() {
     for (var i in gui.__controllers) {
       gui.__controllers[i].updateDisplay()
     }
+
     //adjustRingLatLon()
     updateTransitsystem()
   
@@ -2102,6 +2190,17 @@ function renderFrame() {
       gui.__controllers[i].updateDisplay()
     }
     adjustRingLatLon()
+  }
+
+  if (animateElevatedEvacuatedTubeDeploying||animateElevatedEvacuatedTubeRetracting) {
+    if (animateElevatedEvacuatedTubeDeploying) {
+      elevatedEvacuatedTubeDeploymentAlpha = Math.min(1, elevatedEvacuatedTubeDeploymentAlpha + clockDelta*0.025)
+      if (elevatedEvacuatedTubeDeploymentAlpha==1) animateElevatedEvacuatedTubeDeploying = false
+    }
+    if (animateElevatedEvacuatedTubeRetracting) {
+      elevatedEvacuatedTubeDeploymentAlpha = Math.max(0, elevatedEvacuatedTubeDeploymentAlpha - clockDelta*0.025)
+      if (elevatedEvacuatedTubeDeploymentAlpha==0) animateElevatedEvacuatedTubeRetracting = false
+    }
   }
 
   if (mtm.active) {
@@ -2161,7 +2260,7 @@ function renderFrame() {
           console.log(angleOfAscent, rampCentrifugalAcceleration, launchSystemObject.massFraction)
         }
         const someMargin = 200000  // Yeah, a lot of margin, I know...
-        const validCandidate = (launchSystemObject.initialApogeeDistance < planetSpec.radius + launchVehicleDesiredOrbitalAltitude + someMargin)
+        const validCandidate = (launchSystemObject.initialApogeeDistance < launchSystemObject.planetRadius + launchVehicleDesiredOrbitalAltitude + someMargin)
         const betterCanditate = validCandidate && (launchSystemObject.massFraction > mtm.bestMassFraction)
         if ((mtm.bestMassFraction===-1) || betterCanditate) {
           mtm.bestMassFraction = launchSystemObject.massFraction
@@ -2215,7 +2314,7 @@ function renderFrame() {
   //   camera.position.multiplyScalar(1+cameraSpeed)
   //   camera.matrixValid = false
   //   orbitControls.target.multiplyScalar(1+cameraSpeed)
-  //   if (camera.position.length()>=radiusOfPlanet + 100000) {
+  //   if (camera.position.length()>=roughPlanetRadius + 100000) {
   //     animateCameraGoingUp = false
   //     cameraSpeed = 0
   //   }
@@ -2230,17 +2329,7 @@ function renderFrame() {
   }
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, cameraPostition, mainRingCurve, dParamWithUnits)
 
-  const weAreFar1 = (cameraGroup.position.length() > (radiusOfPlanet + crv.currentMainRingAltitude)*1.1)
-  if (weAreFar1 !== prevWeAreFar1) {
-    if (weAreFar1) {
-      // To improve rendering performance when not zoomed out, make stars invisible
-      starsMesh.visible = true
-    }
-    else {
-      starsMesh.visible = false
-    }
-  }
-  prevWeAreFar1 = weAreFar1
+  starsObject.animate(dParamWithUnits, planetSpec, camera)
 
   if (console.userdata['capture']==1) { 
     console.userdata['matrixAutoUpdateData'] = {}
@@ -2257,8 +2346,8 @@ function renderFrame() {
   }
   else {
     renderer.clear()
-    if (backgroundScene && backgroundCamera) {
-      renderer.render(backgroundScene, backgroundCamera)
+    if (backgroundSceneObject) {
+      renderer.render(backgroundSceneObject.scene, backgroundSceneObject.camera)
       renderer.clearDepth()
     }
     renderer.render( scene, camera )
@@ -2271,10 +2360,12 @@ function renderFrame() {
   }
   if (trackPointLoggerObject) {
     trackPointLoggerObject.capture(
+      timeSinceStart,
       camera.position.clone(),
       camera.up.clone(),
       orbitControls.target.clone(),
-      orbitControls.upDirection.clone()
+      orbitControls.upDirection.clone(),
+      planetSpec
     )
   }
 
@@ -2285,7 +2376,7 @@ function renderFrame() {
   orbitControls.enabled = false
   TWEEN.update(timeSinceStart*1000)
   if (followElevators) {
-    const elevatorDistanceFromEarthsCenter = elevatorPosCalc.calculateElevatorPosition(timeSinceStart)+radiusOfPlanet+dParamWithUnits['transitTubeUpwardOffset'].value
+    const elevatorDistanceFromEarthsCenter = elevatorPosCalc.calculateElevatorPosition(timeSinceStart)+roughPlanetRadius+dParamWithUnits['transitTubeUpwardOffset'].value
     camera.position.normalize().multiplyScalar(elevatorDistanceFromEarthsCenter)
     orbitControls.target.normalize().multiplyScalar(elevatorDistanceFromEarthsCenter)
   }
@@ -2323,8 +2414,20 @@ if (verbose) console.log("Adding resize event listener")
 window.addEventListener( 'resize', onWindowResize )
 function onWindowResize() {
   simContainer = document.querySelector('#simContainer')
-  const width = simContainer.offsetWidth
-  const height = simContainer.offsetHeight
+  let width, height
+  if (nonGUIParams['setResolutionFromBackgroundImage'] && backgroundImage && backgroundImage.source) {
+    width = backgroundImage.source.data.naturalWidth
+    height = backgroundImage.source.data.naturalHeight
+  }
+  else if (nonGUIParams['setResolutionFromBackgroundVideo'] && backgroundTexture[0] && backgroundTexture[0].source) {
+    width = backgroundTexture[0].source.data.naturalWidth
+    height = backgroundTexture[0].source.data.naturalHeight
+  }
+  else {
+    width = simContainer.offsetWidth
+    height = simContainer.offsetHeight
+  }
+  renderer.setSize(width, height)
 
   camera.aspect = width/height
   camera.updateProjectionMatrix()
@@ -2338,7 +2441,6 @@ function onWindowResize() {
   updateLogoSprite()
   updateXYChart()
 
-  renderer.setSize(width, height)
   //console.log("resizing...", simContainer.offsetWidth, simContainer.offsetHeight)
 }
 
@@ -2466,10 +2568,10 @@ animate()
 //   // Goal is to find a point on the ring to use as the target point for the orbit controls, to mke it easier to zoom in close when starting from very far away.
 //   // There is defintaely a more direct formula forthis - I'm being lazy!
 //   // This apporoach involves zipping around the ring and finding the point that is closest to the point above the globe where the user's cursor was when they pressed 'P'
-//   const r = radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value * dParamWithUnits['ringAmountRaisedFactor'].value
+//   const r = roughPlanetRadius + dParamWithUnits['ringFinalAltitude'].value * dParamWithUnits['ringAmountRaisedFactor'].value
 //   const ω = -(Math.PI/2 - dParamWithUnits['equivalentLatitude'].value)
 //   let pointOnRing = new THREE.Vector3()
-//   const cursorPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value * dParamWithUnits['ringAmountRaisedFactor'].value)/radiusOfPlanet)
+//   const cursorPoint = intersectionPoint.multiplyScalar((roughPlanetRadius + dParamWithUnits['ringFinalAltitude'].value * dParamWithUnits['ringAmountRaisedFactor'].value)/roughPlanetRadius)
 
 //   let minDistace
 //   let bestPoint = new THREE.Vector3()
@@ -2501,7 +2603,7 @@ function onKeyDown( event ) {
   // Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   //   v.value = guidParam[k]
   // })
-  const RaiseLowerMode = true
+  const raiseLowerMode = dParamWithUnits['animateElevatedEvacuatedTubeDeployment'].value ? 2 : 0
 
   switch ( event.keyCode ) {
     case 79: /*O*/
@@ -2542,49 +2644,89 @@ function onKeyDown( event ) {
         }
       })
       let objectIntersects = []
-      if (dParamWithUnits['showTransitTube'].value || dParamWithUnits['showMassDriverTube'].value || dParamWithUnits['showLaunchVehicles'].value) {
-        planetCoordSys.children.forEach(mesh => {
-          //console.log(mesh.name)
-          if ((mesh.name==='massDriverTube') || (mesh.name==='evacuatedTube') || (mesh.name==='launchVehicle')) {
-            objectIntersects.push.apply(objectIntersects, raycaster.intersectObject(mesh))
-          }
-        })
-        tetheredRingRefCoordSys.children.forEach(mesh => {
-          if ((mesh.name==='transitTube') || (mesh.name==='stationaryRing')) {
-            objectIntersects.push.apply(objectIntersects, raycaster.intersectObject(mesh))
-          }
-        })
+      planetCoordSys.traverse(child => {
+        if (child.type==='Mesh') {
+          objectIntersects.push.apply(objectIntersects, raycaster.intersectObject(child))
+        }
+      })
+      function removeDuplicateObjects(array) {
+        const seen = new Set();
+        return array.filter(element => {
+            if (seen.has(element.object.uuid)) {
+                return false;
+            }
+            seen.add(element.object.uuid);
+            return true;
+        });
       }
+
+      objectIntersects = removeDuplicateObjects(objectIntersects)
+
+      const possibleObjectNames = ['launchVehicle', 'elevatorCar', 'transitVehicle', 'transitTube', 'massDriverTube']
+      const possibleMovingObjects = ['launchVehicle', 'elevatorCar', 'transitVehicle']
+      let intercectedObjects = []
       if (objectIntersects.length>0) {
+        // Figure out which object the ray interceted with
         objectIntersects.forEach(intersect => {
-          // A bit hacky - there's no guatentee that immediate parent of the object we interceted with is the 'launchVehicle' object that we want to track.
-          // If the model becomes more cpmplicated, then we might need to search further up the heirarchy of objects to find it.
-          if ((intersect.object.parent.name=='launchVehicle') || (intersect.object.parent.name=='elevatorCar') || (intersect.object.parent.name=='transitVehicle')) {
-            trackingPoint = intersect.object.parent.position
+          let object = intersect.object
+          while (object && !possibleObjectNames.includes(object.name)) {
+            object = object.parent
+          }
+          // A bit hacky - there's no guarantee that the immediate parent of the object we interceted with is the 'launchVehicle' object that we want to track.
+          // If the model becomes more complicated, then we might need to search further up the heirarchy of objects to find it.
+          if (object && possibleObjectNames.includes(object.name)) {
+            intercectedObjects.push({object, intersectionPoint: intersect.point})
           }
         })
-        // if (trackingPoint) {
-        //   trackingPointMarkerMesh.position.copy(trackingPoint)
-        //   trackingPointMarkerMesh.visible = true
-        // }
-        intersectionPoint = objectIntersects[0].point
-        targetPoint = intersectionPoint
+        intercectedObjects = removeDuplicateObjects(intercectedObjects)
+      }
+  
+      const findFirstMatch = (a, b) => {
+        for (let possibleName of b) {
+            const match = a.find(aElement =>
+              aElement.object.name === possibleName
+            )
+            if (match) return match;
+        }
+        return null; // Return null if no match is found
+      }
+      const intercectedObject = findFirstMatch(intercectedObjects, possibleObjectNames)
+      if (intercectedObject) {
+        targetPoint = intercectedObject.intersectionPoint.clone()
+        if (possibleMovingObjects.includes(intercectedObject.object.name)) {
+          const trackedObjectType = intercectedObject.object.name
+          const trackedObjectIndex = objectTracker.convertObjectTypeToIndex(trackedObjectType)
+          objectTracker.findNearestObject(dParamWithUnits, trackedObjectType, intercectedObject.intersectionPoint, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
+          if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
+            targetPoint = objectTracker.trackingPoint.clone()
+            setupTweeningOperation()
+            orbitControls.rotationSpeed = 0.01
+          }
+        }
+        else {
+          // objectTracker.trackingPoint = intercectedObject.intersectionPoint.clone()
+          trackingPointMarkerMesh.position.copy(targetPoint)
+          const trackingPointDistanceToCamera = trackingPointMarkerMesh.position.clone().sub(camera.position).length()
+          trackingPointMarkerMesh.scale.set(trackingPointDistanceToCamera/64, trackingPointDistanceToCamera/64, trackingPointDistanceToCamera/64)
+          trackingPointMarkerMesh.visible = dParamWithUnits['showTrackingMarkers'].value
+          setupTweeningOperation()
+        }
         extraDistanceForCamera = 100
         orbitControls.rotateSpeed = 0.9
       }
       else if (planetIntersects.length>0) { // Note: would probably be advisable to assert here that there is only one intersection point.
         intersectionPoint = planetIntersects[0].point
         // Because we want to orbit around a point at the altitude of the ring...
-        targetPoint = intersectionPoint.multiplyScalar((radiusOfPlanet + (dParamWithUnits['pKeyAltitudeFactor'].value * crv.currentMainRingAltitude))/radiusOfPlanet)
+        targetPoint = intersectionPoint.multiplyScalar((roughPlanetRadius + (dParamWithUnits['pKeyAltitudeFactor'].value * crv.currentMainRingAltitude))/roughPlanetRadius)
         extraDistanceForCamera = 10000
         orbitControls.rotateSpeed = 0.9
         // Uncomment this line if you want to print lat, lon, and alt to console
-        //console.log(tram.xyz2lla(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
-      }
-      if ((planetIntersects.length>0) || (objectIntersects.length>0)) {
+        //console.log(tram.ecefToGeodetic(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z, planetSpec.ellipsoid))
         targetPointMarkerMesh.position.copy(targetPoint)
-        targetPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
+        targetPointMarkerMesh.visible = dParamWithUnits['showTrackingMarkers'].value
         setupTweeningOperation()
+      }
+      // if ((planetIntersects.length>0) || (objectIntersects.length>0)) {
         
         // previousTargetPoint.copy(orbitControls.target.clone())
         // previousUpVector.copy(orbitControls.upDirection.clone())
@@ -2594,135 +2736,34 @@ function onKeyDown( event ) {
         // orbitControlsEarthRingLerpFactor = 0
         // orbitControlsEarthRingLerpSpeed = 1/32
         // orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
-      }
+      // }
       break
     case 48: /*0*/
-      // Search for the object with name=='launchVehicle'
-      if (closestVirtualLaunchVehicle!==null) {
-        // Assume that we simply want to stop tracking the vehicle
-        closestVirtualLaunchVehicle = null
+    case 49: /*1*/
+    case 50: /*2*/
+    case 51: /*3*/
+    case 52: /*4*/
+    case 53: /*5*/
+      const trackedObjectIndex = objectTracker.convertHotkeyToObjectIndex(event.keyCode)
+      if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
+        // Toggle off tracking of the selected object
+        objectTracker.closestTrackedObject[trackedObjectIndex] = null
         stationaryCameraTrackingMode = false
-        targetPoint = null
+        objectTracker.targetPoint = null
       }
       else {
-        let closestSoFar = -1
-        launchSystemObject.refFrames.forEach(refFrame => {
-          refFrame.wedges.forEach(wedge => {
-            Object.entries(wedge).forEach(([objectKey, objectValue]) => {
-              if (objectKey=='virtualLaunchVehicles') {
-                objectValue.forEach(launchVehicle => {
-                  const tmpPosition = launchVehicle.getFuturePosition(refFrame, 0)
-                  if ((tmpPosition.x!=="NaN") && (tmpPosition.y!=="NaN") && (tmpPosition.z!=="NaN")) {
-                    const distanceAway = camera.position.distanceTo(tmpPosition)
-                    if ((closestSoFar==-1) || (distanceAway<closestSoFar)) {
-                      closestVirtualLaunchVehicle = {launchVehicle, refFrame}
-                      closestSoFar = distanceAway
-                    }
-                  }
-                })
-              }
-            })
-          })
-        })
-        if (closestVirtualLaunchVehicle!==null) {
-          trackingPoint = closestVirtualLaunchVehicle.launchVehicle.getFuturePosition(closestVirtualLaunchVehicle.refFrame, tweeningTime/1000)
-          closestVirtualTransitVehicle = null  // Stop tracking the transit vehicle
-          closestVirtualElevatorCar = null // Stop tracking the elevator car
-          trackingPointMarkerMesh.position.copy(trackingPoint)
-          trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
-          targetPoint = trackingPoint.clone()
+        // Find and start tracking the selected object
+        const trackedObjectType = objectTracker.convertHotkeyToObjectType(event.keyCode)
+        objectTracker.findNearestObject(dParamWithUnits, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
+        if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
+          targetPoint = objectTracker.trackingPoint.clone()
           setupTweeningOperation()
           orbitControls.rotationSpeed = 0.01
         }
       }
       break
-    case 49: /*1*/
-      // Search for the object with name=='launchVehicle'
-      if (closestVirtualTransitVehicle!==null) {
-        // Assume that we simply want to stop tracking the vehicle
-        closestVirtualTransitVehicle = null
-        stationaryCameraTrackingMode = false
-        targetPoint = null
-      }
-      else {
-        let closestSoFar = -1
-        transitSystemObject.refFrames.forEach(refFrame => {
-          if (refFrame.name==='transitVehiclesCollectorCounterClockwise') {
-            refFrame.wedges.forEach(wedge => {
-              Object.entries(wedge).forEach(([objectKey, objectValue]) => {
-                if (objectKey=='virtualTransitVehicles') {
-                  objectValue.forEach(transitVehicle => {
-                    const localTmpPosition = transitVehicle.getFuturePosition(refFrame, 0)
-                    const tmpPosition = tetheredRingRefCoordSys.localToWorld(localTmpPosition)
-                    if ((tmpPosition.x!=="NaN") && (tmpPosition.y!=="NaN") && (tmpPosition.z!=="NaN")) {
-                      const distanceAway = camera.position.distanceTo(tmpPosition)
-                      if ((closestSoFar===-1) || (distanceAway<closestSoFar)) {
-                        closestVirtualTransitVehicle = {transitVehicle, refFrame}
-                        closestSoFar = distanceAway
-                      }
-                    }
-                  })
-                }
-              })
-            })
-          }
-        })
-        if (closestVirtualTransitVehicle!==null) {
-          trackingPoint = tetheredRingRefCoordSys.localToWorld(closestVirtualTransitVehicle.transitVehicle.getFuturePosition(closestVirtualTransitVehicle.refFrame, tweeningTime/1000))
-          closestVirtualLaunchVehicle = null // Stop tracking the launch vehicle
-          closestVirtualElevatorCar = null // Stop tracking the elevator car
-          trackingPointMarkerMesh.position.copy(trackingPoint)
-          trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
-          //orbitControlsMarkerMesh.position.copy(trackingPoint)
-          targetPoint = trackingPoint.clone()
-          setupTweeningOperation()
-        }
-      }
-      break
-    case 50: /*2*/
-      // Search for the object with name=='launchVehicle'
-      if (closestVirtualElevatorCar!==null) {
-        // Assume that we simply want to stop tracking the vehicle
-        closestVirtualElevatorCar = null
-        stationaryCameraTrackingMode = false
-        targetPoint = null
-      }
-      else {
-        let closestSoFar = -1
-        transitSystemObject.refFrames.forEach(refFrame => {
-          if (refFrame.name==='staticReferenceFrame') {
-            refFrame.wedges.forEach(wedge => {
-              Object.entries(wedge).forEach(([objectKey, objectValue]) => {
-                if (objectKey=='virtualElevatorCars') {
-                  objectValue.forEach(elevatorCar => {
-                    const localTmpPosition = elevatorCar.getFuturePosition(refFrame, 0)
-                    const tmpPosition = tetheredRingRefCoordSys.localToWorld(localTmpPosition)
-                    if ((tmpPosition.x!=="NaN") && (tmpPosition.y!=="NaN") && (tmpPosition.z!=="NaN")) {
-                      const distanceAway = camera.position.distanceTo(tmpPosition)
-                      if ((closestSoFar===-1) || (distanceAway<closestSoFar)) {
-                        closestVirtualElevatorCar = {elevatorCar, refFrame}
-                        closestSoFar = distanceAway
-                      }
-                    }
-                  })
-                }
-              })
-            })
-          }
-        })
-        if (closestVirtualElevatorCar!==null) {
-          trackingPoint = tetheredRingRefCoordSys.localToWorld(closestVirtualElevatorCar.elevatorCar.getFuturePosition(closestVirtualElevatorCar.refFrame, tweeningTime/1000))
-          closestVirtualLaunchVehicle = null // Stop tracking the launch vehicle
-          closestVirtualTransitVehicle = null // Stop tracking the transit vehicle
-          trackingPointMarkerMesh.position.copy(trackingPoint)
-          trackingPointMarkerMesh.visible = dParamWithUnits['showMarkers'].value
-          //orbitControlsMarkerMesh.position.copy(trackingPoint)
-          targetPoint = trackingPoint.clone()
-          setupTweeningOperation()
-        }
-      }
-      break
-    case 51: /*3*/
+    case 54: /*6*/
+      // Traverse the heirarchy and report how many objects there or of each type
       const instances = {}
       scene.traverse(child => {
         const objName = child.name || 'noName'
@@ -2784,26 +2825,38 @@ function onKeyDown( event ) {
     //   break;
     case 82: /*R*/
       // Raise the Ring
-      if (RaiseLowerMode) {
-        animateRingRaising = !animateRingRaising
-        animateRingLowering = false
-      }
-      else {
-        animateRingMovingOut = !animateRingMovingOut
-        animateRingMovingBack = false
+      switch (raiseLowerMode) {
+        case 0:
+          animateRingRaising = !animateRingRaising
+          animateRingLowering = false
+          break
+        case 1:
+          animateRingMovingOut = !animateRingMovingOut
+          animateRingMovingBack = false
+          break
+        case 2:
+          animateElevatedEvacuatedTubeDeploying = !animateElevatedEvacuatedTubeDeploying
+          animateElevatedEvacuatedTubeRetracting = false
+          break
       }
       break
     case 76: /*L*/
       // Lower the Ring
-      if (RaiseLowerMode) {
-        animateRingRaising = false
-        animateRingLowering = !animateRingLowering
+      switch (raiseLowerMode) {
+        case 0:
+          animateRingRaising = false
+          animateRingLowering = !animateRingLowering
+          break
+        case 1:
+          animateRingMovingOut = false
+          animateRingMovingBack = !animateRingMovingBack
+          break
+        case 2:
+          animateElevatedEvacuatedTubeDeploying = false
+          animateElevatedEvacuatedTubeRetracting = !animateElevatedEvacuatedTubeRetracting
+          break
       }
-      else {
-        animateRingMovingOut = false
-        animateRingMovingBack = !animateRingMovingBack
-      }
-      break;
+      break
     case 85: /*U*/
       // Move the Camera Up
       cameraSpeed += 0.00000001
@@ -2817,19 +2870,19 @@ function onKeyDown( event ) {
     // case 84: /*T*/
     //   // Toggle Display of the Tensile Force Arrows
     //   showTensileForceArrows = !showTensileForceArrows
-    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadiusowTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   break
     // case 71: /*G*/
     //   // Toggle Display of the Tensile Force Arrows
     //   showGravityForceArrows = !showGravityForceArrows
-    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadius, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   break
     // case 73: /*I*/
     //   // Toggle Display of the Tensile Force Arrows
     //   showInertialForceArrows = !showInertialForceArrows
-    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, radiusOfPlanet, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
+    //   gravityForceArrowsObject.update(dParamWithUnits, mainRingCurve, crv, ctv, roughPlanetRadius, ringToPlanetRotation, showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   //console.log(showTensileForceArrows, showGravityForceArrows, showInertialForceArrows)
     //   break
     case 71: /*G*/
@@ -2917,8 +2970,10 @@ function onKeyDown( event ) {
       // This executes and instantaneous "Warp" to a position much closer to the ring
 
       // Print out the current location of the camera
-      console.log('\n\norbitControls.target.set(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
-      console.log('\n\nnonGUIParams[\'orbitControlsTarget\'] = new THREE.Vector3(' + orbitControls.target.x + ', ' + orbitControls.target.y + ', ' + orbitControls.target.z + ')\nnonGUIParams[\'orbitControlsUpDirection\'] = new THREE.Vector3(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\nnonGUIParams[\'orbitControlsObjectPosition\'] = new THREE.Vector3(' + orbitControls.object.position.x + ', ' + orbitControls.object.position.y + ', ' + orbitControls.object.position.z + ')\nnonGUIParams[\'cameraUp\'] = new THREE.Vector3(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
+      const reletiveTarget = orbitControls.target.clone().sub(initialReferencePoint)
+      const reletiveCameraPosition = orbitControls.object.position.clone().sub(initialReferencePoint)
+      console.log('\n\norbitControls.target.set(' + reletiveTarget.x + ', ' + reletiveTarget.y + ', ' + reletiveTarget.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + reletiveCameraPosition.x + ', ' + reletiveCameraPosition.y + ', ' + reletiveCameraPosition.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
+      console.log('\n\nnonGUIParams[\'orbitControlsTarget\'] = new THREE.Vector3(' + reletiveTarget.x + ', ' + reletiveTarget.y + ', ' + reletiveTarget.z + ')\nnonGUIParams[\'orbitControlsUpDirection\'] = new THREE.Vector3(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\nnonGUIParams[\'orbitControlsObjectPosition\'] = new THREE.Vector3(' + reletiveCameraPosition.x + ', ' + reletiveCameraPosition.y + ', ' + reletiveCameraPosition.z + ')\nnonGUIParams[\'cameraUp\'] = new THREE.Vector3(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
 
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
@@ -3097,7 +3152,7 @@ function onKeyDown( event ) {
           guidParamWithUnits['showSolarArrays'].value = true
           guidParamWithUnits['showLaunchTrajectory'].value = false
           guidParamWithUnits['showMassDriverTube'].value = false
-          guidParamWithUnits['showMassDriverScrews'].value = false
+          guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
           guidParamWithUnits['showEvacuatedTube'].value = false
           guidParamWithUnits['showLaunchSleds'].value = false
           guidParamWithUnits['showLaunchVehicles'].value = false
@@ -3138,7 +3193,7 @@ function onKeyDown( event ) {
           guidParamWithUnits['showSolarArrays'].value = false
           guidParamWithUnits['showLaunchTrajectory'].value = !isOne
           guidParamWithUnits['showMassDriverTube'].value = true
-          guidParamWithUnits['showMassDriverScrews'].value = isOne
+          guidParamWithUnits['showMassDriverAccelerationScrews'].value = isOne
           guidParamWithUnits['showEvacuatedTube'].value = true
           guidParamWithUnits['showLaunchSleds'].value = isOne
           guidParamWithUnits['showLaunchVehicles'].value = isOne
@@ -3150,7 +3205,7 @@ function onKeyDown( event ) {
           //orbitControls.upDirection.set(-0.5517139461741912, -0.33633743039380865, -0.7632095744374486)
           guidParamWithUnits['ringFinalAltitude'].value = 100000  // m
           guidParamWithUnits['moveRingFactor'].value = 1
-          guidParamWithUnits['equivalentLatitude'].value = Math.acos(targetRadius/(radiusOfPlanet + guidParamWithUnits['ringFinalAltitude'].value)) * 180 / Math.PI
+          guidParamWithUnits['equivalentLatitude'].value = Math.acos(targetRadius/(roughPlanetRadius + guidParamWithUnits['ringFinalAltitude'].value)) * 180 / Math.PI
           guidParamWithUnits['ringAmountRaisedFactor'].value = 0.01
           guidParamWithUnits['numMainRings'].value = 1
           guidParamWithUnits['numTethers'].value = 360
@@ -3329,10 +3384,10 @@ function onKeyDown( event ) {
         followLaunchVehiclesStartTime = timeSinceStart - 1
         
         const point1OnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(20/launchSystemObject.durationOfLaunchTrajectory)
-        point1OnLaunchTrajectoryCurve.multiplyScalar((radiusOfPlanet + 100) / radiusOfPlanet)
+        point1OnLaunchTrajectoryCurve.multiplyScalar((roughPlanetRadius + 100) / roughPlanetRadius)
 
         const point2OnLaunchTrajectoryCurve = launchSystemObject.launchTrajectoryCurve.getPoint(0)
-        point2OnLaunchTrajectoryCurve.multiplyScalar((radiusOfPlanet + 100) / radiusOfPlanet)
+        point2OnLaunchTrajectoryCurve.multiplyScalar((roughPlanetRadius + 100) / roughPlanetRadius)
 
         orbitControlsTargetPoint.copy(point1OnLaunchTrajectoryCurve)
         setOrbitControlsTargetUpVector()
@@ -3414,9 +3469,12 @@ function setupTweeningOperation() {
     .easing(TWEEN.Easing.Linear.None)
     .start(timeSinceStart*1000)
     .onComplete(() => {tweeningActive = false})
+
   if (!stationaryCameraTrackingMode) {
     new TWEEN.Tween(orbitControls.object.position)
-      .to(orbitControls.object.position.clone().add(offset), tweeningTime)
+      // Hack - Not sure which of the following two lines is needed when; therefore, need more work.
+      //.to(orbitControls.object.position.clone().add(offset), tweeningTime)  // This line is better when following a vehicle I think.
+      .to(orbitControls.object.position.clone(), tweeningTime)
       .easing(TWEEN.Easing.Linear.None)
       .start(timeSinceStart*1000)
     new TWEEN.Tween(orbitControls.upDirection)
@@ -3443,17 +3501,17 @@ function recomputeNearFarClippingPlanes() {
   // Calculate the distance to the nearest object - for this we will use the sphere encompassing the Earth and it's stratosphere
   // Multiply that by the cosine of the camera's fulstrum angle
   // Note: Assumes the planet is centered on the origin!!!
-  camera.near = Math.max(10, camera.position.length() - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
+  camera.near = Math.max(10, camera.position.length() - (roughPlanetRadius+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Hack
   //camera.near = 0.1
 
-  // camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (radiusOfPlanet+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
+  // camera.near = Math.max(10, camera.position.distanceTo(planetMeshes[0].position) - (roughPlanetRadius+dParamWithUnits['ringFinalAltitude'].value+extraDistanceForCamera)) * Math.cos(camera.getEffectiveFOV()*Math.PI/180)
   // Far calculation: Use the pythagorean theorm to compute distance to the Earth's horizon,
   // then add the distrance from there to the edge of the sphere that represents the atmosphere,
   // then pad this sum by a factor of 1.5
-  const d1Squared = camera.position.length()**2 - radiusOfPlanet**2
-  //const d1Squared = camera.position.distanceTo(planetMeshes[0].position)**2 - radiusOfPlanet**2
-  const d2Squared = (radiusOfPlanet*1.1)**2 - radiusOfPlanet**2
+  const d1Squared = camera.position.length()**2 - roughPlanetRadius**2
+  //const d1Squared = camera.position.distanceTo(planetMeshes[0].position)**2 - roughPlanetRadius**2
+  const d2Squared = (roughPlanetRadius*1.1)**2 - roughPlanetRadius**2
   let d1, d2
   if (d1Squared>0) {
     d1 = Math.sqrt(d1Squared)
@@ -3471,8 +3529,8 @@ function recomputeNearFarClippingPlanes() {
 
   // Hack
   if (enableVR) {
-    camera.near = 0.1 // 0.00001 * radiusOfPlanet
-    camera.far = 100 * radiusOfPlanet
+    camera.near = 0.1 // 0.00001 * roughPlanetRadius
+    camera.far = 100 * roughPlanetRadius
   }
   else {
     if (nonGUIParams['overrideClipPlanes']) {
@@ -3501,8 +3559,8 @@ let orbitControlsNewMaxPolarAngle = Math.PI
 
 function autoAdjustOrbitControlsCenter() {
   const distanceToCenterOfEarth = camera.position.length()
-  const innerTransitionDistance = radiusOfPlanet+1000000
-  const outerTransitionDistance = radiusOfPlanet+2000000
+  const innerTransitionDistance = roughPlanetRadius+1000000
+  const outerTransitionDistance = roughPlanetRadius+2000000
   if (distanceToCenterOfEarth>outerTransitionDistance) {
     toRingAlreadyTriggered = false  // Reset the trigger
     if (!toPlanetAlreadyTriggered) {
@@ -3523,7 +3581,7 @@ function autoAdjustOrbitControlsCenter() {
     }
   }
   //else if ((distanceToCenterOfEarth>innerTransitionDistance) && (distanceToCenterOfEarth<outerTransitionDistance)) {
-    //const pointAboveEarthsSurface = pointOnEarthsSurface.clone().multiplyScalar((radiusOfPlanet + crv.currentMainRingAltitude)/radiusOfPlanet)
+    //const pointAboveEarthsSurface = pointOnEarthsSurface.clone().multiplyScalar((roughPlanetRadius + crv.currentMainRingAltitude)/roughPlanetRadius)
     //orbitControlsSurfaceMarker.position.copy(pointAboveEarthsSurface)
     //orbitControlsSurfaceMarker.visible = true
   //}
@@ -3662,8 +3720,9 @@ if (enableSpecsFileFeature) {
 
 // Synchronized Frame Capture
 var startCapturingFramesButton = document.getElementById( 'start-capturing-frames-button' )
+var stopCapturingFramesAndDownloadButton = document.getElementById( 'stop-capturing-and-download-button' )
 var startCapturingTrackPointsButton = document.getElementById( 'start-capturing-track-points-button' )
-var stopCapturingAndDownloadButton = document.getElementById( 'stop-capturing-and-download-button' )
+var stopCapturingTrackPointsAndDownloadButton = document.getElementById( 'stop-capturing-track-points-button' )
 var progress = document.getElementById( 'progress' )
 
 startCapturingFramesButton.addEventListener( 'click', function( e ) {
@@ -3678,29 +3737,37 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
     framerate = document.querySelector('input[name="framerate"]:checked').value;
   }
 
-  capturer = new CCapture( {
-    verbose: false,
-    display: true,
-    framerate: framerate,
-    motionBlurFrames: ( 960 / framerate ) * ( document.querySelector('input[name="motion-blur"]').checked ? 1 : 0 ),
-    quality: 100,
-    format: document.querySelector('input[name="encoder"]:checked').value,
-    workersPath: './components/CCapture/',
-    //timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
-    //frameLimit: 1200,
-    autoSaveTime: 1,
-    onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
-  } );
+  // const Hack = false
+  // if (Hack) {
+    capturer = new CCapture( {
+      verbose: false,
+      display: true,
+      framerate: framerate,
+      motionBlurFrames: ( 240 / framerate ) * ( document.querySelector('input[name="motion-blur"]').checked ? 1 : 0 ),
+      quality: 100,
+      format: document.querySelector('input[name="encoder"]:checked').value,
+      workersPath: './components/CCapture/',
+      //timeLimit: 60,  // This is just to help prevent the feature from accidentally filling up the hard drve
+      //frameLimit: 1200,
+      autoSaveTime: 1,
+      onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
+    } );
 
-  capturer.start();
-  this.style.display = 'none';
-  startCapturingTrackPointsButton.style.display = 'none';
-  stopCapturingAndDownloadButton.style.display = 'initial';
-  e.preventDefault();
+    capturer.start();
+    this.style.display = 'none';
+    startCapturingTrackPointsButton.style.display = 'none';
+    stopCapturingFramesAndDownloadButton.style.display = 'initial';
+    e.preventDefault();
+  // }
 
   // Hack - forces the CCapture resolution
+  // Values for Olympus Mons clip
+  // const width = 2100
+  // const height = 900
   const width = 1920
   const height = 1080
+
+
   renderer.setSize(width, height)
   camera.aspect = width/height
   camera.updateProjectionMatrix()
@@ -3708,23 +3775,43 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
 }, false );
 
 startCapturingTrackPointsButton.addEventListener( 'click', function( e ) {
-  trackPointLoggerObject = new trackPointLogger()
-  trackPointLoggerObject.start(googleEarthProjectFile)
+  trackPointLoggerObject = new trackPointLogger(googleEarthProjectFile)
+  trackPointLoggerObject.start(timeSinceStart)
+  // Capture right away to make sure that we have a point at time 0.0
+  trackPointLoggerObject.capture(
+    timeSinceStart,
+    camera.position.clone(),
+    camera.up.clone(),
+    orbitControls.target.clone(),
+    orbitControls.upDirection.clone(),
+    planetSpec
+  )
+  this.style.display = 'none';
+  stopCapturingTrackPointsAndDownloadButton.style.display = 'initial'
 })
 
-stopCapturingAndDownloadButton.addEventListener( 'click', function( e ) {
+stopCapturingTrackPointsAndDownloadButton.addEventListener( 'click', function( e ) {
+  if (trackPointLoggerObject) {
+    // Calling stop will cause the trackPointLoggerObject to stop after the next capture and then save the captured points to a file
+    // This will ensure that we have a point at time 1.0
+    trackPointLoggerObject.stop()
+  }
+  this.style.display = 'none';
+  startCapturingTrackPointsButton.style.display = 'initial'
+})
+
+stopCapturingFramesAndDownloadButton.addEventListener( 'click', function( e ) {
   if (capturer) captureStop()
-  if (trackPointLoggerObject) trackPointLoggerStop()
-}, false );
+}, false )
 
 function captureStop() {
   capturer.stop();
-  stopCapturingAndDownloadButton.style.display = 'none';
+  stopCapturingFramesAndDownloadButton.style.display = 'none'
   //this.setAttribute( 'href',  );
   // console.log(capturer, 'Saving...')
   capturer.save();
-  startCapturingTrackPointsButton.style.display = 'initial';
-  startCapturingFramesButton.style.display = 'initial';
+  startCapturingTrackPointsButton.style.display = 'initial'
+  startCapturingFramesButton.style.display = 'initial'
   const width = simContainer.offsetWidth
   const height = simContainer.offsetHeight
   renderer.setSize(width, height)
@@ -3732,10 +3819,3 @@ function captureStop() {
   camera.updateProjectionMatrix()
 }
 
-function trackPointLoggerStop() {
-  trackPointLoggerObject.stop()
-  stopCapturingAndDownloadButton.style.display = 'none';
-  trackPointLoggerObject.save()
-  startCapturingTrackPointsButton.style.display = 'initial';
-  startCapturingFramesButton.style.display = 'initial';
-}
