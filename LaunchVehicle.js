@@ -20,7 +20,7 @@ export class launchVehicleModel {
     // Proceedurally generate the Launch Vehicle body, flame, and point light meshes
 
     const profile = []
-    // Move to the starting point which is at the back of teh combustion chamber
+    // Move to the starting point which is at the back of the combustion chamber
     profile.push(new THREE.Vector2(0, 3.61674418604651))
     profile.push(new THREE.Vector2(0.178604651162791, 3.61674418604651))
     profile.push(new THREE.Vector2(0.20093023255814, 3.60558139534884))
@@ -44,7 +44,7 @@ export class launchVehicleModel {
     for (let x = 0; x <= totalLength; x++) {
       const theta = Math.acos(1-2*(totalLength-x)/totalLength)
       const y = radius/Math.sqrt(Math.PI)*Math.sqrt(theta-Math.sin(2*theta)/2+CValue*Math.sin(theta)**3)
-      console.log(theta, y)
+      //console.log(theta, y)
       profile.push(new THREE.Vector2(y, x))
     }
     const launchVehicleHullGeometry = new THREE.LatheGeometry(profile, 32)
@@ -234,6 +234,7 @@ export class virtualLaunchVehicle {
   static update(dParamWithUnits, planetSpec) {
 
     virtualLaunchVehicle.planetSpec = planetSpec
+    virtualLaunchVehicle.planetRadius = tram.radiusAtLatitude(dParamWithUnits['launcherRampEndLatitude'].value*Math.PI/180, planetSpec.ellipsoid)
 
     virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
     virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
@@ -269,10 +270,17 @@ export class virtualLaunchVehicle {
     const forward = relevantCurve.getTangentAt(d)
     const upward = relevantCurve.getNormalAt(d)
     const rightward = relevantCurve.getBinormalAt(d)
+    if (upward.clone().dot(pointOnRelevantCurve)<0) {
+      // Sometimes the normal and binormal vectors point in the wrong direction when there isn't enough curvature. This check fixes that issue.
+      upward.negate()
+      rightward.negate()
+    }
 
     const orientation = new THREE.Quaternion()
-    if (relevantCurve.name==='freeFlightPositionCurve') {
-      const tangent = relevantCurve.freeFlightOrientationCurve.getPointAt(d)
+    let tangent = new THREE.Vector3(0, 0, 0)
+    // Hack
+    if (false && (relevantCurve.name==='freeFlightPositionCurve')) {
+      tangent = relevantCurve.freeFlightOrientationCurve.getPointAt(d)  // This curve's "positions" are made from of tangent vectors
       const normal = rightward.clone().cross(tangent)
       const q1 = new THREE.Quaternion()
       q1.setFromUnitVectors(modelForward, tangent)
@@ -283,6 +291,10 @@ export class virtualLaunchVehicle {
     else {
       relevantCurve.getQuaternionAt(d, modelForward, modelUpward, orientation)
     }
+    if ((relevantCurve.name==='launchRampCurve1') || (relevantCurve.name==='evacuatedTubeCurve') || (relevantCurve.name==='freeFlightPositionCurve')) {
+      //console.log('tangent:', tangent, 'orientation:', orientation, relevantCurve.name)
+      //console.print(deltaT, upward, pointOnRelevantCurve.length()-virtualLaunchVehicle.planetRadius, relevantCurve.name)
+    }
 
     om.position.copy(pointOnRelevantCurve)
         .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
@@ -292,9 +304,12 @@ export class virtualLaunchVehicle {
 
     om.visible = virtualLaunchVehicle.isVisible
 
-    const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetSpec.radius
+    const altitude = pointOnRelevantCurve.length() - virtualLaunchVehicle.planetRadius
     const airDensity = virtualLaunchVehicle.planetSpec.airDensityAtAltitude(altitude)
-    const speedOfSound = virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude(altitude)
+    let speedOfSound = 1000
+    if (virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude!==undefined) {
+      speedOfSound = virtualLaunchVehicle.planetSpec.speedOfSoundAtAltitude(altitude)
+    }
 
     // Turn on the flame at the exit of the launch tube
     // ToDo: Some of this code does not need to be executed for every virtual vehicle.  We could improve performance it we can find a way to
@@ -367,6 +382,33 @@ export class virtualLaunchVehicle {
       //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
       const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, d))
       return pointOnRelevantCurve
+    }
+    else {
+      return null
+    }
+
+  }
+  
+  getFutureFrame(refFrame, timeDeltaInSeconds) {
+
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+    const deltaT = adjustedTimeSinceStart - this.timeLaunched
+    if (deltaT<=refFrame.curve.getDuration()) {
+      const res = refFrame.curve.findRelevantCurve(deltaT)
+      const relevantCurve = res.relevantCurve
+      const d = Math.max(0, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength)
+      const position = relevantCurve.getPointAt(d)
+      const forward = relevantCurve.getTangentAt(d)
+      const upward = relevantCurve.getNormalAt(d)
+      const rightward = relevantCurve.getBinormalAt(d)
+      const orientation = relevantCurve.getQuaternionAt(d)
+      return {
+        position: position,
+        forward: forward,
+        upward: upward,
+        rightward: rightward,
+        orientation: orientation
+      }
     }
     else {
       return null

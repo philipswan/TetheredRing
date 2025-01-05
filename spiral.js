@@ -90,5 +90,5 @@ const spiralParams = getSpiralParameters(r0, rInc, arcLength);
 const s = 20; // Distance along the spiral
 const point = getSpiralCoordinates(spiralParams, s);
 
-console.log(`Spiral Parameters:`, spiralParams);
-console.log(`Point at s=${s}: x=${point.x}, y=${point.y}`);
+// console.log(`Spiral Parameters:`, spiralParams);
+// console.log(`Point at s=${s}: x=${point.x}, y=${point.y}`);

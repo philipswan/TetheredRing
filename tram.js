@@ -2,6 +2,7 @@ import * as THREE from 'three'
 //import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 
 import * as tram from './tram.js'
+import g from 'three/examples/jsm/libs/lil-gui.module.min.js'
 
 // Tethered Ring Arcitectural Model (TRAM)
 
@@ -433,6 +434,107 @@ export function lla2xyz(lat, lon, alt) {
 
 }
 
+export function radiusAtLatitude(lat, ellipsoid) {
+  const { a, f } = ellipsoid; // Semi-major and semi-minor axes
+  const radLat = (lat * Math.PI) / 180; // Convert latitude to radians
+
+  const cosLat = Math.cos(radLat);
+  const sinLat = Math.sin(radLat);
+
+  const numerator = (a * a * cosLat) ** 2 + (f * f * sinLat) ** 2;
+  const denominator = (a * cosLat) ** 2 + (f * sinLat) ** 2;
+
+  return Math.sqrt(numerator / denominator);
+}
+
+export function ecefToGeodetic(x, y, z, ellipsoid) {
+
+  //return tram.xyz2lla(x, y, z)
+  const ECEF_x = z; // Map Three.js's Z-axis to ECEF X-axis
+  const ECEF_y = x; // Map Three.js's X-axis to ECEF Y-axis
+  const ECEF_z = y; // Map Three.js's Y-axis to ECEF Z-axis
+
+  const { a, f } = ellipsoid;
+  const e2 = 2 * f - f * f; // Square of eccentricity
+  const b = a * (1 - f); // Semi-minor axis
+
+  const p = Math.sqrt(ECEF_x * ECEF_x + ECEF_y * ECEF_y);
+  const lon = Math.atan2(ECEF_y, ECEF_x); // Longitude
+
+  let lat = Math.atan2(z, p * (1 - e2)); // Initial latitude
+  let N, alt;
+
+  for (let i = 0; i < 5; i++) { // Iterative refinement
+      N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+      lat = Math.atan2(ECEF_z + e2 * N * Math.sin(lat), p);
+  }
+
+  N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+  alt = p / Math.cos(lat) - N;
+
+  return {
+      lat: (lat * 180) / Math.PI, // Convert to degrees
+      lon: (lon * 180) / Math.PI, // Convert to degrees
+      alt,
+  };
+}
+
+export function geodeticToECEF(lat, lon, alt, ellipsoid) {
+
+  //return tram.lla2xyz(lat, lon, alt)
+
+  const { a, f } = ellipsoid;
+  const e2 = 2 * f - f * f; // Square of eccentricity
+
+  const radLat = (lat * Math.PI) / 180;
+  const radLon = (lon * Math.PI) / 180;
+
+  const sinLat = Math.sin(radLat);
+  const cosLat = Math.cos(radLat);
+  const cosLon = Math.cos(radLon);
+  const sinLon = Math.sin(radLon);
+
+  const N = a / Math.sqrt(1 - e2 * sinLat * sinLat);
+
+  const ECEF_x = (N + alt) * cosLat * cosLon;
+  const ECEF_y = (N + alt) * cosLat * sinLon;
+  const ECEF_z = ((1 - e2) * N + alt) * sinLat;
+
+  const x = ECEF_y; // Map ECEF Y-axis to Three.js X-axis
+  const y = ECEF_z; // Map ECEF Z-axis to Three.js Y-axis
+  const z = ECEF_x; // Map ECEF X-axis to Three.js Z-axis
+
+  return { x, y, z };
+
+
+  function geodeticToECEF(lat, lon, alt) {
+    // WGS84 ellipsoid parameters
+    const a = 6378137.0; // Semi-major axis in meters
+    const f = 1 / 298.257223563; // Flattening
+    const e2 = 2 * f - f * f; // Square of eccentricity
+
+    // Convert degrees to radians
+    const radLat = (lat * Math.PI) / 180;
+    const radLon = (lon * Math.PI) / 180;
+
+    // Calculate the prime vertical radius of curvature
+    const sinLat = Math.sin(radLat);
+    const cosLat = Math.cos(radLat);
+    const cosLon = Math.cos(radLon);
+    const sinLon = Math.sin(radLon);
+
+    const N = a / Math.sqrt(1 - e2 * sinLat * sinLat);
+
+    // Calculate ECEF coordinates
+    const x = (N + alt) * cosLat * cosLon;
+    const y = (N + alt) * cosLat * sinLon;
+    const z = ((1 - e2) * N + alt) * sinLat;
+
+    return { x, y, z };
+}
+
+}
+
 export function habitatDesign(dParamWithUnits, specs, genSpecs, habitatFloorspace, numFloors, floorToCeilingSpacing, floorThickness) {
   // Assums that within the habitat's "bubble", there is a "roof level" and "basement level" that are not included in the habitat floorspace.
   // Roof can be used for plants, and as a garden. Basement can be used for equipment and storage.
@@ -621,7 +723,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['launcherTimeWIthinFeederRail'] = {value: launcher.timeWithinFeederRail, units: "s"}
   specs['launcherTimeWithinMassDriver1'] = {value: launcher.timeWithinMassDriver1, units: "s"}
   specs['launcherTimeWithinMassDriver2'] = {value: launcher.timeWithinMassDriver2, units: "s"}
-  specs['launcherTimeWithinRamp'] = {value: launcher.timeWithinRamp, units: "s"}
+  specs['launcherTimeWithinRamp'] = {value: launcher.launchVehicleTimeWithinRamp, units: "s"}
   specs['launcherTimeWithinSuspendedEvacuatedTube'] = {value: launcher.timeWithinSuspendedEvacuatedTube, units: "s"}
   specs['totalTimeWithinLaunchSystem'] = {value: launcher.totalTimeWithinLaunchSystem, units: "s"}
 
@@ -1315,7 +1417,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  const launcherStartDelayInSeconds = 0
+  const launcherStartDelayInSeconds = 21 //120
   return Math.max(0, timeSinceStart - launcherStartDelayInSeconds) * slowDownPassageOfTime
 }
 
@@ -1407,11 +1509,24 @@ export function getPlanetSpec(planet) {
       return {
         name: 'Earth',
         mass: 5.97E+24,                           // kg
-        radius: 6378100,                          // m
+        //radius: 6378100,                          // m
+        // Use Earth's WGS84 ellipsoid parameters
+        radiusAtLatitude: function(lat) {
+          const WGS_ELLIPSOID = { a: 6378137.0, b: 6356752.314 }; // meter
+          const f1 = Math.pow((Math.pow(WGS_ELLIPSOID.a, 2) * Math.cos(lat)), 2);
+          const f2 = Math.pow((Math.pow(WGS_ELLIPSOID.b, 2) * Math.sin(lat)), 2);
+          const f3 = Math.pow((WGS_ELLIPSOID.a * Math.cos(lat)), 2);
+          const f4 = Math.pow((WGS_ELLIPSOID.b * Math.sin(lat)), 2);
+          const radius =  Math.sqrt((f1 + f2) / (f3 + f4));
+          return radius}, // * (6378137-5000)/6378137},  // Hacking this because currently the three.js Earth doesn't line up with google's Earth                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 86164.0905,          // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
-        gravitationalParameter: 3.986004418e14, // m^3/kg/s^2
+        gravitationalParameter: 3.9860044188e14, // m^3/kg/s^2
+        ellipsoid: {
+          a: 6378137.0, // Semi-major axis in meters
+          f: 1 / 298.257223563, // Flattening
+        },
         airTemperatureInKelvinAtAltitude: function(a) {
           const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
           return temperatureInKelvin
@@ -1436,104 +1551,170 @@ export function getPlanetSpec(planet) {
         speedOfSoundAtAltitude: function(a) {
           const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
           return Math.sqrt(1.4 * 287.058 * temperatureInKelvin)
-        }
+        },
+        texturePath: "",
+        textureColorFormat: "jpg",
+        textureDisplacementFormat: "png",
+        displacementScale: 6400,
+        displacementBias: -900
       }
       break
     case 'mars':
       return {
         name: 'Mars',
         mass: 6.42E+23,                           // kg
-        radius: 3396200,                          // m
+        radiusAtLatitude: function(lat) {return 3396200},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 88642.663,           // seconds
-        upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        upDirection: new THREE.Vector3(0, 1, 0),  // upDirection
+        gravitationalParameter: 4.2828372E13,      // m^3/kg/s^2
+        ellipsoid: {
+          a: 3396200.0, // Semi-major axis in meters
+          f: 1 / 169.89444722361179, // Flattening
+        },
+        airDensityAtAltitude: function(a) {
+          // Input in meters
+          let T
+          if (a<=7000) {
+            T = -31 - 0.000998 * a
+          }
+          else {
+            T = -23.4 - 0.00222 * a
+          }
+          const p = .699 * exp(-0.00009 * a)
+          const airDensityAtAltitude =  p / [.1921 * (T + 273.1)]
+          return airDensityAtAltitude  // In kg/m^3
+        },
+        airPressureAtAltitude: function(a) {
+          // Input in meters, Output in Pa
+          // https://www.grc.nasa.gov/www/k-12/airplane/atmosmrm.html
+          const pressurePa = p = .699 * exp(-0.00009 * a)
+          return pressurePa;
+        },
+        texturePath: "mars",
       }
       break
     case 'moon':
       return {
         name: 'Moon',
         mass: 7.35E+22,                           // kg
-        radius: 1737100,                          // m
+        radiusAtLatitude: function(lat) {return 1737100},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 2360591.5,           // seconds
-        upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        upDirection: new THREE.Vector3(0, 1, 0),  // upDirection
+        gravitationalParameter: 4.90486959E12,     // m^3/kg/s^2
+        ellipsoid: {
+          a: 1737400.0, // Semi-major axis in meters
+          f: 0, // Flattening
+        },
+        airDensityAtAltitude: function(a) {return 0},
+        airPressureAtAltitude: function(a) {return 0},
+        texturePath: "moon/",
+        textureColorFormat: "png",
+        textureDisplacementFormat: "png",
+        displacementScale: 1000,  // 2000??
+        displacementBias: 0
       }
       break
     case 'mercury':
       return {
         name: 'Mercury',
         mass: 3.30E+23,                           // kg
-        radius: 2439700,                          // m
+        radiusAtLatitude: function(lat) {return 2439700},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 5067030,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 2.203209E13,     // m^3/kg/s^2
+        airDensityAtAltitude: function(a) {return 0},
+        airPressureAtAltitude: function(a) {return 0},
       }
       break
     case 'venus':
       return {
         name: 'Venus',
         mass: 4.87E+24,                           // kg
-        radius: 6051800,                          // m
+        radiusAtLatitude: function(lat) {return 6051800},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 2802360,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 3.248585926E14,     // m^3/kg/s^2
+        ellipsoid: {
+          a: 6051800.0, // Semi-major axis in meters
+          f: 0, // Flattening
+        },
       }
       break
     case 'jupiter':
       return {
         name: 'Jupiter',
         mass: 1.90E+27,                           // kg
-        radius: 71492000,                          // m
+        radiusAtLatitude: function(lat) {return 71492000},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 35730,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 1.266865349E17,     // m^3/kg/s^2
       }
       break
     case 'saturn':
       return {
         name: 'Saturn',
         mass: 5.68E+26,                           // kg
-        radius: 60268000,                          // m
+        radiusAtLatitude: function(lat) {return 60268000},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 38232,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 3.79311879E16,     // m^3/kg/s^2
       }
       break
     case 'uranus':
       return {
         name: 'Uranus',
         mass: 8.68E+25,                           // kg
-        radius: 25559000,                          // m
+        radiusAtLatitude: function(lat) {return 25559000},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 30660,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 5.7939399E15,     // m^3/kg/s^2
       }
       break
     case 'neptune':
       return {
         name: 'Neptune',
         mass: 1.02E+26,                           // kg
-        radius: 24764000,                          // m
+        radiusAtLatitude: function(lat) {return 24764000},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 60190,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 6.8365299E15,     // m^3/kg/s^2
       }
       break
     case 'pluto':
       return {
         name: 'Pluto',
         mass: 1.31E+22,                           // kg
-        radius: 1188300,                          // m
+        radiusAtLatitude: function(lat) {return 1188300},                          // m
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 55180,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),   // upDirection
+        gravitationalParameter: 8.719E11,     // m^3/kg/s^2
       }
       break
     default:
       console.error('Planet not found')
   };
 
-} 
+}
+
+export function calculateThreadStarts(baseDistanceAlongScrew, theadStarts) {
+  // ToDo: This is a proof of concept. We need to implement a more accurate algorithm for adjusting the number of thread starts as the vehicle progresses down the launcher.
+  //return (baseDistanceAlongScrew<2000) ? 1 : (baseDistanceAlongScrew<5000) ? 2 : (baseDistanceAlongScrew<20000) ? 4 : 8
+  if (theadStarts==0) {
+    return (baseDistanceAlongScrew<400) ? 1 : (baseDistanceAlongScrew<5000) ? 2 : 4
+  }
+  else {
+    return theadStarts
+  }
+}
 
 export function tunnelingCostPerMeter(tunnelRadius) {
   //from "Cost Overruns in Tunnelling Projects: Investigating the Impact of Geological and Geotechnical Uncertainty Using Case Studies", Figure 4a

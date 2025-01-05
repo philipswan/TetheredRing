@@ -20,15 +20,11 @@ export class massDriverScrewModel {
         const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
         const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
-        const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
         const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-        const launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
+        const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
-        // The point of breaking the screw into segments relates to the need to display the brackets.
-        const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(threadStarts, 4)
-
         // ToDo: This doesn't scale well. Need to figure out how to make this work for any dimentions of the mass driver's screw.
 
         // Hack!!!
@@ -37,8 +33,12 @@ export class massDriverScrewModel {
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
         const baseDistanceAlongScrew = segmentIndex * segmentSpacing
+        const threadStarts = tram.calculateThreadStarts(baseDistanceAlongScrew, dParamWithUnits['launcherMassDriverScrewThreadStarts'].value)
         const screwLength = segmentSpacing - bracketThickness
-        const initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
+        const initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
+
+        // The point of breaking the screw into segments relates to the need to display the brackets.
+        const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(threadStarts, 4)
 
         const massDriverScrewGeometry = new ScrewGeometry(
             screwLength,
@@ -48,7 +48,7 @@ export class massDriverScrewModel {
             threadThickness,
             threadStarts,
             baseDistanceAlongScrew,
-            launcherMassDriver2InitialVelocity,
+            launcherMassDriver1InitialVelocity,
             initialDistance,
             launcherMassDriverScrewRevolutionsPerSecond,
             launcherMassDriverForwardAcceleration,
@@ -65,6 +65,7 @@ export class massDriverScrewModel {
       const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
       const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
       const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+      // ToDo: If the thread starts are variable, then we need a more complex calculation for the screw's volume.
       const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       const screwRoughLength = dParamWithUnits['launcherMassDriverScrewRoughLength'].value
 
@@ -108,13 +109,13 @@ export class virtualMassDriverScrew {
         virtualMassDriverScrew.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
         virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         virtualMassDriverScrew.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-        virtualMassDriverScrew.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
+        virtualMassDriverScrew.launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
         
         virtualMassDriverScrew.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         virtualMassDriverScrew.numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value
-        virtualMassDriverScrew.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
+        virtualMassDriverScrew.initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
 
-        virtualMassDriverScrew.isVisible = dParamWithUnits['showMassDriverScrews'].value
+        virtualMassDriverScrew.isVisible = dParamWithUnits['showMassDriverAccelerationScrews'].value
         virtualMassDriverScrew.isDynamic =  true
         virtualMassDriverScrew.hasChanged = true
         virtualMassDriverScrew.sidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
@@ -155,6 +156,7 @@ export class virtualMassDriverScrew {
                     // console.log('Regenerating Screw Geometry')
                     const segmentSpacing = virtualMassDriverScrew.launcherMassDriverLength / virtualMassDriverScrew.massDriverScrewSegments
                     const baseDistanceAlongScrew = this.index * segmentSpacing
+                    const threadStarts = tram.calculateThreadStarts(baseDistanceAlongScrew, virtualMassDriverScrew.threadStarts)
                     let screwLength
                     if (this.index<virtualMassDriverScrew.numBrackets) {
                         screwLength = segmentSpacing - virtualMassDriverScrew.bracketThickness
@@ -163,7 +165,8 @@ export class virtualMassDriverScrew {
                         screwLength = segmentSpacing
                     }
                     const highRes = false
-                    const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
+                    //const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(virtualMassDriverScrew.threadStarts, 4)
+                    const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(threadStarts, 4)
 
                     // Hack!!!
                     const minLengthSegmentsPerMeter = ((!highRes) ? 16 : 512)
@@ -179,9 +182,10 @@ export class virtualMassDriverScrew {
                         virtualMassDriverScrew.shaftInnerRadius,
                         virtualMassDriverScrew.threadRadius,
                         virtualMassDriverScrew.threadThickness,
-                        virtualMassDriverScrew.threadStarts,
+                        //virtualMassDriverScrew.threadStarts,
+                        threadStarts,
                         baseDistanceAlongScrew,
-                        virtualMassDriverScrew.launcherMassDriver2InitialVelocity,
+                        virtualMassDriverScrew.launcherMassDriver1InitialVelocity,
                         virtualMassDriverScrew.initialDistance,
                         virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond,
                         virtualMassDriverScrew.launcherMassDriverForwardAcceleration,

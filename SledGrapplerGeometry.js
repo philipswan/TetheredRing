@@ -180,7 +180,7 @@ class SledGrapplerGeometry extends BufferGeometry {
       grapplerDistance : grapplerDistance
     };
 
-    const numGrapplerSegments = 4 // Must be an even number
+    const numGrapplerSegments = 8 // Must be an even number
     const midRib = numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
 
     const vertices = []
@@ -214,7 +214,7 @@ class SledGrapplerGeometry extends BufferGeometry {
       const rateOfChangeInRotationalDistance2 = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
       const gList = []
       const nearestThread = []
-      const rotations = []
+      const rotations = []    // List of values that represent the number of rotations of the screw's spiral path versus distance down the length of the screw.
       const rotationsFrac = []
       const innerThreadPitch = []
       const outerThreadPitch = []
@@ -223,14 +223,9 @@ class SledGrapplerGeometry extends BufferGeometry {
 
       // Generate the offset to the pad in cylindrical coordinates
 
-      //for (let g = firstGrapplerDistance; g<lastGrapplerDistance; g += grapplerSpacing) {
       let g = grapplerDistance
-      for (let i = 0; i<=numGrapplerSegments; i++) {
-        // i indexes the start (0) and end (1) of the downrange distance spanned by a single grappler.
-        // Figure out the screw's rotation at the locaton of each grappler
-        // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
-        const gPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
-        const cC = initialDistance - (distanceToSledAft + gPlus)
+
+      function calcTime(cA, cB, cBSqrd, cC) {
         let time
         if (cBSqrd - 4*cA*cC < 0) {
           time = (-cB - 0) / (2*cA)
@@ -238,7 +233,47 @@ class SledGrapplerGeometry extends BufferGeometry {
         else {
           time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
         }
+        return time
+      }
+
+      // g, gPlus, and midwayGPlus are all distances measured from the start of the screw.
+      const midwayGPlus = g + (numGrapplerSegments/2) * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+      const averageRadius = (shaftRadius + threadRadius) / 2
+      const averageRadiusTimes2Pi = 2 * Math.PI * averageRadius
+
+      // The following code calculates lengthOfScrewsSpiralPath at the location of each grappler.
+      // ToDo: This might be too accurate and slow. We might be able to simplify this.
+      for (let i = 0; i<=numGrapplerSegments; i++) {
+        // i indexes the start (0) and end (1) of the downrange distance spanned by a single grappler.
+        // Figure out the screw's rotation at the locaton of each grappler
+        // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
+        const gPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+        const cC = initialDistance - (distanceToSledAft + gPlus)
+        const time = calcTime(cA, cB, cBSqrd, cC)
+        gList[i] = gPlus
         rotations[i] = additionalRotation + revolutionsPerSecond * time
+      }
+      let lengthOfScrewsSpiralPath = 0
+      for (let i = 1; i<=numGrapplerSegments; i++) {
+        lengthOfScrewsSpiralPath += Math.sqrt((gList[i] - gList[i-1])**2 + ((rotations[i] - rotations[i-1])*averageRadiusTimes2Pi)**2)
+      }
+
+      // The following factor is the distance between adjacent grapplers divided by the length of the screw's sprial path over the same forward distance.
+      const grapplerPadLengthFactor = grapplerSpacing / lengthOfScrewsSpiralPath
+
+      for (let i = 0; i<=numGrapplerSegments; i++) {
+        // i indexes the start (0) and end (1) of the downrange distance spanned by a single grappler.
+        // Figure out the screw's rotation at the locaton of each grappler
+        // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
+
+        // Reduce the arc length of the grappler's magnetic pad by a factor of grapplerPadLengthFactor
+        const fullGPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+        const gPlus = (fullGPlus - midwayGPlus)*grapplerPadLengthFactor + midwayGPlus
+        const cC = initialDistance - (distanceToSledAft + gPlus)
+        const time = calcTime(cA, cB, cBSqrd, cC)
+
+        rotations[i] = additionalRotation + revolutionsPerSecond * time
+        
         const rotationsTimesThreadStarts = rotations[i] * threadStarts
         rotationsFrac[i] = rotationsTimesThreadStarts - Math.floor(rotationsTimesThreadStarts)
         const rotationsWithTwist = rotations[i] - maxRotationAwayFromMidPoint

@@ -10,6 +10,8 @@ export class massDriverBracketModel {
   constructor(dParamWithUnits) {
 
     this.update(dParamWithUnits)
+    //this.massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E, transparent: true, opacity: 0.05})
+    this.massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
 
   }
   
@@ -47,8 +49,8 @@ export class massDriverBracketModel {
     }
     const massDriverBracketGeometry = new THREE.ExtrudeGeometry( this.shape, extrudeSettings )
     massDriverBracketGeometry.name = "massDriverBracketGeometry"
-    const massDriverBracketMaterial = new THREE.MeshPhongMaterial( {color: 0x71797E})
-    const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, massDriverBracketMaterial)
+    const massDriverBracketMesh = new THREE.Mesh(massDriverBracketGeometry, this.massDriverBracketMaterial)
+    massDriverBracketMesh.name = "massDriverBracket"
     return massDriverBracketMesh
   }
 

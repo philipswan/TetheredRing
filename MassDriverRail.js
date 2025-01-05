@@ -41,7 +41,10 @@ export class massDriverRailModel {
     const massDriverRailGeometry = new THREE.ExtrudeGeometry(this.shape, extrudeSettings)
     massDriverRailGeometry.name = "massDriverRailGeometry"
     // ToDo: We are creating multiple identical materials here.  We should create one material and reuse it.
-    const massDriverRailMaterial = massDriverRailMaterials[(index % 16 == 0) ? 1 : 0]
+    // Hack for Hawaii clip
+    //const massDriverRailMaterial = massDriverRailMaterials[(index % 16 == 0) ? 1 : 0] // This makes every 16th rail segment a different color
+    const onRamp = (curve.name=="launchRampCurve")
+    const massDriverRailMaterial = massDriverRailMaterials[(onRamp) ? 1 : 0]
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
     return massDriverRailMesh
   }

@@ -75,7 +75,7 @@ export class virtualTransitVehicle {
   getFuturePosition(refFrame, timeDeltaInSeconds) {
 
     // Ideally we should account for accelleration when calculating the future position.
-    // This simplified calculation assumes the vehicle is travelling at a steady speed.
+    // This simplified calculation assumes the vehicle is traveling at a steady speed.
     // As it is, the calculation leaves the camera a little bit off target at the end of the tweening opertion.
     const offsetToFuturePosition = (timeDeltaInSeconds * refFrame.v * -refFrame.direction) / virtualTransitVehicle.ringCircumference
     const modelsTrackPosition = tram.posFrac(this.p + refFrame.p + offsetToFuturePosition)

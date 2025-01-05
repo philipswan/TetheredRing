@@ -26,16 +26,17 @@ export class mainRingCurve {
     const e = dParamWithUnits['ringEccentricity'].value
   
     const controlPoints = []
+    const roughPlanetRadius = planetSpec.ellipsoid.a
 
     // const centerOfRing = new THREE.Vector3(0, crv.yc, 0).applyQuaternion(ringToPlanetRotation)
     // const lengthOfSiderealDay = 86160 // s
     // const Ω = new THREE.Vector3(0, -2 * Math.PI / lengthOfSiderealDay, 0)
   
     for (let a = 0, i = 0; i<n; a += Math.PI*2/n, i++) {
-      const angleInRingCoordSys = Math.acos(crv.mainRingRadius / (planetSpec.radius + crv.currentMainRingAltitude)) * Math.sqrt((e*Math.cos(a))**2 + (1/e*Math.sin(a))**2)
-      const rInRingCoordSys = (planetSpec.radius + crv.currentMainRingAltitude) * Math.cos(angleInRingCoordSys)
+      const angleInRingCoordSys = Math.acos(crv.mainRingRadius / (roughPlanetRadius + crv.currentMainRingAltitude)) * Math.sqrt((e*Math.cos(a))**2 + (1/e*Math.sin(a))**2)
+      const rInRingCoordSys = (roughPlanetRadius + crv.currentMainRingAltitude) * Math.cos(angleInRingCoordSys)
       const positionInRingCoordSys = new THREE.Vector3()
-      positionInRingCoordSys.y = (planetSpec.radius + crv.currentMainRingAltitude) * Math.sin(angleInRingCoordSys)
+      positionInRingCoordSys.y = (roughPlanetRadius + crv.currentMainRingAltitude) * Math.sin(angleInRingCoordSys)
       positionInRingCoordSys.x = rInRingCoordSys * Math.cos(a)
       positionInRingCoordSys.z = rInRingCoordSys * Math.sin(a)
       controlPoints.push(positionInRingCoordSys)
@@ -59,7 +60,7 @@ export class mainRingCurve {
     points.forEach((point, i) => {
       xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
       xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
-      const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+      const lla = tram.ecefToGeodetic(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z, planetSpec.ellipsoid)
       coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
       if (i==0) {
         firstCoordString = coordString

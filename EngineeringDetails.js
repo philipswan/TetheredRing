@@ -8,10 +8,10 @@ export function define_genLauncherSpecs() {
 
     const massDriverLength = this.launcherMassDriver1Length+this.launcherMassDriver2Length
     const rampLength = this.launcherRampLength
-    const elevatedVacuumTubeLength = this.launcherSuspendedEvacuatedTubeLength
+    const elevatedEvacuatedTubeLength = this.launcherSuspendedEvacuatedTubeLength
     const screwSpacing = dParamWithUnits['launcherMassDriverScrewRoughLength'].value + dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
 
-    const tempBracketObject = new massDriverBracketModel(dParamWithUnits, this.massDriver2Curve, this.launcherMassDriver2Length, (this.massDriverScrewSegments+1), 0)
+    const tempBracketObject = new massDriverBracketModel(dParamWithUnits)
     tempBracketObject.genSpecs(dParamWithUnits, specs)
     const massDriverNumBrackets = massDriverLength / screwSpacing
     const launcherMassDriverBracketsTotalMass = specs['massDriverBracketMass'].value * massDriverNumBrackets
@@ -28,9 +28,9 @@ export function define_genLauncherSpecs() {
     
     const tempScrewObject = new massDriverScrewModel()
     tempScrewObject.genSpecs(dParamWithUnits, specs)
-    const launcherMassDriverScrewsTotalMass = specs['massDriverScrewMass'].value * this.massDriverScrewSegments * 2
+    const launcherMassDriverScrewsTotalMass = specs['massDriverScrewMass'].value * this.massDriverAccelerationScrewSegments * 2
     specs['launcherMassDriverScrewsTotalMass'] = {value: launcherMassDriverScrewsTotalMass, units: "kg"}
-    const massDriverScrewsCostOfMaterials = specs['massDriverScrewMaterialCost'].value * this.massDriverScrewSegments * 2
+    const massDriverScrewsCostOfMaterials = specs['massDriverScrewMaterialCost'].value * this.massDriverAccelerationScrewSegments * 2
     specs['massDriverScrewsCostOfMaterials'] = {value: massDriverScrewsCostOfMaterials, units: "USD"}
 
     // Steel vacuum tube. Currently the assumption is that this steel tube is directly imersed in the sea water. Another possibility is that
@@ -59,7 +59,7 @@ export function define_genLauncherSpecs() {
     console.print("launcherMassDriver1Length, ", Math.round(this.launcherMassDriver1Length), "m")
     console.print("launcherMassDriver2Length, ", Math.round(this.launcherMassDriver2Length), "m")
     console.print("launcherRampLength, ", Math.round(this.launcherRampLength), "m")
-    console.print("elevatedVacuumTubeLength, ", Math.round(elevatedVacuumTubeLength), "m")
+    console.print("elevatedEvacuatedTubeLength, ", Math.round(elevatedEvacuatedTubeLength), "m")
 
     console.print("massDriverBracketsCostOfMaterials, ", Math.round(specs['massDriverBracketsCostOfMaterials'].value/1e6)/1e3, "B USD")
     console.print("massDriverRailsCostOfMaterials, ", Math.round(specs['massDriverRailsCostOfMaterials'].value/1e6)/1e3, "B USD")
@@ -101,7 +101,7 @@ export function define_genLauncherSpecs() {
     console.print("launcherMassDriverTotalMaterialsCostPerMeter, ", Math.round(launcherMassDriverTotalMaterialsCostPerMeter), "USD/m")
 
     const screwMotorUnitCost = dParamWithUnits['launcherMassDriverScrewMotorCost'].value
-    const launcherMassDriverScrewMotorsCost = screwMotorUnitCost * this.massDriverScrewSegments * 2
+    const launcherMassDriverScrewMotorsCost = screwMotorUnitCost * this.massDriverAccelerationScrewSegments * 2
     specs['launcherMassDriverScrewMotorsCost'] = {value: launcherMassDriverScrewMotorsCost, units: "USD"}
     console.print("launcherMassDriverScrewMotorsCost, ", Math.round(launcherMassDriverScrewMotorsCost/1e6)/1e3, "B USD")
 
@@ -153,7 +153,7 @@ export function define_genLauncherSpecs() {
       rampBracketsCostOfMaterials +
       rampRailsCostOfMaterials
     specs['launcherRampTotalMaterialsCost'] = {value: launcherRampTotalMaterialsCost, units: "USD"}
-    console.print("launcherRampTotalMaterialsCost, ", Math.round(launcherMassDriverTotalMaterialsCost/1e6)/1e3, "B USD/m")
+    console.print("launcherRampTotalMaterialsCost, ", Math.round(launcherRampTotalMaterialsCost/1e6)/1e3, "B USD/m")
       
     const rampManufacturingCostFactor = 2 // Placeholder
     const launcherRampTotalCost = launcherRampTotalMaterialsCost*rampManufacturingCostFactor + rampTunnelingCost
@@ -164,24 +164,24 @@ export function define_genLauncherSpecs() {
     specs['launcherRampTotalCostPerMeter'] = {value: launcherRampTotalCostPerMeter, units: "USD/m"}
     console.print("launcherRampTotalCostPerMeter, ", Math.round(launcherRampTotalCostPerMeter), "USD/m")
 
-    // Elevated Vacuum Tube (EVT) - Aeronautically Supported Case
+    // Elevated Evacuated Tube (EVT) - Aeronautically Supported Case
     // Evacuated Tube
-    const elevatedVacuumTubeTubeCostPerMeter = 6047.9 * 1e6 / 52582 // "Spirit Aerosystems Annual Report and Form 10-K", https://investor.spiritaero.com/filings-financials/FinancialDocs/default.aspx net revenues divided by meters of fuselage they produced in 2023.
-    specs['elevatedVacuumTubeTubeCostPerMeter'] = {value: elevatedVacuumTubeTubeCostPerMeter, units: "USD/m"}
-    console.print("elevatedVacuumTubeTubeCostPerMeter, ", Math.round(elevatedVacuumTubeTubeCostPerMeter), "USD/m")
-    const launcherElevatedVacuumTubeTubeCost = elevatedVacuumTubeTubeCostPerMeter * elevatedVacuumTubeLength
-    specs['launcherElevatedVacuumTubeTubeCost'] = {value: launcherElevatedVacuumTubeTubeCost, units: "USD"}
-    console.print("launcherElevatedVacuumTubeTubeCost, ", Math.round(launcherElevatedVacuumTubeTubeCost/1e6)/1e3, "B USD")
-    const id = dParamWithUnits['elevatedVacuumTubeInnerRadius'].value
-    const od = id + dParamWithUnits['elevatedVacuumTubeThickness'].value
-    const elevatedVacuumTubeCrosssectionalArea = Math.PI * (od**2 - id**2)
-    const massOfElevatedVacuumTubeTube = elevatedVacuumTubeLength * elevatedVacuumTubeCrosssectionalArea * dParamWithUnits['launcherMassDriverTubeMaterial1Density'].value
-    specs['massOfElevatedVacuumTubeTube'] = {value: massOfElevatedVacuumTubeTube, units: "kg"}
-    console.print("massOfElevatedVacuumTubeTube, ", Math.round(massOfElevatedVacuumTubeTube), "kg")
+    const elevatedEvacuatedTubeTubeCostPerMeter = 6047.9 * 1e6 / 52582 // "Spirit Aerosystems Annual Report and Form 10-K", https://investor.spiritaero.com/filings-financials/FinancialDocs/default.aspx net revenues divided by meters of fuselage they produced in 2023.
+    specs['elevatedEvacuatedTubeTubeCostPerMeter'] = {value: elevatedEvacuatedTubeTubeCostPerMeter, units: "USD/m"}
+    console.print("elevatedEvacuatedTubeTubeCostPerMeter, ", Math.round(elevatedEvacuatedTubeTubeCostPerMeter), "USD/m")
+    const launcherElevatedEvacuatedTubeTubeCost = elevatedEvacuatedTubeTubeCostPerMeter * elevatedEvacuatedTubeLength
+    specs['launcherElevatedEvacuatedTubeTubeCost'] = {value: launcherElevatedEvacuatedTubeTubeCost, units: "USD"}
+    console.print("launcherElevatedEvacuatedTubeTubeCost, ", Math.round(launcherElevatedEvacuatedTubeTubeCost/1e6)/1e3, "B USD")
+    const id = dParamWithUnits['elevatedEvacuatedTubeInnerRadius'].value
+    const od = id + dParamWithUnits['elevatedEvacuatedTubeThickness'].value
+    const elevatedEvacuatedTubeCrosssectionalArea = Math.PI * (od**2 - id**2)
+    const massOfElevatedEvacuatedTubeTube = elevatedEvacuatedTubeLength * elevatedEvacuatedTubeCrosssectionalArea * dParamWithUnits['launcherMassDriverTubeMaterial1Density'].value
+    specs['massOfElevatedEvacuatedTubeTube'] = {value: massOfElevatedEvacuatedTubeTube, units: "kg"}
+    console.print("massOfElevatedEvacuatedTubeTube, ", Math.round(massOfElevatedEvacuatedTubeTube), "kg")
 
-    const buoyancyOfElevatedVacuumTubePerMeter = od**2 * Math.PI * planetSpec.airDensityAtAltitude(dParamWithUnits['launcherRampExitAltitude'].value) 
-    specs['buoyancyOfElevatedVacuumTubePerMeter'] = {value: buoyancyOfElevatedVacuumTubePerMeter, units: "kg/m"}
-    console.print("buoyancyOfElevatedVacuumTubePerMeter, ", Math.round(buoyancyOfElevatedVacuumTubePerMeter), "kg/m")
+    const buoyancyOfElevatedEvacuatedTubePerMeter = od**2 * Math.PI * planetSpec.airDensityAtAltitude(dParamWithUnits['launcherRampExitAltitude'].value) 
+    specs['buoyancyOfElevatedEvacuatedTubePerMeter'] = {value: buoyancyOfElevatedEvacuatedTubePerMeter, units: "kg/m"}
+    console.print("buoyancyOfElevatedEvacuatedTubePerMeter, ", Math.round(buoyancyOfElevatedEvacuatedTubePerMeter), "kg/m")
 
     // Lift Nacells
     // Cost per kg supported calculation for a quadcopter (https://www.tytorobotics.com/blogs/articles/the-drone-design-loop-for-brushless-motors-and-propellers?srsltid=AfmBOooBz13gKru7SlW1_dhMBbeBSmaH4XScp-2CpOyOJeFcZDF39_9m)
@@ -196,16 +196,16 @@ export function define_genLauncherSpecs() {
     const XAGV40PayloadMass = XAGV40MaxTakeoffMass - XAGV40DryMass
     const aeronauticLiftCapitalCostPerKgOfPayload = XAGV40VehicleCost / XAGV40PayloadMass
     console.print("aeronauticLiftCapitalCostPerKgOfPayload, ", Math.round(aeronauticLiftCapitalCostPerKgOfPayload), "USD/kg")
-    const launcherAeronauticLiftTotalCapitalCost = aeronauticLiftCapitalCostPerKgOfPayload * massOfElevatedVacuumTubeTube
+    const launcherAeronauticLiftTotalCapitalCost = aeronauticLiftCapitalCostPerKgOfPayload * massOfElevatedEvacuatedTubeTube
     specs['launcherAeronauticLiftTotalCapitalCost'] = {value: launcherAeronauticLiftTotalCapitalCost, units: "USD"}
     console.print("launcherAeronauticLiftTotalCapitalCost, ", Math.round(launcherAeronauticLiftTotalCapitalCost/1e6)/1e3, "B USD")
     
-    const elevatedVacuumTubeTotalCost = launcherElevatedVacuumTubeTubeCost + launcherAeronauticLiftTotalCapitalCost
-    specs['elevatedVacuumTubeTotalCost'] = {value: elevatedVacuumTubeTotalCost, units: "USD"}
-    console.print("elevatedVacuumTubeTotalCost, ", Math.round(elevatedVacuumTubeTotalCost/1e6)/1e3, "B USD")
+    const elevatedEvacuatedTubeTotalCost = launcherElevatedEvacuatedTubeTubeCost + launcherAeronauticLiftTotalCapitalCost
+    specs['elevatedEvacuatedTubeTotalCost'] = {value: elevatedEvacuatedTubeTotalCost, units: "USD"}
+    console.log("elevatedEvacuatedTubeTotalCost, ", Math.round(elevatedEvacuatedTubeTotalCost/1e6)/1e3, "B USD")
 
     // Total Launcher Capital Cost
-    const launcherTotalCapitalCost = launcherMassDriverTotalCost + launcherRampTotalCost + elevatedVacuumTubeTotalCost
+    const launcherTotalCapitalCost = launcherMassDriverTotalCost + launcherRampTotalCost + elevatedEvacuatedTubeTotalCost
     specs['launcherTotalCapitalCost'] = {value: launcherTotalCapitalCost, units: "USD"}
     console.print("launcherTotalCapitalCost, ", Math.round(launcherTotalCapitalCost/1e6)/1e3, "B USD")
 
@@ -215,17 +215,20 @@ export function define_genLauncherSpecs() {
     const rampCostPerMeter = launcherRampTotalCost / rampLength
     specs['rampCostPerMeter'] = {value: rampCostPerMeter, units: "USD/m"}
     console.print("rampCostPerMeter, ", Math.round(rampCostPerMeter), "USD/m")
-    const elevatedVacuumTubeCostPerMeter = elevatedVacuumTubeTotalCost / elevatedVacuumTubeLength
-    specs['elevatedVacuumTubeCostPerMeter'] = {value: elevatedVacuumTubeCostPerMeter, units: "USD/m"}
-    console.print("elevatedVacuumTubeCostPerMeter, ", Math.round(elevatedVacuumTubeCostPerMeter), "USD/m")
+    const elevatedEvacuatedTubeCostPerMeter = elevatedEvacuatedTubeTotalCost / elevatedEvacuatedTubeLength
+    specs['elevatedEvacuatedTubeCostPerMeter'] = {value: elevatedEvacuatedTubeCostPerMeter, units: "USD/m"}
+    console.print("elevatedEvacuatedTubeCostPerMeter, ", Math.round(elevatedEvacuatedTubeCostPerMeter), "USD/m")
 
     // Operating costs
 
     // Aeronautic lift
     const costOfGeneratingLiftAeronautically = 7e-7 // USD/N/s  From below Eq.42 in "The Techno-Economic Viability of Actively Supported Structures for Terrestrial Transit and Space Launch"
-    const forceOfGravityOnTube = massOfElevatedVacuumTubeTube * 9.81
+    const forceOfGravityOnTube = massOfElevatedEvacuatedTubeTube * 9.81
     const liftForceRequired = forceOfGravityOnTube
     const marsTransferWindowsDuration = 14*24*3600 // 14 days
+    const costOfAeronauticLiftPerWindow = liftForceRequired * marsTransferWindowsDuration * costOfGeneratingLiftAeronautically
+    specs['costOfAeronauticLiftPerWindow'] = {value: costOfAeronauticLiftPerWindow, units: "USD"}
+    console.print("costOfAeronauticLiftPerWindow, ", Math.round(costOfAeronauticLiftPerWindow/1e6)/1e3, "B USD")
     const numLaunchesPerMarsTransferWindow = dParamWithUnits['numLaunchesPerMarsTransferWindow'].value
     const numberOfMarsTransferWindows = dParamWithUnits['numberOfMarsTransferWindows'].value
     const liftDuration = numberOfMarsTransferWindows * marsTransferWindowsDuration // 10 mars transfer windows times 14 days per window
@@ -247,12 +250,12 @@ export function define_genLauncherSpecs() {
     const insidePressure = dParamWithUnits['evacuatedTubeInteriorPressure'].value // Pa
     const interiorVolumeOfMassDiverTube = Math.PI * dParamWithUnits['launcherMassDriverTubeInnerRadius'].value**2 * massDriverLength
     const interiorVolumeOfRampTube = Math.PI * dParamWithUnits['launcherMassDriverTubeInnerRadius'].value**2 * rampLength
-    const interiorVolumeOfElevatedVacuumTube = Math.PI * id**2 * elevatedVacuumTubeLength
-    const interiorVolumeOfVacuumTubes = interiorVolumeOfMassDiverTube + interiorVolumeOfRampTube + interiorVolumeOfElevatedVacuumTube
-    specs['interiorVolumeOfVacuumTubes'] = {value: interiorVolumeOfVacuumTubes, units: "m3"}
-    console.print("interiorVolumeOfVacuumTubes, ", Math.round(interiorVolumeOfVacuumTubes), "m3")
+    const interiorVolumeOfElevatedEvacuatedTube = Math.PI * id**2 * elevatedEvacuatedTubeLength
+    const interiorVolumeOfEvacuatedTubes = interiorVolumeOfMassDiverTube + interiorVolumeOfRampTube + interiorVolumeOfElevatedEvacuatedTube
+    specs['interiorVolumeOfEvacuatedTubes'] = {value: interiorVolumeOfEvacuatedTubes, units: "m3"}
+    console.print("interiorVolumeOfEvacuatedTubes, ", Math.round(interiorVolumeOfEvacuatedTubes), "m3")
 
-    const pumpDownTime = interiorVolumeOfVacuumTubes / vacuumPumpingSpeed * Math.log(outsidePressure/insidePressure)  // https://www.youtube.com/watch?v=bb7E2HAIqp4
+    const pumpDownTime = interiorVolumeOfEvacuatedTubes / vacuumPumpingSpeed * Math.log(outsidePressure/insidePressure)  // https://www.youtube.com/watch?v=bb7E2HAIqp4
     specs['pumpDownTime'] = {value: pumpDownTime, units: "s"}
     console.print("pumpDownTime, ", Math.round(pumpDownTime/2300/24), "days")  
 
@@ -260,7 +263,7 @@ export function define_genLauncherSpecs() {
     specs['capitalCostOfPullingVacuumInsideTubes'] = {value: capitalCostOfPullingVacuumInsideTubes, units: "USD"}
     console.print("capitalCostOfPullingVacuumInsideTubes, ", Math.round(capitalCostOfPullingVacuumInsideTubes/1e6)/1e3, "B USD")
 
-    const operatingCostOfPullingVacuumInsideTubes = pumpDownTime * vacuumPumpPower * wholesaleCostOfElectricity * numberOfVacuumPumps * numberOfMarsTransferWindows
+    const operatingCostOfPullingVacuumInsideTubes = pumpDownTime * vacuumPumpPower * wholesaleCostOfElectricity * numberOfVacuumPumps
     specs['operatingCostOfPullingVacuumInsideTubes'] = {value: operatingCostOfPullingVacuumInsideTubes, units: "USD"}
     console.print("operatingCostOfPullingVacuumInsideTubes, ", Math.round(operatingCostOfPullingVacuumInsideTubes/1e6)/1e3, "B USD")
 

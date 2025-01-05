@@ -37,7 +37,8 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['showMarkers'].value = false
   guidParamWithUnits['launcherMarkerRadius'].value = 500
   guidParamWithUnits['showMassDriverTube'].value = true
-  guidParamWithUnits['showMassDriverScrews'].value = true
+  guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+  guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
   guidParamWithUnits['showMassDriverRail'].value = true
   guidParamWithUnits['showMassDriverBrackets'].value = false
   guidParamWithUnits['showLaunchSleds'].value = true
@@ -162,7 +163,7 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
 
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
     true
-    //((i!=1) || (j!=4)) // Hawaii??
+    //((i==1) && (j==4)) // Hawaii??
   )} 
 
   nonGUIParams['overrideClipPlanes'] = true

@@ -8,17 +8,33 @@ export class massDriverTubeModel {
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
   constructor(dParamWithUnits) {
     this.update(dParamWithUnits)
+    // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7fffff, transparent: true, depthWrite: false, opacity: 0.25})
+    // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7f5050, transparent: true, depthWrite: false, opacity: 0.25})
+    //this.massDriverTubeMaterial = new THREE.MeshPhongMaterial( {wireframe: true})
+    const textureCallback = 
+    //this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
+    this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture2.png')
+    this.tubeTexture.repeat.set(4, 4)
+    this.tubeTexture.wrapS = THREE.MirroredRepeatWrapping
+    this.tubeTexture.wrapT = THREE.MirroredRepeatWrapping
+    //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {map: this.tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 1, shininess: 0.5} )
+    //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, color: 0x7fffff, transparent: true, opacity: 1, shininess: 0.5} )
+    this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.4, shininess: 0.5} )
+    this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.05, shininess: 0.5} )
+    // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { map: this.tubeTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6, shininess: 0.5} )
+    // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, color: 0x101015, transparent: true, opacity: 0.95, shininess: 0.5} )
   }
 
   update(dParamWithUnits) {
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
     this.radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
-    this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
   }
   
   createModel(curve, segmentIndex) {
 
-    const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
+    //const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
+    // Hack
+    const modelLengthSegments = 4    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []
 
@@ -44,9 +60,13 @@ export class massDriverTubeModel {
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
     const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
-    const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, transparent: true, depthWrite: false, opacity: 0.25})
-    //const massDriverTubeMaterial = new THREE.MeshPhongMaterial( {map: tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 0.2, shininess: 0.5})
-    const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
+    //const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, (segmentIndex%10==0) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
+    let aboveGround = true
+    // Hack for Olympus Mons clip
+    //aboveGround = (segmentIndex<=126 || segmentIndex>250)
+    // Hack for Hawaii clip
+    //aboveGround = (segmentIndex<=211 || segmentIndex>228)  // That is, not in a tunnel
+    const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, (aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
     massDriverTubeMesh.renderOrder = 999
 
     // Debug code

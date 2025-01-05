@@ -1,13 +1,16 @@
 import * as THREE from 'three'
+import { EllipsoidGeometry } from './EllipsoidGeometry.js'
 
 export class planet {
 
   constructor(dParamWithUnits, planetSpec, enableVR, nonGUIParams) {
+
+    const roughPlanetRadius = planetSpec.ellipsoid.a
     let planetWidthSegments = 768
     let planetHeightSegments = 192
 
-    let eightTextureMode = false
-    let TextureMode24x12 = true
+    let eightTextureMode
+    let TextureMode24x12
     let TextureModeOpenLayers = false
     if (enableVR) {
       eightTextureMode = false
@@ -15,8 +18,59 @@ export class planet {
     }
     else {
       eightTextureMode = false
-      TextureMode24x12 = true
+      TextureMode24x12 = true // Hack // true
     }
+
+
+
+    // Parameters for a perfect sphere (flattening f = 0)
+    const radius = 5;
+    const flattening = 0; // No flattening, perfect sphere
+    const ellipsoid = {
+        a: radius, // Semi-major axis = radius
+        f: flattening, // Flattening = 0
+    };
+    
+    // Segments for testing
+    const widthSegments = 32;
+    const heightSegments = 16;
+    
+    // Create a sphere using THREE.SphereGeometry
+    const sphereGeometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+    
+    // Create an ellipsoid with f = 0 (should match the sphere)
+    const ellipsoidGeometry = new EllipsoidGeometry(ellipsoid, widthSegments, heightSegments);
+    
+    // Helper function to compare positions and normals
+    function compareGeometries(geometryA, geometryB) {
+        const positionA = geometryA.attributes.position.array;
+        const positionB = geometryB.attributes.position.array;
+        const normalA = geometryA.attributes.normal.array;
+        const normalB = geometryB.attributes.normal.array;
+    
+        let positionMatches = true;
+        let normalMatches = true;
+    
+        for (let i = 0; i < positionA.length; i++) {
+            if (Math.abs(positionA[i] - positionB[i]) > 1e-6) {
+                positionMatches = false;
+                console.log(`Position mismatch at index ${i}: ${positionA[i]} vs ${positionB[i]}`);
+            }
+            if (Math.abs(normalA[i] - normalB[i]) > 1e-6) {
+                normalMatches = false;
+                console.log(`Normal mismatch at index ${i}: ${normalA[i]} vs ${normalB[i]}`);
+            }
+        }
+    
+        console.log(`Position match: ${positionMatches}`);
+        console.log(`Normal match: ${normalMatches}`);
+    }
+    
+    // Compare the geometries
+    compareGeometries(sphereGeometry, ellipsoidGeometry);
+    
+
+
 
     // opacity will now work with or without shaders, so warning is not needed.
     const useShaders = false;
@@ -37,44 +91,38 @@ export class planet {
         // const marker = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshBasicMaterial({color: 0x3f3f4f}))
         // let markerSize = 50000
         // marker.scale.set(markerSize, markerSize, markerSize)
+        const colorPath = (planetSpec.name.toLowerCase() === 'earth') ? '' : '/color'  // For backward compatability with where the Earth textures were originally stored
+        const displacementPath = (planetSpec.name.toLowerCase() === 'earth') ? 'DisplacementMaps/' : 'displacement/'  // For backward compatability with where the Earth textures were originally stored
+        const colorFormat = planetSpec.textureColorFormat
+        const displacementFormat = planetSpec.textureDisplacementFormat
 
         const w = 24
         const h = 12
+
+        const displacementBias = dParamWithUnits['displacementMapOverride'].value ? dParamWithUnits['displacementBias'].value : planetSpec.displacementBias
+        const displacementScale = dParamWithUnits['displacementMapOverride'].value ? dParamWithUnits['displacementScale'].value : planetSpec.displacementScale
         for (let j=0; j<h; j++) {
           for (let i = 0; i<w; i++) {
             // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
-            //const farFromRing = (localPoint.y < 0.45 * planetSpec.radius) || (localPoint.y > 0.7 * planetSpec.radius)
-            // Hack
-            const farFromRing = // Just render these regions area in high-res 
-              // ((i!=3) || (j!=2)) &&
-              // ((i!=1) || (j!=4)) &&
-              // ((i!=18) || (j!=3)) &&
-              // ((i!=18) || (j!=4)) &&
-              // ((i!=23) || (j!=8)) &&  // New Zealand North Island
-              // ((i!=0) || (j!=8)) &&  // Ocean east of New Zealand North Island
-              nonGUIParams['getCapturePresetRegions'](i, j)
-
-            if (farFromRing) {
-              textureFilename = `./textures/24x12/LR/earth_LR_${w}x${h}_${i}x${j}.jpg`
-            }
-            else {
-              textureFilename = `./textures/24x12/HR/earth_HR_${w}x${h}_${i}x${j}.jpg`
-            }
+            //const farFromRing = (localPoint.y < 0.45 * roughPlanetRadius) || (localPoint.y > 0.7 * roughPlanetRadius)
+            const useHiRes = nonGUIParams['getCapturePresetRegions'](i, j)
+            const hiLo = (useHiRes) ? 'HR' : 'LR'
+            textureFilename = `./textures/${planetSpec.texturePath}${colorPath}/${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${colorFormat}`
             //console.log(filename)
             const texture = new THREE.TextureLoader().load(textureFilename)
             texture.generateMipmaps = generateMipmaps
 
-            if (farFromRing) {
+            if (planetSpec.name=="Earth" && !useHiRes) {
               displacementMap = null
             }
             else {
-              const displacementFilename = `./textures/DisplacementMaps/24x12/HR/earth_HR_${w}x${h}_${i}x${j}.png`
+              const displacementFilename = `./textures/${planetSpec.texturePath}${displacementPath}${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${displacementFormat}`
               displacementMap = new THREE.TextureLoader().load(displacementFilename)
             }
 
-            planetWidthSegments = (farFromRing) ? 768 : 768*16
-            planetHeightSegments = (farFromRing) ? 192 : 192*16
-            const planetGeometry = new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
+            planetWidthSegments = (!useHiRes) ? 768 : 768*16
+            planetHeightSegments = (!useHiRes) ? 192 : 192*16
+            const planetGeometry = new EllipsoidGeometry(planetSpec.ellipsoid, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
             const planetMesh = new THREE.Mesh(
               planetGeometry,
               (useShaders) ? 
@@ -86,28 +134,18 @@ export class planet {
                   //fragmentShader: document.getElementById( 'fragmentShaderInv' ).textContent,
                   transparent: (dParamWithUnits['earthTextureOpacity'].value!==1) ? true : false,
                   uniforms: {
-                    planetTexture: {
-                      value: texture,
-                    },
-                    displacementMap: {
-                      value: displacementMap
-                    },
-                    displacementScale: {
-                      value: dParamWithUnits['displacementScale'].value
-                    },
-                    displacementBias: {
-                      value: dParamWithUnits['displacementBias'].value
-                    },
-                    hasDisplacementMap: {
-                      value: displacementMap != null
-                    },
+                    planetTexture: { value: texture },
+                    displacementMap: { value: displacementMap },
+                    displacementScale: { value: displacementScale },
+                    displacementBias: { value: displacementBias },
+                    hasDisplacementMap: { value: displacementMap != null },
                     opacity: { value: dParamWithUnits['earthTextureOpacity'].value }
                   } } ) :
                 new THREE.MeshStandardMaterial({
                   map: texture,
                   displacementMap: displacementMap,
-                  displacementScale: dParamWithUnits['displacementScale'].value,
-                  displacementBias: dParamWithUnits['displacementBias'].value,
+                  displacementScale: displacementScale,
+                  displacementBias: displacementBias,
                   transparent: (dParamWithUnits['earthTextureOpacity'].value!==1) ? true : false,
                   opacity: dParamWithUnits['earthTextureOpacity'].value,
                   wireframe: false
@@ -126,7 +164,7 @@ export class planet {
       }
       // else if (TextureModeOpenLayers) {
       //   const planetMesh = new THREE.Mesh(
-      //     new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
+      //     new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments),
       //     new THREE.ShaderMaterial({
       //       vertexShader: document.getElementById('vertexShader').textContent,
       //       fragmentShader: document.getElementById('fragmentShader').textContent,
@@ -137,7 +175,7 @@ export class planet {
       //       }
       //     })
       //   )
-      //   makePlanetTexture(planetMesh, orbitControls, camera, planetSpec.radius, false, (planetTexture) => {
+      //   makePlanetTexture(planetMesh, orbitControls, camera, roughPlanetRadius, false, (planetTexture) => {
       //     planetMesh.material.uniforms.planetTexture.value = planetTexture;
       //     planetMesh.material.uniforms.planetTexture.needsUpdate = true;
       //   });
@@ -161,7 +199,7 @@ export class planet {
               //filename = `./textures/world.topo.200404.3x16384x16384.${letter}${j+1}.jpg`
               if (verbose) console.log(letter, filename)
               const planetMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
+                new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
                 new THREE.ShaderMaterial({
                   //vertexShader: vertexShader,
                   //fragmentShader: fragmentShader,
@@ -196,7 +234,7 @@ export class planet {
         //const texture = new THREE.TextureLoader().load( './textures/bluemarble_16384.jpg')
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
+          new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments),
           // new THREE.MeshPhongMaterial({
           //   //roughness: 1,
           //   //metalness: 0,
@@ -233,8 +271,23 @@ export class planet {
       }
       else {
         console.log("Basic Texture")
-        const texture = new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg')
-        const displacementMap = new THREE.TextureLoader().load( './textures/EARTH_DISPLACE_42K_16BITS_preview.jpg' )
+        let texture, displacementMap, displacementScale
+        if (planetSpec.name == "Earth") {
+          texture = new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg')
+          displacementMap = new THREE.TextureLoader().load( './textures/EARTH_DISPLACE_42K_16BITS_preview.jpg' )
+        }
+        else if (planetSpec.name == "Moon") {
+          // texture = new THREE.TextureLoader().load( './textures/lroc_color_poles.png' )
+          // displacementMap = new THREE.TextureLoader().load( './textures/ldem_64.png' )
+          texture = new THREE.TextureLoader().load( './textures/moon.jpg' )
+          displacementMap = null
+        }
+        else if (planetSpec.name == "Mars") {
+          texture = new THREE.TextureLoader().load( './textures/mar0kuu2.jpg' )
+          displacementMap = null
+        }
+        displacementScale = planetSpec.displacementScale
+
         //const displacementMap = new THREE.TextureLoader().load( './textures/DisplacementMaps/EARTH_DISPLACE_16BITS.png' )
         //const displacementMap = new THREE.TextureLoader().load( './textures/DisplacementMaps/Earth_Disp/Earth_Disp_1032.jpg' )
         //const texture = new THREE.TextureLoader().load( './textures/venus1280x720.jpg' ),
@@ -242,7 +295,7 @@ export class planet {
         //const texture = new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments),
+          new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments),
           new THREE.MeshPhongMaterial({
             //roughness: 1,
             //metalness: 0,
@@ -250,7 +303,7 @@ export class planet {
             //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
             //bumpScale: 1000000,
             displacementMap: displacementMap,
-            displacementScale: 30000,
+            displacementScale: displacementScale,
             // blending: THREE.CustomBlending,
             // blendEquation: THREE.AddEquation, //default
             // blendSrc: THREE.SrcAlphaFactor, //default
@@ -271,7 +324,7 @@ export class planet {
     //planetMesh.castShadow = true
 
     const atmosphereMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/16, planetHeightSegments/16),
+      new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments/16, planetHeightSegments/16),
       new THREE.ShaderMaterial({
         //vertexShader: atmosphereVertexShader,
         //fragmentShader: atmosphereFragmentShader,
@@ -289,7 +342,7 @@ export class planet {
     atmosphereMesh.visible = dParamWithUnits['showEarthsAtmosphere'].value
 
     // const darkSphereMesh = new THREE.Mesh(
-    //   new THREE.SphereGeometry(planetSpec.radius*0.90, planetWidthSegments/4, planetHeightSegments/4),
+    //   new THREE.SphereGeometry(roughPlanetRadius*0.90, planetWidthSegments/4, planetHeightSegments/4),
     //   new THREE.MeshBasicMaterial({color: 0x000000})
     // )
     // darkSphereMesh.name = 'darkSphereMesh'
@@ -330,10 +383,12 @@ export class planet {
     const backgroundPatchDescriptor = {
       //textureFilename: './textures/LundHillWashington1.jpg',
       textureFilename: './textures/myakka_oli_2022031_lrg.jpg',
+      //textureFilename: './textures/mars/olympusmons.jpg',
       patchAltitude: 1200,
       patchImageWidth: 2239,
       patchImageHeight: 1260,
-      patchPosition: new THREE.Vector3(-3827945.649196222, 4596585.471598385, -2221862.1287314435),     // Washington State
+      //patchPosition: new THREE.Vector3(-3827945.649196222, 4596585.471598385, -2221862.1287314435),     // Washington State
+      patchPosition: new THREE.Vector3(-2485252.833291091, 2139838.026337634, -5469810.453140184),     // Washington State
       patchRotation: new THREE.Euler(-2.0234735226917318, -0.641906096175003, -2.1683293345531034, 'XYZ'),
       patchScale: 10
     }
@@ -346,6 +401,7 @@ export class planet {
 
   addBackgroundPatch(descriptor, planetSpec) {
     // Add a patch of high res texture on the ground as a background for some downward looking shots 
+    const roughPlanetRadius = planetSpec.ellipsoid.a
     const backgroundPatchGeometry = new THREE.PlaneGeometry(descriptor.patchImageWidth, descriptor.patchImageHeight)
     
     //const backgroundPatchGeometry = new THREE.SphereGeometry(100000, 32, 32)
@@ -371,7 +427,7 @@ export class planet {
       // })
     )
 
-    backgroundPatchMesh.position.copy(descriptor.patchPosition).normalize().multiplyScalar(planetSpec.radius+descriptor.patchAltitude)
+    backgroundPatchMesh.position.copy(descriptor.patchPosition).normalize().multiplyScalar(roughPlanetRadius+descriptor.patchAltitude)
     backgroundPatchMesh.lookAt(backgroundPatchMesh.position.clone().multiplyScalar(2))
     backgroundPatchMesh.rotation.copy(descriptor.patchRotation)
     //backgroundPatchMesh.rotateZ(descriptor.patchRotation)
@@ -385,7 +441,7 @@ export class planet {
 
   addWater() {
         // const water = new Water(
-    //   new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments/16, planetHeightSegments/16),
+    //   new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments/16, planetHeightSegments/16),
     //   {
     //     textureWidth: 512,
     //     textureHeight: 512,
@@ -418,7 +474,7 @@ export class planet {
     // plane.geometry.atributes.uv2 = plane.geometry.atributes.uv
     // scene.add(plane)
 
-    // const earth2Geometry = new THREE.SphereGeometry(planetSpec.radius, planetWidthSegments, planetHeightSegments, 0, Math.PI/2, 0, Math.PI/2)
+    // const earth2Geometry = new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments, 0, Math.PI/2, 0, Math.PI/2)
     // const earth2Material = new THREE.MeshPhongMaterial({
     //   roughness: 1,
     //   metalness: 0,

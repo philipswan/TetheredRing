@@ -256,25 +256,30 @@ class SuperCurvePath extends SuperCurve {
     let relevantCurveIndex
     let relevantCurveDuration
     let relevantCurveStartTime
+    let relevantCurveStartDistance
     let relevantCurveLength
 
 		let curveStartTime = 0
+    let curveStartDistance = 0
 		for (let i = 0; i<curveList.length; i++) {
 			const duration = curveList[i].getDuration()
+      const curveLength = curveList[i].getLength()
 			// ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
 			if ((deltaT<curveStartTime+duration) || (i==curveList.length-1)) {
 				relevantCurve = curveList[i]
 				relevantCurveIndex = i 
 				relevantCurveStartTime = curveStartTime
+        relevantCurveStartDistance = curveStartDistance
 				relevantCurveDuration = duration
-				relevantCurveLength = relevantCurve.getLength()
+				relevantCurveLength = curveLength
 				break
 			}
 			else {
 				curveStartTime += duration
+        curveStartDistance += curveLength
 			}
 		}
-		return {relevantCurve, relevantCurveIndex, relevantCurveStartTime, relevantCurveDuration, relevantCurveLength}
+		return {relevantCurve, relevantCurveIndex, relevantCurveStartTime, relevantCurveStartDistance, relevantCurveDuration, relevantCurveLength}
 
 	}
 
