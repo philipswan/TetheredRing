@@ -48,7 +48,7 @@ import * as CapturePresets from './CapturePresets.js'
 import cameraPresets from './cameraPresets.json'
 //import cameraControlData from './components/CameraControl/cameraPath1.json'
 //import cameraControlData from './components/CameraControl/QuickTest2.json'
-import cameraControlData from './textures/googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json'
+//import cameraControlData from './googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json'
 import { trackPointLogger } from './trackPointLogger.js'
 import googleEarthProjectFile from './components/CameraControl/googleEarthStudioSampleProjectFile.json'
 //import googleEarthProjectFile from './components/CameraControl/HawaiiBigIsland.json'
@@ -1235,14 +1235,7 @@ scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
-if (false && dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
-  // We need to modify the planet's shape from sperical to oblate spheroid to match Google Earth's shape
-  // This modification seems to have undesirable side effects though, so lots more work will be needed to get this right.
-  planetCoordSys.scale.y = 1.0 - 1.0/WGS84FlattenningFactor // Squishes the earth (and everything else) by the correct flattening factor
-}
-else {
-  planetCoordSys.scale.y = 1.0
-}
+
 scene.add(planetCoordSys)
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
@@ -1502,6 +1495,7 @@ let tweeningActive = false
 
 let cameraControlActive = false
 let lastCameraControlActive = false
+let cameraControlData
 let cameraControlStartTime = 0
 let savedPosition
 let savedRotation
@@ -1721,16 +1715,28 @@ let firstFrame, lastFrame
 if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
   firstFrame = 0
   lastFrame = firstFrame + dParamWithUnits['maxBackgroundVideoFrames'].value - 1
+  const progressDisplay = document.createElement('div')
+  progressDisplay.style.position = 'absolute'
+  progressDisplay.style.left = progressDisplay.style.top = 0
+  progressDisplay.style.backgroundColor = 'black'
+  progressDisplay.style.fontFamily = 'monospace'
+  progressDisplay.style.fontSize = '16px'
+  progressDisplay.style.padding = '5px'
+  progressDisplay.style.color = 'red'
+  progressDisplay.style.zIndex = 100000
+  document.body.appendChild(progressDisplay)
   for (let i = firstFrame; i<=lastFrame; i++) {
     //const fileName = 'NewZealandLaunchSite'
     const folderName = 'OrbitAroundLauncher4K'
     const fileName = 'OrbitAroundLauncher'
-    backgroundTexture[i-firstFrame] = await backgroundTextureLoader.loadAsync(`./textures/googleEarthImages/${folderName}/footage/${fileName}_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
+    progressDisplay.textContent = 'Loading Background Image ' + i + "/" + lastFrame;
+    backgroundTexture[i-firstFrame] = await backgroundTextureLoader.loadAsync(`./googleEarthImages/${folderName}/footage/${fileName}_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
   }
+  document.body.removeChild(progressDisplay)
 }
 else {
   // Hack to avoid error if above file is missing
-  //backgroundTexture[0] = await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
+  backgroundTexture[0] = null // await backgroundTextureLoader.loadAsync('./textures/myakka_oli_2022031_lrg.jpg', function(texture) {})
 }
 
 let backgroundImage
@@ -1739,7 +1745,9 @@ if (nonGUIParams['displayBackgroundImage']) {
     const width = texture.source.data.naturalWidth
     const height = texture.source.data.naturalHeight
     backgroundSceneObject = new backgroundScene(width, height, texture)
-    backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+    if (backgroundSceneObject.scene) {
+      backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+    }
   })
 }
 
@@ -2010,6 +2018,7 @@ function renderFrame() {
     let cameraControlCurrentTime
     if (!lastCameraControlActive) {
       // Initialize the camera control variables
+
       cameraControlStartTime = timeSinceStart
       cameraControlCurrentTime = 0
       if (!dParamWithUnits['jsonFileCameraControlHelper'].value) {
@@ -2035,7 +2044,9 @@ function renderFrame() {
         renderer.setSize(width, height)
   
         backgroundSceneObject = new backgroundScene(width, height, backgroundTexture[0])
-        backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+        if (backgroundSceneObject.scene) {
+          backgroundSceneObject.hidePlanet([planetMeshes, atmosphereMesh])
+        }
 
         //backgroundCanvas = new THREE.CanvasTexture(document.getElementById('backgroundCanvas'))
         // ToDo: We probably add a feature to allow capturing at an integer multiple of the resolution from GoogleEarthStudio
@@ -2051,10 +2062,13 @@ function renderFrame() {
     // Hack - limit to 450 frames for more efficient testing
     if (!dParamWithUnits['jsonFileCameraControlHelper'].value && (prevFrame<dParamWithUnits['maxBackgroundVideoFrames'].value)) {
       // Apply the background texture from the frames of the Google Earth video
-      backgroundSceneObject.sprite.material.map = backgroundTexture[prevFrame]
-      if (backgroundTexture[prevFrame-1]) {
-        backgroundTexture[prevFrame-1].dispose()
-        backgroundTexture[prevFrame-1] = null
+      if (prevFrame<backgroundTexture.length && backgroundTexture[prevFrame]) {
+        backgroundSceneObject.sprite.material.map = backgroundTexture[prevFrame]
+        // if (backgroundTexture[prevFrame-1]) {
+        //   // Free up memory
+        //   backgroundTexture[prevFrame-1].dispose()
+        //   backgroundTexture[prevFrame-1] = null
+        // }
       }
     }
     
@@ -2116,7 +2130,9 @@ function renderFrame() {
       renderer.setClearAlpha(savedRendererAlpha)
       renderer.setSize(savedRenderWidth, savedRenderHeight)
       // Restore the planet and atmosphere textures
-      backgroundSceneObject.restorePlanet([planetMeshes, atmosphereMesh])
+      if (backgroundSceneObject && backgroundSceneObject.preserveVisibility.length>0) {
+        backgroundSceneObject.restorePlanet([planetMeshes, atmosphereMesh])
+      }
       backgroundSceneObject.remove()
       backgroundSceneObject = null
 
@@ -2346,7 +2362,7 @@ function renderFrame() {
   }
   else {
     renderer.clear()
-    if (backgroundSceneObject) {
+    if (backgroundSceneObject && backgroundSceneObject.scene) {
       renderer.render(backgroundSceneObject.scene, backgroundSceneObject.camera)
       renderer.clearDepth()
     }
@@ -2597,6 +2613,13 @@ function setOrbitControlsTargetUpVector() {
     tetheredRingRefCoordSys.updateMatrixWorld(true)
     orbitControlsTargetUpVector = planetCoordSys.worldToLocal(orbitControlsTargetPoint.clone()).normalize()
   }
+}
+
+async function loadCameraControlData() {
+  const module = await import('./googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json', {
+    assert: { type: 'json' }
+  });
+  return module.default;
 }
 
 function onKeyDown( event ) {
@@ -2887,7 +2910,16 @@ function onKeyDown( event ) {
     //   break
     case 71: /*G*/
       // Initiate (or cancel) control of the camera's position and orientation from the data in the Google Earth Studio provided json file.
-      cameraControlActive = !cameraControlActive
+      if (cameraControlActive) {
+        cameraControlActive = false
+      }
+      else {
+        loadCameraControlData().then((data) => {
+          cameraControlData = data
+          cameraControlActive = true
+          console.log('Camera Control Data', cameraControlData)
+        })
+      }
       break
     case 86: /*V*/
       lockUpToRingAxis = !lockUpToRingAxis
@@ -3732,6 +3764,7 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
   if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
     framerate = cameraControlData['frameRate']
     cameraControlActive = true
+    loadCameraControlData()
   }
   else {
     framerate = document.querySelector('input[name="framerate"]:checked').value;

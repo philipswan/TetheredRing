@@ -170,7 +170,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
   actualSizeDollyShot(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['showStars'].value = true
-  guidParamWithUnits['showLaunchTrajectory'].value = true
+  //guidParamWithUnits['showLaunchTrajectory'].value = true
   guidParamWithUnits['launcherCoastTime'].value = 100*20
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
