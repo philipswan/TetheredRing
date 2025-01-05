@@ -2616,10 +2616,11 @@ function setOrbitControlsTargetUpVector() {
 }
 
 async function loadCameraControlData() {
-  const module = await import('./googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json', {
-    assert: { type: 'json' }
-  });
-  return module.default;
+  const response = await fetch('./googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json')
+  if (!response.ok) {
+    throw new Error(`Failed to load OrbitAroundLauncher.json: ${response.statusText}`);
+  }
+  return await response.json()
 }
 
 function onKeyDown( event ) {
