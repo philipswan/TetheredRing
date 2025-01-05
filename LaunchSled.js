@@ -21,7 +21,7 @@ export class launchSledModel {
     launchSledMesh.name = 'launchSled'
     const scaleFactorVector = new THREE.Vector3(
       dParamWithUnits['launchSystemRightwardScaleFactor'].value,
-      dParamWithUnits['launchSystemForwardScaleFactor'].value,
+      dParamWithUnits['launchSystemForwardScaleFactor'].value*1.75,
       dParamWithUnits['launchSystemUpwardScaleFactor'].value)
 
     decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactorVector, launchSledNumModels, perfOptimizedThreeJS)
@@ -104,49 +104,12 @@ export class virtualLaunchSled {
       virtualLaunchSled.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)
   
       virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
-      virtualLaunchSled.launcherMassDriverLength = launcherMassDriverLength
-      virtualLaunchSled.launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
       virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
       virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
-      virtualLaunchSled.forwardScaleFactor = dParamWithUnits['launchSystemForwardScaleFactor'].value
-      virtualLaunchSled.upwardScaleFactor = dParamWithUnits['launchSystemUpwardScaleFactor'].value
-      virtualLaunchSled.rightwardScaleFactor = dParamWithUnits['launchSystemRightwardScaleFactor'].value
       virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
       virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-      virtualLaunchSled.launchSledNumGrapplers = dParamWithUnits['launchSledNumGrapplers'].value
-      virtualLaunchSled.magnetThickness = dParamWithUnits['launchSledGrapplerMagnetThickness'].value
-      virtualLaunchSled.betweenGrapplerFactor = dParamWithUnits['launchSledBetweenGrapplerFactor'].value
-      virtualLaunchSled.shaftToGrapplerPad = dParamWithUnits['launchSledShaftToGrapplerPad'].value
-      virtualLaunchSled.ballJointClearance = dParamWithUnits['launchSledGrapplerBallJointClearance'].value
-      virtualLaunchSled.ballJointRadius = dParamWithUnits['launchSledGrapplerBallJointRadius'].value
-      virtualLaunchSled.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-      virtualLaunchSled.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
-      virtualLaunchSled.initialDistance = dParamWithUnits['launchSledBodyLength'].value / 2
-      virtualLaunchSled.launchSledGrapplerRangeFactor = dParamWithUnits['launchSledGrapplerRangeFactor'].value
 
-      // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
-      virtualLaunchSled.screwRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-      virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
-      virtualLaunchSled.launcherMassDriverScrewShaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
-      virtualLaunchSled.intraAnchorUpwardsSeparation = dParamWithUnits['launchSledIntraAnchorUpwardsSeparation'].value // We could make this the function of launcherMassDriverScrewThreadRadius and the launchSledGrapplerClearanceFactor
-      virtualLaunchSled.interAnchorUpwardsSeparation = dParamWithUnits['launchSledInterAnchorUpwardsSeparation'].value
-      virtualLaunchSled.launcherMassDriverScrewThreadRadius =  dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
-      virtualLaunchSled.launcherMassDriverScrewThreadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
-      virtualLaunchSled.launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
-      virtualLaunchSled.launcherMassDriverScrewSidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
-      virtualLaunchSled.launcherMassDriverScrewUpwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
-      virtualLaunchSled.padLiftActuation = dParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value
-      virtualLaunchSled.padLiftPortion = dParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value
-      const r1 = virtualLaunchSled.launcherMassDriverScrewThreadRadius
-      const r2 = virtualLaunchSled.launcherMassDriverScrewShaftOuterRadius
-      virtualLaunchSled.padRadialActuation = (r1 - r2) * (1 + dParamWithUnits['launchSledGrapplerClearanceFactor'].value)
-      virtualLaunchSled.padTwistPortion = dParamWithUnits['launchSledGrapplerPadTwistPortion'].value
-      virtualLaunchSled.launchSledWidth = dParamWithUnits['launchSledWidth'].value
-      virtualLaunchSled.launchSledGrapplerMaxRangeOfMotion = dParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value
-      virtualLaunchSled.launchSledGrapplerTopDeadCenterRotation = dParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value
-      virtualLaunchSled.minMaxArray = [0, 0]
-      
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
       virtualLaunchSled.scene = scene

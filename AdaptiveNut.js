@@ -43,7 +43,7 @@ export class adaptiveNutModel {
       return function(object) {
         object.children[0].scale.set(0.6, 1, 1.5)  // A bit hacky - Alastair's sled model is too wide and thin
         object.children[0].position.set(0, 0, 0) // reposition vertically after making the sled thicker
-        object.scale.set(0.001, 0.001, 0.001)  // Correct for units - mm to m
+        object.scale.set(0.001, 0.001*1.62, 0.001)  // Correct for units - mm to m
         object.name = 'adaptiveNut_bodyFromModel'
         object.children[0].material.color.setHex(0x2f1f50)
         myScene.traverse(child=> {
@@ -178,7 +178,7 @@ export class adaptiveNutModel {
       const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
       const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-      const launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
+      const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
       const initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
       const numGrapplers = dParamWithUnits['adaptiveNutNumGrapplers'].value
       const magnetThickness = dParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value
@@ -195,7 +195,7 @@ export class adaptiveNutModel {
         threadStarts,
         launcherMassDriverScrewRevolutionsPerSecond,
         launcherMassDriverForwardAcceleration,
-        launcherMassDriver2InitialVelocity,
+        launcherMassDriver1InitialVelocity,
         initialDistance,
         distanceToSledAft,
         grapplerLength,
@@ -217,7 +217,7 @@ export class adaptiveNutModel {
         threadStarts,
         launcherMassDriverScrewRevolutionsPerSecond,
         launcherMassDriverForwardAcceleration,
-        launcherMassDriver2InitialVelocity,
+        launcherMassDriver1InitialVelocity,
         initialDistance,
         distanceToSledAft,
         grapplerLength,
@@ -287,7 +287,7 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.ballJointClearance = dParamWithUnits['adaptiveNutGrapplerBallJointClearance'].value
       virtualAdaptiveNut.ballJointRadius = dParamWithUnits['adaptiveNutGrapplerBallJointRadius'].value
       virtualAdaptiveNut.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-      virtualAdaptiveNut.launcherMassDriver2InitialVelocity = dParamWithUnits['launcherMassDriver2InitialVelocity'].value
+      virtualAdaptiveNut.launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
       virtualAdaptiveNut.initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
       virtualAdaptiveNut.adaptiveNutGrapplerRangeFactor = dParamWithUnits['adaptiveNutGrapplerRangeFactor'].value
 
@@ -312,7 +312,7 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.adaptiveNutGrapplerMaxRangeOfMotion = dParamWithUnits['adaptiveNutGrapplerMaxRangeOfMotion'].value
       virtualAdaptiveNut.adaptiveNutGrapplerTopDeadCenterRotation = dParamWithUnits['adaptiveNutGrapplerTopDeadCenterRotation'].value
       virtualAdaptiveNut.minMaxArray = [0, 0]
-      
+
       virtualAdaptiveNut.isDynamic =  true
       virtualAdaptiveNut.hasChanged = true
       virtualAdaptiveNut.scene = scene
@@ -324,8 +324,18 @@ export class virtualAdaptiveNut {
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
-        const distanceToSledAft = relevantCurve.tTod(deltaT - res.relevantCurveStartTime)
-        const d = distanceToSledAft / res.relevantCurveLength
+        const distanceDownRelevantCurve = relevantCurve.tTod(deltaT - res.relevantCurveStartTime)
+        const d = distanceDownRelevantCurve / res.relevantCurveLength
+        // This next line assumes that there is only one other supercurve before the start of the screw
+        let massDriver1StartDistance = 0;
+        for (const superCurve of refFrame.curve.superCurves) {
+          if (superCurve.name !== 'massDriver1Curve') {
+            massDriver1StartDistance += superCurve.length;
+          } else {
+            break;
+          }
+        }
+        const distanceToSledAft = res.relevantCurveStartDistance + distanceDownRelevantCurve - massDriver1StartDistance
 
         const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
         const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
@@ -337,7 +347,7 @@ export class virtualAdaptiveNut {
         const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
 
         const acceleration = virtualAdaptiveNut.launcherMassDriverForwardAcceleration
-        const initialVelocity = virtualAdaptiveNut.launcherMassDriver2InitialVelocity
+        const initialVelocity = virtualAdaptiveNut.launcherMassDriver1InitialVelocity
         const initialDistance = virtualAdaptiveNut.initialDistance
         const grapplerLength = virtualAdaptiveNut.adaptiveNutGrapplerLength
         const adaptiveNutWidthDiv2 = virtualAdaptiveNut.adaptiveNutWidth / 2
@@ -348,7 +358,7 @@ export class virtualAdaptiveNut {
   
         const screwRevolutionsPerSecond = virtualAdaptiveNut.screwRevolutionsPerSecond
         const threadRadius = virtualAdaptiveNut.launcherMassDriverScrewThreadRadius
-        const threadStarts = virtualAdaptiveNut.launcherMassDriverScrewThreadStarts
+        const threadStarts = tram.calculateThreadStarts(distanceToSledAft, virtualAdaptiveNut.launcherMassDriverScrewThreadStarts)
         const threadThickness = virtualAdaptiveNut.launcherMassDriverScrewThreadThickness
         const shaftOuterRadius = virtualAdaptiveNut.launcherMassDriverScrewShaftOuterRadius
         const shaftInnerRadius = virtualAdaptiveNut.launcherMassDriverScrewShaftInnerRadius
@@ -382,7 +392,7 @@ export class virtualAdaptiveNut {
         let grapplerSwitchoverSignal = []
         let grapplerThreadPitch = []
   
-        const firstGrapplerDistance =   0
+        const firstGrapplerDistance = 0
         const lastGrapplerDistance = grapplerLength
         const grapplerSpacing = 1.0 / numGrapplers * grapplerLength
   
@@ -453,7 +463,7 @@ export class virtualAdaptiveNut {
             const midwayRotation = child.userData.midwayRotation
             const offset = grapplerOffset[grapplerIndex]
             // Engage the grapplers only if we're on the part of the curve path that has the twin-screws
-            const switchoverSignal = (res.relevantCurve.name=='massDriver2Curve') ? grapplerSwitchoverSignal[grapplerIndex]: 1
+            const switchoverSignal = ((res.relevantCurve.name=='massDriver1Curve') || (res.relevantCurve.name=='massDriver2Curve')) ? grapplerSwitchoverSignal[grapplerIndex]: 1
             const threadPitch = grapplerThreadPitch[grapplerIndex]
             
             // The switchover signal pushed the grappler back towards the top dead center position
@@ -616,6 +626,25 @@ export class virtualAdaptiveNut {
       }
       om.visible = virtualAdaptiveNut.isVisible
     }
+
+    getFuturePosition(refFrame, timeDeltaInSeconds) {
+
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualAdaptiveNut.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+      const deltaT = adjustedTimeSinceStart - this.timeLaunched
+      if (deltaT<=refFrame.curve.getDuration()) {
+        const res = refFrame.curve.findRelevantCurve(deltaT)
+        const relevantCurve = res.relevantCurve
+        const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
+        //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+        const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, d))
+        return pointOnRelevantCurve
+      }
+      else {
+        return null
+      }
+  
+    }
+  
   }
   
   

@@ -1,155 +1,54 @@
 import * as THREE from 'three'
 import g from 'three/examples/jsm/libs/lil-gui.module.min.js'
 import { cos } from 'three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.js'
+import { actualSizeDollyShot } from './actualSizeDollyShot.js'
+import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
+import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
+import { toMarsFromMoonLauncherArchitecture } from './toMarsFromMoonLauncherArchitecture.js'
 
 export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams) {
-
-
-  // Sun's Gravitational Parameter
-  const g_sun = 1.32712440018e20 // m3/kg/s2
-  // Earth's Gravitational Parameter
-  const g_earth = 3.986004418e14 // m3/kg/s2
-  // Mars's Gravitational Parameter
-  const g_mars = 4.282837e13 // m3/kg/s2
-  // Radius of Earth's orbit around the sun
-  const r_earthOrbit = 1.496e11 // m
-  // Radius of Mars's orbit around the sun
-  const r_marsOrbit = 2.279e11 // m
-  // Earth's orbital speed
-  const v_earth = Math.sqrt(g_sun / r_earthOrbit) // m/s
-  // Mars's orbital speed
-  const v_mars = Math.sqrt(g_sun / r_marsOrbit) // m/s
-  // Earth-Mars transfer orbit semi-major axis
-  const a_transferOrbit = (r_earthOrbit + r_marsOrbit) / 2 // m
-  // Perihelion speed of earth-mars transfer orbit
-  const v_perihelion = Math.sqrt(2 * g_sun / r_earthOrbit - g_sun / a_transferOrbit) // m/s
-  // Apohelion speed of earth-mars transfer orbit
-  const v_apohelion = Math.sqrt(2 * g_sun / r_marsOrbit - g_sun / a_transferOrbit) // m/s
-  // Excess speed at earth of earth-mars transfer orbit
-  let v_earth_excess = v_perihelion - v_earth // m/s
-
-  const C3Value = (v_earth_excess/1000)**2 // km2/s2
-  console.log('C3Value', C3Value, "km2/s2")
-
-  // This works out to be 2943 m/s, but this source (https://web.archive.org/web/20210331135639/https://trs.jpl.nasa.gov/bitstream/handle/2014/44336/13-0679_A1b.pdf?sequence=1#expand)
-  // Which does a more detailed analysis of the transfer orbit, says on table 3 that the that the excess speed (ΔV1) varies between 2990 m/s and 4030 m/s
-  // In practice, after orbital eccentricity, inclination, and rotated apsides are taken into consideration.
-  // 10/2/2024 - 3360 m/s
-  // 10/31/2026 - 3040 m/s
-  // 11/24/2028 - 3020 m/s
-  // 12/29/2030 - 3220 m/s
-  // 4/16/2033 - 3000 m/s
-  // 6/26/2035 - 3210 m/s
-  // 8/20/2037 - 4030 m/s
-  // 9/21/2039 - 3540 m/s
-  // 10/20/2041 - 3130 m/s
-  // 11/15/2043 - 3000 m/s
-  // 12/14/2045 - 3110 m/s
-  // 3/20/2048 - 3260 m/s
-  // 5/26/2050 - 2830 m/s
-  // 8/9/2052 - 3980 m/s
-
-  // Hack...
-  //v_earth_excess = 4030 // m/s - value for 8/20/2037
-  //v_earth_excess = Math.sqrt(41.65)*1000 // C3 value is from Figure 1 of https://dataverse.jpl.nasa.gov/file.xhtml?fileId=91111&version=2.0
-
-  console.log('v_earth_excess', v_earth_excess)
-
-  // Also we need to consider that we will want to use the launcher over a period of several days, and that only one of these days will
-  // be associated with the optimal launch window.
-  
-  // Excess speed at mars of earth-mars transfer orbit
-  const v_mars_excess = v_mars - v_apohelion // m/s
-  // Negative semi-major of Earth hyperbolic trajectory with excess speed of v_earth_excess
-  const a_earth = -g_earth / v_earth_excess**2
-  console.log('a_earth', a_earth)
-  // Radius of the earth
-  const r_earth = 6378100 // m  
-
-  console.log('g_earth', g_earth, 'r_earth', r_earth)
-
-  // Length of earth's sideral day in seconds
-  const t_earth = 86164.0905 // s
-  // Launch latitude
-  const launchLatitude = 19.820667 // ° N (Hawaii Big Island)
-  const massDriverAltitude = 200 // m
-  //const launchLatitude = 28.5744 // ° N (Kennedy Space Center)
-  // Velocity of spacecraft at earth's surface at the hyperbolic orbit perigee in the inertial reference frame
-  const launchVehiclePerigeeSpeed = Math.sqrt(g_earth * 2 / (r_earth+massDriverAltitude) + g_earth / Math.abs(a_earth)) // m/s
-  //const launchVehiclePerigeeSpeed2 = Math.sqrt(g_earth * 2 / (r_earth+200000) + g_earth / Math.abs(a_earth)) // m/s
-  console.log('*** launchVehiclePerigeeSpeed', launchVehiclePerigeeSpeed)
-  //console.log('*** launchVehiclePerigeeSpeed2', launchVehiclePerigeeSpeed2)
-  // Velocity at earth's surface due to earth's rotation
-  const v_earth_rotation = 2*Math.PI*(r_earth+massDriverAltitude) * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
-  console.log('v_earth_rotation', v_earth_rotation)
-  // Velocity of spacecraft at earth's surface in ECEF coordinates
-  const launchVehicleAirspeed = launchVehiclePerigeeSpeed - v_earth_rotation // m/s
-  // Velocity of a satellite in 200km LEO orbit
-  const v_spacecraft_LEO = Math.sqrt(g_earth / (r_earth + 200000)) // m/s
-  // Difference in velocity between spacecraft in LEO and 10km above earth's surface
-  const v_minus_vleo = launchVehicleAirspeed - v_spacecraft_LEO // m/s
-
-  console.log('v_earth', v_earth)
-  console.log('v_mars', v_mars)
-  console.log('v_perihelion', v_perihelion)
-  console.log('v_apohelion', v_apohelion)
-  console.log('v_earth_excess', v_earth_excess)
-  console.log('v_mars_excess', v_mars_excess)
-  console.log('a_earth', a_earth)
-  console.log('launchVehicleAirspeed', launchVehicleAirspeed)
-  console.log('v_spacecraft_LEO', v_spacecraft_LEO)
-  console.log('v_minus_vleo', v_minus_vleo)
 
   // Uses Monna Kea launch location
   guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74.34
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120
-  guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
-  guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
-  //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
-  guidParamWithUnits['launcherRampTurningRadius'].value = 381000
-  guidParamWithUnits['launcherRampTurningRadius'].value = 49096
-  guidParamWithUnits['launcherRampDesignMode'].value = 0
-  // launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
-  guidParamWithUnits['launcherLocationMode'].value = 1
-  // Mauna Kea (19.820667, -155.468056)
-  guidParamWithUnits['launcherRampEndLatitude'].value = 19.820667
-  guidParamWithUnits['launcherRampEndLongitude'].value = -155.468056 + .048056 // moving the end of the ranp a little bit east 
+  // Location specific parameters that will affect the architecture
+  const useEarth = true
+  if (useEarth) {
+    // Mauna Kea (19.820667, -155.468056)
+    const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
+    const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ramp a little bit east 
+    //const massDriverAltitude = -150 // m (below sea level) (at the moment we can't see it below the ocean so, for now, raising it above the ocean)
+    const massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
+    const rampExitAltitude = 4000 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
+    toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+  }
+  else {
+    const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
+    const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ranp a little bit east 
+    const massDriverAltitude = 1000 // m
+    const rampExitAltitude = 1500 // m
+    toMarsFromMoonLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+  }
+  guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 300
+
+  guidParamWithUnits['launcherFeederRailLength'].value = 0
+
   // Mount Everest
   // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
   // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude         // m
-  // Hawaii Big Island
-  guidParamWithUnits['launcherRampExitAltitude'].value = 3800           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
-  // Mount Everest
-  // guidParamWithUnits['launcherRampExitAltitude'].value = 8000           // m  (rougly the altitute of Mount Everest summit)
-  guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000  // m
-  //guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
-  guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
-  guidParamWithUnits['launcherMassDriverExitVelocity'].value = launchVehicleAirspeed     // m/s
-  guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
-  //guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
-  guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
   //launchVehicleSledMass
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleEffectiveRadius
   //launcherPayloadDeliveredToOrbit
   guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
   guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
-  guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
-  guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
   //launchVehicleCoefficientOfDrag
-  guidParamWithUnits['launcherCoastTime'].value = 100*60
   //launcherXyChartMaxT
   //launcherServiceLife
   //launcherLaunchesPerYear
-  guidParamWithUnits['launcherFeederRailLength'].value = 0
   //launchSystemForwardScaleFactor
   //launchSystemUpwardScaleFactor
   //launchSystemRightwardScaleFactor
@@ -163,40 +62,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launchVehicleRocketEngineLength
   //launchVehicleShockwaveConeLength
 
-  // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
-  const r = guidParamWithUnits['launchVehicleRadius'].value
-  const bl = guidParamWithUnits['launchVehicleBodyLength'].value
-  const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
-  const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
-  const π = Math.PI
-  const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
-  const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
-  const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
-  const skinMaterialDensity = 8000 // kg/m3
-  const rocketEngineMass = 3177 // kg (based on RS-25)
-  const avionicsEtcMass = 1000 // kg
 
-  const dryMass = skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
-  // Allocate the volume between the payload and the propellant
-  const propellantDensity = 360 // kg/m3
-  const payloadDensity = 360 // kg/m3
-  const propellantMass = 3000
-  const payloadMass = (interiorVolume - propellantMass / propellantDensity) * payloadDensity
-  console.log('dryMass', dryMass)
-  console.log('payloadMass', payloadMass)
-  console.log('propellantMass', payloadMass)
-  console.log('totalMass', payloadMass + dryMass)
-
-  guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
-  guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
-  guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
-  //launchVehicleNonPayloadMass
-
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1 //300
-  //launchVehicleSpacingInSeconds
-  guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   //launchVehicleNumModels
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1 //5
   //numVirtualMassDriverTubes
   //launcherMassDriverRailWidth
   //launcherMassDriverRailHeight
@@ -210,7 +77,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
   // guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
   // guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
-  guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 2
+  //guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 2
   //launcherMassDriverScrewRoughLength
   //launcherMassDriverScrewSidewaysOffset
   //launcherMassDriverScrewUpwardsOffset
@@ -221,7 +88,6 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launcherMassDriverScrewNumBrackets
   //launcherMassDriverScrewMaterialDensity
   //launcherMassDriverScrewMaterialCost
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4.5 //200.0
   //launcherMassDriverTubeLinerThickness
   //launcherMassDriverTubeWallThickness
   //launcherMassDriverTubeMaterial0Density
@@ -237,8 +103,6 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launchSledSidewaysOffset
   //launchSledUpwardsOffset
   //launchSledForwardsOffset
-  guidParamWithUnits['launchSledScaleFactor'].value = 1
-  guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   //launchSledNumModels
   
   //guidParamWithUnits['launcherScrewRotationRate'].value = 200
@@ -246,64 +110,6 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Grappler Parameters
   guidParamWithUnits['launchSledNumGrapplers'].value = 64
   guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
-  guidParamWithUnits['launchSledShaftToGrapplerPad'].value = 0.02
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.01
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerClearanceFactor'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerPadTwistPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointClearance'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointRadius'].value = 0.04
-  guidParamWithUnits['launchSledGrapplerRangeFactor'].value = .01
-  guidParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value = 0.125
-  guidParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value = 0.5
-
-
-  guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-  guidParamWithUnits['showXYChart'].value = false
-  guidParamWithUnits['showEarthsSurface'].value = true
-  //guidParamWithUnits['earthTextureOpacity'].value = 0.25
-  guidParamWithUnits['showEarthsAtmosphere'].value = true
-  guidParamWithUnits['showMoon'].value = false
-  guidParamWithUnits['showStars'].value = false
-  guidParamWithUnits['showEarthAxis'].value = false
-  guidParamWithUnits['showBackgroundPatch'].value = false
-  guidParamWithUnits['showEarthEquator'].value = false
-  guidParamWithUnits['showMainRingCurve'].value = false
-  guidParamWithUnits['showGravityForceArrows'].value = false
-  guidParamWithUnits['showGyroscopicForceArrows'].value = false
-  guidParamWithUnits['showTethers'].value = false
-  guidParamWithUnits['showTransitSystem'].value = false
-  guidParamWithUnits['showStationaryRings'].value = false
-  guidParamWithUnits['showMovingRings'].value = false
-  guidParamWithUnits['showStatorMagnets'].value = false
-  guidParamWithUnits['showTransitTube'].value = false
-  guidParamWithUnits['showTransitVehicles'].value = false
-  guidParamWithUnits['showTransitTracks'].value = false
-  guidParamWithUnits['showRingTerminuses'].value = false
-  guidParamWithUnits['showGroundTerminuses'].value = false
-  guidParamWithUnits['showElevatorCables'].value = false
-  guidParamWithUnits['showElevatorCars'].value = false
-  guidParamWithUnits['showHabitats'].value = false
-  guidParamWithUnits['showSolarArrays'].value = false
-  guidParamWithUnits['showLaunchTrajectory'].value = false
-  guidParamWithUnits['showMarkers'].value = false
-  guidParamWithUnits['showMassDriverTube'].value = true
-  guidParamWithUnits['showMassDriverScrews'].value = false
-  guidParamWithUnits['showMassDriverRail'].value = true
-  guidParamWithUnits['showMassDriverBrackets'].value = true
-  guidParamWithUnits['showLaunchSleds'].value = true
-  guidParamWithUnits['showLaunchVehicles'].value = true
-  guidParamWithUnits['showLaunchVehiclePointLight'].value = false
-
-  guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-  guidParamWithUnits['massDriverCameraRange'].value = 10000
-  guidParamWithUnits['launchSledCameraRange'].value = 10000
-  guidParamWithUnits['vehicleInTubeCameraRange'].value = 2000000
-  guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-  guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
-  guidParamWithUnits['logZoomRate'].value = -3
-
-
  
   // Parameters that are going to effect the launch system's performance...
   // Launch Angle (launcherRampUpwardAcceleration)
@@ -325,11 +131,23 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
 
   // Hawaii for tracking shot
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1913174.8068502536, 2051872.8119204757, -5679238.61182404)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2589667.296365839, 2335558.762770908, -5428604.592928227)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1913174.8068502536, 2051872.8119204757, -5679238.61182404)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2589667.296365839, 2335558.762770908, -5428604.592928227)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
 
+  // Camera to south of 80X enlarged vehicle
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1704743.1920667875, 2141504.9827542473, -5761121.240517391)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.26727234405199485, 0.3357485509860463, -0.9032377342736382)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1712354.4232612643, 2132558.788824954, -5768365.566253694)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.26727234405199485, 0.3357485509860463, -0.9032377342736382)
+
+  // Camera to south of actual size vehicle
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1690249.9120657323, 2140777.257193356, -5765660.314295797)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.265000064604319, 0.33563445701728567, -0.9039493774666919)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-1690224.3190687683, 2140693.511896637, -5765709.962031548)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.265000064604319, 0.33563445701728567, -0.9039493774666919)
+  
   // Mount Everest
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(5624095.830121477, 2994721.514383685, 333102.4562004242)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.8819834230776509, 0.46865418712915813, 0.04968394411213295)
@@ -338,23 +156,59 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
 
   // Hawaii Big Island
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-    ((i!=1) || (j!=4))
+    ((i==1) && (j==4)) ||
+    ((i==2) && (j==4)) ||
+    ((i==3) && (j==4))
   )} 
-  // Mount Everest
-  // nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-  //   ((i!=17) || (j!=4))
-  // )} 
+
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(0, 0, 0)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0, 1, 0)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(2.92909490611565e-9, 1.464547453057825e-9, -23917875)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(0, 1, 0)
+
+
+  //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
+  actualSizeDollyShot(guidParamWithUnits, nonGUIParams)
+  guidParamWithUnits['showStars'].value = true
+  guidParamWithUnits['showLaunchTrajectory'].value = true
+  guidParamWithUnits['launcherCoastTime'].value = 100*20
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+  //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
+  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5000.0
+  guidParamWithUnits['logZoomRate'].value = -3
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 100
-  nonGUIParams['farClip'] = 100000000
+  nonGUIParams['nearClip'] = .1
+  nonGUIParams['farClip'] = 10000000
 
-  // Improvements...
-  // Add watermark
-  // Update bounding sphere on the mass driver tube?
-  // Put the moon in the background near the end of the shot
-  // Put Mars in the background at the end of the shot
-  // Reduce the rate at which the camera orbits the launch vehicle
-  // Add the sled to the shot
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(98.94242870318703, -63.433976754080504, -84.42750348616391)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
+
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-15.401019364362583, 1.4742208924144506, 4.857152966782451)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2899585701484135, 0.3347774151120973, -0.896575769206572)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-18.82346588699147, -12.121040514670312, -3.740331665612757)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2899585701484135, 0.3347774151120973, -0.896575769206572)
+
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-887323.9041289391, 70376.78830169467, 91036.49722965527)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
+
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-442225.995872651, 156923.79012277396, 184517.0484141186)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-485220.1577472219, -543684.1227839389, -219995.83733422682)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)  
+
+  // Hack to speed up the simulation
+  //guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+  //guidParamWithUnits['showMassDriverBrackets'].value = false
+
+  // Start rotating and zooming out the camera same time that the launch starts
+  // nonGUIParams['startTimerActions'] = (startTimerParams) => {
+  //   startTimerParams.animateZoomingOut = true
+  //   startTimerParams.orbitControlsAutoRotate = true
+  // }
 
 }

@@ -866,7 +866,7 @@ export class transitSystem {
     }
 
     // Update the frames of reference. Frames of reference include: 
-    //   1) the travelling at full speed frame, 
+    //   1) the traveling at full speed frame, 
     //   2) the making a stop frame, and
     //   3) the making a "delay manuever" frame
 

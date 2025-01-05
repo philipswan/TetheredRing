@@ -30,8 +30,8 @@ export class tetheredRingSystem {
     // Calculate some of the basic dimensions of the tethered ring
     const gravitationalConstant = universeSpec.gravitationalConstant
     const massOfPlanet = planetSpec.mass
-    const radiusOfPlanet = planetSpec.radius
-    this.crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
+    const roughPlanetRadius = planetSpec.ellipsoid.a
+    this.crv = new tram.commonRingVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value)
 
     // Create a curve to represent the shape of the tethered ring system
     this.mainRingCurve = new mainRingCurve(dParamWithUnits, planetSpec, this.crv, index, genKMLFile, kmlFile)

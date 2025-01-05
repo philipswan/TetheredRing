@@ -445,7 +445,7 @@ class TetherGeometry extends BufferGeometry {
           strip.forEach((point) => {
             const xyzWorld = tetheredRingRefCoordSys.localToWorld(point.clone())
             const xyzPlanet = planetCoordSys.worldToLocal(xyzWorld.clone())
-            const lla = tram.xyz2lla(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z)
+            const lla = tram.ecefToGeodetic(xyzPlanet.x, xyzPlanet.y, xyzPlanet.z, planetSpec.ellipsoid)
             //const coordString = '          ' + lla.lon + ',' + lla.lat + ',' + lla.alt + '\n'
             const coordString = '          ' + Math.round(lla.lon*10000000)/10000000 + ',' + Math.round(lla.lat*10000000)/10000000 + ',' + Math.round(Math.abs(lla.alt)*1000)/1000 + '\n'
             this.kmlFile.concat(coordString)

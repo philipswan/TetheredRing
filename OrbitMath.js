@@ -301,28 +301,28 @@ export function define_getAltitudeDistanceAndVelocity() {
       ADAndV.Distance = 0.5 * this.MaxGees * this.const_g * currentTime**2
       ADAndV.Velocity = this.MaxGees * this.const_g * currentTime
     }
-    else if (currentTime <= this.AccelerationTime + this.timeWithinRamp) {
-      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)**2 + this.AllowableUpwardTurningRadius**2 - 2 * (this.R_Earth + this.LauncherAltitude + this.AllowableUpwardTurningRadius)*this.AllowableUpwardTurningRadius*Math.cos(Math.max(0, currentTime - this.AccelerationTime)*this.EllipticalOrbitPerigeeVelocity / this.AllowableUpwardTurningRadius)) - this.R_Earth;
+    else if (currentTime <= this.AccelerationTime + this.launchVehicleTimeWithinRamp) {
+      ADAndV.Altitude = Math.sqrt((this.planetRadius + this.LauncherAltitude + this.AllowableUpwardTurningRadius)**2 + this.AllowableUpwardTurningRadius**2 - 2 * (this.planetRadius + this.LauncherAltitude + this.AllowableUpwardTurningRadius)*this.AllowableUpwardTurningRadius*Math.cos(Math.max(0, currentTime - this.AccelerationTime)*this.EllipticalOrbitPerigeeVelocity / this.AllowableUpwardTurningRadius)) - this.planetRadius;
       // ToDo: This is too rough and approximation
       ADAndV.Distance = this.LauncherTrackLength + (currentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
       ADAndV.Velocity = this.EllipticalOrbitPerigeeVelocity
     }
     else if (currentTime <= this.TotalTimeInLaunchSystem) {
-      ADAndV.Altitude = Math.sqrt((this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)**2 + this.AllowableDownwardTurningRadius**2 - 2 * (this.R_Earth + this.Alt_Perigee - this.AllowableDownwardTurningRadius)*this.AllowableDownwardTurningRadius*Math.cos(Math.PI + Math.min(0, currentTime - this.TotalTimeInLaunchSystem)*this.EllipticalOrbitPerigeeVelocity / this.AllowableDownwardTurningRadius)) - this.R_Earth
+      ADAndV.Altitude = Math.sqrt((this.planetRadius + this.Alt_Perigee - this.AllowableDownwardTurningRadius)**2 + this.AllowableDownwardTurningRadius**2 - 2 * (this.planetRadius + this.Alt_Perigee - this.AllowableDownwardTurningRadius)*this.AllowableDownwardTurningRadius*Math.cos(Math.PI + Math.min(0, currentTime - this.TotalTimeInLaunchSystem)*this.EllipticalOrbitPerigeeVelocity / this.AllowableDownwardTurningRadius)) - this.planetRadius
       // ToDo: This is too rough and approximation
       ADAndV.Distance = this.LauncherTrackLength + (currentTime - this.AccelerationTime) * this.EllipticalOrbitPerigeeVelocity
       ADAndV.Velocity = this.EllipticalOrbitPerigeeVelocity
     }
     else {
       const time = currentTime - this.TotalTimeInLaunchSystem
-      const R0 = new Vector2(0, (this.R_Earth + this.Alt_Perigee) / 1000)
+      const R0 = new Vector2(0, (this.planetRadius + this.Alt_Perigee) / 1000)
       const V0 = new Vector2(this.EllipticalOrbitPerigeeVelocity / 1000, 0)
       // TBD - need to figure out the altitude while on the eliptical orbit's path
 
       // Note: The distance units in the RV_from_R0V0andt function and its sub functions are km, not meters.
       const RV = this.RV_from_R0V0andt(R0, V0, time)
 
-      ADAndV.Altitude = RV.R.length() * 1000 - this.R_Earth
+      ADAndV.Altitude = RV.R.length() * 1000 - this.planetRadius
       ADAndV.Distance = Math.atan2(RV.R.x, RV.R.y) * RV.R.length() * 1000 // ToDo: This assumes that angle at time zero is zero - possibly bad assumption/
       ADAndV.Velocity = RV.V.length() * 1000
     }

@@ -1,8 +1,13 @@
 import * as THREE from 'three'
 import * as tram from './tram.js'
+import { launchVehicleDollyShot } from './presets/launchVehicleDollyShot.js'
 import { demonstratorLauncher } from './presets/demonstratorLauncher.js'
 import { grapplerEngineeringPresets } from './presets/grapplerEngineeringPresets.js'
 import { toMarsHawaiiLauncherPresets } from './presets/toMarsHawaiiLauncherPresets.js'
+import { elevatedEvacuatedTubeDeployment } from './presets/elevatedEvacuatedTubeDeployment.js'
+import { olympusMonsLauncher } from './presets/olympusMonsLauncher.js'
+import { edwardsAirforceBasePresets } from './presets/edwardsAirforceBasePresets.js'
+import { launchLookingBackwards } from './presets/launchLookingBackwards.js'
 
 export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -21,6 +26,11 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       }
     }]
   }
+  nonGUIParams['startTimerActions'] = (startTimerParams) => {}
+  nonGUIParams['getCapturePresetRegions'] = (i, j) => { return (false) }
+  nonGUIParams['setResolutionFromBackgroundVideo'] = false
+  nonGUIParams['setResolutionFromBackgroundVideo'] = false
+
 
   switch (0) {
     case 0:
@@ -30,7 +40,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       launchVehicleOrbit()
       break
     case 2:
-      launchVehicleDollyShot()
+      launchVehicleDollyShot(guidParamWithUnits, nonGUIParams)
       break
     case 3:
       launchVehiclePanShot()
@@ -89,6 +99,18 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 21:
       toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
+    case 22:
+      elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 23:
+      olympusMonsLauncher(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 24:
+      edwardsAirforceBasePresets(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 25:
+      launchLookingBackwards(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
   }
 
   Object.entries(guidParamWithUnits).forEach(([k, v]) => {
@@ -109,15 +131,16 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(2.92909490611565e-9, 1.464547453057825e-9, -23917875)
     nonGUIParams['cameraUp'] = new THREE.Vector3(0, 1, 0)
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=3) || (j!=2)) &&
-      ((i!=1) || (j!=4)) &&
-      ((i!=18) || (j!=3)) &&
-      ((i!=18) || (j!=4)) &&
-      ((i!=23) || (j!=8))  // New Zealand North Island
+      ((i==3) && (j==2)) ||
+      ((i==1) && (j==4)) ||
+      ((i==18) && (j==3)) ||
+      ((i==18) && (j==4)) ||
+      ((i==23) && (j==8))  // New Zealand North Island
     )}
     nonGUIParams['overrideClipPlanes'] = false
     nonGUIParams['nearClip'] = 0.1
     nonGUIParams['farClip'] = 600000000
+  
   }
 
   function launchVehicleOrbit() {
@@ -150,7 +173,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -209,11 +233,17 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(780917.2197601651, 1247175.8999634252, -8913282.292151898)
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.36181387751791044, 0.3435640671709055, -0.866633976823226)
 
+    nonGUIParams['initialReferencePoint'] = 'feederRailEntrancePosition'
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(98.94242870318703, -63.433976754080504, -84.42750348616391)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
+  
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      // ((i!=1) || (j!=4))
-      ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8)) &&
-      ((i!=1) || (j!=4))
+      // ((i==1) && (j==4))
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8)) ||
+      ((i==1) && (j==4))
     )} // New Zealand North Island and ocean to the east and west
     //nonGUIParams['getCapturePresetRegions'] = (i, j) => {return true}
     // nonGUIParams['overrideClipPlanes'] = true
@@ -227,105 +257,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // Put Mars in the background at the end of the shot
     // Reduce the rate at which the camera orbits the launch vehicle
     // Add the sled to the shot
-
-  }
-
-  function launchVehicleDollyShot() {
-
-    // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
-    // guidParamWithUnits['numTethers'].value = 1300
-    // guidParamWithUnits['numForkLevels'].value = 10
-    const allFeaturesOn = true
-    guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-    guidParamWithUnits['showXYChart'].value = false
-    guidParamWithUnits['showEarthsSurface'].value = allFeaturesOn
-    guidParamWithUnits['showEarthsAtmosphere'].value = false
-    guidParamWithUnits['showMoon'].value = allFeaturesOn
-    guidParamWithUnits['showStars'].value = allFeaturesOn
-    guidParamWithUnits['showEarthAxis'].value = false
-    guidParamWithUnits['showBackgroundPatch'].value = false
-    guidParamWithUnits['showEarthEquator'].value = false
-    guidParamWithUnits['showMainRingCurve'].value = false
-    guidParamWithUnits['showGravityForceArrows'].value = false
-    guidParamWithUnits['showGyroscopicForceArrows'].value = false
-    guidParamWithUnits['showTethers'].value = false
-    guidParamWithUnits['showTransitSystem'].value = allFeaturesOn
-    guidParamWithUnits['showStationaryRings'].value = allFeaturesOn
-    guidParamWithUnits['showMovingRings'].value = false
-    guidParamWithUnits['showTransitTube'].value = allFeaturesOn
-    guidParamWithUnits['showTransitTracks'].value = allFeaturesOn
-    guidParamWithUnits['showTransitVehicles'].value = allFeaturesOn
-    guidParamWithUnits['showRingTerminuses'].value = allFeaturesOn
-    guidParamWithUnits['showGroundTerminuses'].value = false
-    guidParamWithUnits['showElevatorCables'].value = allFeaturesOn
-    guidParamWithUnits['showElevatorCars'].value = allFeaturesOn
-    guidParamWithUnits['showHabitats'].value = allFeaturesOn
-    guidParamWithUnits['showSolarArrays'].value = false
-    guidParamWithUnits['showLaunchTrajectory'].value = false
-    guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
-    guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = true
-    guidParamWithUnits['showLaunchSleds'].value = true
-    guidParamWithUnits['showLaunchVehicles'].value = true
-    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
-    guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['massDriverCameraRange'].value = 1000
-    guidParamWithUnits['launchSledCameraRange'].value = 10000
-    guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
-    guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['logZoomRate'].value = -3
-
-    // Launcher parameters
-    guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .5
-    guidParamWithUnits['launcherMassDriverAltitude'].value = 800
-    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
-    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
-    guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['numVirtualMassDriverTubes'].value = 64
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
-    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000
-    guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.857
-    guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value =  6
-
-
-    // 1000 m/s
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(397909.67071315, -4034242.6281670346, -4924227.129283767)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06238676295264463, -0.6325048499831474, -0.7720398348246591)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(397950.8988250455, -4034249.7313017384, -4924229.143902924)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.06238676295264463, -0.6325048499831474, -0.7720398348246591)
-    // 2000 m/s, +100m mass driver
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(438585.90821414173, -4027131.565021059, -4926591.602529705)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06876567508528579, -0.6313894216282682, -0.7724109529168952)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(438630.6208055194, -4027146.0738138203, -4926587.30928224)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.06876567508528579, -0.6313894216282682, -0.7724109529168952)
-    // 2000 m/s, +1000m mass driver
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(434476.2204064888, -4028410.9158271803, -4927073.443449539)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.0681093289659182, -0.6315014525289117, -0.7723775208806163)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(434493.40436025156, -4028444.3121074894, -4927056.876038148)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.0681093289659182, -0.6315014525289117, -0.7723775208806163)
-
-    // Australia
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(3648776.1588658285, -2166834.4005995863, -4762523.109043196)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.5720072159420826, -0.33968735795396227, -0.7466058155120708)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(3648780.671172157, -2166835.2884166394, -4762522.258575801)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.5720072159420826, -0.33968735795396227, -0.7466058155120708)
-
-    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=21) || (j!=7)) && 
-      ((i!=22) || (j!=7)) && 
-      ((i!=23) || (j!=8)) && 
-      ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
-    nonGUIParams['overrideClipPlanes'] = true
-    nonGUIParams['nearClip'] = 1
-    nonGUIParams['farClip'] = 10000000
-    // Adjust near clipping plane
-    // Tube bouncing - might need more tube segments...
-    // Shorten the launcher
-    // Adjust lighting - too bright
-    // Add struts to grapplers
 
   }
 
@@ -361,7 +292,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -412,10 +344,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.5720072159420826, -0.33968735795396227, -0.7466058155120708)
     
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=21) || (j!=7)) && 
-      ((i!=22) || (j!=7)) && 
-      ((i!=23) || (j!=8)) && 
-      ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+      ((i==21) && (j==7)) ||
+      ((i==22) && (j==7)) ||
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8)))} // New Zealand North Island and ocean to the east
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
     nonGUIParams['farClip'] = 10000000
@@ -460,14 +392,15 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
     guidParamWithUnits['showLaunchVehicles'].value = false
     guidParamWithUnits['showLaunchVehiclePointLight'].value = false
     guidParamWithUnits['pKeyAltitudeFactor'].value = 1
-    guidParamWithUnits['showMarkers'].value = false
+    guidParamWithUnits['showMarkers'].value = true
 
     guidParamWithUnits['massDriverCameraRange'].value = 1000
     guidParamWithUnits['launchSledCameraRange'].value = 10000
@@ -486,41 +419,25 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['numElevatorCables'].value = 4000
     guidParamWithUnits['numVirtualHabitats'].value = 0
 
+    // Hack
+    //guidParamWithUnits['transitVehicleCruisingSpeed'].value = 4
+    // guidParamWithUnits['showTrackingMarkers'].value = true
+    // guidParamWithUnits['trackingMarkerSize'].value = 10
+
+
     // Seattle
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-3727537.649897123, 4708634.095946986, -2241060.868326444)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.5815226294846256, 0.73457715738515, -0.34961097128843)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3727658.7268805667, 4708594.241455055, -2241059.6032852777)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.5815226294846256, 0.73457715738515, -0.34961097128843)
-
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-3726688.23898569, 4709297.49590366, -2240934.5710918065)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.5815226294846256, 0.73457715738515, -0.34961097128843)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3726596.822598604, 4709456.615198362, -2240983.043088419)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.5815226294846256, 0.73457715738515, -0.34961097128843)
-
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-4531490.660642649, 3763264.860769378, -2456848.746220458)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.7197762905214095, 0.5891548388307251, -0.36717661620204234)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-5395965.235633378, 3299100.3502868814, -3087026.64082868)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.7197762905214095, 0.5891548388307251, -0.36717661620204234)
-
-    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-4126729.417850525, 4335974.85896652, -2292453.2476548003)
-    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.6437762083188713, 0.6764789334721483, -0.3576708629047093)
-    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-4126308.398898858, 4336571.93031984, -2292344.0126398113)
-    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.6437762083188713, 0.6764789334721483, -0.3576708629047093)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-3724410.278152983, 4710017.83565673, -2243449.2392905336)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.5810279609523532, 0.7347880213825453, -0.3499901030376074)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-3725506.7143735993, 4709667.556950768, -2242269.015923921)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.5810279609523532, 0.7347880213825453, -0.3499901030376074)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=3) || (j!=4)) &&  // Mexico
-      ((i!=4) || (j!=4)) &&  // Mexico
-      ((i!=3) || (j!=3)) &&  // California
-      ((i!=4) || (j!=3)))}  // California
+      (i==3) && (j==2) // Washington
+    )}
 
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
     nonGUIParams['farClip'] = 100000000
-
-    // Adjust near clipping plane
-    // Tube bouncing - might need more tube segments...
-    // Shorten the launcher
-    // Adjust lighting - too bright
 
   }
 
@@ -556,7 +473,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -589,10 +507,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.6012689149188755, -0.2916173650948143, -0.7439321234678846)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=21) || (j!=7)) && 
-      ((i!=22) || (j!=7)) && 
-      ((i!=23) || (j!=8)) && 
-      ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+      ((i==21) && (j==7)) ||
+      ((i==22) && (j==7)) ||
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8)))} // New Zealand North Island and ocean to the east
   
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1
@@ -636,7 +554,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -673,14 +592,14 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0, 1, 0)
 
     // nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-    //   ((i!=3) || (j!=2)) &&  // Seattle??
-    //   ((i!=4) || (j!=2)) &&  // Seattle??
-    //   ((i!=1) || (j!=4)))} // Hawaii??
+    //   ((i==3) && (j==2)) ||  // Seattle??
+    //   ((i==4) && (j==2)) ||  // Seattle??
+    //   ((i==1) && (j==4)))} // Hawaii??
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=3) || (j!=2)) &&  // Seattle??
-      ((i!=4) || (j!=2)) &&  // Seattle??
-      ((i!=1) || (j!=4)))} // Hawaii??
+      ((i==3) && (j==2)) ||  // Seattle??
+      ((i==4) && (j==2)) ||  // Seattle??
+      ((i==1) && (j==4)))} // Hawaii??
       
     nonGUIParams['getRingSpecs'] = () => {
       const tetheredRingSpecs = []
@@ -733,7 +652,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -785,10 +705,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.5720072159420826, -0.33968735795396227, -0.7466058155120708)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=21) || (j!=7)) && 
-      ((i!=22) || (j!=7)) && 
-      ((i!=23) || (j!=8)) && 
-      ((i!=0) || (j!=8)))} // New Zealand North Island and ocean to the east
+      ((i==21) && (j==7)) ||
+      ((i==22) && (j==7)) ||
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8)))} // New Zealand North Island and ocean to the east
     
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
@@ -832,7 +752,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -858,8 +779,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
         
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8))
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8))
     )} // New Zealand North Island and ocean to the east and west
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -907,7 +828,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -933,8 +855,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
         
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8))
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8))
     )} // New Zealand North Island and ocean to the east and west
 
 
@@ -983,7 +905,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -1022,8 +945,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // nonGUIParams['cameraUp'] = new THREE.Vector3(0.16945592951181573, -0.612186850506278, -0.772341859554751)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8))
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8))
     )} // New Zealand North Island and ocean to the east and west
 
 
@@ -1073,7 +996,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = true
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -1107,10 +1031,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.6437762083188713, 0.6764789334721483, -0.3576708629047093)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=3) || (j!=4)) &&  // Mexico
-      ((i!=4) || (j!=4)) &&  // Mexico
-      ((i!=3) || (j!=3)) &&  // California
-      ((i!=4) || (j!=3)))}  // California
+      ((i==3) && (j==4)) ||  // Mexico
+      ((i==4) && (j==4)) ||  // Mexico
+      ((i==3) && (j==3)) ||  // California
+      ((i==4) && (j==3)))}  // California
 
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 10
@@ -1158,7 +1082,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showLaunchTrajectory'].value = true
     guidParamWithUnits['showMarkers'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -1374,8 +1299,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)    
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=23) || (j!=8)) &&
-      ((i!=0) || (j!=8))
+      ((i==23) && (j==8)) ||
+      ((i==0) && (j==8))
     )} // New Zealand North Island and ocean to the east and west
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -1436,7 +1361,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -1551,7 +1477,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=1) || (j!=4)) // Hawaii??
+      ((i==1) && (j==4)) // Hawaii??
     )} 
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -1614,7 +1540,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -1712,8 +1639,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.6788274853914157, 0.0003603690842848706, 0.734297702033168)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-//      ((i!=1) || (j!=4)) // Hawaii??
-      ((i!=14) || (j!=5)) // Hawaii??
+//      ((i==1) && (j==4)) // Hawaii??
+      ((i==14) && (j==5)) // Hawaii??
     )} 
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -1761,7 +1688,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
 
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -1793,10 +1721,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showBackgroundPatch'].value = true
  
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      // ((i!=3) || (j!=2)) &&  // Seattle??
-      // ((i!=4) || (j!=2)) &&  // Seattle??
-      // ((i!=3) || (j!=3)) &&
-      ((i!=4) || (j!=3))
+      // ((i==3) && (j==2)) ||  // Seattle??
+      // ((i==4) && (j==2)) ||  // Seattle??
+      // ((i==3) && (j==3)) ||
+      ((i==4) && (j==3))
     )} // Hawaii??
 
     // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-3954814.892863949, 4671082.911289911, -2284901.3465206292)
@@ -1857,7 +1785,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
 
     guidParamWithUnits['showMassDriverTube'].value = false
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -1877,10 +1806,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     //guidParamWithUnits['transitTubeTubeRadius'].value = 5000
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      // ((i!=3) || (j!=2)) &&  // Washington State
-      // ((i!=4) || (j!=2)) &&
-      // ((i!=3) || (j!=3)) &&
-      // ((i!=4) || (j!=3))
+      // ((i==3) && (j==2)) ||  // Washington State
+      // ((i==4) && (j==2)) ||
+      // ((i==3) && (j==3)) ||
+      // ((i==4) && (j==3))
       true
     )}
 
@@ -1937,7 +1866,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -2031,7 +1961,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(-0.8918731941629815, 0.4381627476408296, -0.11214103670538951)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=5) || (j!=4)) // Boca Chica
+      ((i==5) && (j==4)) // Boca Chica
     )} 
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -2089,7 +2019,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launcherMarkerRadius'].value = 500
 
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = false
     guidParamWithUnits['showMassDriverBrackets'].value = false
     guidParamWithUnits['showLaunchSleds'].value = false
@@ -2186,8 +2117,8 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.946942914984838, -0.18178520654778604, -0.2650533049037438)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i!=19) || (j!=5)) &&
-      ((i!=19) || (j!=6)) // Christmas Island
+      ((i==19) && (j==5)) ||
+      ((i==19) && (j==6)) // Christmas Island
     )} 
 
     nonGUIParams['overrideClipPlanes'] = true
@@ -2211,11 +2142,11 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     nonGUIParams['cameraUp'] = new THREE.Vector3(0.06409308160535271, -0.6302146235738024, -0.7737710288735681)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
-      ((i!=3) || (j!=2)) &&
-      ((i!=1) || (j!=4)) &&
-      ((i!=18) || (j!=3)) &&
-      ((i!=18) || (j!=4)) &&
-      ((i!=23) || (j!=8))  // New Zealand North Island
+      ((i==3) && (j==2)) ||
+      ((i==1) && (j==4)) ||
+      ((i==18) && (j==3)) ||
+      ((i==18) && (j==4)) ||
+      ((i==23) && (j==8))  // New Zealand North Island
     )}
     nonGUIParams['overrideClipPlanes'] = false
     nonGUIParams['nearClip'] = 0.1

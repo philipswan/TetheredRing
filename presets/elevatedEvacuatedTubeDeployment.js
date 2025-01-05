@@ -1,8 +1,9 @@
 import * as THREE from 'three'
+import g from 'three/examples/jsm/libs/lil-gui.module.min.js'
+import { cos } from 'three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.js'
 
-export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIParams) {
+export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
-  // Kilamanjaro, Africa
 
   // Sun's Gravitational Parameter
   const g_sun = 1.32712440018e20 // m3/kg/s2
@@ -26,9 +27,16 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   const v_apohelion = Math.sqrt(2 * g_sun / r_marsOrbit - g_sun / a_transferOrbit) // m/s
   // Excess speed at earth of earth-mars transfer orbit
   let v_earth_excess = v_perihelion - v_earth // m/s
+
+  const C3Value = (v_earth_excess/1000)**2 // km2/s2
+  console.log('C3Value', C3Value, "km2/s2")
+
   // This works out to be 2943 m/s, but this source (https://web.archive.org/web/20210331135639/https://trs.jpl.nasa.gov/bitstream/handle/2014/44336/13-0679_A1b.pdf?sequence=1#expand)
   // Which does a more detailed analysis of the transfer orbit, says on table 3 that the that the excess speed (ΔV1) varies between 2990 m/s and 4030 m/s
   // In practice, after orbital eccentricity, inclination, and rotated apsides are taken into consideration.
+  // 10/2/2024 - 3360 m/s
+  // 10/31/2026 - 3040 m/s
+  // 11/24/2028 - 3020 m/s
   // 12/29/2030 - 3220 m/s
   // 4/16/2033 - 3000 m/s
   // 6/26/2035 - 3210 m/s
@@ -43,6 +51,7 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
 
   // Hack...
   //v_earth_excess = 4030 // m/s - value for 8/20/2037
+  //v_earth_excess = Math.sqrt(41.65)*1000 // C3 value is from Figure 1 of https://dataverse.jpl.nasa.gov/file.xhtml?fileId=91111&version=2.0
 
   console.log('v_earth_excess', v_earth_excess)
 
@@ -53,18 +62,26 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   const v_mars_excess = v_mars - v_apohelion // m/s
   // Negative semi-major of Earth hyperbolic trajectory with excess speed of v_earth_excess
   const a_earth = -g_earth / v_earth_excess**2
+  console.log('a_earth', a_earth)
   // Radius of the earth
-  const r_earth = 6371000 // m
+  const r_earth = 6378100 // m  
+
+  console.log('g_earth', g_earth, 'r_earth', r_earth)
+
   // Length of earth's sideral day in seconds
-  const t_earth = 86164.1 // s
+  const t_earth = 86164.0905 // s
   // Launch latitude
-  //const launchLatitude = 19.5 // ° N (Hawaii Big Island)
-  const launchLatitude = 28.5744 // ° N (Kennedy Space Center)
+  const launchLatitude = 19.820667 // ° N (Hawaii Big Island)
+  const massDriverAltitude = 200 // m
+  //const launchLatitude = 28.5744 // ° N (Kennedy Space Center)
   // Velocity of spacecraft at earth's surface at the hyperbolic orbit perigee in the inertial reference frame
-  const launchVehiclePerigeeSpeed = Math.sqrt(g_earth * 2 / r_earth + g_earth / Math.abs(a_earth)) // m/s
+  const launchVehiclePerigeeSpeed = Math.sqrt(g_earth * 2 / (r_earth+massDriverAltitude) + g_earth / Math.abs(a_earth)) // m/s
+  //const launchVehiclePerigeeSpeed2 = Math.sqrt(g_earth * 2 / (r_earth+200000) + g_earth / Math.abs(a_earth)) // m/s
   console.log('*** launchVehiclePerigeeSpeed', launchVehiclePerigeeSpeed)
+  //console.log('*** launchVehiclePerigeeSpeed2', launchVehiclePerigeeSpeed2)
   // Velocity at earth's surface due to earth's rotation
-  const v_earth_rotation = 2*Math.PI*r_earth * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
+  const v_earth_rotation = 2*Math.PI*(r_earth+massDriverAltitude) * Math.cos(launchLatitude*Math.PI/180) / t_earth // m/s
+  console.log('v_earth_rotation', v_earth_rotation)
   // Velocity of spacecraft at earth's surface in ECEF coordinates
   const launchVehicleAirspeed = launchVehiclePerigeeSpeed - v_earth_rotation // m/s
   // Velocity of a satellite in 200km LEO orbit
@@ -84,8 +101,8 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   console.log('v_minus_vleo', v_minus_vleo)
 
   // Uses Monna Kea launch location
-  guidParamWithUnits['finalLocationRingCenterLatitude'].value = -57.5
-  guidParamWithUnits['finalLocationRingCenterLongitude'].value = 34.88  
+  guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74.34
+  guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
   guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
@@ -100,15 +117,18 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   guidParamWithUnits['launcherLocationMode'].value = 1
-  // Mount Kilamanjaro
-  guidParamWithUnits['launcherRampEndLatitude'].value = -3.0674
-  guidParamWithUnits['launcherRampEndLongitude'].value = 37.3556
+  // Mauna Kea (19.820667, -155.468056)
+  guidParamWithUnits['launcherRampEndLatitude'].value = 19.820667
+  guidParamWithUnits['launcherRampEndLongitude'].value = -155.468056 + .048056 // moving the end of the ranp a little bit east 
   // Mount Everest
   // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
   // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  guidParamWithUnits['launcherMassDriverAltitude'].value = 1000         // m
-  guidParamWithUnits['launcherRampExitAltitude'].value = 5895           // m  (Altitute of Mount Kilamanjaro)
+  guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude         // m
+  // Hawaii Big Island
+  guidParamWithUnits['launcherRampExitAltitude'].value = 3800           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
+  // Mount Everest
+  // guidParamWithUnits['launcherRampExitAltitude'].value = 8000           // m  (rougly the altitute of Mount Everest summit)
   guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000  // m
   //guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
@@ -120,6 +140,8 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleEffectiveRadius
   //launcherPayloadDeliveredToOrbit
+  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
   guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
   guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
   //launchVehicleCoefficientOfDrag
@@ -170,12 +192,12 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   //launchVehicleNonPayloadMass
 
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1
+  guidParamWithUnits['launchVehicleScaleFactor'].value = 1 //300
   //launchVehicleSpacingInSeconds
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   //launchVehicleNumModels
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = .0001
-  //numVirtualMassDriverTubes
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1 //5
+  guidParamWithUnits['numVirtualMassDriverTubes'].value = 8192
   //launcherMassDriverRailWidth
   //launcherMassDriverRailHeight
   //launchRailUpwardsOffset
@@ -219,6 +241,8 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   //launchSledNumModels
   
+  //guidParamWithUnits['launcherScrewRotationRate'].value = 200
+
   // Grappler Parameters
   guidParamWithUnits['launchSledNumGrapplers'].value = 64
   guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
@@ -249,7 +273,7 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['showGyroscopicForceArrows'].value = false
   guidParamWithUnits['showTethers'].value = false
   guidParamWithUnits['showTransitSystem'].value = false
-  guidParamWithUnits['showStationaryRings'].value = true
+  guidParamWithUnits['showStationaryRings'].value = false
   guidParamWithUnits['showMovingRings'].value = false
   guidParamWithUnits['showStatorMagnets'].value = false
   guidParamWithUnits['showTransitTube'].value = false
@@ -261,49 +285,71 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['showElevatorCars'].value = false
   guidParamWithUnits['showHabitats'].value = false
   guidParamWithUnits['showSolarArrays'].value = false
-  guidParamWithUnits['showLaunchTrajectory'].value = true
+  guidParamWithUnits['showLaunchTrajectory'].value = false
   guidParamWithUnits['showMarkers'].value = false
   guidParamWithUnits['showMassDriverTube'].value = true
-  guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
-  guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
-  guidParamWithUnits['showMassDriverRail'].value = true
-  guidParamWithUnits['showMassDriverBrackets'].value = true
-  guidParamWithUnits['showLaunchSleds'].value = true
-  guidParamWithUnits['showLaunchVehicles'].value = true
+  guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+  guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
+  guidParamWithUnits['showMassDriverRail'].value = false
+  guidParamWithUnits['showMassDriverBrackets'].value = false
+  guidParamWithUnits['showLaunchSleds'].value = false
+  guidParamWithUnits['showLaunchVehicles'].value = false
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
 
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-  guidParamWithUnits['massDriverCameraRange'].value = 100
+  guidParamWithUnits['massDriverCameraRange'].value = 10000
   guidParamWithUnits['launchSledCameraRange'].value = 10000
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 2000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-  guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
+  guidParamWithUnits['orbitControlsRotateSpeed'].value = 2
+  guidParamWithUnits['animateElevatedEvacuatedTubeDeployment'].value = true
   guidParamWithUnits['logZoomRate'].value = -3
 
 
-  // Hack!!!!
-  guidParamWithUnits['saveMassDriverScrewSTL'].value = false
+ 
+  // Parameters that are going to effect the launch system's performance...
+  // Launch Angle (launcherRampUpwardAcceleration)
+  // Propellant Mass (launchVehiclePropellantMass)
+  // Altitude of Ramp Exit
+  // Altitude of Evauated Tube Exit
+  // Desired Orbital Altitude
 
-  // Kilamanjaro, Africa
-  // Side on view
+  // The optimiztion loop will need to adjust the launch angle and propellant mass to achieve the desired orbit
+  // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
+  // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(3135366.534042038, -337787.7942292467, 5545115.362990544)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.49150457682721244, -0.05295071456419374, 0.8692637532907079)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(3135342.562454257, -337807.496023478, 5545142.068510841)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(0.49150457682721244, -0.05295071456419374, 0.8692637532907079)
+  // Launch Trajectory Parameters
+
+  // Hawaii Big Island - end of elevated evacuated tube
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1914255.524584769, 1996578.0764772762, -5639390.860953143)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2615612.8248107596, 2170606.9722907306, -5417133.88077425)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
   
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(3135518.51949813, -337782.2574005531, 5545028.778618255)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.49152977615811055, -0.052951541850092265, 0.8692494540496736)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(3135518.9083639537, -337778.6054954792, 5545028.673918708)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(0.49152977615811055, -0.052951541850092265, 0.8692494540496736)
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2521193.687990027, 2156670.6146795545, -5460247.303511132)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2529801.4986878247, 2151133.1508836164, -5462373.430248479)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
 
+  // Hawaii Big Island
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-    ((i==13) && (j==6)) || // Mount Kilimanjaro
-    ((i==14) && (j==6)) // Mount Kilimanjaro
+    ((i==1) && (j==4))
   )} 
+  // Mount Everest
+  // nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+  //   ((i==17) && (j==4))
+  // )} 
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 1
-  nonGUIParams['farClip'] = 10000000
+  nonGUIParams['nearClip'] = 100
+  nonGUIParams['farClip'] = 100000000
+
+  // Improvements...
+  // Add watermark
+  // Update bounding sphere on the mass driver tube?
+  // Put the moon in the background near the end of the shot
+  // Put Mars in the background at the end of the shot
+  // Reduce the rate at which the camera orbits the launch vehicle
+  // Add the sled to the shot
 
 }
