@@ -45,7 +45,7 @@ import * as markers from './markers.js'
 import * as CapturePresets from './CapturePresets.js'
 
 // load camera preset vectors from external file
-import cameraPresets from './cameraPresets.json'
+import cameraPresets from './cameraPresets.json' assert { type: 'json' }
 //import cameraControlData from './components/CameraControl/cameraPath1.json'
 //import cameraControlData from './components/CameraControl/QuickTest2.json'
 //import cameraControlData from './googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json'
@@ -1496,6 +1496,7 @@ let tweeningActive = false
 let cameraControlActive = false
 let lastCameraControlActive = false
 let cameraControlData
+let googleProject = 'OrbitMaunaKea'
 let cameraControlStartTime = 0
 let savedPosition
 let savedRotation
@@ -1726,11 +1727,8 @@ if (dParamWithUnits['controlCameraFromJsonDuringCapture'].value) {
   progressDisplay.style.zIndex = 100000
   document.body.appendChild(progressDisplay)
   for (let i = firstFrame; i<=lastFrame; i++) {
-    //const fileName = 'NewZealandLaunchSite'
-    const folderName = 'OrbitAroundLauncher4K'
-    const fileName = 'OrbitAroundLauncher'
     progressDisplay.textContent = 'Loading Background Image ' + i + "/" + lastFrame;
-    backgroundTexture[i-firstFrame] = await backgroundTextureLoader.loadAsync(`./googleEarthImages/${folderName}/footage/${fileName}_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
+    backgroundTexture[i-firstFrame] = await backgroundTextureLoader.loadAsync(`./googleEarthImages/${googleProject}/footage/${googleProject}_${i.toString().padStart(3, '0')}.jpeg`, function(texture) {})
   }
   document.body.removeChild(progressDisplay)
 }
@@ -2616,7 +2614,7 @@ function setOrbitControlsTargetUpVector() {
 }
 
 async function loadCameraControlData() {
-  const response = await fetch('./googleEarthImages/OrbitAroundLauncher4K/OrbitAroundLauncher.json')
+  const response = await fetch(`./googleEarthImages/${googleProject}/${googleProject}.json`)
   if (!response.ok) {
     throw new Error(`Failed to load OrbitAroundLauncher.json: ${response.statusText}`);
   }
