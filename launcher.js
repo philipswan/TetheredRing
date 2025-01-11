@@ -297,7 +297,10 @@ export class launcher {
     // console.log('#### Launcher Parameters', count)
 
     // const polyCurves = [this.polyCurveForrf0, this.polyCurveForrf1, this.polyCurveForrf2, this.polyCurveForrf3, this.polyCurveForrf4]
-    // function getLon(vec) {return tram.ecefToGeodetic(...vec.toArray(), planetSpec.ellipsoid).lon}
+    // THREE.Vector3.prototype[Symbol.iterator] = function () {
+    //   return [this.x, this.y, this.z][Symbol.iterator]();
+    // };
+    // function getLon(vec) {return tram.ecefToGeodetic(...vec, planetSpec.ellipsoid).lon}
     // polyCurves.forEach(polyCurve => {
     //   console.log(polyCurve.name)
     //   let p0, p1, lastP0, lastP1
