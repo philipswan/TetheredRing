@@ -273,7 +273,7 @@ export function define_genLauncherSpecs() {
     const airlockVolume = Math.PI * id**2 * airlockLength
     const airlockPumpDownTime = airlockVolume / vacuumPumpingSpeed * Math.log(outsidePressure/insidePressure)
     specs['airlockPumpDownTime'] = {value: airlockPumpDownTime, units: "s"}
-    console.print("airlockPumpDownTime, ", Math.round(airlockPumpDownTime/2300/24), "days")
+    console.print("airlockPumpDownTime, ", Math.round(airlockPumpDownTime/60), "minutes")
 
     const energyToPullVacuumInsideAirlock = airlockPumpDownTime * vacuumPumpPower * numberOfVacuumPumps
     specs['energyToPullVacuumInsideAirlock'] = {value: energyToPullVacuumInsideAirlock, units: "J"}
