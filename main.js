@@ -1,9 +1,11 @@
 
 // Use when local
 import * as THREE from 'three'
+console.log(`Three.js Revision: ${THREE.REVISION}`)
+
 //import { GUI } from 'three/examples/jsm/libs/dat.gui.module'
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js'
-import { TWEEN } from 'three/addons/libs/tween.module.min'
+import * as TWEEN from '@tweenjs/tween.js'
 //import { TWEEN } from '../tween.js/dist/tween.esm.js'
 import { Water } from 'three/examples/jsm/objects/Water.js'
 //import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
@@ -1076,6 +1078,11 @@ const spriteTextureLoader = new THREE.TextureLoader()
 const spriteMap = spriteTextureLoader.load( './textures/TransparentLogo.png', createLogoSprite)
 
 function createLogoSprite(texture) {
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter; // For smooth scaling up
+
   const spriteMaterial = new THREE.SpriteMaterial( { map: texture } )
   logoSpriteWidth = spriteMaterial.map.image.width / 8
   logoSpriteHeight = spriteMaterial.map.image.height / 8
@@ -1195,6 +1202,8 @@ if (enableVR) {
 }
 scene.add(cameraGroup)
 
+// Test Hack
+//THREE.ColorManagement.enabled = false;
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: dParamWithUnits['enableBackgroundAlpha'].value,  // Make the background transparent
@@ -1204,6 +1213,8 @@ const renderer = new THREE.WebGLRenderer({
   // samples: 4,
   // type: THREE.HalfFloatType
 })
+// Test Hack
+//renderer.outputColorSpace = THREE.LinearSRGBColorSpace
 //renderer.setSize(innerWidth, innerHeight)
 renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
 //renderer.setClearColor( 0x000000, 0 );

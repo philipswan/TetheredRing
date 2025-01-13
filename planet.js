@@ -110,6 +110,7 @@ export class planet {
             textureFilename = `./textures/${planetSpec.texturePath}${colorPath}/${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${colorFormat}`
             //console.log(filename)
             const texture = new THREE.TextureLoader().load(textureFilename)
+            texture.colorSpace = THREE.SRGBColorSpace
             texture.generateMipmaps = generateMipmaps
 
             if (planetSpec.name=="Earth" && !useHiRes) {
@@ -232,13 +233,14 @@ export class planet {
         //const texture = new THREE.TextureLoader().load( './textures/Titan2000x1000.jpg' )
         //const texture = new THREE.TextureLoader().load( './textures/human_population_density_map.png' )
         //const texture = new THREE.TextureLoader().load( './textures/bluemarble_16384.jpg')
+        texture.colorSpace = THREE.SRGBColorSpace
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
           new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments),
           // new THREE.MeshPhongMaterial({
           //   //roughness: 1,
           //   //metalness: 0,
-          //   map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ),
+          //   map: new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg' ), <- this is broken, need texture.colorSpace = THREE.SRGBColorSpace
           //   //map: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' ),
           //   //map: new THREE.TextureLoader().load( './textures/earthmap1k.jpg' ),
           //   //bumpMap: new THREE.TextureLoader().load( './textures/earthbump.jpg' ),
@@ -274,16 +276,19 @@ export class planet {
         let texture, displacementMap, displacementScale
         if (planetSpec.name == "Earth") {
           texture = new THREE.TextureLoader().load( './textures/bluemarble_4096.jpg')
+          texture.colorSpace = THREE.SRGBColorSpace
           displacementMap = new THREE.TextureLoader().load( './textures/EARTH_DISPLACE_42K_16BITS_preview.jpg' )
         }
         else if (planetSpec.name == "Moon") {
           // texture = new THREE.TextureLoader().load( './textures/lroc_color_poles.png' )
           // displacementMap = new THREE.TextureLoader().load( './textures/ldem_64.png' )
           texture = new THREE.TextureLoader().load( './textures/moon.jpg' )
+          texture.colorSpace = THREE.SRGBColorSpace
           displacementMap = null
         }
         else if (planetSpec.name == "Mars") {
           texture = new THREE.TextureLoader().load( './textures/mar0kuu2.jpg' )
+          texture.colorSpace = THREE.SRGBColorSpace
           displacementMap = null
         }
         displacementScale = planetSpec.displacementScale
@@ -405,10 +410,11 @@ export class planet {
     const backgroundPatchGeometry = new THREE.PlaneGeometry(descriptor.patchImageWidth, descriptor.patchImageHeight)
     
     //const backgroundPatchGeometry = new THREE.SphereGeometry(100000, 32, 32)
-
+    const texture = new THREE.TextureLoader().load( descriptor.textureFilename )
+    texture.colorSpace = THREE.SRGBColorSpace
     const backgroundPatchMaterial = new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
-      map: new THREE.TextureLoader().load( descriptor.textureFilename ),
+      map: texture,
       transparent: true,
       opacity: 0.95
     })

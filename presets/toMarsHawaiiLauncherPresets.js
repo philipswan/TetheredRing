@@ -1,6 +1,4 @@
 import * as THREE from 'three'
-import g from 'three/examples/jsm/libs/lil-gui.module.min.js'
-import { cos } from 'three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.js'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
 import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
 import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'

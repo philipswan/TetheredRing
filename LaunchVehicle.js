@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 import { FacesGeometry } from './FacesGeometry.js'
@@ -76,7 +76,7 @@ export class launchVehicleModel {
     launchVehicleFin2Geometry.rotateY(-Math.PI*2/3)
     // Merge the nosecone into the body
     // Temporary model until the real one loads...
-    const launchVehicleGeometry = BufferGeometryUtils.mergeBufferGeometries([launchVehicleHullGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry], false)
+    const launchVehicleGeometry = mergeGeometries([launchVehicleHullGeometry, launchVehicleFin0Geometry, launchVehicleFin1Geometry, launchVehicleFin2Geometry], false)
     //const launchVehicleTexture = new THREE.TextureLoader().load('textures/launchVehicleTexture.jpg', function(texture) {launchVehicleMaterial.needsUpdate = true})
     const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0xcfd4d9})
     // const launchVehicleMaterial = new THREE.MeshPhysicalMaterial( {

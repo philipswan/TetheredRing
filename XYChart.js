@@ -105,7 +105,7 @@ export class XYChart extends THREE.Group {
       {
         font: this.font,
         size: textDescription.fontSize || 20,
-        height: 5,
+        depth: 5,
         curveSegments: 12,
       } )
       textGeometry.computeBoundingBox()

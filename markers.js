@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { CircleSuperCurve3 } from './CircleSuperCurve3'
 // import * as THREE from 'https://cdn.skypack.dev/three@0.133.1/build/three.module.js'
 // import { mergeBufferGeometries } from 'https://cdn.skypack.dev/three@0.133.1/examples/jsm/utils/BufferGeometryUtils.js'
@@ -121,7 +121,7 @@ export function arrow(position, direction, arrowSize = 1000000, vectorMagnitude 
   arrowParts.push(new THREE.SphereGeometry(0.02, 32, 16))
   arrowParts.push(new THREE.CylinderGeometry( 0.01, 0.01, arrowShaftLength, 12 ).translate(0, arrowShaftLength/2, 0))  // arrow shaft
   arrowParts.push(new THREE.CylinderGeometry( 0, 0.04, arrowHeadLength, 12 ).translate(0, arrowShaftLength + arrowHeadLength/2, 0))   // arrow head
-  const arrowGeometry = mergeBufferGeometries(arrowParts)
+  const arrowGeometry = mergeGeometries(arrowParts)
   const arrow = new THREE.Mesh(arrowGeometry, new THREE.MeshPhongMaterial({color: color}))
   arrow.scale.set(arrowSize * skinnyFactor, arrowSize * Math.sign(vectorMagnitude), arrowSize * skinnyFactor)
   arrow.position.copy(position)
