@@ -4,7 +4,6 @@ import { CircleSuperCurve3 } from './SuperCurves.js'
 import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import * as LauncherRamp from './launcherRamp.js'
-import { temp } from 'three/examples/jsm/nodes/Nodes.js'
 
 export function defineUpdateTrajectoryCurves () {
   return function (dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
