@@ -174,6 +174,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
   //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5000.0
   guidParamWithUnits['logZoomRate'].value = -3
+  //guidParamWithUnits['showXYChart'].value = true
 
   nonGUIParams['overrideClipPlanes'] = true
   nonGUIParams['nearClip'] = .1

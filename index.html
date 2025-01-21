@@ -110,18 +110,18 @@
           varying vec3 fragmentNormal;
 
           void main() {
-              fragmentUV = uv;
-              vec3 vertexNormal = normalize(normalMatrix * normal);
-              fragmentNormal = vertexNormal; // instruct the gpu to interpolate this for the fragment shader
-              if(hasDisplacementMap) {
-                // lifted from three.js' dislacement shader code
-                float displacementOffset = texture2D(displacementMap, uv).x * displacementScale + displacementBias;
-                // displace along the vertex normal
-                vec3 displacement = normalize(normal) * displacementOffset;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position + displacement, 1.0);
-              } else {
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-              }
+            fragmentUV = uv;
+            vec3 vertexNormal = normalize(normalMatrix * normal);
+            fragmentNormal = vertexNormal; // instruct the gpu to interpolate this for the fragment shader
+            if(hasDisplacementMap) {
+              // lifted from three.js' dislacement shader code
+              float displacementOffset = texture2D(displacementMap, uv).x * displacementScale + displacementBias;
+              // displace along the vertex normal
+              vec3 displacement = normalize(normal) * displacementOffset;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position + displacement, 1.0);
+            } else {
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
               
           }
         </script>
@@ -132,44 +132,45 @@
           varying vec3 fragmentNormal;
 
           void main() {
-              gl_FragColor = vec4(texture2D(planetTexture, fragmentUV).xyz * 1.5, opacity);
+            gl_FragColor = vec4(texture2D(planetTexture, fragmentUV).xyz * 1.5, opacity);
+            #include <encodings_fragment>
           }          
         </script>
         <script id="fragmentShaderInv" type="x-shader/x-fragment">
-          #include <color_space_pars_fragment>
-
-            uniform sampler2D planetTexture;
-            varying vec2 vertexUV;
-            varying vec3 vertexNormal;
-            
-            void main() {
-                // Compute atmosphere effect
-                float intensity = 1.05 - dot(vertexNormal, vec3(0.0, 0.0, 1.0));
-                vec3 atmosphere = vec3(0.3, 0.6, 1.0) * pow(intensity, 1.5);
-            
-                // Convert the texture color to linear space
-                vec3 planetColor = srgbToLinear(texture2D(planetTexture, vertexUV).xyz);
-            
-                // Final color calculation in linear space
-                vec3 finalColor = vec3(1.0, 1.0, 1.0) - (atmosphere + planetColor);
-            
-                // Output color in linear space
-                gl_FragColor = vec4(finalColor, 1.0);
-            }
+          uniform sampler2D planetTexture;
+          varying vec2 vertexUV;
+          varying vec3 vertexNormal;
+          
+          void main() {
+            // Compute atmosphere effect
+            float intensity = 1.05 - dot(vertexNormal, vec3(0.0, 0.0, 1.0));
+            vec3 atmosphere = vec3(0.3, 0.6, 1.0) * pow(intensity, 1.5);
+        
+            // Convert the texture color to sRGB space
+            vec3 planetColor = texture2D(planetTexture, vertexUV).xyz;
+        
+            // Final color calculation in linear space
+            vec3 finalColor = vec3(1.0, 1.0, 1.0) - (atmosphere + planetColor);
+        
+            // Output color in linear space
+            gl_FragColor = vec4(finalColor, 1.0);
+            #include <encodings_fragment>
+          }
         </script>
         <script id="atmosphereVertexShader" type="x-shader/x-vertex">
           varying vec3 vertexNormal;
 
           void main() {
-              vertexNormal = normalize(normalMatrix * normal);
-              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.05 );
+            vertexNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.05 );
           }          
         </script>
         <script id="atmosphereFragmentShader" type="x-shader/x-fragment">
           varying vec3 vertexNormal;
           void main() {
-              float intensity = pow(0.7 - dot(vertexNormal, vec3(0.0, 0.0, 1.0)), 4.0);
-              gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+            float intensity = pow(0.7 - dot(vertexNormal, vec3(0.0, 0.0, 1.0)), 4.0);
+            gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+            #include <encodings_fragment>
           }          
         </script>
         <script id="tetherVertexShader" type="x-shader/x-vertex">
@@ -197,6 +198,7 @@
             float opacity = tetherMinOpacity + apparentThickness * (tetherMaxOpacity - tetherMinOpacity);
             gl_FragColor.rgb = color;
             gl_FragColor.a = opacity;
+            #include <encodings_fragment>
           }
         </script>
 

@@ -1,6 +1,7 @@
 
 // Use when local
 import * as THREE from 'three'
+//import WebGPURenderer from 'three/src/renderers/webgpu/WebGPURenderer.js' // Doesn't seem to be stable yet...
 console.log(`Three.js Revision: ${THREE.REVISION}`)
 
 //import { GUI } from 'three/examples/jsm/libs/dat.gui.module'
@@ -143,6 +144,7 @@ const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perf
 const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfEarth + 32000)) * 180 / Math.PI
 
 const defaultShows = true // Set to false to reduce loading time
+const massDriverShows = false
 
 // Constants controlled by sliders
 const guidParamWithUnits = {
@@ -626,16 +628,16 @@ const guidParamWithUnits = {
   showHabitats: {value: defaultShows, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showSolarArrays: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverTube: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverRail: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverBrackets: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverAccelerationScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showMassDriverDecelerationScrews: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverTube: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverRail: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverBrackets: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverAccelerationScrews: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showMassDriverDecelerationScrews: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   saveMassDriverScrewSTL: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showEvacuatedTube: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchSleds: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showAdaptiveNuts: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  showLaunchVehicles: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchSleds: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showAdaptiveNuts: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLaunchVehicles: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMarkers: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showTrackingMarkers: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -846,7 +848,7 @@ const roughPlanetRadius = tram.radiusAtLatitude(0, planetSpec.ellipsoid)
 function updateTransitsystem() {
   updatedParam()
   crv = tetheredRingSystems[0].crv
-  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
+  ecv = new tram.elevatorCarVariables(planetSpec, dParamWithUnits, crv)
 
   transitSystemObject.update(dParamWithUnits, tetheredRingRefCoordSys, specs, genSpecs, crv, roughPlanetRadius, mainRingCurve, timeSinceStart)
 }
@@ -1202,37 +1204,45 @@ if (enableVR) {
 }
 scene.add(cameraGroup)
 
-// Test Hack
-//THREE.ColorManagement.enabled = false;
-const renderer = new THREE.WebGLRenderer({
+// Common renderer configuration
+const baseConfig = {
   antialias: true,
-  alpha: dParamWithUnits['enableBackgroundAlpha'].value,  // Make the background transparent
-  //logarithmicDepthBuffer: true,
+  alpha: dParamWithUnits['enableBackgroundAlpha'].value, // Transparent background
   canvas: document.querySelector('canvas'),
-  // These extra parameters may improve quaily. Need to test.
-  // samples: 4,
-  // type: THREE.HalfFloatType
-})
-// Test Hack
-//renderer.outputColorSpace = THREE.LinearSRGBColorSpace
-//renderer.setSize(innerWidth, innerHeight)
-renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight)
-//renderer.setClearColor( 0x000000, 0 );
-//console.log("W,H ", simContainer.offsetWidth, simContainer.offsetHeight)
-renderer.setPixelRatio(window.devicePixelRatio)
-if (enableVR) {
-  renderer.xr.enabled = true
-  renderer.xr.setReferenceSpaceType( 'local' )
 }
-renderer.autoClear = false
 
+if (!navigator.gpu) {
+  console.error('WebGPU is not supported in this browser.');
+}
 
-//document.body.appendChild(renderer.domElement)
+// Create the renderer based on VR support
+// const renderer = (!navigator.gpu || enableVR) ? new THREE.WebGLRenderer({...baseConfig}) : new WebGPURenderer({...baseConfig});
+const renderer = new THREE.WebGLRenderer({...baseConfig})
+
+// Configure color space
+renderer.outputColorSpace = THREE.SRGBColorSpace; // Ensures the output is in "Linear sRGB" color space
+
+// Set the renderer size
+renderer.setSize(simContainer.offsetWidth, simContainer.offsetHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+// Enable VR (if supported)
+if (enableVR) {
+  console.warn('WebGPU does not natively support VR yet; check browser compatibility.');
+  // WebGPU does not currently have robust VR support. Leave this as a placeholder for future extensions.
+}
+
+// Configure renderer settings
+renderer.autoClear = false;
+
+// Append the renderer to the DOM
+//document.body.appendChild(renderer.domElement);
+
 //const stats = new Stats()
 //simContainer.appendChild( stats.dom )
 
 
-const sunLight = new THREE.DirectionalLight(0x0f0f0f0, 1)
+const sunLight = new THREE.DirectionalLight(0xffffff, 1)
 sunLight.name = 'sunlight'
 sunLight.position.set(0, -6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
 //sunLight.position.set(0, 6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
@@ -1294,7 +1304,7 @@ const moonTexture = new THREE.TextureLoader().load("./textures/moon.jpg")
 moonTexture.name = 'moon'
 const moonMesh = new THREE.Mesh(
   new THREE.SphereGeometry(radiusOfEarth * 0.27, 64, 32),
-  new THREE.MeshStandardMaterial({
+  new THREE.MeshLambertMaterial({
     map: moonTexture,
   })
 )
@@ -1428,9 +1438,7 @@ scene.add(starsObject)  // Todo: This might make the stars rotate with planet. M
 
 // Generate the main ring
 let ctv = new tram.commonTetherVariables()
-let ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
-let tvv = new tram.transitVehicleVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
-
+let ecv = new tram.elevatorCarVariables(planetSpec, dParamWithUnits, crv)
 
 const referencePoint = new THREE.Vector3(0, roughPlanetRadius + crv.currentMainRingAltitude, 0)
 const mainRingCurveObject = new markers.mainRingCurveObject(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint)
@@ -1446,16 +1454,16 @@ tetheredRingSystems.forEach((tetheredRingSystem, index) =>{
   const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
 
   // Tethers
-  const listOfTethers = constructTethers(tetheredRingRefCoordSys)
+  const listOfTethers = constructTethers(tetheredRingRefCoordSys, tetheredRingSystem.crv)
   listsOfTethers.push(listOfTethers)
   
 })
 
-function constructTethers(tetheredRingRefCoordSys) {
+function constructTethers(tetheredRingRefCoordSys, crv) {
   const tethers = []
   if (dParamWithUnits['showTethers'].value || genSpecs) {
     if (verbose) console.log("Constructing Tethers")
-    const tetherGeometry = new TetherGeometry(roughPlanetRadius, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
+    const tetherGeometry = new TetherGeometry(planetSpec, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys)
     const tempTetherMesh = new THREE.LineSegments(tetherGeometry, tetherMaterial)
     tempTetherMesh.name = 'tether'
     tempTetherMesh.renderOrder = 1  // Draws the ring after rendering the planet, so that you can see the entire ring through the planet.
@@ -1541,12 +1549,6 @@ function resizeTrackingMarkers(size) {
   targetPointMarkerMesh.scale.set(size, size, size)
   orbitControlsMarkerMesh.scale.set(size, size, size)
 }
-
-const numWedges = 64   // Wedges are used to keep points within meshes from becoming too spread out, losing precision, and then starting to jitter
-
-let start, end
-
-console.log("V6")
 
 const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWithUnits, specs, genSpecs, crv, ecv, roughPlanetRadius, mainRingCurve)
 
@@ -1671,7 +1673,7 @@ function updateRing() {
   mainRingCurve = tetheredRingSystems[0].mainRingCurve
   
   // ToDo, need to add crv parameters to the specs file. Specifically: crv.mainRingRadius, crv.mainRingCircumference, crv.mainRingMassPerMeter, 
-  ecv = new tram.elevatorCarVariables(gravitationalConstant, massOfPlanet, roughPlanetRadius, dParamWithUnits, crv)
+  ecv = new tram.elevatorCarVariables(planetSpec, dParamWithUnits, crv)
 
   const referencePoint = new THREE.Vector3(0, roughPlanetRadius + crv.currentMainRingAltitude, 0)
   mainRingCurveObject.update(tetheredRingRefCoordSys, dParamWithUnits, mainRingCurve, referencePoint)
@@ -2503,57 +2505,55 @@ function onSelectEnd() {
   this.userData.isSelecting = false
 }
 
-controller1 = renderer.xr.getController( 0 )
-controller1.name = 'controller1'
-controller1.addEventListener( 'selectstart', onSelectStart )
-controller1.addEventListener( 'selectend', onSelectEnd )
-controller1.addEventListener( 'connected', function ( event ) {
-  this.add( buildController( event.data ) );
-  controller1.inputEvents = event
-  //console.log(controller1)
-} )
-controller1.addEventListener( 'disconnected', function () {
-  this.remove( this.children[ 0 ] )
-} )
 if (enableVR) {
+  controller1 = renderer.xr.getController( 0 )
+  controller1.name = 'controller1'
+  controller1.addEventListener( 'selectstart', onSelectStart )
+  controller1.addEventListener( 'selectend', onSelectEnd )
+  controller1.addEventListener( 'connected', function ( event ) {
+    this.add( buildController( event.data ) );
+    controller1.inputEvents = event
+    //console.log(controller1)
+  } )
+  controller1.addEventListener( 'disconnected', function () {
+    this.remove( this.children[ 0 ] )
+  } )
   cameraGroup.add( controller1 )
-}
 
-controller2 = renderer.xr.getController( 1 )
-controller2.name = 'controller2'
-controller2.addEventListener( 'selectstart', onSelectStart )
-controller2.addEventListener( 'selectend', onSelectEnd )
-controller2.addEventListener( 'connected', function ( event ) {
-  this.add( buildController( event.data ) )
-  controller2.inputEvents = event
-  //console.log(controller2)
-} )
-controller2.addEventListener( 'disconnected', function () {
-  this.remove( this.children[ 0 ] )
-} )
-if (enableVR) {
+  controller2 = renderer.xr.getController( 1 )
+  controller2.name = 'controller2'
+  controller2.addEventListener( 'selectstart', onSelectStart )
+  controller2.addEventListener( 'selectend', onSelectEnd )
+  controller2.addEventListener( 'connected', function ( event ) {
+    this.add( buildController( event.data ) )
+    controller2.inputEvents = event
+    //console.log(controller2)
+  } )
+  controller2.addEventListener( 'disconnected', function () {
+    this.remove( this.children[ 0 ] )
+  } )
   cameraGroup.add( controller2 )
-}
 
-// The XRControllerModelFactory will automatically fetch controller models
-// that match what the user is holding as closely as possible. The models
-// should be attached to the object returned from getControllerGrip in
-// order to match the orientation of the held device.
+  // The XRControllerModelFactory will automatically fetch controller models
+  // that match what the user is holding as closely as possible. The models
+  // should be attached to the object returned from getControllerGrip in
+  // order to match the orientation of the held device.
 
-const controllerModelFactory = new XRControllerModelFactory()
+  const controllerModelFactory = new XRControllerModelFactory()
 
-controllerGrip1 = renderer.xr.getControllerGrip( 0 )
-controllerGrip1.name = 'controllerGrip1'
-controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) )
-if (enableVR) {
-  cameraGroup.add( controllerGrip1 )
-}
+  controllerGrip1 = renderer.xr.getControllerGrip( 0 )
+  controllerGrip1.name = 'controllerGrip1'
+  controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) )
+  if (enableVR) {
+    cameraGroup.add( controllerGrip1 )
+  }
 
-controllerGrip2 = renderer.xr.getControllerGrip( 1 )
-controllerGrip2.name = 'controllerGrip2'
-controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) )
-if (enableVR) {
-  cameraGroup.add( controllerGrip2 )
+  controllerGrip2 = renderer.xr.getControllerGrip( 1 )
+  controllerGrip2.name = 'controllerGrip2'
+  controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) )
+  if (enableVR) {
+    cameraGroup.add( controllerGrip2 )
+  }
 }
 
 function buildController( data ) {
@@ -2647,6 +2647,12 @@ function onKeyDown( event ) {
       //setOrbitControlsTargetUpVector()
       orbitControls.maxPolarAngle = Math.PI
       orbitControlsNewMaxPolarAngle = Math.PI
+
+      if (nonGUIParams['overrideOrbitControlsUpDirection']) {
+        // Forces the up direction to be the same as the zeroth ring's axis so that when we autorotate, we'll follow the path of the ring
+        orbitControls.upDirection.applyQuaternion(ringToPlanetRotation).invert
+      }
+
       //camera.up.set(0, 1, 0)
       break;
     case 73: /*I*/
@@ -3068,10 +3074,10 @@ function onKeyDown( event ) {
         break
       case 1:
         // Near the end of the launcher's evacuated tube
-        orbitControls.target.set(1087829.3440702243, -3907631.0156934406, -4941146.498730386)
-        orbitControls.upDirection.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)
-        orbitControls.object.position.set(1119741.0157521453, -3910186.450747938, -4935023.659581899)
-        camera.up.set(0.17018078992601707, -0.6119072240380778, -0.7724040703609547)        
+        orbitControls.target.set(514204.12535046984, -4033036.708893674, -4955683.943015841)
+        orbitControls.upDirection.set(0.08030269928884481, -0.6292199403267047, -0.7730677481192599)
+        orbitControls.object.position.set(515659.55557243683, -4032469.5439259033, -4956242.361671201)
+        camera.up.set(0.08030269928884481, -0.6292199403267047, -0.7730677481192599)
         break
       case 2:
         // Close to Ring at 22 km altitude

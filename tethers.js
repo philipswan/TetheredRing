@@ -10,7 +10,7 @@ import * as kmlutils from './kmlutils.js'
 
 class TetherGeometry extends BufferGeometry {
 
-	constructor(radiusOfPlanet, gravitationalConstant, massOfPlanet, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys) {
+	constructor(planetSpec, crv, ctv, dParamWithUnits, specs, fastTetherRender, genKMLFile, kmlFile, genSpecs, planetCoordSys, tetheredRingRefCoordSys) {
 		super();
 
     const tetherPoints = []
@@ -19,14 +19,14 @@ class TetherGeometry extends BufferGeometry {
     const tetherStrips = []   // This array will store other arrays that will each define a "strip" of points
     const tetherStripThicknesses = []   // This array will store other arrays that will each define a "strip" of points
     const tetherStripCrossSectionalAreas = []   // This array will store other arrays that will each define a "strip" of points
-    const mrr = 10000 //crv.mainRingRadius
-    const finalCatenaryTypes = [[], []]                          // Shape of the catenary after the ring is raised to full height - used to "design" the thethers.
-    const currentCatenaryTypes = [[], []]                        // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
+    const finalCatenaryTypes = [[], []]         // Shape of the catenary after the ring is raised to full height - used to "design" the thethers.
+    const currentCatenaryTypes = [[], []]       // Shape of the catenery for the portion of the tethers that are off the ground when the ring is less than fully elevated   
     const verbose = false
+    const radiusOfPlanet = planetSpec.ellipsoid.a
 
     // Tethered Ring Math
     // Inputs:
-    // gravitationalConstant, radiusOfPlanet, massOfPlanet
+    // planetSpec.gravitationalParameter, 
     // dParamWithUnits['ringFinalAltitude'].value, dParamWithUnits['ringAmountRaisedFactor'].value, dParamWithUnits['massPerMeterOfRing'].value, dParamWithUnits['equivalentLatitude'].value, dParamWithUnits['tetherEngineeringFactor'].value, dParamWithUnits['numForkLevels'].value, dParamWithUnits['tetherPointBxAvePercent'].value, dParamWithUnits['tetherPointBxDeltaPercent'].value
     // tetherFiberDensity, tetherStress
 
@@ -34,7 +34,7 @@ class TetherGeometry extends BufferGeometry {
 
     const totalMassPerMeterOfRings = dParamWithUnits['totalMassPerMeterOfRings'].value
     // Note: The following formula is an approximation that assumes a non-rotating and perfectly spherical planet. It will need to be improved later.
-    const forceExertedByGravityOnRing = gravitationalConstant * massOfPlanet * totalMassPerMeterOfRings / (final_r**2)
+    const forceExertedByGravityOnRing = planetSpec.gravitationalParameter * totalMassPerMeterOfRings / (final_r**2)
     if (genSpecs) {
       specs['forceExertedByGravityOnRing'] = {value: forceExertedByGravityOnRing, units: "N/m"}
     }
@@ -50,9 +50,9 @@ class TetherGeometry extends BufferGeometry {
 
     // const factor = dParamWithUnits['tetherFiberTensileStrength'].prefixfactor
     const tetherStress = dParamWithUnits['tetherFiberTensileStrength'].value*1000000 / dParamWithUnits['tetherEngineeringFactor'].value
-    const accelerationOfGravityAtSeaLevel = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
-    const accelerationOfGravityAtRing = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
-    const accelerationOfGravityApproximation = gravitationalConstant * massOfPlanet / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
+    const accelerationOfGravityAtSeaLevel = planetSpec.gravitationalParameter / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
+    const accelerationOfGravityAtRing = planetSpec.gravitationalParameter / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
+    const accelerationOfGravityApproximation = planetSpec.gravitationalParameter / ((radiusOfPlanet + dParamWithUnits['ringFinalAltitude'].value / 2)**2)  // Accelleration of gravity at altitude halfway up to the ring is used as an engineering approximation (Eq 17)
     const howMuchLessThingsWeighAtRing = accelerationOfGravityAtRing / accelerationOfGravityAtSeaLevel
     if (genSpecs) {
       //specs['accelerationOfGravityApproximation'] = {value: accelerationOfGravityApproximation, units: "m/s2"}

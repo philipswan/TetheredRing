@@ -17,7 +17,7 @@ export class planet {
       TextureMode24x12 = true
     }
     else {
-      eightTextureMode = false
+      eightTextureMode = false // This mode is broken...
       TextureMode24x12 = true // Hack // true
     }
 
@@ -73,7 +73,7 @@ export class planet {
 
 
     // opacity will now work with or without shaders, so warning is not needed.
-    const useShaders = false;
+    const useShaders = true;
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -108,7 +108,6 @@ export class planet {
             const useHiRes = nonGUIParams['getCapturePresetRegions'](i, j)
             const hiLo = (useHiRes) ? 'HR' : 'LR'
             textureFilename = `./textures/${planetSpec.texturePath}${colorPath}/${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${colorFormat}`
-            //console.log(filename)
             const texture = new THREE.TextureLoader().load(textureFilename)
             texture.colorSpace = THREE.SRGBColorSpace
             texture.generateMipmaps = generateMipmaps
@@ -142,7 +141,7 @@ export class planet {
                     hasDisplacementMap: { value: displacementMap != null },
                     opacity: { value: dParamWithUnits['earthTextureOpacity'].value }
                   } } ) :
-                new THREE.MeshStandardMaterial({
+                new THREE.MeshLambertMaterial({
                   map: texture,
                   displacementMap: displacementMap,
                   displacementScale: displacementScale,
@@ -193,36 +192,32 @@ export class planet {
         let letter
         for (let j=0; j<2; j++) {
           for (let i = 0; i<4; i++) {
-            //if ((j==0) && ((i==0) || (i==3))) {
-            if ((j==0) && (i==0)) {
-              letter = String.fromCharCode(65+i)
-              filename = `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg`
-              //filename = `./textures/world.topo.200404.3x16384x16384.${letter}${j+1}.jpg`
-              if (verbose) console.log(letter, filename)
-              const planetMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
-                new THREE.ShaderMaterial({
-                  //vertexShader: vertexShader,
-                  //fragmentShader: fragmentShader,
-                  vertexShader: document.getElementById( 'vertexShader' ).textContent,
-                  fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
-                  uniforms: {
-                    planetTexture: {
-                      //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
-                      value: new THREE.TextureLoader().load(filename),
-                      generateMipmaps: generateMipmaps
-                    }
-                  },
-                  //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
-                  //displacementScale: 500000,
-                })
-              )
-              planetMesh.name = 'planet'
-              planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
-              planetMesh.matrixValid = false
-              if (guidParam['perfOptimizedThreeJS']) planetMesh.freeze()
-              planetMeshes.add(planetMesh)
-            }
+            letter = String.fromCharCode(65+i)
+            textureFilename = `./textures/world.topo.200404.3x21600x21600.${letter}${j+1}.jpg`
+            //textureFilename = `./textures/world.topo.200404.3x16384x16384.${letter}${j+1}.jpg`
+            const planetMesh = new THREE.Mesh(
+              new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments, i*Math.PI/2, Math.PI/2, j*Math.PI/2, Math.PI/2),
+              new THREE.ShaderMaterial({
+                //vertexShader: vertexShader,
+                //fragmentShader: fragmentShader,
+                vertexShader: document.getElementById( 'vertexShader' ).textContent,
+                fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+                uniforms: {
+                  planetTexture: {
+                    //value: new THREE.TextureLoader().load( './textures/bluemarble_16384.png' )
+                    value: new THREE.TextureLoader().load(textureFilename),
+                    generateMipmaps: generateMipmaps
+                  }
+                },
+                //displacementMap: new THREE.TextureLoader().load( './textures/HighRes/EARTH_DISPLACE_42K_16BITS_preview.jpg' ),
+                //displacementScale: 500000,
+              })
+            )
+            planetMesh.name = 'planet'
+            planetMesh.rotation.y = -Math.PI/2  // This is needed to have the planet's texture align with the planet's Longintitude system
+            planetMesh.matrixValid = false
+            if (dParamWithUnits['perfOptimizedThreeJS'].value) planetMesh.freeze()
+            planetMeshes.add(planetMesh)
           }
         }
       }
@@ -301,7 +296,7 @@ export class planet {
         texture.generateMipmaps = generateMipmaps
         const planetMesh = new THREE.Mesh(
           new THREE.SphereGeometry(roughPlanetRadius, planetWidthSegments, planetHeightSegments),
-          new THREE.MeshPhongMaterial({
+          new THREE.MeshLambertMaterial({
             //roughness: 1,
             //metalness: 0,
             map: texture,
@@ -465,7 +460,7 @@ export class planet {
 
     // Experimental code
     // const plane = new THREE.mesh(new THREE.PlaneGeometry(2, 2, 512, 512), 
-    //   new THREE.MeshStandardMaterial(
+    //   new THREE.MeshLambertMaterial(
     //     {
     //       map: earthBaseColor,
     //       normalMap: earthNormalMap,

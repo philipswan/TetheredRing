@@ -115,9 +115,7 @@ export function solveQuadratic(a, b, c) {
 }
 
 export class commonRingVariables {
-  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, ringFinalAltitude, equivalentLatitude, ringAmountRaisedFactor) {
-    this.gravitationalConstant = gravitationalConstant
-    this.massOfPlanet = massOfPlanet
+  constructor(radiusOfPlanet, ringFinalAltitude, equivalentLatitude, ringAmountRaisedFactor) {
     this.radiusOfPlanet = radiusOfPlanet
     this.ringFinalAltitude = ringFinalAltitude
     this.equivalentLatitude = equivalentLatitude
@@ -158,10 +156,10 @@ export class elevatorCableVariables {
 }
   
 export class elevatorCarVariables {
-  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv) {
-    this.gravitationalConstant = gravitationalConstant
-    this.massOfPlanet = massOfPlanet
-    this.radiusOfPlanet = radiusOfPlanet
+  constructor(planetSpec, dParamWithUnits, crv) {
+    this.gravitationalConstant = planetSpec.gravitationalConstant
+    this.massOfPlanet = planetSpec.massOfPlanet
+    this.radiusOfPlanet = planetSpec.ellipsoid.a
     this.dParamWithUnits = dParamWithUnits
     this.crv = crv
     this.update()
@@ -334,21 +332,6 @@ export class vehicleReferenceFrameTrackPositionCalculator {
     return trackSpeed
   }
 
-}
-
-export class transitVehicleVariables {
-  constructor(gravitationalConstant, massOfPlanet, radiusOfPlanet, dParamWithUnits, crv) {
-    this.gravitationalConstant = gravitationalConstant
-    this.massOfPlanet = massOfPlanet
-    this.radiusOfPlanet = radiusOfPlanet
-    this.dParamWithUnits = dParamWithUnits
-    this.crv = crv
-    this.update()
-  }
-  update() {
-    // Not verified yet!!!
-    this.waitTime = 20 // seconds - a bit short for people to disembark/embark but will suffice for now
-  }  
 }
 
 export function getTransitVehiclePosition(dParamWithUnits, crv, ecv, t) {
