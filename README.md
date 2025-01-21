@@ -37,6 +37,17 @@ git clone https://github.com/philipswan/TetheredRing.git
 ```
 cd TetheredRing
 ```
+
+### Remove previous revision of three.js (Note: Do this only if you are updating the project from a previous install. Skip for a fresh install)
+PowerShell command...
+```
+Remove-Item -Recurse -Force node_modules, package-lock.json
+```
+Linux command...
+```
+rm -rf node_modules package-lock.json
+```
+
 ### Install required packages
 
 _Standard node modules installation_
@@ -73,9 +84,12 @@ _Handled by [Vite](https://vitejs.dev/)_
 ```
 npm run dev
 ```
-### Navigate to the URL specified in the `run dev` output to view the model
+### Using a browser (e.g. Chrome) open a tab and navigate to the URL specified in the `run dev` output to view the model
 
 _**Note:** when working on the project, on occasion you may need to hard refresh the browser in order for the model to display properly. This is usually the command \<ctrl\> + \<shift\> + 'R'_
+
+### Use the browser's developer tools to see additional information
+Press F12 and then select the console tab.
 
 # Using the Model - Keyboard:
 
