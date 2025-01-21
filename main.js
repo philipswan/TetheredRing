@@ -366,6 +366,7 @@ const guidParamWithUnits = {
   numLaunchesPerMarsTransferWindow: {value: 14*4, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   numberOfMarsTransferWindows: {value: 10, units: '', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   
+  propellantNeededForLandingOnMars: {value: 1000, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehiclePropellantMassFlowRate: {value: 20, units: 'kg/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleAdaptiveThrust: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},

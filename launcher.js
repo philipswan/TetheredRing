@@ -713,7 +713,8 @@ export class launcher {
           wedgeList.splice(0, wedgeList.length)
         }
         else {
-          console.log('Error: ' + objectName + ' not found in wedge ' + zoneIndex + ' of refFrame ' + refFrame.name)
+          // This isn't actually an error condition since we may not have any objects of this type in this wedge.
+          // console.log('Error: ' + objectName + ' not found in wedge ' + zoneIndex + ' of refFrame ' + refFrame.name)
         }
       }
     })

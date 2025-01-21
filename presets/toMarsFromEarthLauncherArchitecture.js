@@ -152,5 +152,6 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
   guidParamWithUnits['launcherRampEndLatitude'].value = launcherRampEndLatitude
   guidParamWithUnits['launcherRampEndLongitude'].value = launcherRampEndLongitude
 
+  guidParamWithUnits['propellantNeededForLandingOnMars'].value = 1000 //kg // ToDo - We need to make a proper estimate of this
 
 }
