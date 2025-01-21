@@ -38,3 +38,16 @@ export function setAllShowsToFalse(guidParamWithUnits) {
   guidParamWithUnits['showLaunchVehicles'].value = false
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
 }
+
+export function showMassDriver(guidParamWithUnits) {
+
+  guidParamWithUnits['showMassDriverTube'].value = true
+  guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+  guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
+  guidParamWithUnits['showMassDriverRail'].value = true
+  guidParamWithUnits['showMassDriverBrackets'].value = true
+  guidParamWithUnits['showLaunchSleds'].value = true
+  guidParamWithUnits['showLaunchVehicles'].value = true
+  guidParamWithUnits['showAdaptiveNuts'].value = true
+
+}

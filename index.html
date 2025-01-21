@@ -133,7 +133,7 @@
 
           void main() {
             gl_FragColor = vec4(texture2D(planetTexture, fragmentUV).xyz * 1.5, opacity);
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }          
         </script>
         <script id="fragmentShaderInv" type="x-shader/x-fragment">
@@ -154,7 +154,7 @@
         
             // Output color in linear space
             gl_FragColor = vec4(finalColor, 1.0);
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }
         </script>
         <script id="atmosphereVertexShader" type="x-shader/x-vertex">
@@ -170,7 +170,7 @@
           void main() {
             float intensity = pow(0.7 - dot(vertexNormal, vec3(0.0, 0.0, 1.0)), 4.0);
             gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }          
         </script>
         <script id="tetherVertexShader" type="x-shader/x-vertex">
@@ -198,7 +198,7 @@
             float opacity = tetherMinOpacity + apparentThickness * (tetherMaxOpacity - tetherMinOpacity);
             gl_FragColor.rgb = color;
             gl_FragColor.a = opacity;
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }
         </script>
 

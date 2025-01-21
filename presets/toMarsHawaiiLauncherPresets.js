@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
+import { showMassDriver } from "./cameraShotHelperFunctions"
 import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
 import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
 import { toMarsFromMoonLauncherArchitecture } from './toMarsFromMoonLauncherArchitecture.js'
@@ -166,6 +167,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
 
 
   //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
+  showMassDriver(guidParamWithUnits)
   actualSizeDollyShot(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['showStars'].value = true
   //guidParamWithUnits['showLaunchTrajectory'].value = true
@@ -174,7 +176,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
   //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5000.0
   guidParamWithUnits['logZoomRate'].value = -3
-  //guidParamWithUnits['showXYChart'].value = true
+  guidParamWithUnits['showXYChart'].value = true
 
   nonGUIParams['overrideClipPlanes'] = true
   nonGUIParams['nearClip'] = .1

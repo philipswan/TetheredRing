@@ -144,7 +144,7 @@ const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perf
 const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfEarth + 32000)) * 180 / Math.PI
 
 const defaultShows = true // Set to false to reduce loading time
-const massDriverShows = false
+const massDriverShows = true
 
 // Constants controlled by sliders
 const guidParamWithUnits = {
