@@ -349,7 +349,8 @@ export function define_genLauncherSpecs() {
     console.print("numberOfMarsTransferWindows", numberOfMarsTransferWindows)
     console.print("payloadLandedOnMarsPerLaunch", mPayload.toLocaleString('en-US', {maximumFractionDigits:0}))
 
-    const totalPayloadLandedOnMars = mPayload * numberOfMarsTransferWindows * numLaunchesPerMarsTransferWindow
+    const propellantNeededForLandingOnMars = dParamWithUnits['propellantNeededForLandingOnMars'].value
+    const totalPayloadLandedOnMars = (this.payloadPlusRemainingPropellant - propellantNeededForLandingOnMars) * numberOfMarsTransferWindows * numLaunchesPerMarsTransferWindow
     specs['totalPayloadLandedOnMars'] = {value: totalPayloadLandedOnMars, units: "kg"}
     console.print("totalPayloadLandedOnMars, ", totalPayloadLandedOnMars.toLocaleString('en-US', {maximumFractionDigits:0}), "kg")
 

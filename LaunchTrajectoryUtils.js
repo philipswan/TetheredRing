@@ -1350,7 +1350,8 @@ export function defineUpdateTrajectoryCurves () {
       this.payloadFraction = mPayload / (mVehicle + mPayload + initialPropellantMass)
     }
 
-    const propellantConsumed = initialPropellantMass - mPropellant
+    this.propellantConsumed = initialPropellantMass - mPropellant
+    this.payloadPlusRemainingPropellant = mPayload + mPropellant
     const mSled = 28000
     const mLoadedVehicle = 28000
     const eff = 0.9
@@ -1385,9 +1386,9 @@ export function defineUpdateTrajectoryCurves () {
       console.log('Vehicle Dry Mass', Math.round(mVehicle))
       console.log('Payload Mass', Math.round(mPayload))
       console.log('Remaining Propellant Mass', Math.round(mPropellant))
-      console.log('Propellant Consumed', Math.round(propellantConsumed))
+      console.log('Propellant Consumed', Math.round(this.propellantConsumed))
       console.log('Initial Total Mass', Math.round(mVehicle + mPayload + initialPropellantMass))
-      console.log('Payload + Remaining Propellant', Math.round(mPayload + mPropellant))
+      console.log('Payload + Remaining Propellant', Math.round(this.payloadPlusRemainingPropellant))
       console.log('Mass Fraction', Math.round(1000 * this.massFraction)/1000)
       console.log('Payload Fraction', Math.round(1000 * this.payloadFraction)/1000)
       console.log('Rocket Total Delta-V', Math.round(this.rocketTotalDeltaV))
