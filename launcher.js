@@ -183,7 +183,8 @@ export class launcher {
     //this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({wireframe: true, color: 0xffffff})
     //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({wireframe: true, color: 0x7f7f7f})
     this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({color: 0xffffff})
-    this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
+    this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({color: 0x7f7f7f})
+    //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
     this.numZones = 200
     this.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
