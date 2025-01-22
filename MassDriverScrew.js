@@ -55,6 +55,7 @@ export class massDriverScrewModel {
             modelRadialSegments,
             minLengthSegmentsPerMeter)
         const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterials[segmentIndex%2])
+        massDriverScrewMesh.name = "massDriverScrew"
 
         return massDriverScrewMesh
     }
