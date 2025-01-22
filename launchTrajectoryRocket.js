@@ -5,7 +5,7 @@ import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import * as LauncherRamp from './launcherRamp.js'
 
-export function defineUpdateTrajectoryCurves () {
+export function defineUpdateTrajectoryCurvesRocket () {
   return function (dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
 
     // LaunchTrajectoryUtils.updateLaunchTrajectory(dParamWithUnits, planetCoordSys, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
@@ -112,7 +112,6 @@ export function defineUpdateTrajectoryCurves () {
     const angleBAC = Math.PI - angleACB - angleABC
     this.upwardAngleAtEndOfRamp = Math.PI - angleABC
 
-    //const rampBaseLength = angleBAC * (this.planetRadius + launcherMassDriverAltitude) // This is the length along the base of the ramp, measured at the altitude of the mass driver (ToDo: Assuming the altitude of "the base" is the same as the altitude of the mass driver may be confusing.)
     const rampBaseLength = angleBAC * launcherRampStartDistance // This is the length along the base of the ramp, measured at the altitude of the mass driver (ToDo: Assuming the altitude of "the base" is the same as the altitude of the mass driver may be confusing.)
 
     // console.log('triangleSideAB', triangleSideAB)
@@ -292,11 +291,6 @@ export function defineUpdateTrajectoryCurves () {
 
     // Generate an axis of rotation to define the curvatures of the mass driver and the ramp
     this.axisOfRotation = new THREE.Vector3().crossVectors(evacuatedTubeEntrancePosition, evacuatedTubeExitPosition.clone().sub(evacuatedTubeEntrancePosition)).normalize()
-    if (dParamWithUnits['launcherLocationMode'].value==0) {
-      if (dParamWithUnits['finalLocationRingCenterLatitude'].value<0) {
-        this.axisOfRotation.negate()
-      }
-    }
 
     // Calculate a vector that points to the exit of the mass driver (and the entrance to the ramp)
     const altAdjust = (this.planetRadius + launcherMassDriverAltitude)/(this.planetRadius + launcherRampExitAltitude)

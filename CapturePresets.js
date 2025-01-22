@@ -5,6 +5,7 @@ import { demonstratorLauncher } from './presets/demonstratorLauncher.js'
 import { grapplerEngineeringPresets } from './presets/grapplerEngineeringPresets.js'
 import { toMarsHawaiiLauncherPresets } from './presets/toMarsHawaiiLauncherPresets.js'
 import { elevatedEvacuatedTubeDeployment } from './presets/elevatedEvacuatedTubeDeployment.js'
+import { toLEOFromBocaChikaWithStarship } from './presets/toLEOFromBocaChikaWithStarship.js'
 import { olympusMonsLauncher } from './presets/olympusMonsLauncher.js'
 import { edwardsAirforceBasePresets } from './presets/edwardsAirforceBasePresets.js'
 import { launchLookingBackwards } from './presets/launchLookingBackwards.js'
@@ -90,7 +91,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
     case 17:
-      starship()
+      toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
       break
     case 18:
       christmasIslandLauncher()
@@ -1734,158 +1735,6 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   }
 
 
-  function starship() {
-
-    // Uses Boca Chica launch location
-    guidParamWithUnits['finalLocationRingCenterLatitude'].value = -28.5
-    guidParamWithUnits['finalLocationRingCenterLongitude'].value = 266
-    guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.0011
-
-    // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
-    // guidParamWithUnits['numTethers'].value = 1300
-    // guidParamWithUnits['numForkLevels'].value = 10
-    
-    guidParamWithUnits['showLogo'].value = false // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-    guidParamWithUnits['showXYChart'].value = true
-    guidParamWithUnits['showEarthsSurface'].value = true
-    //guidParamWithUnits['earthTextureOpacity'].value = 0.25
-    guidParamWithUnits['showEarthsAtmosphere'].value = false
-    guidParamWithUnits['showMoon'].value = true
-    guidParamWithUnits['showStars'].value = true
-    guidParamWithUnits['showEarthAxis'].value = false
-    guidParamWithUnits['showBackgroundPatch'].value = false
-    guidParamWithUnits['showEarthEquator'].value = false
-    guidParamWithUnits['showMainRingCurve'].value = false
-    guidParamWithUnits['showGravityForceArrows'].value = false
-    guidParamWithUnits['showGyroscopicForceArrows'].value = false
-    guidParamWithUnits['showTethers'].value = true
-    guidParamWithUnits['showTransitSystem'].value = false
-    guidParamWithUnits['showStationaryRings'].value = true
-    guidParamWithUnits['showMovingRings'].value = false
-    guidParamWithUnits['showTransitTube'].value = false
-    guidParamWithUnits['showTransitVehicles'].value = false
-    guidParamWithUnits['showRingTerminuses'].value = false
-    guidParamWithUnits['showGroundTerminuses'].value = false
-    guidParamWithUnits['showElevatorCables'].value = true
-    guidParamWithUnits['showElevatorCars'].value = false
-    guidParamWithUnits['showHabitats'].value = true
-    guidParamWithUnits['showSolarArrays'].value = false
-    guidParamWithUnits['showLaunchTrajectory'].value = true
-    guidParamWithUnits['showMarkers'].value = false
-    guidParamWithUnits['launcherMarkerRadius'].value = 500
-
-    guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
-    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
-    guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = false
-    guidParamWithUnits['showLaunchSleds'].value = true
-    guidParamWithUnits['showLaunchVehicles'].value = true
-    guidParamWithUnits['numVirtualRingTerminuses'].value = 10000
-    guidParamWithUnits['showLaunchVehiclePointLight'].value = false
-    guidParamWithUnits['pKeyAltitudeFactor'].value = 0
-    guidParamWithUnits['massDriverCameraRange'].value = 300
-    guidParamWithUnits['launchSledCameraRange'].value = 10000
-    guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
-    guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
-    guidParamWithUnits['logZoomRate'].value = -3
-
-    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
-    guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 3
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
-    guidParamWithUnits['numVirtualLaunchSleds'].value = 6
-    guidParamWithUnits['launchVehicleRadius'].value = 1.5
-    guidParamWithUnits['launchVehicleBodyLength'].value = 10
-
-    guidParamWithUnits['launchVehicleAdaptiveThrust'].value = true
-    guidParamWithUnits['launcherCoastTime'].value = 93*60 / 2
-    guidParamWithUnits['launchVehicleEmptyMass'].value = 1000
-    guidParamWithUnits['launchVehiclePayloadMass'].value = 100
-
-    // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
-    const r = guidParamWithUnits['launchVehicleRadius'].value
-    const bl = guidParamWithUnits['launchVehicleBodyLength'].value
-    const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
-    const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
-    const π = Math.PI
-    const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
-    const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
-    const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
-    const skinMaterialDensity = 8000 // kg/m3
-    const rocketEngineMass = 3177 // kg (based on RS-25)
-    const avionicsEtcMass = 1000 // kg
-
-    // Hack
-    const dryMass = 0 //skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
-    // Allocate the volume between the payload and the propellant
-    const propellantDensity = 360 // kg/m3
-    const payloadDensity = 360 // kg/m3
-    const propellantMass = interiorVolume * propellantDensity
-    const payloadMass = 0 // (interiorVolume - propellantMass / propellantDensity) * payloadDensity
-    console.log('dryMass', dryMass)
-    console.log('payloadMass', payloadMass)
-    console.log('propellantMass', payloadMass)
-    console.log('totalMass', payloadMass + dryMass)
-
-    guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
-    guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
-    guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
-    // Parameters that are going to effect the launch system's performance...
-    // Launch Angle (launcherRampUpwardAcceleration)
-    // Propellant Mass (launchVehiclePropellantMass)
-    // Altitude of Ramp Exit
-    // Altitude of Evauated Tube Exit
-    // Desired Orbital Altitude
-
-    // The optimiztion loop will need to adjust the launch angle and propellant mass to achieve the desired orbit
-    // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
-    // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
-
-    guidParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value = 450000  // m
-    guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 10  // m/s2
-    guidParamWithUnits['launcherRampDesignMode'].value = 1
-    guidParamWithUnits['launcherRampTurningRadius'].value = 250
-    //guidParamWithUnits['launcherRampTurningRadius'].value = 10
-    //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
-    guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 1.6
-    guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 3
-    guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3000     // m/s
-    guidParamWithUnits['launcherMassDriverAltitude'].value = 50         // m
-    guidParamWithUnits['launcherRampExitAltitude'].value = 70           // m  (Altitute of Mauna Kea summit plus ~300 meters)
-    guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 8500  // m
-    //guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
-    // Hack!!!
-    guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 80 // kg/s  (Based on RS-25)
-
-    guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
-    guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
-    //guidParamWithUnits['launchVehicleRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
-
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-5688456.3101708945, 2794645.7669225773, -715246.7324399783)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.8918731941629815, 0.4381627476408296, -0.11214103670538951)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-5781180.701785349, 2739411.1838029707, -714002.3253086259)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.8918731941629815, 0.4381627476408296, -0.11214103670538951)
-
-    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i==5) && (j==4)) // Boca Chica
-    )} 
-
-    nonGUIParams['overrideClipPlanes'] = true
-    nonGUIParams['nearClip'] = 1
-    nonGUIParams['farClip'] = 40000000
-
-    // Improvements...
-    // Add watermark
-    // Update bounding sphere on the mass driver tube?
-    // Put the moon in the background near the end of the shot
-    // Put Mars in the background at the end of the shot
-    // Reduce the rate at which the camera orbits the launch vehicle
-    // Add the sled to the shot
-
-  }
 
   function christmasIslandLauncher() {
 

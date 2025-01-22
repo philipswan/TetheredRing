@@ -12,6 +12,7 @@ import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBr
 import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.js'
 //import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
 import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
+import * as LaunchTrajectoryRocket from './launchTrajectoryRocket.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 import * as EngineeringDetails from './EngineeringDetails.js'
@@ -75,21 +76,21 @@ export class launcher {
     this.launchTrajectoryMarker0 = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), redMaterial)
     const launchTrajectoryMarkerSize = dParamWithUnits['launcherMarkerRadius'].value
     this.launchTrajectoryMarker0.scale.set(launchTrajectoryMarkerSize, launchTrajectoryMarkerSize, launchTrajectoryMarkerSize)
-    this.launchTrajectoryMarker1 = this.launchTrajectoryMarker0.clone()
-    this.launchTrajectoryMarker1.material = greenMaterial
-    this.launchTrajectoryMarker2 = this.launchTrajectoryMarker0.clone()
-    this.launchTrajectoryMarker2.material = greenMaterial
-    this.launchTrajectoryMarker3 = this.launchTrajectoryMarker0.clone()
-    this.launchTrajectoryMarker3.material = blueMaterial
-    this.launchTrajectoryMarker4 = this.launchTrajectoryMarker0.clone()
-    this.launchTrajectoryMarker4.material = orangeMaterial
+    this.launchTrajectoryRedMarker = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryRedMarker.material = redMaterial
+    this.launchTrajectoryGreenMarker = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryGreenMarker.material = greenMaterial
+    this.launchTrajectoryBlueMarker = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryBlueMarker.material = blueMaterial
+    this.launchTrajectoryOrangeMarker = this.launchTrajectoryMarker0.clone()
+    this.launchTrajectoryOrangeMarker.material = orangeMaterial
     this.launchTrajectoryMarker5 = this.launchTrajectoryMarker0.clone()
     this.launchTrajectoryMarker6 = this.launchTrajectoryMarker0.clone()
     planetCoordSys.add(this.launchTrajectoryMarker0)
-    planetCoordSys.add(this.launchTrajectoryMarker1)
-    planetCoordSys.add(this.launchTrajectoryMarker2)
-    planetCoordSys.add(this.launchTrajectoryMarker3)
-    planetCoordSys.add(this.launchTrajectoryMarker4)
+    planetCoordSys.add(this.launchTrajectoryRedMarker)
+    planetCoordSys.add(this.launchTrajectoryGreenMarker)
+    planetCoordSys.add(this.launchTrajectoryBlueMarker)
+    planetCoordSys.add(this.launchTrajectoryOrangeMarker)
     planetCoordSys.add(this.launchTrajectoryMarker5)
     planetCoordSys.add(this.launchTrajectoryMarker6)
 
@@ -130,7 +131,14 @@ export class launcher {
     this.massDriverRailMaterials[0] = new THREE.MeshPhongMaterial( { color: 0x31313E } )
     this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x79111E } )
 
-    this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+    switch (dParamWithUnits['launchTrajectorySelector'].value) {
+      default:
+        this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+        break
+      case 1:
+        this.updateTrajectoryCurvesRocket(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+        break
+      }
 
     this.numVirtualLaunchVehicles = 0
     this.numVirtualLaunchSleds = 0
@@ -687,10 +695,10 @@ export class launcher {
 
     // Update launch trajectory markers
     this.launchTrajectoryMarker0.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.launchTrajectoryMarker1.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.launchTrajectoryMarker2.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.launchTrajectoryMarker3.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
-    this.launchTrajectoryMarker4.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryRedMarker.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryGreenMarker.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryBlueMarker.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
+    this.launchTrajectoryOrangeMarker.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
     this.launchTrajectoryMarker5.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
     this.launchTrajectoryMarker6.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
 
@@ -1282,6 +1290,7 @@ export class launcher {
 }
 
 launcher.prototype.updateTrajectoryCurves = LaunchTrajectoryUtils.defineUpdateTrajectoryCurves()
+launcher.prototype.updateTrajectoryCurvesRocket = LaunchTrajectoryRocket.defineUpdateTrajectoryCurvesRocket()
 
 // Methods from OrbitMath.js
 launcher.prototype.stumpC = OrbitMath.define_stumpC()

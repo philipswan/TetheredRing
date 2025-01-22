@@ -374,6 +374,7 @@ const guidParamWithUnits = {
   launcherXyChartMaxT: {value: 450, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
+  launchTrajectorySelector: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   
   // Engineering Parameters - Launch System - Appearance
   launcherFeederRailLength: {value: 20, units: "m", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
