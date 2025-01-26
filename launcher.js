@@ -251,7 +251,7 @@ export class launcher {
     this.polyCurveForrf1.add(this.feederRailCurve)
     this.polyCurveForrf1.add(this.massDriver1Curve)
     this.polyCurveForrf1.add(this.massDriver2Curve)
-    this.polyCurveForrf1.add(this.launchRampCurve[0])
+    this.polyCurveForrf1.add(this.launchRampCurve ? this.launchRampCurve[0] : null)
     this.polyCurveForrf1.subdivide(numZones)
     const rf1 = new referenceFrame(this.polyCurveForrf1, numZones, this.cameraRange[1], 0, 0, 0, 'adaptiveNutRefFrame')
 
@@ -260,7 +260,7 @@ export class launcher {
     this.polyCurveForrf2.add(this.feederRailCurve)
     this.polyCurveForrf2.add(this.massDriver1Curve)
     this.polyCurveForrf2.add(this.massDriver2Curve)
-    this.polyCurveForrf2.add(this.launchRampCurve[1])
+    this.polyCurveForrf2.add(this.launchRampCurve ? this.launchRampCurve[1] : null)
     this.polyCurveForrf2.add(this.launchSledReturnCurve)
     this.polyCurveForrf2.subdivide(numZones)
     const rf2 = new referenceFrame(this.polyCurveForrf2, numZones, this.cameraRange[1], 0, 0, 0, 'launchSledRefFrame')
@@ -270,7 +270,7 @@ export class launcher {
     this.polyCurveForrf3.add(this.feederRailCurve)
     this.polyCurveForrf3.add(this.massDriver1Curve)
     this.polyCurveForrf3.add(this.massDriver2Curve)
-    this.polyCurveForrf3.add(this.launchRampCurve[1])
+    this.polyCurveForrf3.add(this.launchRampCurve ? this.launchRampCurve[1] : null)
     if (this.animateElevatedEvacuatedTubeDeployment) {
       this.polyCurveForrf3.add(this.coiledElevatedEvacuatedTubeCurve)
     }
@@ -286,7 +286,7 @@ export class launcher {
     this.polyCurveForrf4.add(this.feederRailCurve)
     this.polyCurveForrf4.add(this.massDriver1Curve)
     this.polyCurveForrf4.add(this.massDriver2Curve)
-    this.polyCurveForrf4.add(this.launchRampCurve[1])
+    this.polyCurveForrf4.add(this.launchRampCurve ? this.launchRampCurve[1] : null)
     this.polyCurveForrf4.add(this.evacuatedTubeCurve)
     this.polyCurveForrf4.add(this.freeFlightPositionCurve)
     this.polyCurveForrf4.subdivide(numZones)
@@ -830,9 +830,6 @@ export class launcher {
     // })
     //console.log("")
 
-    // For objects that are moving around within their reference frame, we need to check whether they are still in the correct zone and reassign them if they are not.
-    const movingObjects = ['virtualLaunchVehicles', 'virtualLaunchSleds', 'virtualAdaptiveNuts']
-
     if (this.animateElevatedEvacuatedTubeDeployment && (elevatedEvacuatedTubeDeploymentAlpha != this.lastElevatedEvacuatedTubeDeploymentAlpha)) {
       const originalTubeLength = this.evacuatedTubeCurve.getLength()
       const animatedEvacuatedTubeCurveControlPoints = []
@@ -884,19 +881,23 @@ export class launcher {
     // Very hacky trick to make the mass driver brackets disappear a certain distance down the track. At high speeds they temporally alias and this makes it harder to figure out what's going on.
     //this.bracketModelObject.massDriverBracketMaterial.opacity = Math.max(0, Math.min(1, 0.25 / timeSinceStart - 0.05))
 
+    // For objects that are moving around within their reference frame, we need to check whether they are still in the correct zone and reassign them if they are not.
+    const movingObjects = ['virtualLaunchVehicles', 'virtualLaunchSleds', 'virtualAdaptiveNuts']
+
     this.refFrames.forEach(refFrame => {
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+      const curveDuration = refFrame.curve.getDuration()
       Object.entries(refFrame.placeholderEntries).forEach(([objectKey, objectValue]) => {
         if (movingObjects.includes(objectKey)) {
           const movingObject = objectKey
           const reassignList = []
           for (let zoneIndex = 0; zoneIndex < refFrame.numZones; zoneIndex++) {
-            const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
             const keepList = []
             refFrame.wedges[zoneIndex][movingObject].forEach(object => {
               // Calculate where along the launcher to place the vehicle.
               const deltaT = adjustedTimeSinceStart - object.timeLaunched
               // Convert deltaT to a zoneIndex along the curveList.
-              if (deltaT<=refFrame.curve.getDuration()) {
+              if (deltaT<=curveDuration) {
                 // if ((objectKey=='virtualLaunchVehicles') && (object.timeLaunched==0.1)) {
                 //   console.log(correctZoneIndex)
                 // }
@@ -926,7 +927,7 @@ export class launcher {
             })
             const pntrToArray = refFrame.wedges[zoneIndex][movingObject]
             pntrToArray.splice(0, pntrToArray.length)  // Delete the entire old list of items
-            pntrToArray.push(...keepList)
+            refFrame.wedges[zoneIndex][movingObject] = keepList
           }
 
           // Reassign the rest of the sleds to the correct wedges
