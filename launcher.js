@@ -17,7 +17,6 @@ import * as LaunchTrajectoryRocket from './launchTrajectoryRocket.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 import * as EngineeringDetails from './EngineeringDetails.js'
-import {getSpiralParameters, getSpiralCoordinates} from './spiral.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
@@ -34,42 +33,16 @@ export class launcher {
     
     // this.worker.postMessage("Hello World!");
 
-    this.const_G = 0.0000000000667408;  // ToDo: Should get this from the universeSpec
     this.clock = clock
     this.versionNumber = 0
 
-    // Possible User defined (e.g. if user changes the planet)
-    this.const_g = 9.8
+    this.const_g = 9.8  // Earth gravity, used for ISP and g-force calculations
     this.mu = planetSpec.gravitationalParameter
 
     this.xyChart = xyChart
 
-    // User defined parameters
-    this.MPayload = 60000;
-    this.Alt_LEO = 400000;
-    this.Alt_Perigee = 48000;
-    this.WholesaleElectricityCost = 0.05;
-    this.LiquidHydrogenCostPerGallon = 0.98;
-    this.LiquidOxygenCostPerGallon = 0.67;
-    this.MassOfOneGallonOfLiquidHydrogen = 0.2679; // kg / Gallon
-    this.MassOfOneGallonOfLiquidOxygen = 4.322; // kg / Gallon
-    this.MassOfHydrogen = 384071 * this.MassOfOneGallonOfLiquidHydrogen;
-    this.MassOfOxygen = 141750 * this.MassOfOneGallonOfLiquidOxygen;
-    this.FuelCostPerkg = (this.MassOfHydrogen / this.MassOfOneGallonOfLiquidHydrogen * this.LiquidHydrogenCostPerGallon + this.MassOfOxygen / this.MassOfOneGallonOfLiquidOxygen * this.LiquidOxygenCostPerGallon) / (this.MassOfHydrogen + this.MassOfOxygen);
-    this.EstimatedCostToFuelSLSToLEO = ((979452 - 85270) + (30710 - 3490)) * this.FuelCostPerkg / 95000;
-    this.RocketsSpecificImpulse = 452; // RS-25
-    this.RocketEnginesMass = 3527; // RS-25
-    this.LauncherEfficiency = 0.75;
-    this.MaxGees = 3;
-    this.LauncherAltitude = 32000;
-    this.Alt_EvacuatedTube = 32000;
-    this.VehicleRadius = 2.4/2; // Assuming a cylindrically shaped vehicle the diameter of an RS-25 Rocket Engine
-    this.CoefficientOfDrag = 0.4;
-
     this.scene = planetCoordSys
 
-    this.timeWithinMassDriver = dParamWithUnits['launcherMassDriverExitVelocity'].value / dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-  
     const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
     const greenMaterial = new THREE.MeshLambertMaterial({color: 0x40df40})
     const blueMaterial = new THREE.MeshLambertMaterial({color: 0x4040df})
@@ -181,9 +154,6 @@ export class launcher {
       this.unallocatedAdaptiveNutModels,
       this.perfOptimizedThreeJS,
       this.massDriverScrewTexture)
-
-    // Create and add the launch vechicle models
-    const launchVehicleMesh = new launchVehicleModel(dParamWithUnits, this.scene, this.unallocatedLaunchVehicleModels, this.perfOptimizedThreeJS)
 
     // Create a placeholder screw model (these models need to be generated on the fly though)
     this.massDriverScrewMaterials = []
@@ -343,6 +313,8 @@ export class launcher {
     rf4.initialize()
     this.refFrames.push(rf0, rf1, rf2, rf3, rf4)
 
+    this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
+
     let maxNumZones = 0
     this.refFrames.forEach(refFrame => {
       maxNumZones = Math.max(maxNumZones, refFrame.numZones)
@@ -434,7 +406,6 @@ export class launcher {
     virtualAdaptiveNut.update(dParamWithUnits, this.accelerationScrewLength, this.scene, this.clock)
     virtualLaunchSled.update(dParamWithUnits, this.accelerationScrewLength, this.scene, this.clock)
     virtualLaunchVehicle.update(dParamWithUnits, planetSpec)
-    this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
 
     this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
     this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
@@ -810,9 +781,30 @@ export class launcher {
 
   }
 
-  Update() {
+  unusedCalculations() {
       // TBD these parameters should come from "the universe"
       console.error('Executing unused code!')
+
+      this.MPayload = 60000;
+      this.Alt_LEO = 400000;
+      this.Alt_Perigee = 48000;
+      this.WholesaleElectricityCost = 0.05;
+      this.LiquidHydrogenCostPerGallon = 0.98;
+      this.LiquidOxygenCostPerGallon = 0.67;
+      this.MassOfOneGallonOfLiquidHydrogen = 0.2679; // kg / Gallon
+      this.MassOfOneGallonOfLiquidOxygen = 4.322; // kg / Gallon
+      this.MassOfHydrogen = 384071 * this.MassOfOneGallonOfLiquidHydrogen;
+      this.MassOfOxygen = 141750 * this.MassOfOneGallonOfLiquidOxygen;
+      this.FuelCostPerkg = (this.MassOfHydrogen / this.MassOfOneGallonOfLiquidHydrogen * this.LiquidHydrogenCostPerGallon + this.MassOfOxygen / this.MassOfOneGallonOfLiquidOxygen * this.LiquidOxygenCostPerGallon) / (this.MassOfHydrogen + this.MassOfOxygen);
+      this.EstimatedCostToFuelSLSToLEO = ((979452 - 85270) + (30710 - 3490)) * this.FuelCostPerkg / 95000;
+      this.RocketsSpecificImpulse = 452; // RS-25
+      this.RocketEnginesMass = 3527; // RS-25
+      this.LauncherEfficiency = 0.75;
+      this.MaxGees = 3;
+      this.LauncherAltitude = 32000;
+      this.Alt_EvacuatedTube = 32000;
+      this.VehicleRadius = 2.4/2; // Assuming a cylindrically shaped vehicle the diameter of an RS-25 Rocket Engine
+
       this.R_LEO = this.planetRadius + this.Alt_LEO;
 
       this.PotentialEnergy_Joules = -this.mu * this.MPayload / this.planetRadius;
@@ -887,7 +879,7 @@ launcher.prototype.kepler_U = OrbitMath.define_kepler_U()
 launcher.prototype.RV_from_R0V0andt = OrbitMath.define_RV_from_R0V0andt()
 launcher.prototype.orbitalElementsFromStateVector = OrbitMath.define_orbitalElementsFromStateVector()
 //launcher.prototype.calculateTimeToApogeeFromOrbitalElements = OrbitMath.define_calculateTimeToApogeeFromOrbitalElements()
-launcher.prototype.getAltitudeDistanceAndVelocity = OrbitMath.define_getAltitudeDistanceAndVelocity()
+//launcher.prototype.getAltitudeDistanceAndVelocity = OrbitMath.define_getAltitudeDistanceAndVelocity()
 launcher.prototype.getAirDensity = OrbitMath.define_getAirDensity()
 launcher.prototype.getAerodynamicDrag = OrbitMath.define_getAerodynamicDrag()
 launcher.prototype.saveGeometryAsSTL = SaveGeometryAsSTL.define_SaveGeometryAsSTL()

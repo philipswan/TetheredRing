@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import * as tram from './tram.js'
+import {getSpiralParameters, getSpiralCoordinates} from './spiral.js'
 
 export function defineAnimate () {
 
