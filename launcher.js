@@ -304,14 +304,13 @@ export class launcher {
     this.refFrames[0].addVirtualObject('virtualMassDriverAccelerationScrews')
     this.refFrames[1].addVirtualObject('virtualAdaptiveNuts')
     this.refFrames[2].addVirtualObject('virtualMassDriverRails')
-    this.refFrames[2].addVirtualObject('virtualLaunchSleds')
     this.refFrames[3].addVirtualObject('virtualMassDriverTubes')
     // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverBracket)
     // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverAccelerationScrew)
     // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 1, virtualAdaptiveNut)
     // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualMassDriverRail)
-    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualLaunchSled)
     // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 3, virtualMassDriverTube)
+    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualLaunchSled)
     addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 4, virtualLaunchVehicle)
 
     this.refFrames.forEach(refFrame => {
@@ -429,7 +428,7 @@ export class launcher {
     let changeOccured
 
     //const listOfObjects = ['virtualMassDriverTubes', 'virtualMassDriverRails', 'virtualMassDriverBrackets', 'virtualMassDriverScrews', 'virtualAdaptiveNuts', 'virtualLaunchSleds', 'virtualLaunchVehicles']
-    const listOfObjects = [virtualLaunchVehicle]
+    const listOfObjects = [virtualLaunchVehicle, virtualLaunchSled]
     const refFramesChanged = (this.refFrames!==this.prevRefFrames)
     listOfObjects.forEach(virtualObject => {
       const changeOccured = refFramesChanged || virtualObject.isTeardownRequired(dParamWithUnits)
@@ -444,62 +443,19 @@ export class launcher {
         }
       }
     })
-
-    // Update the number of launch sleds
-    const newNumVirtualLaunchSleds = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
-    changeOccured = (this.numVirtualLaunchSleds != newNumVirtualLaunchSleds) || (this.refFrames!==this.prevRefFrames)
-    if (changeOccured) {
-      if (this.numVirtualLaunchSleds > 0) {
-        // Remove old virtual launch sleds
-        const refFrame = this.prevRefFrames[2]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchSleds')
-      }
-      if (newNumVirtualLaunchSleds > 0) {
-        virtualLaunchSled.hasChanged = true
-        // Add new virtual launch sleds onto the launch system
-        const refFrame = this.refFrames[2]
-        const n1 = newNumVirtualLaunchSleds
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
-        // Going backwards in time since we want to add vehicles that were launched in the past.
-        const durationOfSledTrajectory = refFrame.curve.getDuration()
-        for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
-          // Calculate where along the launcher to place the vehicle. 
-          const deltaT = adjustedTimeSinceStart - t
-          const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
-          if (!zoneIndex && (zoneIndex!==0)) {
-            console.log('Error')
-            const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
-          }
-          if (zoneIndex>=this.numZones) {
-            console.log(refFrame.curve, deltaT)
-            console.log('Error')
-            const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
-          }
-
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t))
-          }
-          else {
-            console.log('Error')
-          }
-        }
-        refFrame.prevStartWedgeIndex = -1
-      }
-    }
-    this.numVirtualLaunchSleds = newNumVirtualLaunchSleds
     
     // Update the number of adaptive nuts
     const newNumVirtualAdaptiveNuts = dParamWithUnits['showAdaptiveNuts'].value ? dParamWithUnits['numVirtualAdaptiveNuts'].value : 0
     changeOccured = (this.numVirtualAdaptiveNuts != newNumVirtualAdaptiveNuts) || (this.refFrames!==this.prevRefFrames)
     if (changeOccured) {
       if (this.numVirtualAdaptiveNuts > 0) {
-        // Remove old virtual launch sleds
+        // Remove old virtual adaptive nuts
         const refFrame = this.prevRefFrames[1]
         this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualAdaptiveNuts')
       }
       if (newNumVirtualAdaptiveNuts > 0) {
         virtualAdaptiveNut.hasChanged = true
-        // Add new virtual launch sleds onto the launch system
+        // Add new virtual adaptive nuts onto the launch system
         const refFrame = this.refFrames[1]
         const n1 = newNumVirtualAdaptiveNuts
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)

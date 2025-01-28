@@ -100,12 +100,46 @@ export class virtualLaunchSled {
 
     // These parameters are required for all objects
     static unallocatedModels = []
-    
-    static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
-      virtualLaunchSled.clock = clock
-      virtualLaunchSled.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)
-  
-      virtualLaunchSled.timeOfLastUpdate = clock.getElapsedTime() - virtualLaunchSled.updatePeriod
+    static numObjects = 0
+    static refFrames = []
+    static prevRefFrames = []
+    static className = 'virtualLaunchSleds'
+
+    static isTeardownRequired(dParamWithUnits) {
+      return dParamWithUnits['numVirtualLaunchSleds'].value!==virtualLaunchSled.numObjects
+    }
+
+    static addNewVirtualObjects(scene, refFrames) {
+      virtualLaunchSled.hasChanged = true
+      // Add new virtual launch sleds onto the launch system
+      const n1 = virtualLaunchSled.numObjects
+      const tStart = 0
+      const tInc = virtualLaunchSled.tInc
+
+      console.assert(refFrames.length==1)
+      refFrames.forEach(refFrame => {
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+        // Going backwards in time since we want to add vehicles that were launched in the past.
+        const durationOfSledTrajectory = refFrame.curve.getDuration()
+        for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
+          // Calculate where along the launcher to place the vehicle. 
+          const deltaT = adjustedTimeSinceStart - t
+          const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+            refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t))
+          }
+          else {
+            console.log('Error')
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+
+    static update(dParamWithUnits, scene) {
+      virtualLaunchSled.numObjects = dParamWithUnits['numVirtualLaunchSleds'].value
+      virtualLaunchSled.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
+
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
       virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
       virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
@@ -114,7 +148,6 @@ export class virtualLaunchSled {
 
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
-      virtualLaunchSled.scene = scene
     }
   
     placeAndOrientModel(om, refFrame) {
@@ -131,14 +164,7 @@ export class virtualLaunchSled {
 
         const pointOnRelevantCurve = relevantCurve.getPointAt(d)
         const orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
-  
-        // Create a new screw geometry to represent the adaptive nut
-        const timeNow = virtualLaunchSled.clock.getElapsedTime()
-        const updateNow = (timeNow>virtualLaunchSled.timeOfLastUpdate+virtualLaunchSled.updatePeriod)
-        if (updateNow) {
-          virtualLaunchSled.timeOfLastUpdate += virtualLaunchSled.updatePeriod
-        }
-      
+        
         om.position.copy(pointOnRelevantCurve)
         om.setRotationFromQuaternion(orientation)
         const internalPosition = new THREE.Vector3(0, 0, 0)
