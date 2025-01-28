@@ -17,6 +17,7 @@ import * as LaunchTrajectoryRocket from './launchTrajectoryRocket.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 import * as EngineeringDetails from './EngineeringDetails.js'
+import { add } from 'lodash'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
@@ -97,13 +98,13 @@ export class launcher {
     this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x79111E } )
 
     switch (dParamWithUnits['launchTrajectorySelector'].value) {
-      default:
-        this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-        break
-      case 1:
-        this.updateTrajectoryCurvesRocket(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-        break
-      }
+    default:
+      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+      break
+    case 1:
+      this.updateTrajectoryCurvesRocket(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+      break
+    }
 
     this.numVirtualLaunchVehicles = 0
     this.numVirtualLaunchSleds = 0
@@ -198,7 +199,7 @@ export class launcher {
 
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv) {
 
-    this.prevRefFrames = this.refFrames
+    this.prevRefFrames = this.refFrames ? [...this.refFrames] : []
     this.refFrames = []
     const numZones = this.numZones
 
@@ -291,21 +292,31 @@ export class launcher {
     //   })
     // })
 
-    rf0.addVirtualObject('virtualMassDriverBrackets')
-    rf0.addVirtualObject('virtualMassDriverAccelerationScrews')
-    rf1.addVirtualObject('virtualAdaptiveNuts')
-    rf2.addVirtualObject('virtualMassDriverRails')
-    rf2.addVirtualObject('virtualLaunchSleds')
-    rf3.addVirtualObject('virtualMassDriverTubes')
-    //rf3.addVirtualObject('virtualEvacuatedTubes')
-    rf4.addVirtualObject('virtualLaunchVehicles')
-
-    rf0.initialize()
-    rf1.initialize()
-    rf2.initialize()
-    rf3.initialize()
-    rf4.initialize()
     this.refFrames.push(rf0, rf1, rf2, rf3, rf4)
+
+    function addVirtualObjectToReferenceFrame(refFrames, prevRefFrames, refFrameIndex, objectClass) {
+      refFrames[refFrameIndex].addVirtualObject(objectClass.className)
+      objectClass.prevRefFrames = (refFrameIndex in prevRefFrames) ? [prevRefFrames[refFrameIndex]] : []
+      objectClass.refFrames = [refFrames[refFrameIndex]]
+    }
+
+    this.refFrames[0].addVirtualObject('virtualMassDriverBrackets')
+    this.refFrames[0].addVirtualObject('virtualMassDriverAccelerationScrews')
+    this.refFrames[1].addVirtualObject('virtualAdaptiveNuts')
+    this.refFrames[2].addVirtualObject('virtualMassDriverRails')
+    this.refFrames[2].addVirtualObject('virtualLaunchSleds')
+    this.refFrames[3].addVirtualObject('virtualMassDriverTubes')
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverBracket)
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverAccelerationScrew)
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 1, virtualAdaptiveNut)
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualMassDriverRail)
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualLaunchSled)
+    // addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 3, virtualMassDriverTube)
+    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 4, virtualLaunchVehicle)
+
+    this.refFrames.forEach(refFrame => {
+      refFrame.initialize()
+    })
 
     this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
 
@@ -318,7 +329,7 @@ export class launcher {
     this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
 
     // ToDo: Why is this line here? It's also at the top of the function. Delete???
-    this.prevRefFrames = this.refFrames
+    //this.prevRefFrames = this.refFrames
 
   }
 
@@ -417,39 +428,22 @@ export class launcher {
 
     let changeOccured
 
-    // Update the number of launch vehicles
-    const newNumVirtualLaunchVehicles = dParamWithUnits['showLaunchVehicles'].value ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
-    changeOccured = (this.numVirtualLaunchVehicles != newNumVirtualLaunchVehicles) || (this.refFrames!==this.prevRefFrames)
-    if (changeOccured) {
-      if (this.numVirtualLaunchVehicles > 0) {
-        const refFrame = this.prevRefFrames[3]
-        // Remove old virtual launch vehicles
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchVehicles')
-      }
-      if (newNumVirtualLaunchVehicles > 0) {
-        // Add new virtual launch vehicles onto the launch system
-        const refFrame = this.refFrames[4]
-        virtualLaunchVehicle.hasChanged = true
-        const n1 = newNumVirtualLaunchVehicles
-        
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
-        // Going backwards in time since we want to add vehicles that were launched in the past.
-        const durationOfLaunchTrajectory = refFrame.curve.getDuration()
-        for (let t = tStart, i = 0; (t > -(tStart+durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
-          // Calculate where along the launcher to place the vehicle.
-          const deltaT = adjustedTimeSinceStart - t
-          const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
-          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t))
-          }
-          else {
-            console.log('Error')
-          }
+    //const listOfObjects = ['virtualMassDriverTubes', 'virtualMassDriverRails', 'virtualMassDriverBrackets', 'virtualMassDriverScrews', 'virtualAdaptiveNuts', 'virtualLaunchSleds', 'virtualLaunchVehicles']
+    const listOfObjects = [virtualLaunchVehicle]
+    const refFramesChanged = (this.refFrames!==this.prevRefFrames)
+    listOfObjects.forEach(virtualObject => {
+      const changeOccured = refFramesChanged || virtualObject.isTeardownRequired(dParamWithUnits)
+      if (changeOccured) {
+        if (virtualObject.numObjects) {
+          this.removeOldVirtualObjects(this.scene, virtualObject.prevRefFrames, virtualObject.className)
         }
-        refFrame.prevStartWedgeIndex = -1
+        virtualObject.update(dParamWithUnits, planetSpec)
+        if (virtualObject.numObjects) {
+          virtualObject.hasChanged = true
+          virtualObject.addNewVirtualObjects(this.scene, virtualObject.refFrames)
+        }
       }
-    }
-    this.numVirtualLaunchVehicles = newNumVirtualLaunchVehicles
+    })
 
     // Update the number of launch sleds
     const newNumVirtualLaunchSleds = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0

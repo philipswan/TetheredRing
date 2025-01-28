@@ -226,6 +226,10 @@ export class virtualLaunchVehicle {
 
   // These parameters are required for all objects
   static unallocatedModels = []
+  static numObjects = 0
+  static refFrames = []
+  static prevRefFrames = []
+  static className = 'virtualLaunchVehicles'
   
   // The following properties are common to all virtual vehicles...
   static currentEquivalentLatitude
@@ -233,11 +237,17 @@ export class virtualLaunchVehicle {
   static isDynamic
   static hasChanged
   
+  static isTeardownRequired(dParamWithUnits) {
+    return dParamWithUnits['numVirtualLaunchVehicles'].value!==virtualLaunchVehicle.numObjects
+  }
+
   static update(dParamWithUnits, planetSpec) {
+    virtualLaunchVehicle.numObjects = dParamWithUnits['numVirtualLaunchVehicles'].value
 
     virtualLaunchVehicle.planetSpec = planetSpec
     virtualLaunchVehicle.planetRadius = tram.radiusAtLatitude(dParamWithUnits['launcherRampEndLatitude'].value*Math.PI/180, planetSpec.ellipsoid)
 
+    virtualLaunchVehicle.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
     virtualLaunchVehicle.sidewaysOffset = dParamWithUnits['launchVehicleSidewaysOffset'].value
     virtualLaunchVehicle.upwardsOffset = dParamWithUnits['launchVehicleUpwardsOffset'].value
     virtualLaunchVehicle.forwardsOffset = dParamWithUnits['launchVehicleForwardsOffset'].value
@@ -253,6 +263,33 @@ export class virtualLaunchVehicle {
 
     virtualLaunchVehicle.isDynamic =  true
     virtualLaunchVehicle.hasChanged = true
+
+  }
+
+  static addNewVirtualObjects(scene, refFrames) {
+    virtualLaunchVehicle.hasChanged = true
+    const n1 = virtualLaunchVehicle.numObjects
+    const tStart = 0
+    const tInc = virtualLaunchVehicle.tInc
+    
+    console.assert(refFrames.length==1)
+    refFrames.forEach(refFrame => {
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+      // Going backwards in time since we want to add vehicles that were launched in the past.
+      const durationOfLaunchTrajectory = refFrame.curve.getDuration()
+      for (let t = tStart, i = 0; (t > -(tStart+durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
+        // Calculate where along the launcher to place the vehicle.
+        const deltaT = adjustedTimeSinceStart - t
+        const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
+        if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+          refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t))
+        }
+        else {
+          console.log('Error')
+        }
+      }
+      refFrame.prevStartWedgeIndex = -1
+    })
 
   }
 
