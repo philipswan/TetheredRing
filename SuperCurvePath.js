@@ -9,218 +9,218 @@ import { Quaternion } from 'three/src/math/Quaternion.js';
 
 class SuperCurvePath extends SuperCurve {
 
-	constructor() {
+  constructor() {
 
-		super();
+    super();
 
-		this.type = 'SuperCurvePath';
+    this.type = 'SuperCurvePath';
 
-		this.superCurves = [];  // Should these be called subSuperCurves?
-		this.numZones = [];
-		this.startZone = [];
+    this.superCurves = [];  // Should these be called subSuperCurves?
+    this.numZones = [];
+    this.startZone = [];
 
-		this.autoClose = false; // Automatically closes the path
+    this.autoClose = false; // Automatically closes the path
 
-	}
+  }
 
-	add( superCurve ) {
+  add( superCurve ) {
 
     //console.assert(superCurve, "SuperCurvePath.add: superCurve is not defined")
     if (superCurve) {
-  		this.superCurves.push( superCurve );
+      this.superCurves.push( superCurve );
     }
 
-	}
+  }
 
-	closePath() {
+  closePath() {
 
-		// Add a line superCurve if start and end of lines are not connected
-		const startPoint = this.superCurves[ 0 ].getPoint( 0 );
-		const endPoint = this.superCurves[ this.superCurves.length - 1 ].getPoint( 1 );
+    // Add a line superCurve if start and end of lines are not connected
+    const startPoint = this.superCurves[ 0 ].getPoint( 0 );
+    const endPoint = this.superCurves[ this.superCurves.length - 1 ].getPoint( 1 );
 
-		if ( ! startPoint.equals( endPoint ) ) {
+    if ( ! startPoint.equals( endPoint ) ) {
 
-			this.superCurves.push( new SuperCurves[ 'LineSuperCurve' ]( endPoint, startPoint ) );
+      this.superCurves.push( new SuperCurves[ 'LineSuperCurve' ]( endPoint, startPoint ) );
 
-		}
+    }
 
-	}
+  }
 
-	// To get accurate point with reference to
-	// entire path distance at time t,
-	// following has to be done:
+  // To get accurate point with reference to
+  // entire path distance at time t,
+  // following has to be done:
 
-	// 1. Length of each sub path have to be known
-	// 2. Locate and identify type of superCurve
-	// 3. Get t for the superCurve
-	// 4. Return superCurve.getPointAt(t')
+  // 1. Length of each sub path have to be known
+  // 2. Locate and identify type of superCurve
+  // 3. Get t for the superCurve
+  // 4. Return superCurve.getPointAt(t')
 
-	getPoint( t, optionalTarget ) {
+  getPoint( t, optionalTarget ) {
 
-		const d = t * this.getLength();
-		const curveLengths = this.getSuperCurveLengths();
-		let i = 0;
+    const d = t * this.getLength();
+    const curveLengths = this.getSuperCurveLengths();
+    let i = 0;
 
-		// To think about boundaries points.
+    // To think about boundaries points.
 
-		while ( i < curveLengths.length ) {
+    while ( i < curveLengths.length ) {
 
-			if ( curveLengths[ i ] >= d ) {
+      if ( curveLengths[ i ] >= d ) {
 
-				const diff = curveLengths[ i ] - d;
-				const superCurve = this.superCurves[ i ];
+        const diff = curveLengths[ i ] - d;
+        const superCurve = this.superCurves[ i ];
 
-				const segmentLength = superCurve.getLength();
-				const u = segmentLength === 0 ? 0 : 1 - diff / segmentLength;
+        const segmentLength = superCurve.getLength();
+        const u = segmentLength === 0 ? 0 : 1 - diff / segmentLength;
 
-				return superCurve.getPointAt( u, optionalTarget );
+        return superCurve.getPointAt( u, optionalTarget );
 
-			}
+      }
 
-			i ++;
+      i ++;
 
-		}
+    }
 
-		return null;
+    return null;
 
-		// loop where sum != 0, sum > d , sum+1 <d
+    // loop where sum != 0, sum > d , sum+1 <d
 
-	}
+  }
 
-	// We cannot use the default THREE.SuperCurve getPoint() with getLength() because in
-	// THREE.SuperCurve, getLength() depends on getPoint() but in THREE.SuperCurvePath
-	// getPoint() depends on getLength
+  // We cannot use the default THREE.SuperCurve getPoint() with getLength() because in
+  // THREE.SuperCurve, getLength() depends on getPoint() but in THREE.SuperCurvePath
+  // getPoint() depends on getLength
 
-	getLength() {
+  getLength() {
 
-		const lens = this.getSuperCurveLengths();
-		return lens[ lens.length - 1 ];
+    const lens = this.getSuperCurveLengths();
+    return lens[ lens.length - 1 ];
 
-	}
+  }
 
-	// cacheLengths must be recalculated.
-	updateArcLengths() {
+  // cacheLengths must be recalculated.
+  updateArcLengths() {
 
-		this.needsUpdate = true;
-		this.cacheLengths = null;
-		this.getSuperCurveLengths();
+    this.needsUpdate = true;
+    this.cacheLengths = null;
+    this.getSuperCurveLengths();
 
-	}
+  }
 
-	// Compute lengths and cache them
-	// We cannot overwrite getLengths() because UtoT mapping uses it.
+  // Compute lengths and cache them
+  // We cannot overwrite getLengths() because UtoT mapping uses it.
 
-	getSuperCurveLengths() {
+  getSuperCurveLengths() {
 
-		// We use cache values if superCurves and cache array are same length
+    // We use cache values if superCurves and cache array are same length
     // ToDo: This seems very unreliable. Should probably be improved.
 
-		if ( this.cacheLengths && this.cacheLengths.length === this.superCurves.length ) {
+    if ( this.cacheLengths && this.cacheLengths.length === this.superCurves.length ) {
 
-			return this.cacheLengths;
+      return this.cacheLengths;
 
-		}
+    }
 
-		// Get length of sub-superCurve
-		// Push sums into cached array
+    // Get length of sub-superCurve
+    // Push sums into cached array
 
-		const lengths = [];
-		let sums = 0;
+    const lengths = [];
+    let sums = 0;
 
-		for ( let i = 0, l = this.superCurves.length; i < l; i ++ ) {
+    for ( let i = 0, l = this.superCurves.length; i < l; i ++ ) {
 
-			sums += this.superCurves[ i ].getLength();
-			lengths.push( sums );
+      sums += this.superCurves[ i ].getLength();
+      lengths.push( sums );
 
-		}
+    }
 
-		this.cacheLengths = lengths;
+    this.cacheLengths = lengths;
 
-		return lengths;
+    return lengths;
 
-	}
+  }
 
-	getSpacedPoints( divisions = 40 ) {
+  getSpacedPoints( divisions = 40 ) {
 
-		const points = [];
+    const points = [];
 
-		for ( let i = 0; i <= divisions; i ++ ) {
+    for ( let i = 0; i <= divisions; i ++ ) {
 
-			points.push( this.getPoint( i / divisions ) );
+      points.push( this.getPoint( i / divisions ) );
 
-		}
+    }
 
-		if ( this.autoClose ) {
+    if ( this.autoClose ) {
 
-			points.push( points[ 0 ] );
+      points.push( points[ 0 ] );
 
-		}
+    }
 
-		return points;
+    return points;
 
-	}
+  }
 
-	getPoints( divisions = 12 ) {
+  getPoints( divisions = 12 ) {
 
-		const points = [];
-		let last;
+    const points = [];
+    let last;
 
-		for ( let i = 0, superCurves = this.superCurves; i < superCurves.length; i ++ ) {
+    for ( let i = 0, superCurves = this.superCurves; i < superCurves.length; i ++ ) {
 
-			const superCurve = superCurves[ i ];
-			const resolution = superCurve.isEllipseSuperCurve ? divisions * 2
-				: ( superCurve.isLineCurve || superCurve.isLineSuperCurve3 ) ? 1
-					: superCurve.isSplineSuperCurve ? divisions * superCurve.points.length
-						: divisions;
+      const superCurve = superCurves[ i ];
+      const resolution = superCurve.isEllipseSuperCurve ? divisions * 2
+        : ( superCurve.isLineCurve || superCurve.isLineSuperCurve3 ) ? 1
+          : superCurve.isSplineSuperCurve ? divisions * superCurve.points.length
+            : divisions;
 
-			const pts = superCurve.getPoints( resolution );
+      const pts = superCurve.getPoints( resolution );
 
-			for ( let j = 0; j < pts.length; j ++ ) {
+      for ( let j = 0; j < pts.length; j ++ ) {
 
-				const point = pts[ j ];
+        const point = pts[ j ];
 
-				if ( last && last.equals( point ) ) continue; // ensures no consecutive points are duplicates
+        if ( last && last.equals( point ) ) continue; // ensures no consecutive points are duplicates
 
-				points.push( point );
-				last = point;
+        points.push( point );
+        last = point;
 
-			}
+      }
 
-		}
+    }
 
-		if ( this.autoClose && points.length > 1 && ! points[ points.length - 1 ].equals( points[ 0 ] ) ) {
+    if ( this.autoClose && points.length > 1 && ! points[ points.length - 1 ].equals( points[ 0 ] ) ) {
 
-			points.push( points[ 0 ] );
+      points.push( points[ 0 ] );
 
-		}
+    }
 
-		return points;
+    return points;
 
-	}
+  }
 
-	subdivide(totalNumZones) {
+  subdivide(totalNumZones) {
 
-		// Distibute the specified number of zones across the set of superCurves so that each curve receives
-		// an integer number of zones and all zones represent roughly the same length of curve
+    // Distibute the specified number of zones across the set of superCurves so that each curve receives
+    // an integer number of zones and all zones represent roughly the same length of curve
 
-		const numSubCurves = this.superCurves.length
-		if (numSubCurves==0) console.log("Error: Array length cannot be zero")
-		this.numZones = []
-		let curvesTotalLength = 0
-		this.superCurves.forEach(subCurve => { curvesTotalLength += Math.abs(subCurve.getLength()) })
-		const zoneRoughLength = curvesTotalLength / totalNumZones
-		// Make sure that every curve gets assigned at least one segment
-		let newTotalNumZones = 0
-		this.superCurves.forEach((subCurve, index) => {
-			const subCurveLength = Math.abs(subCurve.getLength())
-			this.numZones[index] = 1 + Math.max(0, Math.round((totalNumZones - numSubCurves) * (subCurveLength - zoneRoughLength) / (curvesTotalLength - numSubCurves * zoneRoughLength)))
-			newTotalNumZones += this.numZones[index]
-		})
-		// Hacky...
-		// Adjust the number of zones assigned to the curve with the most zones so that the total number of zones overall equals totalNumZones
+    const numSubCurves = this.superCurves.length
+    if (numSubCurves==0) console.log("Error: Array length cannot be zero")
+    this.numZones = []
+    let curvesTotalLength = 0
+    this.superCurves.forEach(subCurve => { curvesTotalLength += Math.abs(subCurve.getLength()) })
+    const zoneRoughLength = curvesTotalLength / totalNumZones
+    // Make sure that every curve gets assigned at least one segment
+    let newTotalNumZones = 0
+    this.superCurves.forEach((subCurve, index) => {
+      const subCurveLength = Math.abs(subCurve.getLength())
+      this.numZones[index] = 1 + Math.max(0, Math.round((totalNumZones - numSubCurves) * (subCurveLength - zoneRoughLength) / (curvesTotalLength - numSubCurves * zoneRoughLength)))
+      newTotalNumZones += this.numZones[index]
+    })
+    // Hacky...
+    // Adjust the number of zones assigned to the curve with the most zones so that the total number of zones overall equals totalNumZones
     let indexOfMaxNumZones = 0
     let mostZones = 0
-		this.numZones.forEach((zones, index) => {
+    this.numZones.forEach((zones, index) => {
       if (zones>mostZones) {
         mostZones = zones
         indexOfMaxNumZones = index
@@ -228,17 +228,17 @@ class SuperCurvePath extends SuperCurve {
     })
     this.numZones[indexOfMaxNumZones] += totalNumZones - newTotalNumZones
 
-		let startDiv = 0
-		this.superCurves.forEach((subCurve, index) => {
-			this.startZone[index] = startDiv
-			startDiv += this.numZones[index]
+    let startDiv = 0
+    this.superCurves.forEach((subCurve, index) => {
+      this.startZone[index] = startDiv
+      startDiv += this.numZones[index]
       if (this.numZones[index]==0) {
         console.log("Error: numZones cannot be zero")
         this.subdivide(totalNumZones)  // Debug call
       }
-		})
+    })
 
-	}
+  }
 
   getDuration() {
 
@@ -248,10 +248,10 @@ class SuperCurvePath extends SuperCurve {
 
   }
 
-	findRelevantCurve(deltaT) {
+  findRelevantCurve(deltaT) {
 
-		const curveList = this.superCurves
-		// Determine which element of the curve deltaT maps to
+    const curveList = this.superCurves
+    // Determine which element of the curve deltaT maps to
     let relevantCurve
     let relevantCurveIndex
     let relevantCurveDuration
@@ -259,186 +259,186 @@ class SuperCurvePath extends SuperCurve {
     let relevantCurveStartDistance
     let relevantCurveLength
 
-		let curveStartTime = 0
+    let curveStartTime = 0
     let curveStartDistance = 0
-		for (let i = 0; i<curveList.length; i++) {
-			const duration = curveList[i].getDuration()
+    for (let i = 0; i<curveList.length; i++) {
+      const duration = curveList[i].getDuration()
       const curveLength = curveList[i].getLength()
-			// ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
-			if ((deltaT<curveStartTime+duration) || (i==curveList.length-1)) {
-				relevantCurve = curveList[i]
-				relevantCurveIndex = i 
-				relevantCurveStartTime = curveStartTime
+      // ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
+      if ((deltaT<curveStartTime+duration) || (i==curveList.length-1)) {
+        relevantCurve = curveList[i]
+        relevantCurveIndex = i 
+        relevantCurveStartTime = curveStartTime
         relevantCurveStartDistance = curveStartDistance
-				relevantCurveDuration = duration
-				relevantCurveLength = curveLength
-				break
-			}
-			else {
-				curveStartTime += duration
+        relevantCurveDuration = duration
+        relevantCurveLength = curveLength
+        break
+      }
+      else {
+        curveStartTime += duration
         curveStartDistance += curveLength
-			}
-		}
-		return {relevantCurve, relevantCurveIndex, relevantCurveStartTime, relevantCurveStartDistance, relevantCurveDuration, relevantCurveLength}
+      }
+    }
+    return {relevantCurve, relevantCurveIndex, relevantCurveStartTime, relevantCurveStartDistance, relevantCurveDuration, relevantCurveLength}
 
-	}
+  }
 
-	findRelevantCurveAt(d) {
+  findRelevantCurveAt(d) {
 
-		const curveList = this.superCurves
-		// Determine which element of the curve deltaT maps to
+    const curveList = this.superCurves
+    // Determine which element of the curve deltaT maps to
     let relevantCurve
     let relevantCurveIndex
     let relevantCurveStartPosition
     let relevantCurveStartD
     let relevantCurveLength
 
-		let curveStartPosition = 0
-		const distance = d * this.getLength()
+    let curveStartPosition = 0
+    const distance = d * this.getLength()
 
-		for (let i = 0; i<curveList.length; i++) {
-			const length = curveList[i].getLength()
-			// ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
-			if ((distance<curveStartPosition+length) || (i==curveList.length-1)) {
-				relevantCurve = curveList[i]
-				relevantCurveIndex = i 
-				relevantCurveStartPosition = curveStartPosition
-				relevantCurveStartD = curveStartPosition / this.getLength()
-				relevantCurveLength = length
-				break
-			}
-			else {
-				curveStartPosition += length
-			}
-		}
-		return {relevantCurve, relevantCurveIndex, relevantCurveStartPosition, relevantCurveStartD, relevantCurveLength}
+    for (let i = 0; i<curveList.length; i++) {
+      const length = curveList[i].getLength()
+      // ToDo: Allowing out-of-range values (i.e. values that do not strictly land on a curve) to go through here. Probably should improve.
+      if ((distance<curveStartPosition+length) || (i==curveList.length-1)) {
+        relevantCurve = curveList[i]
+        relevantCurveIndex = i 
+        relevantCurveStartPosition = curveStartPosition
+        relevantCurveStartD = curveStartPosition / this.getLength()
+        relevantCurveLength = length
+        break
+      }
+      else {
+        curveStartPosition += length
+      }
+    }
+    return {relevantCurve, relevantCurveIndex, relevantCurveStartPosition, relevantCurveStartD, relevantCurveLength}
 
-	}
+  }
 
-	getSubcurveD(d, subCurveStartPosition, subCurveLength) {
+  getSubcurveD(d, subCurveStartPosition, subCurveLength) {
 
-		const totalLength = this.getLength()
-		const subCurveD = Math.max(0, Math.min(1, (d - subCurveStartPosition / totalLength ) * totalLength / subCurveLength))
-		return subCurveD
+    const totalLength = this.getLength()
+    const subCurveD = Math.max(0, Math.min(1, (d - subCurveStartPosition / totalLength ) * totalLength / subCurveLength))
+    return subCurveD
 
-	}
+  }
 
-	getPointAt(d) {
+  getPointAt(d) {
 
-		const res = this.findRelevantCurveAt(d)
-		return res.relevantCurve.getPointAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+    const res = this.findRelevantCurveAt(d)
+    return res.relevantCurve.getPointAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
 
-	}
+  }
 
-	getTangentAt(d) {
+  getTangentAt(d) {
 
-		const res = this.findRelevantCurveAt(d)
-		return res.relevantCurve.getTangentAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+    const res = this.findRelevantCurveAt(d)
+    return res.relevantCurve.getTangentAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
 
-	}
+  }
 
-	getNormalAt(d) {
+  getNormalAt(d) {
 
-		const res = this.findRelevantCurveAt(d)
-		return res.relevantCurve.getNormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+    const res = this.findRelevantCurveAt(d)
+    return res.relevantCurve.getNormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
 
-	}
+  }
 
-	getBinormalAt(d) {
+  getBinormalAt(d) {
 
-		const res = this.findRelevantCurveAt(d)
-		return res.relevantCurve.getBinormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
+    const res = this.findRelevantCurveAt(d)
+    return res.relevantCurve.getBinormalAt(this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength))
 
-	}
+  }
 
-	getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+  getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
 
-		const res = this.findRelevantCurveAt(d)
-		const subCurveD = this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength)
-		return res.relevantCurve.getQuaternionAt(subCurveD, objectForward, objectUpward, optionalTarget)
+    const res = this.findRelevantCurveAt(d)
+    const subCurveD = this.getSubcurveD(d, res.relevantCurveStartPosition, res.relevantCurveLength)
+    return res.relevantCurve.getQuaternionAt(subCurveD, objectForward, objectUpward, optionalTarget)
 
-	}
+  }
 
-	getZoneIndex(deltaT) {
+  getZoneIndex(deltaT) {
 
-		const result = this.findRelevantCurve(deltaT)
-		const numZones = this.numZones[result.relevantCurveIndex]
-		const startZone = this.startZone[result.relevantCurveIndex]
-		const length = result.relevantCurve.getLength()
-		const d = result.relevantCurve.tTod(deltaT - result.relevantCurveStartTime) / length
-		const zoneIndex = startZone + Math.floor(d * numZones)
-		return zoneIndex
+    const result = this.findRelevantCurve(deltaT)
+    const numZones = this.numZones[result.relevantCurveIndex]
+    const startZone = this.startZone[result.relevantCurveIndex]
+    const length = result.relevantCurve.getLength()
+    const d = result.relevantCurve.tTod(deltaT - result.relevantCurveStartTime) / length
+    const zoneIndex = startZone + Math.floor(d * numZones)
+    return zoneIndex
 
-	}
+  }
 
-	getZoneIndexAt(d) {
+  getZoneIndexAt(d) {
 
-		const result = this.findRelevantCurveAt(d)
-		const numZones = this.numZones[result.relevantCurveIndex]
-		const startZone = this.startZone[result.relevantCurveIndex]
-		const length = result.relevantCurve.getLength()
-		const totalLength = this.getLength()
-		const subCurveD = (d - result.relevantCurveStartPosition / totalLength ) * totalLength / length
-		const zoneIndex = startZone + Math.max(0, Math.min(numZones-1, Math.floor(subCurveD * numZones)))
-		return zoneIndex
+    const result = this.findRelevantCurveAt(d)
+    const numZones = this.numZones[result.relevantCurveIndex]
+    const startZone = this.startZone[result.relevantCurveIndex]
+    const length = result.relevantCurve.getLength()
+    const totalLength = this.getLength()
+    const subCurveD = (d - result.relevantCurveStartPosition / totalLength ) * totalLength / length
+    const zoneIndex = startZone + Math.max(0, Math.min(numZones-1, Math.floor(subCurveD * numZones)))
+    return zoneIndex
 
-	}
+  }
 
-	copy( source ) {
+  copy( source ) {
 
-		super.copy( source );
+    super.copy( source );
 
-		this.superCurves = [];
+    this.superCurves = [];
 
-		for ( let i = 0, l = source.superCurves.length; i < l; i ++ ) {
+    for ( let i = 0, l = source.superCurves.length; i < l; i ++ ) {
 
-			const superCurve = source.superCurves[ i ];
+      const superCurve = source.superCurves[ i ];
 
-			this.superCurves.push( superCurve.clone() );
+      this.superCurves.push( superCurve.clone() );
 
-		}
+    }
 
-		this.autoClose = source.autoClose;
+    this.autoClose = source.autoClose;
 
-		return this;
+    return this;
 
-	}
+  }
 
-	toJSON() {
+  toJSON() {
 
-		const data = super.toJSON();
+    const data = super.toJSON();
 
-		data.autoClose = this.autoClose;
-		data.superCurves = [];
+    data.autoClose = this.autoClose;
+    data.superCurves = [];
 
-		for ( let i = 0, l = this.superCurves.length; i < l; i ++ ) {
+    for ( let i = 0, l = this.superCurves.length; i < l; i ++ ) {
 
-			const superCurve = this.superCurves[ i ];
-			data.superCurves.push( superCurve.toJSON() );
+      const superCurve = this.superCurves[ i ];
+      data.superCurves.push( superCurve.toJSON() );
 
-		}
+    }
 
-		return data;
+    return data;
 
-	}
+  }
 
-	fromJSON( json ) {
+  fromJSON( json ) {
 
-		super.fromJSON( json );
+    super.fromJSON( json );
 
-		this.autoClose = json.autoClose;
-		this.superCurves = [];
+    this.autoClose = json.autoClose;
+    this.superCurves = [];
 
-		for ( let i = 0, l = json.superCurves.length; i < l; i ++ ) {
+    for ( let i = 0, l = json.superCurves.length; i < l; i ++ ) {
 
-			const superCurve = json.superCurves[ i ];
-			this.superCurves.push( new SuperCurves[ superCurve.type ]().fromJSON( superCurve ) );
+      const superCurve = json.superCurves[ i ];
+      this.superCurves.push( new SuperCurves[ superCurve.type ]().fromJSON( superCurve ) );
 
-		}
+    }
 
-		return this;
+    return this;
 
-	}
+  }
 
 }
 
