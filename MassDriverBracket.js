@@ -141,12 +141,14 @@ export class massDriverBracketModel {
 }
 
 export class virtualMassDriverBracket {
-  constructor(d, unallocatedModelsArray) {
+  constructor(d) {
     this.d = d
-    this.unallocatedModels = unallocatedModelsArray
     this.model = null
   }
 
+  // These parameters are required for all objects
+  static unallocatedModels = []
+  
   static update(dParamWithUnits, massDriverSuperCurve, versionNumber) {
     virtualMassDriverBracket.massDriverSuperCurve = massDriverSuperCurve
     virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBrackets'].value

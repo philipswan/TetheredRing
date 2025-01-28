@@ -24,7 +24,7 @@ export class launchSledModel {
       dParamWithUnits['launchSystemForwardScaleFactor'].value*1.75,
       dParamWithUnits['launchSystemUpwardScaleFactor'].value)
 
-    decorateAndSave(launchSledMesh, myScene, unallocatedModelsList, objName, scaleFactorVector, launchSledNumModels, perfOptimizedThreeJS)
+    decorateAndSave(launchSledMesh, unallocatedModelsList, objName, scaleFactorVector, launchSledNumModels, perfOptimizedThreeJS)
 
     // Load the Launch Sled's Mesh from a model, but then proceedurally generate the grapplers
     function prepareACallbackFunctionForFBXLoader (myScene) {
@@ -69,7 +69,7 @@ export class launchSledModel {
       function ( error ) {console.log( 'Error loading launch sled model')}
     )
 
-    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
+    function decorateAndSave(object, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
       object.scale.set(scaleFactorVector.x, scaleFactorVector.y, scaleFactorVector.z)
       object.visible = false
       object.name = objName
@@ -91,14 +91,16 @@ export class launchSledModel {
 }
 
 export class virtualLaunchSled {
-    constructor(timeLaunched, unallocatedModelsArray) {
+    constructor(timeLaunched) {
         // The virtual vehicle has a position along the launch trajectory curve.
         // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
         this.timeLaunched = timeLaunched
-        this.unallocatedModels = unallocatedModelsArray
         this.model = null
     }
-  
+
+    // These parameters are required for all objects
+    static unallocatedModels = []
+    
     static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
       virtualLaunchSled.clock = clock
       virtualLaunchSled.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)

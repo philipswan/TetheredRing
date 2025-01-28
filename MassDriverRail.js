@@ -83,11 +83,13 @@ export class massDriverRailModel {
 }
 
 export class virtualMassDriverRail {
-    constructor(d, unallocatedModelsArray) {
+    constructor(d) {
       this.d = d
-      this.unallocatedModels = unallocatedModelsArray
       this.model = null
     }
+  
+    // These parameters are required for all objects
+    static unallocatedModels = []
   
     static update(dParamWithUnits, versionNumber) {
       virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value

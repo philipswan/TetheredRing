@@ -116,7 +116,7 @@ export function defineAnimate () {
                 console.log("Discarding object " + movingObject)
                 if (object.model) {
                   object.model.visible = false
-                  object.unallocatedModels.push(object.model)
+                  object.constructor.unallocatedModels.push(object.model)
                   object.model = null
                 }
                 // To discard the virtual object we simply do not assign it to either keepList or reassignList 
@@ -289,7 +289,7 @@ export function defineAnimate () {
         objectValue.forEach(object => {
           if (object.model) {
             object.model.visible = false
-            object.unallocatedModels.push(object.model)
+            object.constructor.unallocatedModels.push(object.model)
             object.model = null
           }
         })
@@ -306,20 +306,20 @@ export function defineAnimate () {
               // if (objectKey=='virtualLaunchVehicles') {
               //   console.log("")
               // }
-              if (object.unallocatedModels.length==1) {
+              if (object.constructor.unallocatedModels.length==1) {
                 // if (objectKey=='virtualLaunchVehicles') {
                 //   console.log("")
                 // }
                 // This is the last model. Duplicate it so that we don't run out.
-                const tempModel = object.unallocatedModels[0].clone()
-                object.unallocatedModels.push(tempModel)
+                const tempModel = object.constructor.unallocatedModels[0].clone()
+                object.constructor.unallocatedModels.push(tempModel)
                 //console.log('Duplicating model for ' + objectKey)
               }
-              if (object.unallocatedModels.length>0) {
+              if (object.constructor.unallocatedModels.length>0) {
                 // if (objectKey=='virtualMassDriverAccelerationScrews') {
                 //   console.log("")
                 // }
-                object.model = object.unallocatedModels.pop()
+                object.model = object.constructor.unallocatedModels.pop()
                 object.model.visible = object.isVisible
                 this.scene.add(object.model)
               }

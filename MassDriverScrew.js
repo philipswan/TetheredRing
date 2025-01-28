@@ -89,15 +89,17 @@ export class massDriverScrewModel {
 }
 
 export class virtualMassDriverScrew {
-    constructor(d, index, unallocatedModelsArray) {
+    constructor(d, index) {
         this.d = d
         this.index = index
-        this.unallocatedModels = unallocatedModelsArray
         this.model = null
         this.versionNumber = 0
         this.position = []
     }
 
+    // These parameters are required for all objects
+    static unallocatedModels = []
+    
     static update(dParamWithUnits, launcherMassDriverLength, massDriverScrewSegments, massDriverScrewMaterials, versionNumber) {
       
         virtualMassDriverScrew.launcherMassDriverLength = launcherMassDriverLength

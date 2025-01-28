@@ -102,7 +102,7 @@ export class launchVehicleModel {
       dParamWithUnits['launchSystemForwardScaleFactor'].value * scaleFactor,
       dParamWithUnits['launchSystemUpwardScaleFactor'].value * scaleFactor)
 
-    decorateAndSave(launchVehicleMesh, myScene, unallocatedModelsList, objName, scaleFactorVector, launchVehicleNumModels, perfOptimizedThreeJS)
+    decorateAndSave(launchVehicleMesh, unallocatedModelsList, objName, scaleFactorVector, launchVehicleNumModels, perfOptimizedThreeJS)
     console.log("Created " + launchVehicleNumModels + " launch vehicle models")
 
     // Load the launch vehicle body mesh from a model, and replace the proceedurally generated body with the body from the model
@@ -192,7 +192,7 @@ export class launchVehicleModel {
 
     }
 
-    function decorateAndSave(object, myScene, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
+    function decorateAndSave(object, unallocatedModelsList, objName, scaleFactorVector, n, perfOptimizedThreeJS) {
       
       object.scale.set(scaleFactorVector.x, scaleFactorVector.y, scaleFactorVector.z)
       object.visible = false
@@ -216,14 +216,16 @@ export class launchVehicleModel {
 
 export class virtualLaunchVehicle {
 
-  constructor(timeLaunched, unallocatedModelsArray) {
+  constructor(timeLaunched) {
 
     // The virtual vehicle has a position along the launch trajectory curve.
     this.timeLaunched = timeLaunched
-    this.unallocatedModels = unallocatedModelsArray
     this.model = null
 
   }
+
+  // These parameters are required for all objects
+  static unallocatedModels = []
   
   // The following properties are common to all virtual vehicles...
   static currentEquivalentLatitude

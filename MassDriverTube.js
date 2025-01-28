@@ -98,12 +98,14 @@ export class massDriverTubeModel {
 }
 
 export class virtualMassDriverTube {
-    constructor(d, unallocatedModelsArray) {
+    constructor(d) {
       this.d = d
-      this.unallocatedModels = unallocatedModelsArray
       this.model = null
     }
-  
+
+    // These parameters are required for all objects
+    static unallocatedModels = []
+    
     static update(dParamWithUnits, versionNumber) {
       virtualMassDriverTube.isVisible = dParamWithUnits['showMassDriverTube'].value
       virtualMassDriverTube.isDynamic =  false

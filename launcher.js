@@ -81,15 +81,6 @@ export class launcher {
     this.launchTrajectoryCurve = null
     this.launchTrajectoryMesh = null
 
-    this.unallocatedLaunchVehicleModels = []
-    this.unallocatedLaunchSledModels = []
-    this.unallocatedAdaptiveNutModels = []
-    this.unallocatedMassDriverTubeModels = []
-    this.unallocatedMassDriverRailModels = []
-    this.unallocatedMassDriver2BracketModels = []
-    this.unallocatedMassDriverAccelerationScrewModels = []
-    this.unallocatedEvacuatedTubeModels = []
-
     this.tubeModelObject = new massDriverTubeModel(dParamWithUnits)
     this.railModelObject = new massDriverRailModel(dParamWithUnits)
     this.bracketModelObject = new massDriverBracketModel(dParamWithUnits)
@@ -140,20 +131,23 @@ export class launcher {
     const tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
     
     // Create and add the launch sleds
-    const launchSledMesh = new launchSledModel(
+    new launchSledModel(
       dParamWithUnits,
       this.scene,
-      this.unallocatedLaunchSledModels,
+      virtualLaunchSled.unallocatedModels,
       this.perfOptimizedThreeJS,
       this.massDriverScrewTexture)
 
     // Create and add the adaptive nuts
-    const adaptiveNutMesh = new adaptiveNutModel(
+    new adaptiveNutModel(
       dParamWithUnits,
       this.scene,
-      this.unallocatedAdaptiveNutModels,
+      virtualAdaptiveNut.unallocatedModels,
       this.perfOptimizedThreeJS,
       this.massDriverScrewTexture)
+
+    // Create and add the launch vechicle models
+    new launchVehicleModel(dParamWithUnits, this.scene, virtualLaunchVehicle.unallocatedModels, this.perfOptimizedThreeJS)
 
     // Create a placeholder screw model (these models need to be generated on the fly though)
     this.massDriverScrewMaterials = []
@@ -186,13 +180,13 @@ export class launcher {
     rightModel.userData = 1
     rightModel.scale.set(-1, 1, 1)
     screwModels.add(rightModel)
-    this.unallocatedMassDriverAccelerationScrewModels.push(screwModels)
+    virtualMassDriverScrew.unallocatedModels.push(screwModels)
 
     // Create bracket models
     for (let i = 0; i<1; i++) {
       const tempModel = this.bracketModelObject.createModel(this.polyCurveForrf0, this.accelerationScrewLength, (this.massDriverAccelerationScrewSegments+1), i)
       tempModel.name = 'massDriver2Bracket'
-      this.unallocatedMassDriver2BracketModels.push(tempModel)
+      virtualMassDriverBracket.unallocatedModels.push(tempModel)
     }
 
     this.coilCenterMarker = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), orangeMaterial)
@@ -332,14 +326,14 @@ export class launcher {
     if (this.numVirtualMassDriverTubes > 0) {
       // Remove old virtual mass driver tubes
       const refFrame = this.prevRefFrames[2]
-      this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverTubes', this.unallocatedMassDriverTubeModels)
+      this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverTubes')
       // Destroy all of the massdriver tube models since these can't be reused when we change the shape of the tube
-      this.unallocatedMassDriverTubeModels.forEach(model => {
+      virtualMassDriverTube.unallocatedModels.forEach(model => {
         this.scene.remove(model)
         model.geometry.dispose()
         model = null
       })
-      this.unallocatedMassDriverTubeModels.splice(0, this.unallocatedMassDriverTubeModels.length)
+      virtualMassDriverTube.unallocatedModels.splice(0, virtualMassDriverTube.unallocatedModels.length)
     }
   }
   
@@ -351,7 +345,7 @@ export class launcher {
       const n = this.newNumVirtualMassDriverTubes
       for (let i = 0; i < n; i++) {
         const d = (i+0.5)/n
-        const vmdt = new virtualMassDriverTube(d, this.unallocatedMassDriverTubeModels)
+        const vmdt = new virtualMassDriverTube(d)
         vmdt.model = this.tubeModelObject.createModel(refFrame.curve, i)
         vmdt.model.name = 'massDriverTube'
         const zoneIndex = refFrame.curve.getZoneIndexAt(d)
@@ -430,7 +424,7 @@ export class launcher {
       if (this.numVirtualLaunchVehicles > 0) {
         const refFrame = this.prevRefFrames[3]
         // Remove old virtual launch vehicles
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchVehicles', this.unallocatedLaunchVehicleModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchVehicles')
       }
       if (newNumVirtualLaunchVehicles > 0) {
         // Add new virtual launch vehicles onto the launch system
@@ -446,7 +440,7 @@ export class launcher {
           const deltaT = adjustedTimeSinceStart - t
           const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t, this.unallocatedLaunchVehicleModels))
+            refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t))
           }
           else {
             console.log('Error')
@@ -464,7 +458,7 @@ export class launcher {
       if (this.numVirtualLaunchSleds > 0) {
         // Remove old virtual launch sleds
         const refFrame = this.prevRefFrames[2]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchSleds', this.unallocatedLaunchSledModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualLaunchSleds')
       }
       if (newNumVirtualLaunchSleds > 0) {
         virtualLaunchSled.hasChanged = true
@@ -489,7 +483,7 @@ export class launcher {
           }
 
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t, this.unallocatedLaunchSledModels))
+            refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t))
           }
           else {
             console.log('Error')
@@ -507,7 +501,7 @@ export class launcher {
       if (this.numVirtualAdaptiveNuts > 0) {
         // Remove old virtual launch sleds
         const refFrame = this.prevRefFrames[1]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualAdaptiveNuts', this.unallocatedAdaptiveNutModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualAdaptiveNuts')
       }
       if (newNumVirtualAdaptiveNuts > 0) {
         virtualAdaptiveNut.hasChanged = true
@@ -532,7 +526,7 @@ export class launcher {
           }
 
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualAdaptiveNuts'].push(new virtualAdaptiveNut(t, this.unallocatedAdaptiveNutModels))
+            refFrame.wedges[zoneIndex]['virtualAdaptiveNuts'].push(new virtualAdaptiveNut(t))
           }
           else {
             console.log('Error')
@@ -559,10 +553,10 @@ export class launcher {
       if (this.numVirtualMassDriverRailsPerZone > 0) {
         // Remove old virtual mass driver rails
         const refFrame = this.prevRefFrames[2]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverRails', this.unallocatedMassDriverRailModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverRails')
         // Destroy all of the massdriver rail models since these can't be reused when we change the shape of the tube
-        this.unallocatedMassDriverRailModels.forEach(model => {this.scene.remove(model)})
-        this.unallocatedMassDriverRailModels.splice(0, this.unallocatedMassDriverRailModels.length)
+        virtualMassDriverRail.unallocatedModels.forEach(model => {this.scene.remove(model)})
+        virtualMassDriverRail.unallocatedModels.splice(0, virtualMassDriverRail.unallocatedModels.length)
       }
       if (newNumVirtualMassDriverRailsPerZone > 0) {
         const nrpz = newNumVirtualMassDriverRailsPerZone   // Number of rails per zone
@@ -579,7 +573,7 @@ export class launcher {
             const zoneIndex = zoneIndexOffset + i
             for (let j = 0; j < nrpz ; j++) {
               const d = (lengthOffsetToSubcurve + (i*nrpz+j+0.5)/(nscz*nrpz) * lengthOfSubCurve) / totalCurveLength
-              const vmdr = new virtualMassDriverRail(d, this.unallocatedMassDriverRailModels)
+              const vmdr = new virtualMassDriverRail(d)
               vmdr.model = this.railModelObject.createModel(subCurve, i*nrpz+j, nscz*nrpz, this.massDriverRailMaterials)
               vmdr.model.name = 'MassDriverRail'
               if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
@@ -605,7 +599,7 @@ export class launcher {
       if (this.numVirtualMassDriverAccelerationScrews > 0) {
         // Remove old virtual mass driver screws
         const refFrame = this.prevRefFrames[0]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverAccelerationScrews', this.unallocatedMassDriverAccelerationScrewModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverAccelerationScrews')
       }
       if (newNumVirtualMassDriverAccelerationScrews > 0) {
         virtualMassDriverScrew.hasChanged = true
@@ -622,7 +616,7 @@ export class launcher {
           else {
             d = (i+0.5)/n
           }
-          const vmdas = new virtualMassDriverScrew(d, i, this.unallocatedMassDriverAccelerationScrewModels)
+          const vmdas = new virtualMassDriverScrew(d, i)
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverAccelerationScrews'].push(vmdas)
@@ -643,7 +637,7 @@ export class launcher {
       if (this.numVirtualMassDriverBrackets > 0) {
         // Remove old virtual mass driver brackets
         const refFrame = this.prevRefFrames[0]
-        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverBrackets', this.unallocatedMassDriver2BracketModels)
+        this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverBrackets')
       }
       if (newNumVirtualMassDriverBrackets > 0) {
         virtualMassDriverBracket.hasChanged = true
@@ -653,7 +647,7 @@ export class launcher {
         for (let i = 0; i < Math.min(n, numBrackets); i++) {
           const d = (i+0.5)/n - halfBracketThickness
           //const zoneIndex = Math.floor(d * refFrame.numZones) % refFrame.numZones
-          const vmdb = new virtualMassDriverBracket(d, this.unallocatedMassDriver2BracketModels)
+          const vmdb = new virtualMassDriverBracket(d)
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex]['virtualMassDriverBrackets'].push(vmdb)
@@ -681,7 +675,7 @@ export class launcher {
 
   }
 
-  removeOldVirtualObjects(scene, refFrames, objectName, unallocatedModelsArray) {
+  removeOldVirtualObjects(scene, refFrames, objectName) {
     refFrames.forEach(refFrame => {
       for (let zoneIndex = 0; zoneIndex < refFrame.wedges.length; zoneIndex++) {
         if (objectName in refFrame.wedges[zoneIndex]) {
@@ -689,7 +683,7 @@ export class launcher {
           wedgeList.forEach(vobj => {
             if (vobj.model) {
               vobj.model.visible = false
-              unallocatedModelsArray.push(vobj.model)
+              vobj.constructor.unallocatedModels.push(vobj.model)
               scene.remove(vobj.model)
             }
           })

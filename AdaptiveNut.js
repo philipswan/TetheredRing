@@ -257,14 +257,16 @@ export class adaptiveNutModel {
 }
 
 export class virtualAdaptiveNut {
-    constructor(timeLaunched, unallocatedModelsArray) {
+    constructor(timeLaunched) {
         // The virtual vehicle has a position along the launch trajectory curve.
         // 0 represents the begginning of the mass driver, 1 represents 't==durationOfLaunchTrajectory'
         this.timeLaunched = timeLaunched
-        this.unallocatedModels = unallocatedModelsArray
         this.model = null
     }
-  
+
+    // These parameters are required for all objects
+    static unallocatedModels = []
+      
     static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
       virtualAdaptiveNut.clock = clock
       virtualAdaptiveNut.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)
