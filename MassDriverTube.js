@@ -104,20 +104,51 @@ export class virtualMassDriverTube {
     }
 
     // These parameters are required for all objects
+    static updateParameters = []
+    static tearDownParameters = []
     static unallocatedModels = []
-    
+    static numObjects = 0
+    static refFrames = []
+    static prevRefFrames = []
+    static className = 'virtualMassDriverTubes'
+    static modelsAreRecyleable = false
+      
+    static isTeardownRequired(dParamWithUnits) {
+      const newNumObjects = dParamWithUnits['showMassDriverTube'] ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
+      return newNumObjects!==virtualMassDriverTube.numObjects
+    }
+  
     static update(dParamWithUnits, versionNumber) {
+      virtualMassDriverTube.numObjects = dParamWithUnits['showMassDriverTube'] ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
       virtualMassDriverTube.isVisible = dParamWithUnits['showMassDriverTube'].value
       virtualMassDriverTube.isDynamic =  false
       virtualMassDriverTube.hasChanged = true
       virtualMassDriverTube.versionNumber = versionNumber
     }
 
-    // allocateModel(om) {
-    //   if () {
-    //     om.material.side = THREE.TwoPassDoubleSide
-    //   }
-    // }
+    static addNewVirtualObjects(refFrames, scene, tubeModelObject) {
+      virtualMassDriverTube.hasChanged = true
+      const n = virtualMassDriverTube.numObjects
+      console.assert(refFrames.length==1)
+      refFrames.forEach(refFrame => {
+        // Add new mass driver tubes to the launch system
+        for (let i = 0; i < n; i++) {
+          const d = (i+0.5)/n
+          const vmdt = new virtualMassDriverTube(d)
+          vmdt.model = tubeModelObject.createModel(refFrame.curve, i)
+          vmdt.model.name = 'massDriverTube'
+          const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+            refFrame.wedges[zoneIndex][virtualMassDriverTube.className].push(vmdt)
+            scene.add(vmdt.model)
+          }
+          else {
+            console.log('Error')
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
   
     placeAndOrientModel(om, refFrame) {
       const d = this.d 

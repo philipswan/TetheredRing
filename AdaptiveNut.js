@@ -265,11 +265,24 @@ export class virtualAdaptiveNut {
     }
 
     // These parameters are required for all objects
+    static updateParameters = []
     static unallocatedModels = []
-      
+    static numObjects = 0
+    static refFrames = []
+    static prevRefFrames = []
+    static className = 'virtualAdaptiveNuts'
+    static modelsAreRecyleable = true
+
+    static isTeardownRequired(dParamWithUnits) {
+      const newNumObjects = dParamWithUnits['showAdaptiveNuts'].value ? dParamWithUnits['numVirtualAdaptiveNuts'].value : 0
+      return newNumObjects!==virtualAdaptiveNut.numObjects
+    }
+
     static update(dParamWithUnits, launcherMassDriverLength, scene, clock) {
+      virtualAdaptiveNut.numObjects = dParamWithUnits['showAdaptiveNuts'].value ? dParamWithUnits['numVirtualAdaptiveNuts'].value : 0
       virtualAdaptiveNut.clock = clock
       virtualAdaptiveNut.updatePeriod = 1  // seconds (really we need to vary this depending on how far along the mass driver we are...)
+      virtualAdaptiveNut.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
   
       virtualAdaptiveNut.timeOfLastUpdate = clock.getElapsedTime() - virtualAdaptiveNut.updatePeriod
       virtualAdaptiveNut.launcherMassDriverLength = launcherMassDriverLength
@@ -320,6 +333,32 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.scene = scene
     }
   
+    static addNewVirtualObjects(refFrames) {
+      virtualAdaptiveNut.hasChanged = true
+      const n1 = virtualAdaptiveNut.numObjects
+      const tStart = 0
+      const tInc = virtualAdaptiveNut.tInc
+      
+      console.assert(refFrames.length==1)
+      refFrames.forEach(refFrame => {
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+        // Going backwards in time since we want to add vehicles that were launched in the past.
+        const durationOfSledTrajectory = refFrame.curve.getDuration()
+        for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
+          // Calculate where along the launcher to place the vehicle. 
+          const deltaT = adjustedTimeSinceStart - t
+          const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+            refFrame.wedges[zoneIndex][virtualAdaptiveNut.className].push(new virtualAdaptiveNut(t))
+          }
+          else {
+            console.log('Error')
+          }
+        }
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+
     placeAndOrientModel(om, refFrame) {
       if (virtualAdaptiveNut.isVisible) {
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualAdaptiveNut.slowDownPassageOfTime, refFrame.timeSinceStart)

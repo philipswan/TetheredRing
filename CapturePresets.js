@@ -35,7 +35,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
 
 
-  switch (0) {
+  switch (8) {
     case 0:
       defaultBehaviour()
       break
@@ -662,10 +662,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showSolarArrays'].value = false
     guidParamWithUnits['showLaunchTrajectory'].value = false
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
-    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
     guidParamWithUnits['showMassDriverRail'].value = true
-    guidParamWithUnits['showMassDriverBrackets'].value = false
+    guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
     guidParamWithUnits['showLaunchVehicles'].value = true
     guidParamWithUnits['showLaunchVehiclePointLight'].value = true
@@ -674,20 +674,27 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500
+    //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 50
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
     //guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 1000
-    guidParamWithUnits['launchVehicleScaleFactor'].value = 100
+    guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
     guidParamWithUnits['numVirtualLaunchVehicles'].value = 20
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(384587.067768322, -4036766.0558425565, -4923631.703887237)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(393066.7034365224, -4084241.1876733834, -4890071.8842349565)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
-        
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(384587.067768322, -4036766.0558425565, -4923631.703887237)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(393066.7034365224, -4084241.1876733834, -4890071.8842349565)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)
+
+    nonGUIParams['initialReferencePoint'] = 'feederRailEntrancePosition'
+
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-31.09781746577937, -0.5321631878614426, 3.1297902911901474)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06307437329773906, -0.6324553405522327, -0.7720245239887504)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(11.251127198222093, -22.939404213801026, 9.163057168014348)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06307437329773906, -0.6324553405522327, -0.7720245239887504)
+
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
       ((i==23) && (j==8)) ||
       ((i==0) && (j==8))
@@ -695,7 +702,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 0.1
-    nonGUIParams['farClip'] = 10000000
+    nonGUIParams['farClip'] = 100000000
 
     // Improvements...
     // Add watermark

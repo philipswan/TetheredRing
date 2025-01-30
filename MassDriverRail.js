@@ -90,8 +90,21 @@ export class virtualMassDriverRail {
   
     // These parameters are required for all objects
     static unallocatedModels = []
-  
+    static tearDownParameters = []
+    static unallocatedModels = []
+    static numObjects = 0
+    static refFrames = []
+    static prevRefFrames = []
+    static className = 'virtualMassDriverRails'
+    static modelsAreRecyleable = false
+
+    static isTeardownRequired(dParamWithUnits) {
+      const newNumObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRailsPerZone'].value : 0
+      return newNumObjects!==virtualMassDriverRail.numObjects
+    }
+
     static update(dParamWithUnits, versionNumber) {
+      virtualMassDriverRail.numObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRailsPerZone'].value : 0
       virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value
       virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
       virtualMassDriverRail.isDynamic =  false
@@ -99,6 +112,41 @@ export class virtualMassDriverRail {
       virtualMassDriverRail.versionNumber = versionNumber
     }
   
+    static addNewVirtualObjects(refFrames, scene, railModelObject, massDriverRailMaterials) {
+      virtualMassDriverRail.hasChanged = true
+
+      const nrpz = virtualMassDriverRail.numObjects   // Number of rails per zone
+      // Add new mass driver rails to the launch system
+      console.assert(refFrames.length==1)
+      refFrames.forEach(refFrame => {
+        const totalCurveLength = refFrame.curve.getLength()
+        refFrame.curve.superCurves.forEach((subCurve, subCurveIndex) => {
+          const lengthOfSubCurve = subCurve.getLength()
+          const lengthOffsetToSubcurve = (subCurveIndex==0) ? 0 : refFrame.curve.cacheLengths[subCurveIndex-1]
+          const nscz = refFrame.curve.numZones[subCurveIndex]  // Number of subCurve zones
+          const zoneIndexOffset = refFrame.curve.startZone[subCurveIndex]
+          for (let i = 0; i < nscz ; i++) {
+            const zoneIndex = zoneIndexOffset + i
+            for (let j = 0; j < nrpz ; j++) {
+              const d = (lengthOffsetToSubcurve + (i*nrpz+j+0.5)/(nscz*nrpz) * lengthOfSubCurve) / totalCurveLength
+              const vmdr = new virtualMassDriverRail(d)
+              vmdr.model = railModelObject.createModel(subCurve, i*nrpz+j, nscz*nrpz, massDriverRailMaterials)
+              vmdr.model.name = 'MassDriverRail'
+              if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+                refFrame.wedges[zoneIndex][virtualMassDriverRail.className].push(vmdr)
+                scene.add(vmdr.model)
+              }
+              else {
+                console.log('Error')
+              }
+              //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
+            }
+          }
+        })
+        refFrame.prevStartWedgeIndex = -1
+      })
+    }
+
     placeAndOrientModel(om, refFrame) {
       const d = this.d 
       if (d==='undefined' || (d<0) || (d>1)) {

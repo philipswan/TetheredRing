@@ -225,11 +225,14 @@ export class virtualLaunchVehicle {
   }
 
   // These parameters are required for all objects
+  static updateParameters = []
+  static tearDownParameters = []
   static unallocatedModels = []
   static numObjects = 0
   static refFrames = []
   static prevRefFrames = []
   static className = 'virtualLaunchVehicles'
+  static modelsAreRecyleable = true
   
   // The following properties are common to all virtual vehicles...
   static currentEquivalentLatitude
@@ -238,11 +241,12 @@ export class virtualLaunchVehicle {
   static hasChanged
   
   static isTeardownRequired(dParamWithUnits) {
-    return dParamWithUnits['numVirtualLaunchVehicles'].value!==virtualLaunchVehicle.numObjects
+    const newNumObjects = dParamWithUnits['showLaunchVehicles'] ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
+    return newNumObjects!==virtualLaunchVehicle.numObjects
   }
 
   static update(dParamWithUnits, planetSpec) {
-    virtualLaunchVehicle.numObjects = dParamWithUnits['numVirtualLaunchVehicles'].value
+    virtualLaunchVehicle.numObjects = dParamWithUnits['showLaunchVehicles'] ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
 
     virtualLaunchVehicle.planetSpec = planetSpec
     virtualLaunchVehicle.planetRadius = tram.radiusAtLatitude(dParamWithUnits['launcherRampEndLatitude'].value*Math.PI/180, planetSpec.ellipsoid)
@@ -266,7 +270,7 @@ export class virtualLaunchVehicle {
 
   }
 
-  static addNewVirtualObjects(scene, refFrames) {
+  static addNewVirtualObjects(refFrames) {
     virtualLaunchVehicle.hasChanged = true
     const n1 = virtualLaunchVehicle.numObjects
     const tStart = 0
@@ -282,7 +286,7 @@ export class virtualLaunchVehicle {
         const deltaT = adjustedTimeSinceStart - t
         const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
         if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-          refFrame.wedges[zoneIndex]['virtualLaunchVehicles'].push(new virtualLaunchVehicle(t))
+          refFrame.wedges[zoneIndex][virtualLaunchVehicle.className].push(new virtualLaunchVehicle(t))
         }
         else {
           console.log('Error')

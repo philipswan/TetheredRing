@@ -99,17 +99,35 @@ export class virtualLaunchSled {
     }
 
     // These parameters are required for all objects
+    static updateParameters = []
+    static tearDownParameters = []
     static unallocatedModels = []
     static numObjects = 0
     static refFrames = []
     static prevRefFrames = []
     static className = 'virtualLaunchSleds'
+    static modelsAreRecyleable = true
 
     static isTeardownRequired(dParamWithUnits) {
-      return dParamWithUnits['numVirtualLaunchSleds'].value!==virtualLaunchSled.numObjects
+      const newNumObjects = dParamWithUnits['showLaunchSleds'] ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
+      return newNumObjects!==virtualLaunchSled.numObjects
     }
 
-    static addNewVirtualObjects(scene, refFrames) {
+    static update(dParamWithUnits) {
+      virtualLaunchSled.numObjects = dParamWithUnits['showLaunchSleds'] ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
+      virtualLaunchSled.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
+
+      virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
+      virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
+      virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
+      virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
+      virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+
+      virtualLaunchSled.isDynamic =  true
+      virtualLaunchSled.hasChanged = true
+    }
+  
+    static addNewVirtualObjects(refFrames) {
       virtualLaunchSled.hasChanged = true
       // Add new virtual launch sleds onto the launch system
       const n1 = virtualLaunchSled.numObjects
@@ -126,7 +144,7 @@ export class virtualLaunchSled {
           const deltaT = adjustedTimeSinceStart - t
           const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-            refFrame.wedges[zoneIndex]['virtualLaunchSleds'].push(new virtualLaunchSled(t))
+            refFrame.wedges[zoneIndex][virtualLaunchSled.className].push(new virtualLaunchSled(t))
           }
           else {
             console.log('Error')
@@ -136,20 +154,6 @@ export class virtualLaunchSled {
       })
     }
 
-    static update(dParamWithUnits, scene) {
-      virtualLaunchSled.numObjects = dParamWithUnits['numVirtualLaunchSleds'].value
-      virtualLaunchSled.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
-
-      virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value
-      virtualLaunchSled.upwardsOffset = dParamWithUnits['launchSledUpwardsOffset'].value
-      virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
-      virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
-      virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
-
-      virtualLaunchSled.isDynamic =  true
-      virtualLaunchSled.hasChanged = true
-    }
-  
     placeAndOrientModel(om, refFrame) {
       if (virtualLaunchSled.isVisible) {
         const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchSled.slowDownPassageOfTime, refFrame.timeSinceStart)
