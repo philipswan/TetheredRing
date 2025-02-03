@@ -109,12 +109,12 @@ export class virtualLaunchSled {
     static modelsAreRecyleable = true
 
     static isTeardownRequired(dParamWithUnits) {
-      const newNumObjects = dParamWithUnits['showLaunchSleds'] ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
+      const newNumObjects = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
       return newNumObjects!==virtualLaunchSled.numObjects
     }
 
     static update(dParamWithUnits) {
-      virtualLaunchSled.numObjects = dParamWithUnits['showLaunchSleds'] ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
+      virtualLaunchSled.numObjects = dParamWithUnits['showLaunchSleds'].value ? dParamWithUnits['numVirtualLaunchSleds'].value : 0
       virtualLaunchSled.tInc = dParamWithUnits['launchVehicleSpacingInSeconds'].value
 
       virtualLaunchSled.sidewaysOffset = dParamWithUnits['launchSledSidewaysOffset'].value

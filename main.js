@@ -342,9 +342,6 @@ const guidParamWithUnits = {
   launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampTurningRadius: {value: 5000, units: 'm', autoMap: true, min: 10, max: 1000000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampDesignMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLocationMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampEndLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
   launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
@@ -367,6 +364,7 @@ const guidParamWithUnits = {
   numberOfMarsTransferWindows: {value: 10, units: '', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   
   propellantNeededForLandingOnMars: {value: 1000, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
+  propellantNeededForLandingOnVenus: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehiclePropellantMassFlowRate: {value: 20, units: 'kg/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleAdaptiveThrust: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleCoefficientOfDrag: {value: 0.05, units: '', autoMap: true, min: .1, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
@@ -375,7 +373,7 @@ const guidParamWithUnits = {
   launcherServiceLife: {value: 20, units: 'years', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherLaunchesPerYear: {value: 500, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   launchTrajectorySelector: {value: 0, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  
+
   // Engineering Parameters - Launch System - Appearance
   launcherFeederRailLength: {value: 20, units: "m", autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSystemForwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -533,6 +531,11 @@ const guidParamWithUnits = {
   adaptiveNutGrapplerTopDeadCenterRotation: {value: 0.5, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   adaptiveNutIntraAnchorUpwardsSeparation: {value: 0.85, units: 'm', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
   adaptiveNutInterAnchorUpwardsSeparation: {value: 0.12, units: 'm', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderGrapplers},
+
+  // Rocket Launch
+  launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
 
   // Engineering Parameters - Power
   powerRequirement: {value: 1000, units: "W/m", autoMap: true, min: 1, max: 10000, updateFunction: adjustRingDesign, folder: folderEngineering},   // This is the power that is consumed by the rings maglev systems and all equipment supported by the ring, per meter length of the ring.
@@ -857,8 +860,7 @@ function updateTransitsystem() {
 
 function updateLauncher() {
   updatedParam()
-  launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-  launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
+  launchSystemObject.update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
   console.log(`renderer.info.memory: ${JSON.stringify(renderer.info.memory)}`)
 }
@@ -1254,7 +1256,7 @@ sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
 
-const ambientLight = new THREE.AmbientLight(0x4f4f4f, 2)
+const ambientLight = new THREE.AmbientLight(0xffffff, 2)
 ambientLight.name = 'ambientLight'
 scene.add(ambientLight)
 
@@ -1688,7 +1690,7 @@ function updateRing() {
     const tetheredRingRefCoordSys = tetheredRingSystem.getMesh()  
   
     // Tethers
-    const listOfTethers = constructTethers(tetheredRingRefCoordSys)
+    const listOfTethers = constructTethers(tetheredRingRefCoordSys, crv)
     listsOfTethers.push(listOfTethers)
   })
   if (verbose) console.log('constructTethers ')
@@ -2305,8 +2307,7 @@ function renderFrame() {
       
       dParamWithUnits['launcherRampTurningRadius'].value = mtm.bestLauncherRampTurningRadius
       dParamWithUnits['verboseLogging'].value = 1
-      launchSystemObject.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-      launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
+      launchSystemObject.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
       launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
 
       console.print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@', mtm.j, mtm.k)
@@ -2820,7 +2821,7 @@ function onKeyDown( event ) {
       else {
         // Find and start tracking the selected object
         const trackedObjectType = objectTracker.convertHotkeyToObjectType(event.keyCode)
-        objectTracker.findNearestObject(dParamWithUnits, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
+        objectTracker.findNearestObject(dParamWithUnits, scene, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
         if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
           targetPoint = objectTracker.trackingPoint.clone()
           setupTweeningOperation()

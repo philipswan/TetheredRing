@@ -241,12 +241,12 @@ export class virtualLaunchVehicle {
   static hasChanged
   
   static isTeardownRequired(dParamWithUnits) {
-    const newNumObjects = dParamWithUnits['showLaunchVehicles'] ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
+    const newNumObjects = dParamWithUnits['showLaunchVehicles'].value ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
     return newNumObjects!==virtualLaunchVehicle.numObjects
   }
 
   static update(dParamWithUnits, planetSpec) {
-    virtualLaunchVehicle.numObjects = dParamWithUnits['showLaunchVehicles'] ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
+    virtualLaunchVehicle.numObjects = dParamWithUnits['showLaunchVehicles'].value ? dParamWithUnits['numVirtualLaunchVehicles'].value : 0
 
     virtualLaunchVehicle.planetSpec = planetSpec
     virtualLaunchVehicle.planetRadius = tram.radiusAtLatitude(dParamWithUnits['launcherRampEndLatitude'].value*Math.PI/180, planetSpec.ellipsoid)
@@ -281,17 +281,20 @@ export class virtualLaunchVehicle {
       const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
       // Going backwards in time since we want to add vehicles that were launched in the past.
       const durationOfLaunchTrajectory = refFrame.curve.getDuration()
+      let count = 0
       for (let t = tStart, i = 0; (t > -(tStart+durationOfLaunchTrajectory)) && (i<n1); t -= tInc, i++) {
         // Calculate where along the launcher to place the vehicle.
         const deltaT = adjustedTimeSinceStart - t
         const zoneIndex = refFrame.curve.getZoneIndex(deltaT)
         if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
           refFrame.wedges[zoneIndex][virtualLaunchVehicle.className].push(new virtualLaunchVehicle(t))
+          count++
         }
         else {
           console.log('Error')
         }
       }
+      console.log('added '+count+' '+virtualLaunchVehicle.className+' to '+refFrame.name)
       refFrame.prevStartWedgeIndex = -1
     })
 

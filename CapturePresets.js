@@ -35,7 +35,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
 
 
-  switch (8) {
+  switch (0) {
     case 0:
       defaultBehaviour()
       break
@@ -674,7 +674,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchSledCameraRange'].value = 10000
     guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-    //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 50
+    guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4.5
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
     guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
     //guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
@@ -690,10 +690,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
 
     nonGUIParams['initialReferencePoint'] = 'feederRailEntrancePosition'
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-31.09781746577937, -0.5321631878614426, 3.1297902911901474)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06307437329773906, -0.6324553405522327, -0.7720245239887504)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(11.251127198222093, -22.939404213801026, 9.163057168014348)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06307437329773906, -0.6324553405522327, -0.7720245239887504)
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1008.2859871687251, -388.6212618118152, 345.26719563733786)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06307189289785171, -0.6324554954458451, -0.7720245997418945)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(640.438746019383, -1545.674466157332, 680.3350654970855)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(0.06307189289785171, -0.6324554954458451, -0.7720245997418945)
 
     nonGUIParams['getCapturePresetRegions'] = (i, j) => {return (
       ((i==23) && (j==8)) ||

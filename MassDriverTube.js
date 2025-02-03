@@ -114,12 +114,12 @@ export class virtualMassDriverTube {
     static modelsAreRecyleable = false
       
     static isTeardownRequired(dParamWithUnits) {
-      const newNumObjects = dParamWithUnits['showMassDriverTube'] ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
+      const newNumObjects = dParamWithUnits['showMassDriverTube'].value ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
       return newNumObjects!==virtualMassDriverTube.numObjects
     }
   
     static update(dParamWithUnits, versionNumber) {
-      virtualMassDriverTube.numObjects = dParamWithUnits['showMassDriverTube'] ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
+      virtualMassDriverTube.numObjects = dParamWithUnits['showMassDriverTube'].value ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
       virtualMassDriverTube.isVisible = dParamWithUnits['showMassDriverTube'].value
       virtualMassDriverTube.isDynamic =  false
       virtualMassDriverTube.hasChanged = true
@@ -129,6 +129,7 @@ export class virtualMassDriverTube {
     static addNewVirtualObjects(refFrames, scene, tubeModelObject) {
       virtualMassDriverTube.hasChanged = true
       const n = virtualMassDriverTube.numObjects
+      //let count = 0
       console.assert(refFrames.length==1)
       refFrames.forEach(refFrame => {
         // Add new mass driver tubes to the launch system
@@ -141,12 +142,14 @@ export class virtualMassDriverTube {
           if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
             refFrame.wedges[zoneIndex][virtualMassDriverTube.className].push(vmdt)
             scene.add(vmdt.model)
+            //count++
           }
           else {
             console.log('Error')
           }
         }
         refFrame.prevStartWedgeIndex = -1
+        //console.log('added '+count+' '+virtualMassDriverTube.className+' to '+refFrame.name)
       })
     }
   

@@ -97,20 +97,7 @@ export class launcher {
     this.massDriverRailMaterials[0] = new THREE.MeshPhongMaterial( { color: 0x31313E } )
     this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x79111E } )
 
-    switch (dParamWithUnits['launchTrajectorySelector'].value) {
-    default:
-      this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-      break
-    case 1:
-      this.updateTrajectoryCurvesRocket(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-      break
-    }
-
-    this.numVirtualMassDriverTubes = 0
-    this.numVirtualMassDriverRailsPerZone = 0
-    this.numVirtualMassDriverBrackets = 0
-    this.numVirtualMassDriverAccelerationScrews = 0
-    //this.numVirtualEvacuatedTubes = 0
+    this.previousTrajectoryCurvesParameters = new Map();
 
     // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
     // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
@@ -155,8 +142,8 @@ export class launcher {
     //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
     this.numZones = 200
-    this.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv)
-    //this.update(dParamWithUnits, timeSinceStart, planetSpec, crv)
+
+    this.update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
 
     const screwModels = new THREE.Group()
     const screwModelObject = new massDriverScrewModel()
@@ -191,17 +178,28 @@ export class launcher {
 
   }
 
-  updateReferenceFrames(dParamWithUnits, timeSinceStart, planetSpec, crv) {
+  updateReferenceFrames(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
 
-    this.prevRefFrames = this.refFrames ? [...this.refFrames] : []
     this.refFrames = []
     const numZones = this.numZones
+
+    switch (dParamWithUnits['launchTrajectorySelector'].value) {
+      default:
+        if (this.refFramesChanged) {
+          this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+        }
+        break
+      case 1:
+        this.updateTrajectoryCurvesRocket(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+        break
+    }
 
     // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into the screws from
     this.polyCurveForrf0 = new SuperCurvePath()
     this.polyCurveForrf0.name = "massDriver2Path"
     this.polyCurveForrf0.add(this.massDriver1Curve)
     this.polyCurveForrf0.add(this.massDriver2Curve)
+    this.polyCurveForrf0.updateArcLengths()
     this.polyCurveForrf0.subdivide(numZones)
     this.accelerationScrewLength = this.polyCurveForrf0.getLength()
     const rf0 = new referenceFrame(this.polyCurveForrf0, numZones, this.cameraRange[0], 0, 0, 0, 'massDriver2RefFrame')
@@ -212,6 +210,7 @@ export class launcher {
     this.polyCurveForrf1.add(this.massDriver1Curve)
     this.polyCurveForrf1.add(this.massDriver2Curve)
     this.polyCurveForrf1.add(this.launchRampCurve ? this.launchRampCurve[0] : null)
+    this.polyCurveForrf1.updateArcLengths()
     this.polyCurveForrf1.subdivide(numZones)
     const rf1 = new referenceFrame(this.polyCurveForrf1, numZones, this.cameraRange[1], 0, 0, 0, 'adaptiveNutRefFrame')
 
@@ -222,6 +221,7 @@ export class launcher {
     this.polyCurveForrf2.add(this.massDriver2Curve)
     this.polyCurveForrf2.add(this.launchRampCurve ? this.launchRampCurve[1] : null)
     this.polyCurveForrf2.add(this.launchSledReturnCurve)
+    this.polyCurveForrf2.updateArcLengths()
     this.polyCurveForrf2.subdivide(numZones)
     const rf2 = new referenceFrame(this.polyCurveForrf2, numZones, this.cameraRange[1], 0, 0, 0, 'launchSledRefFrame')
 
@@ -238,6 +238,7 @@ export class launcher {
       this.polyCurveForrf3.add(this.evacuatedTubeCurve)
     }
       //this.polyCurveForrf3.add(this.launchSledReturnCurve)
+    this.polyCurveForrf3.updateArcLengths()
     this.polyCurveForrf3.subdivide(numZones)
     const rf3 = new referenceFrame(this.polyCurveForrf3, numZones, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame')
 
@@ -249,6 +250,7 @@ export class launcher {
     this.polyCurveForrf4.add(this.launchRampCurve ? this.launchRampCurve[1] : null)
     this.polyCurveForrf4.add(this.evacuatedTubeCurve)
     this.polyCurveForrf4.add(this.freeFlightPositionCurve)
+    this.polyCurveForrf4.updateArcLengths()
     this.polyCurveForrf4.subdivide(numZones)
     const rf4 = new referenceFrame(this.polyCurveForrf4, numZones, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame')
 
@@ -288,45 +290,48 @@ export class launcher {
 
     this.refFrames.push(rf0, rf1, rf2, rf3, rf4)
 
-    function addVirtualObjectToReferenceFrame(refFrames, prevRefFrames, refFrameIndex, objectClass) {
+    function addVirtualObjectToReferenceFrame(refFrames, refFrameIndex, objectClass) {
       refFrames[refFrameIndex].addVirtualObject(objectClass.className)
-      objectClass.prevRefFrames = (refFrameIndex in prevRefFrames) ? [prevRefFrames[refFrameIndex]] : []
       objectClass.refFrames = [refFrames[refFrameIndex]]
     }
 
-    this.refFrames[0].addVirtualObject('virtualMassDriverAccelerationScrews')
-
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 4, virtualLaunchVehicle)
+    addVirtualObjectToReferenceFrame(this.refFrames, 4, virtualLaunchVehicle)
     virtualLaunchVehicle.updateParameters = [dParamWithUnits, planetSpec]
     virtualLaunchVehicle.tearDownParameters = [dParamWithUnits]
     virtualLaunchVehicle.addObjectsParameters = []
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualLaunchSled)
+    addVirtualObjectToReferenceFrame(this.refFrames, 2, virtualLaunchSled)
     virtualLaunchSled.updateParameters = [dParamWithUnits]
     virtualLaunchSled.tearDownParameters = [dParamWithUnits]
     virtualLaunchSled.addObjectsParameters = []
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 1, virtualAdaptiveNut)
+    addVirtualObjectToReferenceFrame(this.refFrames, 1, virtualAdaptiveNut)
     virtualAdaptiveNut.updateParameters = [dParamWithUnits, this.accelerationScrewLength, this.scene, this.clock]
     virtualAdaptiveNut.tearDownParameters = [dParamWithUnits]
     virtualAdaptiveNut.addObjectsParameters = []
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverBracket)
+    addVirtualObjectToReferenceFrame(this.refFrames, 0, virtualMassDriverBracket)
     virtualMassDriverBracket.updateParameters = [dParamWithUnits, this.massDriverAccelerationScrewSegments, this.accelerationScrewLength, this.versionNumber]
     virtualMassDriverBracket.tearDownParameters = [dParamWithUnits, this.massDriverAccelerationScrewSegments]
     virtualMassDriverBracket.addObjectsParameters = []
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 0, virtualMassDriverScrew)
+    addVirtualObjectToReferenceFrame(this.refFrames, 0, virtualMassDriverScrew)
     virtualMassDriverScrew.updateParameters = [dParamWithUnits, this.accelerationScrewLength, this.massDriverAccelerationScrewSegments, this.accelerationScrewLength, this.massDriverScrewMaterials, this.versionNumber]
     virtualMassDriverScrew.tearDownParameters = [dParamWithUnits, this.massDriverAccelerationScrewSegments]
     virtualMassDriverScrew.addObjectsParameters = []
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 2, virtualMassDriverRail)
+    addVirtualObjectToReferenceFrame(this.refFrames, 2, virtualMassDriverRail)
     virtualMassDriverRail.updateParameters = [dParamWithUnits, this.versionNumber]
     virtualMassDriverRail.tearDownParameters = [dParamWithUnits]
     virtualMassDriverRail.addObjectsParameters = [this.scene, this.railModelObject, this.massDriverRailMaterials]
-    addVirtualObjectToReferenceFrame(this.refFrames, this.prevRefFrames, 3, virtualMassDriverTube)
+    addVirtualObjectToReferenceFrame(this.refFrames, 3, virtualMassDriverTube)
     virtualMassDriverTube.updateParameters = [dParamWithUnits, this.versionNumber]
     virtualMassDriverTube.tearDownParameters = [dParamWithUnits]
     virtualMassDriverTube.addObjectsParameters = [this.scene, this.tubeModelObject]
 
     this.refFrames.forEach(refFrame => {
       refFrame.initialize()
+    })
+
+    this.refFrames.forEach(refFrame => {
+      // ToDo: We should detect whether we need to call update - this is a potentially time consuming operation
+      refFrame.update()
+      refFrame.timeSinceStart = timeSinceStart
     })
 
     this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
@@ -337,18 +342,12 @@ export class launcher {
     })
     this.actionFlags = new Array(maxNumZones).fill(0)
 
-    this.update(dParamWithUnits, timeSinceStart, planetSpec)
-
-    // ToDo: Why is this line here? It's also at the top of the function. Delete???
-    //this.prevRefFrames = this.refFrames
-
   }
 
   removeOldMassDriverTubes() {
     if (virtualMassDriverTube.numObjects > 0) {
       // Remove old virtual mass driver tubes
-      const refFrame = this.prevRefFrames[2]
-      this.removeOldVirtualObjects(this.scene, [refFrame], 'virtualMassDriverTubes')
+      this.removeOldVirtualObjects(this.scene, virtualMassDriverTube.refFrames, 'virtualMassDriverTubes')
       // Destroy all of the massdriver tube models since these can't be reused when we change the shape of the tube
       virtualMassDriverTube.unallocatedModels.forEach(model => {
         this.scene.remove(model)
@@ -361,40 +360,22 @@ export class launcher {
   
   generateNewMassDriverTubes() {
     if (virtualMassDriverTube.numObjects>0) {
-      virtualMassDriverTube.addNewVirtualObjects([this.refFrames[2]], this.scene)
+      virtualMassDriverTube.addNewVirtualObjects(virtualMassDriverTube.refFrames, ...virtualMassDriverTube.addObjectsParameters)
     }
   }
 
-  update(dParamWithUnits, timeSinceStart, planetSpec) {
+  update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
+
     this.versionNumber++
 
-    // Todo: We should detect whether an update of the curves is called for as it's a time consuming operation...
-    //this.updateTrajectoryCurves(dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
-
     this.planetRadius = tram.radiusAtLatitude(dParamWithUnits['launcherRampEndLatitude'].value*Math.PI/180, planetSpec.ellipsoid)
-
-    // Indicate that the curve path's cached values are no longer valid
-    this.polyCurveForrf0.updateArcLengths()
-    this.polyCurveForrf1.updateArcLengths()
-    this.polyCurveForrf2.updateArcLengths()
-    this.polyCurveForrf3.updateArcLengths()
-    this.polyCurveForrf4.updateArcLengths()
 
     this.tubeModelObject.update(dParamWithUnits)
     this.railModelObject.update(dParamWithUnits)
     this.bracketModelObject.update(dParamWithUnits)
 
-    // ToDo: updateReferenceFrames is calling this function. Is this circular?
-    this.refFrames.forEach(refFrame => {
-      // ToDo: We should detect whether we need to call update - this is a potentially time consuming operation
-      refFrame.update()
-      refFrame.timeSinceStart = timeSinceStart
-    })
-
     //const listOfObjects = ['virtualMassDriverTubes', 'virtualMassDriverRails', 'virtualMassDriverBrackets', 'virtualMassDriverScrews', 'virtualAdaptiveNuts', 'virtualLaunchSleds', 'virtualLaunchVehicles']
     const listOfObjects = [virtualLaunchVehicle, virtualLaunchSled, virtualAdaptiveNut, virtualMassDriverBracket, virtualMassDriverRail, virtualMassDriverTube, virtualMassDriverScrew]
-
-    virtualMassDriverScrew.update(dParamWithUnits, this.accelerationScrewLength, this.massDriverAccelerationScrewSegments, this.massDriverScrewMaterials, this.versionNumber)
 
     this.animateLaunchVehicles = dParamWithUnits['animateLaunchVehicles'].value ? 1 : 0
     this.animateLaunchSleds = dParamWithUnits['animateLaunchSleds'].value ? 1 : 0
@@ -403,33 +384,53 @@ export class launcher {
     this.lastElevatedEvacuatedTubeDeploymentAlpha = -1
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     this.showMarkers = dParamWithUnits['showMarkers'].value
+
+    switch (dParamWithUnits['launchTrajectorySelector'].value) {
+      default:
+        this.refFramesChanged = this.trajectoryCurvesParametersHaveChanged(dParamWithUnits, this.previousTrajectoryCurvesParameters)
+        break
+      case 1:
+        this.refFramesChanged = true
+        break
+    }
+
+    const virtualObjectChangeOccured = {}
     
-    const refFramesChanged = (this.refFrames!==this.prevRefFrames)
     listOfObjects.forEach(virtualObject => {
-      const changeOccured = refFramesChanged || virtualObject.isTeardownRequired(virtualObject.tearDownParameters)
+      const changeOccured = this.refFramesChanged || virtualObject.isTeardownRequired(...virtualObject.tearDownParameters)
+      virtualObjectChangeOccured[virtualObject.className] = changeOccured
       if (changeOccured) {
-        if (virtualObject.numObjects) {
-          this.removeOldVirtualObjects(this.scene, virtualObject.prevRefFrames, virtualObject.className)
-          if (!virtualObject.modelsAreRecyleable) {
-            // Get rid of the old models since they can't be reused
-            virtualObject.unallocatedModels.forEach(model => {
-              model.geometry.dispose()
-              model = null
-            })
-            virtualObject.unallocatedModels.splice(0, virtualObject.unallocatedModels.length)
-          }
+        if (virtualObject.numObjects>0) {
+          this.removeOldVirtualObjects(this.scene, virtualObject.refFrames, virtualObject.className)
+          // if (!virtualObject.modelsAreRecyleable) {
+          //   // Get rid of the old models since they can't be reused
+          //   virtualObject.unallocatedModels.forEach(model => {
+          //     model.traverse(child=> {
+          //       if (child.isMesh) child.geometry.dispose()
+          //     })
+          //     model = null
+          //   })
+          //   virtualObject.unallocatedModels.splice(0, virtualObject.unallocatedModels.length)
+          // }
         }
       }
+    })
+
+    if (this.refFramesChanged) {
+      this.updateReferenceFrames(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
+    }
+
+    listOfObjects.forEach(virtualObject => {
       virtualObject.update(...virtualObject.updateParameters)
-      if (changeOccured) {
-        if (virtualObject.numObjects) {
+      if (virtualObjectChangeOccured[virtualObject.className]) {
+        if (virtualObject.numObjects>0) {
+          // console.log('Adding ' + virtualObject.className)
           virtualObject.hasChanged = true
           virtualObject.addNewVirtualObjects(virtualObject.refFrames, ...virtualObject.addObjectsParameters)
         }
       }
     })
     
-
     // Update launch trajectory markers
     this.launchTrajectoryMarker0.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
     this.launchTrajectoryRedMarker.visible = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
@@ -445,6 +446,8 @@ export class launcher {
   }
 
   removeOldVirtualObjects(scene, refFrames, objectName) {
+    // let count1 = 0
+    // let count2 = 0
     refFrames.forEach(refFrame => {
       for (let zoneIndex = 0; zoneIndex < refFrame.wedges.length; zoneIndex++) {
         if (objectName in refFrame.wedges[zoneIndex]) {
@@ -454,7 +457,9 @@ export class launcher {
               vobj.model.visible = false
               vobj.constructor.unallocatedModels.push(vobj.model)
               scene.remove(vobj.model)
+              // count1++
             }
+            // count2++
           })
           wedgeList.splice(0, wedgeList.length)
         }
@@ -463,7 +468,10 @@ export class launcher {
           // console.log('Error: ' + objectName + ' not found in wedge ' + zoneIndex + ' of refFrame ' + refFrame.name)
         }
       }
+      // console.log('Removed ' + count1 + ' ' + objectName + ' objects from ', refFrame.name)
+      // console.log('Removed ' + count2 + ' ' + objectName + ' virtual objects from ', refFrame.name)
     })
+
   }
 
   drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys) {
@@ -630,6 +638,7 @@ export class launcher {
 }
 
 launcher.prototype.animate = LauncherAnimate.defineAnimate()
+launcher.prototype.trajectoryCurvesParametersHaveChanged = LaunchTrajectoryUtils.defineTrajectoryCurvesParametersHaveChanged()
 launcher.prototype.updateTrajectoryCurves = LaunchTrajectoryUtils.defineUpdateTrajectoryCurves()
 launcher.prototype.updateTrajectoryCurvesRocket = LaunchTrajectoryRocket.defineUpdateTrajectoryCurvesRocket()
 

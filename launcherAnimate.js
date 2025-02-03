@@ -16,9 +16,9 @@ export function defineAnimate () {
     // const launcherRefFrame = this.refFrames[4]
     // launcherRefFrame.wedges.forEach((wedge, zoneIndex) => {
     //   if (zoneIndex<10) {
-    //     Object.entries(wedge).forEach(([objectKey, objectValue]) => {
-    //       if (objectKey=='virtualLaunchVehicles') {
-    //         objectValue.forEach(launchVehicle => {
+    //     Object.entries(wedge).forEach(([virtualObjectClassName, virtualObjectList]) => {
+    //       if (virtualObjectClassName=='virtualLaunchVehicles') {
+    //         virtualObjectList.forEach(launchVehicle => {
     //           console.log(zoneIndex, launchVehicle.timeLaunched, launchVehicle.model)
     //         })
     //       }
@@ -285,8 +285,8 @@ export function defineAnimate () {
 
     // Free models that are in wedges that are no longer near the camera
     removeModelList.forEach(entry => {
-      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
-        objectValue.forEach(object => {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([virtualObjectClassName, virtualObjectList]) => {
+        virtualObjectList.forEach(object => {
           if (object.model) {
             object.model.visible = false
             object.constructor.unallocatedModels.push(object.model)
@@ -299,53 +299,67 @@ export function defineAnimate () {
     // Assign models to virtual objects that have just entered the region near the camera
     assignModelList.forEach(entry => {
       const ranOutOfModelsInfo = {}
-      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
-        if (objectValue.length>0) {
-          objectValue.forEach(object => {
-            if (!object.model) {
-              // if (objectKey=='virtualLaunchVehicles') {
-              //   console.log("")
-              // }
-              if (object.constructor.unallocatedModels.length==1) {
-                // if (objectKey=='virtualLaunchVehicles') {
-                //   console.log("")
-                // }
-                // This is the last model. Duplicate it so that we don't run out.
-                const tempModel = object.constructor.unallocatedModels[0].clone()
-                object.constructor.unallocatedModels.push(tempModel)
-                //console.log('Duplicating model for ' + objectKey)
-              }
-              if (object.constructor.unallocatedModels.length>0) {
-                // if (objectKey=='virtualMassDriverAccelerationScrews') {
-                //   console.log("")
-                // }
-                object.model = object.constructor.unallocatedModels.pop()
-                object.model.visible = object.isVisible
-                this.scene.add(object.model)
-              }
-              else {
-                if (objectKey in ranOutOfModelsInfo) {
-                  ranOutOfModelsInfo[objectKey]++
-                }
-                else {
-                  ranOutOfModelsInfo[objectKey] = 1
-                }
-              }
-            }
-            else {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([virtualObjectClassName, virtualObjectList]) => {
+        if (virtualObjectList.length>0) {
+          const refFrame = entry['refFrame']
+          const objectClass = virtualObjectList[0].constructor
+          //let count = 0
+          virtualObjectList.forEach(object => {
+            if (object.model) {
               object.model.visible = object.isVisible
             }
+            else {
+              if (objectClass.modelsAreRecyleable) {
+                // Assign a model from the unallocatedModels list
+                // if (virtualObjectClassName=='virtualLaunchVehicles') {
+                //   console.log("")
+                // }
+                if (objectClass.unallocatedModels.length==1) {
+                  // if (virtualObjectClassName=='virtualLaunchVehicles') {
+                  //   console.log("")
+                  // }
+                  // If this is the last model. Duplicate it so that we don't run out.
+                  const tempModel = objectClass.unallocatedModels[0].clone()
+                  objectClass.unallocatedModels.push(tempModel)
+                  //console.log('Duplicating model for ' + virtualObjectClassName)
+                }
+                if (objectClass.unallocatedModels.length>0) {
+                  // if (virtualObjectClassName=='virtualMassDriverAccelerationScrews') {
+                  //   console.log("")
+                  // }
+                  object.model = objectClass.unallocatedModels.pop()
+                  object.model.visible = object.isVisible
+                  this.scene.add(object.model)
+                  //count++
+                }
+                else {
+                  if (virtualObjectClassName in ranOutOfModelsInfo) {
+                    ranOutOfModelsInfo[virtualObjectClassName]++
+                  }
+                  else {
+                    ranOutOfModelsInfo[virtualObjectClassName] = 1
+                  }
+                }
+              }
+              else {
+                // Create a new model
+                // object.model = objectClass.createModel(refFrame, object)
+                // object.model.name = virtualObjectClassName
+                // object.model.visible = object.isVisible
+                // this.scene.add(object.model)
+                // count++
+              }
+            }
           })
-          const classIsDynamic = objectValue[0].constructor.isDynamic
-          const classHasChanged = objectValue[0].constructor.hasChanged
-          if (!classIsDynamic && !classHasChanged) {
-            // Static object so we will place the model (just once) at the same time we assign it to a virtual object
-            objectValue.forEach(object => {
+          if (!objectClass.isDynamic && !objectClass.hasChanged) {
+            // Static object so we will place and orient the model (just once) at the same time we assign it to a virtual object that has come into range of the camera
+            virtualObjectList.forEach(object => {
               if (object.model) {
-                object.placeAndOrientModel(object.model, entry['refFrame'])
+                object.placeAndOrientModel(object.model, refFrame)
               }
             })
           }
+          //console.log('added '+count+' '+objectClass.className+' objects to '+refFrame.name)
         }
       })
       let allGood = true
@@ -366,16 +380,16 @@ export function defineAnimate () {
     // Now adjust the models position and rotation in all of the active wedges
 
     updateModelList.forEach(entry => {
-      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([objectKey, objectValue]) => {
-        // if ((objectKey=='virtualLaunchSleds') && (objectValue.length>0)) {
+      Object.entries(entry['refFrame'].wedges[entry['zoneIndex']]).forEach(([virtualObjectClassName, virtualObjectList]) => {
+        // if ((virtualObjectClassName=='virtualLaunchSleds') && (virtualObjectList.length>0)) {
         //   console.log("")
         // }
-        if (objectValue.length>0) {
-          const classIsDynamic = objectValue[0].constructor.isDynamic
-          const classHasChanged = objectValue[0].constructor.hasChanged
+        if (virtualObjectList.length>0) {
+          const classIsDynamic = virtualObjectList[0].constructor.isDynamic
+          const classHasChanged = virtualObjectList[0].constructor.hasChanged
           if (classIsDynamic || classHasChanged) {
             // Call the placement method for each active instance (unless the model class is static and unchanged)
-            objectValue.forEach(object => {
+            virtualObjectList.forEach(object => {
               if (object.model) {
                 object.placeAndOrientModel(object.model, entry['refFrame'])
               }

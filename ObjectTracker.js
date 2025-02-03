@@ -1,3 +1,4 @@
+import { get } from 'lodash'
 import * as THREE from 'three'
 
 export class ObjectTracker {
@@ -41,7 +42,7 @@ export class ObjectTracker {
     return this.objectTypeLookupTable.indexOf(objectType)
   }
 
-  findNearestObject(dParamWithUnits, objectType, nearestToPosition, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime) {
+  findNearestObject(dParamWithUnits, scene, objectType, nearestToPosition, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime) {
 
     const objectIndex = this.convertObjectTypeToIndex(objectType)
     let systemObject
@@ -124,7 +125,16 @@ export class ObjectTracker {
     }
 
     if (this.closestTrackedObject[objectIndex]!==null) {
-      const rawPoint = this.closestTrackedObject[objectIndex].trackableObject.getFuturePosition(this.closestTrackedObject[objectIndex].refFrame, tweeningTime/1000)
+      // If the object has a getFuturePosition method, then call that, else just use the object's position
+      let rawPoint
+      if (('trackableObject' in this.closestTrackedObject[objectIndex]) && 
+          ('getFuturePosition' in this.closestTrackedObject[objectIndex].trackableObject) && 
+          (typeof this.closestTrackedObject[objectIndex].trackableObject.getFuturePosition === 'function')) {
+        rawPoint = this.closestTrackedObject[objectIndex].trackableObject.getFuturePosition(this.closestTrackedObject[objectIndex].refFrame, tweeningTime/1000)
+      }
+      else {
+        rawPoint = this.closestTrackedObject[objectIndex].position
+      }
       if ((objectType=='transitVehicle') || (objectType=='elevatorCar')) {
         this.trackingPoint = tetheredRingRefCoordSys.localToWorld(rawPoint.clone())
       }

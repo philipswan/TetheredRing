@@ -157,12 +157,12 @@ export class virtualMassDriverBracket {
   static modelsAreRecyleable = true
 
   static isTeardownRequired(dParamWithUnits, massDriverAccelerationScrewSegments) {
-    const newNumObjects = dParamWithUnits['showMassDriverBrackets'] ? massDriverAccelerationScrewSegments : 0
+    const newNumObjects = dParamWithUnits['showMassDriverBrackets'].value ? massDriverAccelerationScrewSegments : 0
     return newNumObjects!==virtualMassDriverBracket.numObjects
   }
 
   static update(dParamWithUnits, massDriverAccelerationScrewSegments, accelerationScrewLength, versionNumber) {
-    virtualMassDriverBracket.numObjects = dParamWithUnits['showMassDriverBrackets'] ? massDriverAccelerationScrewSegments : 0
+    virtualMassDriverBracket.numObjects = dParamWithUnits['showMassDriverBrackets'].value ? massDriverAccelerationScrewSegments : 0
     virtualMassDriverBracket.halfBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value / 2 / accelerationScrewLength
     virtualMassDriverBracket.isVisible = dParamWithUnits['showMassDriverBrackets'].value
     virtualMassDriverBracket.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverBracketHeight'].value/2
@@ -175,6 +175,7 @@ export class virtualMassDriverBracket {
     virtualMassDriverBracket.hasChanged = true
     // Add new virtual brackets into the mass driver
     const n = virtualMassDriverBracket.numObjects
+    //let count = 0
     console.assert(refFrames.length==1)
     refFrames.forEach(refFrame => {
       for (let i = 0; i < n; i++) {
@@ -184,12 +185,14 @@ export class virtualMassDriverBracket {
         const zoneIndex = refFrame.curve.getZoneIndexAt(d)
         if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
           refFrame.wedges[zoneIndex][virtualMassDriverBracket.className].push(vmdb)
+          //count++
         }
         else {
           console.log('Error')
         }
       }
       refFrame.prevStartWedgeIndex = -1
+      //console.log('added '+count+' '+virtualMassDriverBracket.className+' to '+refFrame.name)
     })
   }
 
