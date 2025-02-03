@@ -335,6 +335,7 @@ export class launcher {
     })
 
     this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
+    this.virtualMassDriverTube = virtualMassDriverTube
 
     let maxNumZones = 0
     this.refFrames.forEach(refFrame => {
@@ -342,26 +343,6 @@ export class launcher {
     })
     this.actionFlags = new Array(maxNumZones).fill(0)
 
-  }
-
-  removeOldMassDriverTubes() {
-    if (virtualMassDriverTube.numObjects > 0) {
-      // Remove old virtual mass driver tubes
-      this.removeOldVirtualObjects(this.scene, virtualMassDriverTube.refFrames, 'virtualMassDriverTubes')
-      // Destroy all of the massdriver tube models since these can't be reused when we change the shape of the tube
-      virtualMassDriverTube.unallocatedModels.forEach(model => {
-        this.scene.remove(model)
-        model.geometry.dispose()
-        model = null
-      })
-      virtualMassDriverTube.unallocatedModels.splice(0, virtualMassDriverTube.unallocatedModels.length)
-    }
-  }
-  
-  generateNewMassDriverTubes() {
-    if (virtualMassDriverTube.numObjects>0) {
-      virtualMassDriverTube.addNewVirtualObjects(virtualMassDriverTube.refFrames, ...virtualMassDriverTube.addObjectsParameters)
-    }
   }
 
   update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
@@ -638,6 +619,8 @@ export class launcher {
 }
 
 launcher.prototype.animate = LauncherAnimate.defineAnimate()
+launcher.prototype.removeOldMassDriverTubes = LauncherAnimate.defineRemoveOldMassDriverTubes()
+launcher.prototype.generateNewMassDriverTubes = LauncherAnimate.defineGenerateNewMassDriverTubes()
 launcher.prototype.trajectoryCurvesParametersHaveChanged = LaunchTrajectoryUtils.defineTrajectoryCurvesParametersHaveChanged()
 launcher.prototype.updateTrajectoryCurves = LaunchTrajectoryUtils.defineUpdateTrajectoryCurves()
 launcher.prototype.updateTrajectoryCurvesRocket = LaunchTrajectoryRocket.defineUpdateTrajectoryCurvesRocket()

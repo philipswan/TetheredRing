@@ -433,3 +433,27 @@ export function defineAnimate () {
   }
 
 }
+
+export function defineRemoveOldMassDriverTubes() {
+  return function () {
+    if (this.virtualMassDriverTube.numObjects > 0) {
+      // Remove old virtual mass driver tubes
+      this.removeOldVirtualObjects(this.scene, this.virtualMassDriverTube.refFrames, 'virtualMassDriverTubes')
+      // Destroy all of the massdriver tube models since these can't be reused when we change the shape of the tube
+      this.virtualMassDriverTube.unallocatedModels.forEach(model => {
+        this.scene.remove(model)
+        model.geometry.dispose()
+        model = null
+      })
+      this.virtualMassDriverTube.unallocatedModels.splice(0, this.virtualMassDriverTube.unallocatedModels.length)
+    }
+  }
+}
+
+export function defineGenerateNewMassDriverTubes() {
+  return function () {
+    if (this.virtualMassDriverTube.numObjects>0) {
+      this.virtualMassDriverTube.addNewVirtualObjects(this.virtualMassDriverTube.refFrames, ...this.virtualMassDriverTube.addObjectsParameters)
+    }
+  }
+}
