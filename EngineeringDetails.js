@@ -254,6 +254,10 @@ export function define_genLauncherSpecs() {
     const interiorVolumeOfEvacuatedTubes = interiorVolumeOfMassDiverTube + interiorVolumeOfRampTube + interiorVolumeOfElevatedEvacuatedTube
     specs['interiorVolumeOfEvacuatedTubes'] = {value: interiorVolumeOfEvacuatedTubes, units: "m3"}
     console.print("interiorVolumeOfEvacuatedTubes, ", Math.round(interiorVolumeOfEvacuatedTubes), "m3")
+    const volumeOfNasasSpacePowerFacility = 22653 //m^3
+    const tubeVolumeRelativeToNasaSpacePowerFacility = interiorVolumeOfEvacuatedTubes / volumeOfNasasSpacePowerFacility
+    console.print("tubeVolumeRelativeToNasaSpacePowerFacility, ", Math.round(tubeVolumeRelativeToNasaSpacePowerFacility*100)/100, "times larger")
+    specs['tubeVolumeRelativeToNasaSpacePowerFacility'] = {value: tubeVolumeRelativeToNasaSpacePowerFacility, units: "m3"}
 
     const pumpDownTime = interiorVolumeOfEvacuatedTubes / vacuumPumpingSpeed * Math.log(outsidePressure/insidePressure)  // https://www.youtube.com/watch?v=bb7E2HAIqp4
     specs['pumpDownTime'] = {value: pumpDownTime, units: "s"}
