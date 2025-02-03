@@ -5,6 +5,66 @@ import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import * as LauncherRamp from './launcherRamp.js'
 
+export function defineTrajectoryCurvesParametersHaveChanged() {
+  return function (dParamWithUnits, previousValues) {
+    let changed = false;
+    const paramsToCheck = [
+      'launcherFeederRailLength',
+      'launcherMassDriver1InitialVelocity',
+      'launcherMassDriver2InitialVelocity',
+      'launcherMassDriverExitVelocity',
+      'launcherMassDriverAltitude',
+      'launcherEvacuatedTubeExitAltitude',
+      'launcherMassDriverForwardAcceleration',
+      'launchVehicleSeaLevelRocketExhaustVelocity',
+      'launchVehicleVacuumRocketExhaustVelocity',
+      'launchVehicleDesiredOrbitalAltitude',
+      'launcherCoastTime',
+      'launcherXyChartMaxT',
+      'launchVehicleEffectiveRadius',
+      'verboseLogging',
+      'launcherMassDriverScrewRoughLength',
+      'animateElevatedEvacuatedTubeDeployment',
+      'launcherRampExitAltitude',
+      'launcherRampUpwardAcceleration',
+      'launcherSledDownwardAcceleration',
+      'launcherRampTurningRadius',
+      'launcherRampEndLatitude',
+      'launcherRampEndLongitude',
+      'evacuatedTubeEntrancePositionAroundRing',
+      'launcherLocationMode',
+      'finalLocationRingCenterLatitude',
+      'launchVehicleEmptyMass',
+      'launchVehiclePayloadMass',
+      'launchVehiclePropellantMass',
+      'launchVehicleRadius',
+      'launchVehicleBodyLength',
+      'launchVehicleNoseconeLength',
+      'launchVehicleAdaptiveThrust',
+      'launchVehiclePropellantMassFlowRate',
+      'launcherMaxEyesInAcceleration',
+      'launcherMaxEyesOutAcceleration',
+      'wholesaleCostOfElectricity'
+    ]
+
+    for (const param of paramsToCheck) {
+      const newValue = dParamWithUnits[param]?.value
+      if (previousValues.has(param)) {
+        if (previousValues.get(param) !== newValue) {
+          console.log(`Parameter "${param}" changed from ${previousValues.get(param)} to ${newValue}`);
+          changed = true;
+        }
+      }
+      else {
+        changed = true
+      }
+      previousValues.set(param, newValue);
+    }
+
+    return changed;
+  }
+}
+
 export function defineUpdateTrajectoryCurves () {
   return function (dParamWithUnits, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
 
@@ -1190,7 +1250,7 @@ export function defineUpdateTrajectoryCurves () {
             vehicleOrientation = RV.R.clone().normalize()
           }
           else {
-            vehicleOrientation = RV.V.clone() //velocityDirectionInECEFReferencFrame
+            vehicleOrientation = RV.V.clone().normalize() //velocityDirectionInECEFReferencFrame
           }
         }
         else if (thrustState===2) {
@@ -1200,7 +1260,7 @@ export function defineUpdateTrajectoryCurves () {
           }
           else {
             // Thrust in the velocity direction in the Earth Centered Inertial Reference Frame
-            vehicleOrientation = RV.V.clone() //velocityDirectionInECEFReferencFrame
+            vehicleOrientation = RV.V.clone().normalize() //velocityDirectionInECEFReferencFrame
           }
         } 
         else if (thrustState===3) {
@@ -1261,7 +1321,7 @@ export function defineUpdateTrajectoryCurves () {
         if (!isFinite(changeInSpeed)) {
           console.error('Error: changeInSpeed is not finite')
         }
-        deltaVFromAcceleration = vehicleOrientation.clone().multiplyScalar(changeInSpeed)
+        deltaVFromAcceleration = vehicleOrientation.clone().normalize().multiplyScalar(changeInSpeed)
         // Add the acceleration vector to the velocity vector
         if (!isFinite(deltaVFromAcceleration.length())) {
           console.error('Error: deltaVFromAcceleration is not finite')
