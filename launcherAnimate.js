@@ -81,6 +81,7 @@ export function defineAnimate () {
     // For objects that are moving around within their reference frame, we need to check whether they are still in the correct zone and reassign them if they are not.
     const movingObjects = ['virtualLaunchVehicles', 'virtualLaunchSleds', 'virtualAdaptiveNuts']
 
+    const debugString = ""
     this.refFrames.forEach(refFrame => {
       const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
       const curveDuration = refFrame.curve.getDuration()
@@ -109,6 +110,9 @@ export function defineAnimate () {
                 }
                 else {
                   console.error("Error: correctZoneIndex out of range")
+                  debugger
+                  console.log(deltaT, refFrame.curve)
+                  const correctZoneIndex2 = refFrame.curve.getZoneIndex(deltaT)
                 }
               }
               else {
@@ -122,6 +126,7 @@ export function defineAnimate () {
                 // To discard the virtual object we simply do not assign it to either keepList or reassignList 
               }
             })
+            // console.log(keepList.length)
             const pntrToArray = refFrame.wedges[zoneIndex][movingObject]
             pntrToArray.splice(0, pntrToArray.length)  // Delete the entire old list of items
             refFrame.wedges[zoneIndex][movingObject] = keepList

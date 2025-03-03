@@ -36,6 +36,7 @@ export function launchLookingBackwards(guidParamWithUnits, guidParam, gui, nonGU
   guidParamWithUnits['showStars'].value = true
   guidParamWithUnits['launcherCoastTime'].value = 100*20
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 10
+  guidParamWithUnits['trackingMode'].value = 1
   guidParamWithUnits['logZoomRate'].value = -3
 
   // Hack to speed up the simulation

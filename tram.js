@@ -748,9 +748,10 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   let propellantConsumed = 0 
   let lastVehiclePositionVector = new THREE.Vector2(R0.x, R0.y)
   let launcherSuspendedTubeLength = 0
+  const acceleration = new THREE.Vector3(0, 0, 0)
   for (let t = 0; t < 100; t += tStep) {
     // Determine the altitude and velocity of the vehicle. 't' in this case represents the time relative to the initial conditions, R0_x, R0_y, V0_x, V0_y
-    const RV = launcher.RV_from_R0V0andt(R0, V0, t)
+    const RV = launcher.RV_from_R0V0Aandt(R0, V0, acceleration, t)
 
     const vehiclePositionVector = new THREE.Vector2(RV.R.x, RV.R.y)
     const vehicleAltitude = vehiclePositionVector.length() - crv.radiusOfPlanet
@@ -1528,8 +1529,52 @@ export function getPlanetSpec(planet) {
           // Input in meters, Output in Pa
           // https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
           // Also ...\Atlantis\Engineering\ArchModel-ThreeJS\AtmosphericData.xlsx
-          const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) * 10000: 0
-          return pressurePa;
+          // U.S. Standard Atmosphere data points (altitude in meters, pressure in Pascals)
+          const atmosphereData = [
+            { altitude: 0, pressure: 101325 },
+            { altitude: 1000, pressure: 89876 },
+            { altitude: 2000, pressure: 79498 },
+            { altitude: 3000, pressure: 70120 },
+            { altitude: 4000, pressure: 61660 },
+            { altitude: 5000, pressure: 54048 },
+            { altitude: 6000, pressure: 47217 },
+            { altitude: 7000, pressure: 41106 },
+            { altitude: 8000, pressure: 35651 },
+            { altitude: 9000, pressure: 30795 },
+            { altitude: 10000, pressure: 26436 },
+            { altitude: 15000, pressure: 12043 },
+            { altitude: 20000, pressure: 5474 },
+            { altitude: 25000, pressure: 2511 },
+            { altitude: 30000, pressure: 1179 },
+            { altitude: 40000, pressure: 287 },
+            { altitude: 50000, pressure: 79.8 },
+            { altitude: 60000, pressure: 22.8 },
+            { altitude: 70000, pressure: 5.52 },
+            { altitude: 80000, pressure: 0.88 },
+            { altitude: 1000000, pressure: 0 },
+          ];
+      
+          // If the input altitude is out of range, return the closest value
+          if (a <= atmosphereData[0].altitude) return atmosphereData[0].pressure;
+          if (a >= atmosphereData[atmosphereData.length - 1].altitude) return atmosphereData[atmosphereData.length - 1].pressure;
+      
+          // Find the altitude range the input falls into
+          for (let i = 0; i < atmosphereData.length - 1; i++) {
+            const lower = atmosphereData[i];
+            const upper = atmosphereData[i + 1];
+    
+            if (a >= lower.altitude && a <= upper.altitude) {
+              // Logarithmic interpolation: P = P1 * (P2 / P1) ^ ((h - h1) / (h2 - h1))
+              const logInterp = lower.pressure * Math.pow(upper.pressure / lower.pressure, (a - lower.altitude) / (upper.altitude - lower.altitude));
+              return logInterp;
+            }
+          }
+      
+          // Fallback, should not be reached
+          return NaN;
+                  
+          // const pressurePa = (a<60000) ? Math.max(0, 5.10743E-28 * a**6 - 1.68801E-22 * a**5 + 2.26558E-17 * a**4 - 1.57979E-12 * a**3 + 6.04808E-08 * a**2 - 0.00121379 * a + 10.135) * 10000: 0
+          // return pressurePa;
         },
         speedOfSoundAtAltitude: function(a) {
           const temperatureInKelvin = 287.058 + ((a>80000) ? -74.51 : (3.1085E-17 * a**4 + 6.6438E-12 * a**3 + 4.4482E-07 * a**2 - 1.018E-2 * a + 18.5))
@@ -1709,3 +1754,440 @@ export function tunnelingCostPerMeter(tunnelRadius) {
 
   return tunnelRadius*2 * 60000 / 18 * GBPtoUSD
 }
+
+export function exhaustVelocity(gamma, Tc, M, Pc, Pe) {
+
+  // Computes exhaust velocity (ve) from chamber conditions
+  // gamma: ratio of specific heats (e.g., 1.20 for methane/LOX)
+  // Tc: combustion chamber temperature (Kelvin)
+  // M: molar mass of exhaust gas (kg/mol)
+  // Pc: chamber pressure (Pascals)
+  // Pe: exit pressure at nozzle (Pascals)
+
+  const R = 8.314 // Universal gas constant J/(mol·K)
+
+  const term1 = (2 * gamma * R * Tc) / ((gamma - 1) * M)
+  const pressureRatio = Math.pow(Pe / Pc, (gamma - 1) / gamma)
+  const term2 = 1 - pressureRatio
+
+  return Math.sqrt(term1 * term2) // exhaust velocity (m/s)
+
+}
+
+export function calculateExhaustVelocity(engineParams) {
+  const { gamma, R, M, Tc, Pe, Pc_max } = engineParams
+  
+  return Math.sqrt(
+    (2 * gamma) / (gamma - 1) * (R / M) * Tc * 
+    (1 - Math.pow(Pe / Pc_max, (gamma - 1) / gamma))
+  )
+}
+
+export function calculateMaxThrust(engineParams) {
+  const { mdot_max, Pe, P0, Ae } = engineParams
+  const ve = calculateExhaustVelocity(engineParams)
+  
+  return mdot_max * ve + (Pe - P0) * Ae
+}
+
+export function calculateThrustAndExitVelocity(engineParams) {
+  // Destructure the engine parameters
+  const { Pc_max, Pe, P0, Ae, Tc, gamma, R, M, mdot_max, mdot } = engineParams
+
+  // Recalculate chamber pressure Pc using the original formula
+  const Pc = Pc_max * Math.pow(mdot / mdot_max, (gamma - 1) / gamma)
+
+  // Recalculate exit pressure Pe dynamically using isentropic relations
+  const Pe_dynamic = Pe * Math.pow(Pc / Pc_max, (gamma - 1) / gamma)
+
+  const Pratio = (Pe_dynamic==0) ? 1 : Pe_dynamic / Pc
+
+  // Calculate exit velocity ve
+  const ve = Math.sqrt(
+    (2 * gamma) / (gamma - 1) * (R / M) * Tc * 
+    (1 - Math.pow(Pratio, (gamma - 1) / gamma))
+  )
+
+  // Calculate thrust
+  const inertialThrust = mdot * ve
+  const pressureThrust = (Pe_dynamic - P0) * Ae
+  return {inertialThrust, pressureThrust, ve}
+}
+
+
+export function solveForMassFlowRate({
+  targetThrust,        // Desired thrust (N)
+  Pc_max,   // Peak chamber pressure (Pa)
+  Pe,       // Nozzle exit pressure (Pa)
+  P0,       // Ambient pressure (Pa)
+  Ae,       // Nozzle exit area (m^2)
+  Tc,       // Chamber temperature (K)
+  gamma,    // Heat capacity ratio
+  R,        // Universal gas constant (J/(mol·K))
+  M,        // Molar mass of exhaust gas (kg/mol)
+  mdot_max, // Peak mass flow rate (kg/s)
+  ve_max,   // Peak exhaust velocity (m/s)
+}) {
+  const maxIterations = 100
+  const tolerance = 1e-6
+
+  for (let j=0; j<3; j++) {
+    let mdot_low = 0   // Lower bound for flow rate
+    let mdot_high = mdot_max // Upper bound
+    let mdot = (mdot_low + mdot_high) / 2  // Initial midpoint
+
+    for (let i = 0; i < maxIterations; i++) {
+      const {inertialThrust, pressureThrust, ve} = tram.calculateThrustAndExitVelocity({
+        Pc_max, Pe, P0, Ae, Tc, gamma, R, M, mdot_max, mdot
+      })
+      const thrust = inertialThrust + pressureThrust
+
+      let error = thrust - targetThrust
+      if (j==1) console.log("Thrust", thrust, "targetThrust", targetThrust, "mdot: " + mdot + " error: " + error)
+
+      if (Math.abs(error) < tolerance) return mdot // Converged solution
+
+      if (error > 0) {
+        mdot_high = mdot // Reduce upper bound
+      } else {
+        mdot_low = mdot // Increase lower bound
+      }
+  
+      mdot = (mdot_low + mdot_high) / 2 // Update midpoint
+    }
+    return 0
+    if (j==1) debugger
+  }
+  //throw new Error("Solution did not converge")
+}
+
+export const tab10Colors = [
+  { name: "Blue", hex: 0x1f77b4 },
+  { name: "Orange", hex: 0xff7f0e },
+  { name: "Green", hex: 0x2ca02c },
+  { name: "Red", hex: 0xd62728 },
+  { name: "Purple", hex: 0x9467bd },
+  { name: "Brown", hex: 0x8c564b },
+  { name: "Pink", hex: 0xe377c2 },
+  { name: "Gray", hex: 0xbfbfbf },
+  { name: "Yellow", hex: 0xbcbd22 },
+  { name: "Cyan", hex: 0x17becf }
+]
+
+
+export function interpolateCurve(curve, tStep) {
+
+  if (!curve || curve.length < 2) {
+    throw new Error("Curve must have at least two points for interpolation.")
+  }
+
+  let newCurve = []
+  let minTime = curve[0].x
+  let maxTime = curve[curve.length - 1].x
+
+  let i = 0 // Iterator for curve array
+
+  for (let t = Math.ceil(minTime/tStep)*tStep; t <= maxTime; t += tStep) {
+    // Move to the correct segment in the curve
+    while (i < curve.length - 1 && curve[i + 1].x <= t) {
+      i++
+    }
+
+    let lower = curve[i]
+    let upper = curve[i + 1] || curve[i] // Prevent undefined errors at the end
+    let interpolatedSpeed
+
+    if (lower.x === t) {
+      // Exact match, no need to interpolate
+      interpolatedSpeed = lower.y
+    } else if (upper.x > lower.x) {
+      // Perform linear interpolation
+      let tRatio = (t - lower.x) / (upper.x - lower.x)
+      interpolatedSpeed = lower.y + tRatio * (upper.y - lower.y)
+    } else {
+      // If there's no valid upper bound, repeat the last known value (edge case)
+      interpolatedSpeed = lower.y
+    }
+    newCurve.push(new THREE.Vector3(t, interpolatedSpeed, 0))
+  }
+
+  return newCurve
+}
+
+export function diffTwoCurves(curve1, curve2) {
+  if (!curve1.length || !curve2.length) {
+    throw new Error("Both curves must have data points.")
+  }
+
+  let sumOfSquares = 0
+  let offset = 0
+  let smallerLength = Math.min(curve1.length, curve2.length)
+
+  for (let i = 0; i < smallerLength; i++) {
+    let d1 = curve1[i]
+
+    // Ensure we don't go out of bounds
+    while (i + offset < curve2.length && curve2[i + offset].x < d1.x) {
+      offset++
+    }
+
+    // If offset moves out of bounds, break early
+    if (i + offset >= curve2.length) break
+
+    let d2 = curve2[i + offset]
+
+    if (d1.x === d2.x) {
+      sumOfSquares += (d1.y - d2.y) ** 2
+    }
+  }
+
+  let rootMeanSquaredError = Math.sqrt(sumOfSquares / smallerLength)
+  return rootMeanSquaredError
+}
+
+export function optimize(testFunction, fullParams, tunableParams, maxIterations = 10, tolerance = 1e-6) {
+  let params = { ...fullParams } // Copy full set of parameters (object)
+  let bestParams = { ...params } // Best known parameters
+  let bestValue = testFunction(bestParams)
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let newParams = { ...bestParams } // Create a new copy
+    let improved = false
+
+    // Iterate over each tunable parameter
+    for (let { key, min, max } of tunableParams) {
+      let trialParamsUp = { ...bestParams }
+      let trialParamsDown = { ...bestParams }
+      let stepSize = (max-min)*0.01
+
+      // Step up, ensuring within bounds
+      if (trialParamsUp[key] + stepSize <= max) {
+        trialParamsUp[key] += stepSize
+      }
+      if (trialParamsDown[key] - stepSize >= min) {
+        trialParamsDown[key] -= stepSize
+      }
+
+      let valueUp = testFunction(trialParamsUp)
+      let valueDown = testFunction(trialParamsDown)
+
+      // Update if a better value is found
+      if (valueUp < bestValue) {
+        bestValue = valueUp
+        newParams = { ...trialParamsUp }
+        improved = true
+      } else if (valueDown < bestValue) {
+        bestValue = valueDown
+        newParams = { ...trialParamsDown }
+        improved = true
+      }
+    }
+
+    // Check for convergence
+    let change = tunableParams.reduce((sum, { key }) => sum + Math.abs(newParams[key] - bestParams[key]), 0)
+    if (!improved || change < tolerance) break
+
+    bestParams = newParams
+  }
+
+  return bestParams
+}
+
+export function adamOptimize(
+  testFunction,
+  fullParams,
+  tunableParams,
+  initialStepSize = 1, // Initial learning rate
+  alpha = 1e-5, // Scaled step size factor
+  maxIterations = 10,
+  tolerance = 1e-6
+) {
+  let params = { ...fullParams }
+  let bestParams = { ...params }
+  let bestValue = testFunction(bestParams)
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let gradients = {}
+    let stepSize = initialStepSize
+
+    // Compute numerical gradients with scaled step size
+    for (let { key, min, max } of tunableParams) {
+      let epsilon = alpha * (max - min) // Scale ε relative to parameter range
+
+      let paramsUp = { ...bestParams }
+      paramsUp[key] += epsilon
+      let valueUp = testFunction(paramsUp)
+
+      let gradient = (valueUp - bestValue) / epsilon // Finite difference approximation
+      gradients[key] = gradient
+      console.log("Get Grad", valueUp, key, paramsUp[key])
+    }
+
+    let newParams = { ...bestParams }
+    let improved = false
+    let factor = 1 // Initial movement factor
+    let lastImprovementFactor = 0
+    let lastBestValue = bestValue
+
+    // Line search with backtracking
+    while (true) {
+      let trialParams = { ...bestParams }
+
+      // Apply the step for all tunable parameters
+      for (let { key, min, max } of tunableParams) {
+        let step = -factor * stepSize * gradients[key]
+        trialParams[key] = Math.min(max, Math.max(min, bestParams[key] + step))
+      }
+
+      let trialValue = testFunction(trialParams)
+      console.log("Line search", trialValue, factor)
+
+      if (trialValue < bestValue + 0.01) {  // Adding 0.01 to prevent noise from stopping the optimization early
+        // If improvement is found, keep moving
+        bestValue = trialValue
+        newParams = { ...trialParams }
+        lastImprovementFactor = factor
+        factor *= 1.1 // Increase step size to accelerate convergence
+      } else {
+        // If we overshoot, start backtracking
+        if (lastImprovementFactor !== 1) {
+          // **Binary search backtracking**
+          let left = lastImprovementFactor
+          let right = factor
+          let midpoint
+
+          while ((right - left) > tolerance) {
+            midpoint = (left + right) / 2
+            let midParams = { ...bestParams }
+
+            for (let { key, min, max } of tunableParams) {
+              let step = -midpoint * stepSize * gradients[key]
+              midParams[key] = Math.min(max, Math.max(min, bestParams[key] + step))
+            }
+
+            let midValue = testFunction(midParams)
+
+            if (midValue < bestValue) {
+              bestValue = midValue
+              newParams = { ...midParams }
+              left = midpoint
+            } else {
+              right = midpoint
+            }
+          }
+        }
+        break // Stop line search once refined
+      }
+    }
+
+    // Check for significant improvement
+    if (JSON.stringify(newParams) !== JSON.stringify(bestParams)) {
+      improved = true
+      bestParams = newParams
+    }
+
+    let newValue = testFunction(newParams)
+    console.log("Walk Gradient", newValue, bestValue, newParams)
+
+    if (!improved || stepSize < 1e-8) {
+      break
+    }
+
+    stepSize *= 0.9 // Reduce step size for stability
+  }
+
+  return bestParams
+}
+
+export function gradientOptimize(testFunction, fullParams, tunableParams, learningRate = 1, epsilon = 1e-4, maxIterations = 100, tolerance = 1e-6) {
+  let params = { ...fullParams }
+  let bestParams = { ...params }
+  let bestValue = testFunction(bestParams)
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let gradients = {}
+
+    // Compute numerical gradients using finite differences
+    for (let { key, min, max } of tunableParams) {
+      let paramsUp = { ...bestParams }
+      paramsUp[key] += epsilon
+      let valueUp = testFunction(paramsUp)
+
+      let gradient = (valueUp - bestValue) / epsilon // Finite difference approximation
+      gradients[key] = gradient
+    }
+
+    let newParams = { ...bestParams }
+    let improved = false
+
+    // Update parameters using the gradient
+    for (let { key, min, max } of tunableParams) {
+      let step = -learningRate * gradients[key] // Gradient descent step
+      let updatedValue = Math.min(max, Math.max(min, bestParams[key] + step)) // Ensure within bounds
+
+      if (Math.abs(updatedValue - bestParams[key]) > tolerance) {
+        newParams[key] = updatedValue
+        improved = true
+      }
+    }
+
+    let newValue = testFunction(newParams)
+
+    if (newValue < bestValue) {
+      bestValue = newValue
+      bestParams = newParams
+    } else {
+      learningRate *= 0.9 // Reduce learning rate if no improvement
+    }
+
+    if (!improved || learningRate < 1e-8) break
+  }
+
+  return bestParams
+}
+
+// ChatGPT version
+export function getAerodynamicDrag(airDensity, coefficientOfDrag, speed, radius, length) {
+  // Calculate the atmospheric density at the given altitude using the barometric formula
+
+  // Calculate the cross-sectional area of the object
+  const crossSectionalArea = Math.PI * radius * radius
+
+  // Calculate the drag force using the drag equation
+  const dragForce = 0.5 * coefficientOfDrag * airDensity * speed * speed * crossSectionalArea
+
+  return dragForce
+}
+
+export function cycloid3D(s, r, startPos, initialDirection) {
+    
+  const theta = 2 * Math.acos(1 - s / (4 * r)) // Rolling angle based on arc length
+
+  const planetRadius = startPos.length()
+
+  // Compute rolling point in polar coordinates
+  const rollingPointR = planetRadius
+  const rollingPointPhi = r * theta / planetRadius
+
+  // Compute cycloid position in polar coordinates
+  const cycloidR = rollingPointR + r * (1 - Math.cos(theta)) // Height above planet
+  const cycloidPhi = rollingPointPhi - r * Math.sin(theta) / planetRadius
+
+  const rotationAxis = new THREE.Vector3().crossVectors(startPos, initialDirection).normalize()
+
+  const cycloidPosition = startPos.clone().applyAxisAngle(rotationAxis, cycloidPhi).multiplyScalar(cycloidR/planetRadius)
+
+  // Compute Tangent Vector
+  const topOfCircleR = rollingPointR + 2*r
+  const topOfCirclePos = startPos.clone().applyAxisAngle(rotationAxis, rollingPointPhi).multiplyScalar(topOfCircleR/planetRadius)
+  const cycloidTangent = (theta==Math.PI) ? initialDirection.clone() : topOfCirclePos.clone().sub(cycloidPosition).normalize()
+
+  if (cycloidPosition.x=="NaN" || cycloidPosition.y=="NaN" || cycloidPosition.z=="NaN") {
+    debugger
+  }
+  if (cycloidTangent.x=="NaN" || cycloidTangent.y=="NaN" || cycloidTangent.z=="NaN") {
+    debugger
+  }
+  return { cycloidPosition, cycloidTangent }
+}
+

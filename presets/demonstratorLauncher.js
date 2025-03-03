@@ -96,9 +96,6 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000
   guidParamWithUnits['launcherRampTurningRadius'].value = 49096
   guidParamWithUnits['launcherRampDesignMode'].value = 0
-  // launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   guidParamWithUnits['launcherLocationMode'].value = 1
   // Mount Kilamanjaro
   guidParamWithUnits['launcherRampEndLatitude'].value = -3.0674

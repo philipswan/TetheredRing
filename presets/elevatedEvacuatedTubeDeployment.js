@@ -111,9 +111,6 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000
   guidParamWithUnits['launcherRampTurningRadius'].value = 49096
   guidParamWithUnits['launcherRampDesignMode'].value = 0
-  // launcherLaunchPadLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: 0, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
-  // launcherLaunchPadAltitude: {value: 20, units: 'm', autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   guidParamWithUnits['launcherLocationMode'].value = 1
   // Mauna Kea (19.820667, -155.468056)
   guidParamWithUnits['launcherRampEndLatitude'].value = 19.820667

@@ -1,5 +1,6 @@
-import { Vector2 } from 'three/src/math/Vector2.js';
-import { Vector3 } from 'three/src/math/Vector3.js';
+import * as THREE from 'three'
+import { Vector2 } from 'three/src/math/Vector2.js'
+import { Vector3 } from 'three/src/math/Vector3.js'
 
 // The following functions were ported from 	// Equation 3.66c, http://www.nssc.ac.cn/wxzygx/weixin/201607/P020160718380095698873.pdf
 
@@ -102,53 +103,45 @@ export function define_kepler_U() {
   }
 }
 
-export function define_RV_from_R0V0andt () {
-  return function (R0, V0, t) {
+export function define_RV_from_R0V0Aandt() {
+  return function (R0, V0, A, t) { // A = Acceleration vector
 
-    // const R0 = new Vector2(R0_x, R0_y)
-    // const V0 = new Vector2(V0_x, V0_y)
     const RV = {
       R: new Vector2(0, 0),
       V: new Vector2(0, 0)
     }
-    // mu - gravitational parameter(kmˆ3 / sˆ2)
-    // R0 - initial position vector(km)
-    // V0 - initial velocity vector(km / s)
-    // t - elapsed time(s)
-    // R - final position vector(km)
-    // V - final velocity vector(km / s)
-    // User M - functions required : kepler_U, f_and_g, fDot_and_gDot
 
-    //Magnitudes of R0 and V0
+    // Compute magnitudes
     const r0 = R0.length()
     const v0 = V0.length()
-    //Initial radial velocity
     const vr0 = R0.dot(V0) / r0
 
-    // Reciprocal of the semimajor axis(from the energy equation)
+    // Reciprocal of the semimajor axis (from the energy equation)
     const alpha = 2 / r0 - v0**2 / this.mu
+
     // Compute the universal anomaly
     const x = this.kepler_U(t, r0, vr0, alpha)
+
     // Compute the f and g functions
     let f, g
     [f, g] = this.f_and_g(x, t, r0, alpha)
 
-    // Compute the final position vector
-    RV.R = R0.clone().multiplyScalar(f).add(V0.clone().multiplyScalar(g))
-    // RV.R.x = f * R0.x + g * V0.x
-    // RV.R.y = f * R0.y + g * V0.y
+    // Compute the final position vector (including acceleration contribution)
+    RV.R = R0.clone().multiplyScalar(f)
+             .add(V0.clone().multiplyScalar(g))
+             .add(A.clone().multiplyScalar(0.5 * t**2)) // Acceleration term
 
     // Compute the magnitude of R
     const r = RV.R.length()
-    
+
     // Compute the derivatives of f and g
     let fdot, gdot
     [fdot, gdot] = this.fDot_and_gDot(x, r, r0, alpha)
 
-    // Compute the final velocity
-    RV.V = R0.clone().multiplyScalar(fdot).add(V0.clone().multiplyScalar(gdot))
-    // RV.V.x = fdot * R0.x + gdot * V0.x
-    // RV.V.y = fdot * R0.y + gdot * V0.y
+    // Compute the final velocity (including acceleration contribution)
+    RV.V = R0.clone().multiplyScalar(fdot)
+             .add(V0.clone().multiplyScalar(gdot))
+             .add(A.clone().multiplyScalar(t)) // Acceleration term
 
     return RV
   }
@@ -192,7 +185,7 @@ export function define_orbitalElementsFromStateVector() {
     const h = H.length()
 
     // Equation 4.7:
-    const incl = Math.acos(H.z/h);
+    const incl = Math.acos(H.z/h)
 
     // Equation 4.8:
     const N = new Vector3(0, 0, 1).cross(H)
@@ -319,8 +312,8 @@ export function define_orbitalElementsFromStateVector() {
 //       const V0 = new Vector2(this.EllipticalOrbitPerigeeVelocity / 1000, 0)
 //       // TBD - need to figure out the altitude while on the eliptical orbit's path
 
-//       // Note: The distance units in the RV_from_R0V0andt function and its sub functions are km, not meters.
-//       const RV = this.RV_from_R0V0andt(R0, V0, time)
+//       // Note: The distance units in the RV_from_R0V0Aandt function and its sub functions are km, not meters.
+//       const RV = this.RV_from_R0V0Aandt(R0, V0, 0, time)
 
 //       ADAndV.Altitude = RV.R.length() * 1000 - this.planetRadius
 //       ADAndV.Distance = Math.atan2(RV.R.x, RV.R.y) * RV.R.length() * 1000 // ToDo: This assumes that angle at time zero is zero - possibly bad assumption/
@@ -353,28 +346,3 @@ export function define_getAirDensity() {
   }
 }
 
-// export function define_getAerodynamicDrag() {
-//   return function (CurrentAirDensity, Speed) {
-//     const DragForce = CoefficientOfDrag * VehicleCrossSectionalAreaForDrag * (Speed - EarthsRimSpeed)**2 / 2 * CurrentAirDensity
-//     return DragForce;
-//   }
-// }
-
-// ChatGPT version
-export function define_getAerodynamicDrag() {
-  return function (airDensity, speed, noseConeAngle, radius, length) {
-    // Calculate the atmospheric density at the given altitude using the barometric formula
-  
-    // Calculate the drag coefficient based on the nose cone angle and length
-    // const dragCoefficient = 0.5 * Math.pow(Math.cos(noseConeAngle), 2) + (length / (Math.PI * radius * radius)) // Suspect this formula is BS
-    const dragCoefficient = 0.035  // From page 23 of https://upcommons.upc.edu/bitstream/handle/2117/328318/REPORT_556.pdf?sequence=1&isAllowed=y
-  
-    // Calculate the cross-sectional area of the object
-    const crossSectionalArea = Math.PI * radius * radius
-  
-    // Calculate the drag force using the drag equation
-    const dragForce = 0.5 * dragCoefficient * airDensity * speed * speed * crossSectionalArea
-  
-    return dragForce;
-  }
-}

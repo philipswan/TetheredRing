@@ -155,6 +155,8 @@ export class XYChart extends THREE.Group {
     const yScale = this.height / (this.maxY - this.minY);
     const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x606060 });
     const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0x303030 });
+    //const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0xc0c0c0 });
+    //const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0xefefef });
 
     // Create the grid lines and labels
     for (let x = this.minX; x <= this.maxX; x += this.majorX) {
@@ -238,14 +240,21 @@ export class XYChart extends THREE.Group {
     }
   }
 
-
-
   clearCurves() {
     this.curveInfo.forEach(curve => {
       this.remove(this.getObjectByName(curve.name+'_label'))
       this.remove(curve.mesh)
     })
     this.curveInfo = []
+  }
+
+  removeCurve(curveName) {
+    const index = this.curveInfo.map(function (o) {return o.name}).indexOf(curveName)
+    if (index>=0) {
+      this.remove(this.getObjectByName(curveName+'_label'))
+      this.remove(this.curveInfo[index].mesh)
+      this.curveInfo.splice(index, 1)
+    }
   }
 
   addCurve(curveName, curveUnits, curveScaledUnits, curveXYPoints, curveYScale, curveColor, curveColorName, legendText) {
@@ -306,4 +315,5 @@ export class XYChart extends THREE.Group {
     curveLine.geometry.computeBoundingSphere() // This checks for invalid values in the geometry
 
   }
+
 }

@@ -4,6 +4,7 @@ import { CircleSuperCurve3 } from './SuperCurves.js'
 import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import * as LauncherRamp from './launcherRamp.js'
+import { mx_bilerp_0 } from 'three/src/nodes/materialx/lib/mx_noise.js'
 
 export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
@@ -281,6 +282,7 @@ export function defineUpdateTrajectoryCurves () {
     let t = 0
     let tStep = .1 // second
     let RV
+    const acceleration = new THREE.Vector3(0, 0, 0)
 
     // ToDo: Need a better calculation of the optimal height of the evacuated tube's exit in case it can't reach the altitude of the ring.
     let evacuatedTubeExitR = this.planetRadius + launcherEvacuatedTubeExitAltitude
@@ -295,7 +297,7 @@ export function defineUpdateTrajectoryCurves () {
     let evacuatedTubeDownrangeAngle
     if (R0_2D.length() < evacuatedTubeExitR) {
       for (t = 0, timeOut = 0; (Math.abs(tStep)>0.01) && (t<launcherCoastTime) && (timeOut<10000); t+=tStep, timeOut++) {
-        RV = this.RV_from_R0V0andt(R0_2D, V0_2D, t)
+        RV = this.RV_from_R0V0Aandt(R0_2D, V0_2D, acceleration, t)
         if ((RV.R.length() < evacuatedTubeExitR) ^ (tStep>0)) {
           tStep = -tStep/2
         }
@@ -376,8 +378,8 @@ export function defineUpdateTrajectoryCurves () {
     //console.log('feederRailEntranceOffsets', feederRailEntranceOffsets)
 
     // Position markers at the end of the mass driver and at entrance and exit positions of the evacuated tube
-    this.launchTrajectoryMarker0.position.copy(feederRailEntrancePosition)
-    this.launchTrajectoryMarker0.position.copy(feederRailExitPosition)
+    this.launchTrajectoryWhiteMarker.position.copy(feederRailEntrancePosition)
+    this.launchTrajectoryWhiteMarker.position.copy(feederRailExitPosition)
     this.launchTrajectoryRedMarker.position.copy(massDriver1ExitPosition)
     this.launchTrajectoryGreenMarker.position.copy(massDriver2ExitPosition)
     this.launchTrajectoryBlueMarker.position.copy(evacuatedTubeEntrancePosition)
@@ -454,8 +456,8 @@ export function defineUpdateTrajectoryCurves () {
     const freeFlightTelemetryCurveControlPoints = []
     this.evacuatedTubeCurveControlPoints = [] // We need to need to keep these to animate the deployment of the elevated evacuated tube
 
-    const altitudeVesusTimeData = []
-    const airPressurVesusTimeData = []
+    const altitudeVersusTimeData = []
+    const airPressureVersusTimeData = []
     const airSpeedVersusTimeData = []
     const downrangeDistanceVersusTimeData = []
     const forwardAccelerationVersusTimeData = []
@@ -541,8 +543,8 @@ export function defineUpdateTrajectoryCurves () {
         this.startOfMassDriver1Position = vehiclePosition.clone()
       }
       if (t<=launcherXyChartMaxT) {
-        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-        airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+        altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled/100000, 0))
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -596,8 +598,8 @@ export function defineUpdateTrajectoryCurves () {
       distanceTravelled = this.massDriver1Curve.tTod(t - t1)
       const vehiclePosition = this.massDriver1Curve.getPointAt(distanceTravelled/launcherMassDriver1Length)
       if (t<=launcherXyChartMaxT) {
-        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-        airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+        altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled/100000, 0))
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -652,8 +654,8 @@ export function defineUpdateTrajectoryCurves () {
       distanceTravelled = this.massDriver2Curve.tTod(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
       const vehiclePosition = this.massDriver2Curve.getPointAt(distanceTravelled/launcherMassDriver2Length)
       if (t<=launcherXyChartMaxT) {
-        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-        airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+        altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, distanceTravelled/100000, 0))
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -727,8 +729,8 @@ export function defineUpdateTrajectoryCurves () {
       const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
       if (t<=launcherXyChartMaxT) {
-        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-        airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+        altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -789,8 +791,8 @@ export function defineUpdateTrajectoryCurves () {
       // const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       // const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
       //if (t<=launcherXyChartMaxT) {
-      // altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-      // airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+      // altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+      // airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
       // downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
       // airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
       // forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -884,7 +886,7 @@ export function defineUpdateTrajectoryCurves () {
       for (let i = 0; i<numEvacuatedTubeSplinePoints; i++ ) {
         const t = t4 + i * tStep1
         const t6a = i * tStep1  // t6a is the time from the end of the ramp
-        RV = this.RV_from_R0V0andt(R0, V0PlusPlanetRotation, t6a)
+        RV = this.RV_from_R0V0Aandt(R0, V0PlusPlanetRotation, acceleration, t6a)
         const downrangeAngle = Math.atan2(RV.R.y, RV.R.x)
         // Calculate the vehicle's position relative to where R0 and V0PlusPlanetRotation were when the vehicle was at R0.
         const vehiclePosition = RV.R.clone()
@@ -914,8 +916,8 @@ export function defineUpdateTrajectoryCurves () {
         this.evacuatedTubeCurveControlPoints.push(vehiclePositionRelativeToPlanet)
         if (t<=launcherXyChartMaxT) {
           // Save telemery...
-          altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-          airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+          altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+          airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
           downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
           airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
           forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
@@ -970,6 +972,7 @@ export function defineUpdateTrajectoryCurves () {
     const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
     const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     const launchVehicleNoseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
+    const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value
     const adaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
     const maxFuelFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
     const launcherMaxEyesInAcceleration = dParamWithUnits['launcherMaxEyesInAcceleration'].value
@@ -1001,10 +1004,10 @@ export function defineUpdateTrajectoryCurves () {
         if (!isFinite(RV.R.length()) || !isFinite(RV.V.length())) {
           console.error('Error - RV is not finite')
         }
-        RV = this.RV_from_R0V0andt(RV.R, RV.V, tStep2)
+        RV = this.RV_from_R0V0Aandt(RV.R, RV.V, acceleration, tStep2)
       }
       else {
-        RV = this.RV_from_R0V0andt(R0, V0PlusPlanetRotation, t6a)
+        RV = this.RV_from_R0V0Aandt(R0, V0PlusPlanetRotation, acceleration, t6a)
       }
       if (!isFinite(RV.R.length()) || !isFinite(RV.V.length())) {
         console.error('Error - RV is not finite')
@@ -1034,7 +1037,7 @@ export function defineUpdateTrajectoryCurves () {
   
       const airDensity = planetSpec.airDensityAtAltitude(altitude)
 
-      const aerodynamicDrag = this.getAerodynamicDrag(airDensity, vehicleAirSpeed, noseconeAngle, launchVehicleRadius, launchVehicleBodyLength)
+      const aerodynamicDrag = tram.getAerodynamicDrag(airDensity, launchVehicleCoefficientOfDrag, vehicleAirSpeed, launchVehicleRadius, launchVehicleBodyLength)
       const qconv = vehicleAirSpeed**3 * (airDensity/launchVehicleEffectiveRadius)**0.5
       const qrad = vehicleAirSpeed**8 * airDensity**1.2 * launchVehicleEffectiveRadius**0.5
 
@@ -1364,8 +1367,8 @@ export function defineUpdateTrajectoryCurves () {
       freeFlightTelemetryCurveControlPoints.push(vehicleTelemetry)
       // Record telemery for plots...
       if (t<=launcherXyChartMaxT) {
-        altitudeVesusTimeData.push(new THREE.Vector3(t, altitude, 0))
-        airPressurVesusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
+        altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
+        airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
         downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
@@ -1565,12 +1568,12 @@ export function defineUpdateTrajectoryCurves () {
     this.xyChart.clearCurves()
     if (dParamWithUnits['showForwardAccelerationVersusTime'].value) this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, 1, 0xffff00, "Yellow", "Forward Acceleration (m/s2)")
     if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, 1, 0xff8000, "Orange", "Upward Acceleration (m/s2)")
-    if (dParamWithUnits['showAltitudeVersusTime'].value) this.xyChart.addCurve("Altitude", "m", "km", altitudeVesusTimeData, 0.001, 0xffc080, "Light Brown", "Altitude (km)")
-    if (dParamWithUnits['showAirPressureVersusTime'].value) this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressurVesusTimeData, 100/airPressureAtSeaLevel, 0xff0000, "Red", "Air Pressure (% of sea level)")
+    if (dParamWithUnits['showAltitudeVersusTime'].value) this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, 0.001, 0xffc080, "Light Brown", "Altitude (km)")
+    if (dParamWithUnits['showAirPressureVersusTime'].value) this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, 100/airPressureAtSeaLevel, 0xff0000, "Red", "Air Pressure (% of sea level)")
     if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, .00001, 0x0000ff, "Blue", "Downrange Distance (100's of km)")
     if (dParamWithUnits['showAirSpeedVersusTime'].value) this.xyChart.addCurve("Air Speed", "m/s", "km/s", airSpeedVersusTimeData, 0.001, 0x00ffff, "Cyan", "Air Speed (km/s)")
     if (dParamWithUnits['showAerodynamicDragVersusTime'].value) this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, 0.00001, 0x80ff80, "Bright Green", "Aerodynamic Drag (100's of kN)")
-    if (dParamWithUnits['showFuelMassFlowRateVersusTime'].value) this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "10's of kg/s", fuelMassFlowRateVersusTimeData, 0.1, 0x7f7fff, "Blue", "Propellant Mass Flow Rate (10's of kg/s)")
+    if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "10's of kg/s", fuelMassFlowRateVersusTimeData, 0.1, 0x7f7fff, "Blue", "Propellant Mass Flow Rate (10's of kg/s)")
     if (dParamWithUnits['showTotalMassVersusTime'].value) this.xyChart.addCurve("Vehicle Mass", "kg", "1000's of kg", totalMassVersusTimeData, 0.001, 0xff7fff, "Purple", "Vehicle Mass (1000's of kg)")
     if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Apogee Altiude", "m", "m", apogeeAltitudeVersusTimeData, 1, 0xffffff, "White", launchVehicleDesiredOrbitalAltitude, "Orbital Apogee Altitude (km)")
     if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Perigee Distance", "m", "m", perigeeAltitudeVersusTimeData, 1, 0xffff7f, "White", this.planetRadius + launchVehicleDesiredOrbitalAltitude, "Orbital Perigee Distance (km)")

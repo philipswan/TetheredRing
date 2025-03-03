@@ -306,46 +306,33 @@ export class virtualLaunchVehicle {
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     const res = refFrame.curve.findRelevantCurve(deltaT)
     const relevantCurve = res.relevantCurve
-    const d = Math.max(0, Math.min(1, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength))
-    //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
+    const t = deltaT/relevantCurve.duration
 
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
-    const pointOnRelevantCurve = relevantCurve.getPointAt(d)
-    const forward = relevantCurve.getTangentAt(d)
-    const upward = relevantCurve.getNormalAt(d)
-    const rightward = relevantCurve.getBinormalAt(d)
+    const pointOnRelevantCurve = relevantCurve.getPoint(t)
+    const forward = relevantCurve.getTangent(t)
+    const upward = relevantCurve.getNormal(t)
+    const rightward = relevantCurve.getBinormal(t)
+    const orientation = relevantCurve.getQuaternion(t, modelForward, modelUpward)
+
     if (upward.clone().dot(pointOnRelevantCurve)<0) {
       // Sometimes the normal and binormal vectors point in the wrong direction when there isn't enough curvature. This check fixes that issue.
       upward.negate()
       rightward.negate()
     }
 
-    const orientation = new THREE.Quaternion()
-    let tangent = new THREE.Vector3(0, 0, 0)
-    // Hack
-    if (false && (relevantCurve.name==='freeFlightPositionCurve')) {
-      tangent = relevantCurve.freeFlightOrientationCurve.getPointAt(d)  // This curve's "positions" are made from of tangent vectors
-      const normal = rightward.clone().cross(tangent)
-      const q1 = new THREE.Quaternion()
-      q1.setFromUnitVectors(modelForward, tangent)
-      const rotatedObjectUpwardVector = modelUpward.clone().applyQuaternion(q1)
-      orientation.setFromUnitVectors(rotatedObjectUpwardVector, normal)
-      orientation.multiply(q1)
-    }
-    else {
-      relevantCurve.getQuaternionAt(d, modelForward, modelUpward, orientation)
-    }
-    if ((relevantCurve.name==='launchRampCurve1') || (relevantCurve.name==='evacuatedTubeCurve') || (relevantCurve.name==='freeFlightPositionCurve')) {
-      //console.log('tangent:', tangent, 'orientation:', orientation, relevantCurve.name)
-      //console.print(deltaT, upward, pointOnRelevantCurve.length()-virtualLaunchVehicle.planetRadius, relevantCurve.name)
-    }
-
     om.position.copy(pointOnRelevantCurve)
         .add(rightward.clone().multiplyScalar(virtualLaunchVehicle.sidewaysOffset))
         .add(upward.clone().multiplyScalar(virtualLaunchVehicle.upwardsOffset))
         .add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset))
+
+    if ((relevantCurve.name==='freeFlightPositionCurve')) {
+      const forwardDirection = relevantCurve.freeFlightOrientationCurve.getPoint(t).normalize(); // Desired forward direction
+      orientation.multiply(new THREE.Quaternion().setFromUnitVectors(forward, forwardDirection))
+    }
+    
     om.setRotationFromQuaternion(orientation)
 
     om.visible = virtualLaunchVehicle.isVisible
@@ -368,7 +355,7 @@ export class virtualLaunchVehicle {
     let shockwaveConeLengthFactor
     if (relevantCurve.name==='freeFlightPositionCurve') {
       if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPointAt(d)
+        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(t)
         const vehicleAirSpeed = vehicleTelemetry.x
         const aerodynamicDrag = vehicleTelemetry.y 
         const fuelFlowRate = vehicleTelemetry.z
@@ -424,9 +411,8 @@ export class virtualLaunchVehicle {
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
-      const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
-      //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
-      const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, d))
+      const t = deltaT/relevantCurve.duration
+      const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, t))
       return pointOnRelevantCurve
     }
     else {
@@ -442,12 +428,14 @@ export class virtualLaunchVehicle {
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
-      const d = Math.max(0, relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength)
-      const position = relevantCurve.getPointAt(d)
-      const forward = relevantCurve.getTangentAt(d)
-      const upward = relevantCurve.getNormalAt(d)
-      const rightward = relevantCurve.getBinormalAt(d)
-      const orientation = relevantCurve.getQuaternionAt(d)
+      const t = deltaT/relevantCurve.duration
+      const position = relevantCurve.getPoint(t)
+      const forward = relevantCurve.getTangent(t)
+      const upward = relevantCurve.getNormal(t)
+      const rightward = relevantCurve.getBinormal(t)
+      const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+      const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+      const orientation = relevantCurve.getQuaternion(t, modelForward, modelUpward)
       return {
         position: position,
         forward: forward,

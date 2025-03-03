@@ -23,7 +23,6 @@ import { virtualElevatorCable } from './ElevatorCable.js'
 
 import * as tram from './tram.js'
 //import { dynamicallyManagedObject } from './dynamicallyManagedObject.js'
-//import { remove } from 'lodash'
 
 export class transitSystem {
 

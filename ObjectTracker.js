@@ -1,6 +1,3 @@
-import { get } from 'lodash'
-import * as THREE from 'three'
-
 export class ObjectTracker {
 
   constructor() {

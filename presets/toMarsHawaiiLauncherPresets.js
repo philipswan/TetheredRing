@@ -3,6 +3,7 @@ import { actualSizeDollyShot } from './actualSizeDollyShot.js'
 import { showMassDriver } from "./cameraShotHelperFunctions"
 import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
 import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
+import { toVenusFromEarthLauncherArchitecture } from './toVenusFromEarthLauncherArchitecture.js'
 import { toMarsFromMoonLauncherArchitecture } from './toMarsFromMoonLauncherArchitecture.js'
 
 export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams) {
@@ -22,6 +23,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     const massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
     const rampExitAltitude = 4000 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
     toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+    toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+
   }
   else {
     const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
@@ -174,13 +177,14 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launcherCoastTime'].value = 100*20
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 5000.0
+  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
   guidParamWithUnits['logZoomRate'].value = -3
-  guidParamWithUnits['showXYChart'].value = true
+  guidParamWithUnits['showXYChart'].value = false
+  guidParamWithUnits['showMarkers'].value = true
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = .1
-  nonGUIParams['farClip'] = 10000000
+  nonGUIParams['nearClip'] = 10
+  nonGUIParams['farClip'] = 1000000000
 
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
@@ -201,6 +205,11 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-485220.1577472219, -543684.1227839389, -219995.83733422682)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)  
+  
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-780132.7900953067, 41764.54504580656, 290685.1760425009)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-778426.6457124173, -61992.33274240047, 196607.0947371293)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
 
   // Hack to speed up the simulation
   //guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
