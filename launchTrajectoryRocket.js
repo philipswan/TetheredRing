@@ -176,17 +176,13 @@ export function defineUpdateTrajectoryCurvesRocket () {
         //{ key: "rocketPayloadMass", min: rocketPayloadMass*0.8, max: rocketPayloadMass*1.25 },
         //{ key: "initialStage1PropellantMass", min: initialStage1PropellantMass*0.8, max: initialStage1PropellantMass*1.25 },
         //{ key: "initialStage2PropellantMass", min: initialStage2PropellantMass*0.8, max: initialStage2PropellantMass*1.25 },
-        // { key: "rocketStage1SeaLevelEngines", min: rocketStage1SeaLevelEngines-4, max: rocketStage1SeaLevelEngines+4 },
-        // { key: "rocketStage1VacuumEngines", min: rocketStage1VacuumEngines-4, max: rocketStage1VacuumEngines+4 },
-        // { key: "rocketStage2SeaLevelEngines", min: rocketStage2SeaLevelEngines-4, max: rocketStage2SeaLevelEngines+4 },
-        // { key: "rocketStage2VacuumEngines", min: rocketStage2VacuumEngines-4, max: rocketStage2VacuumEngines+4 },
         //{ key: "rocketSeaLevelEnginePropellantFlowRate", min: rocketSeaLevelEnginePropellantFlowRate*0.8, max: rocketSeaLevelEnginePropellantFlowRate*1.25 },
         //{ key: "rocketVacuumEnginePropellantFlowRate", min: rocketVacuumEnginePropellantFlowRate*0.8, max: rocketVacuumEnginePropellantFlowRate*1.25 },
-        //{ key: "rocketExhaustVelocitySLEngInVac", min: rocketExhaustVelocitySLEngInVac*0.8, max: rocketExhaustVelocitySLEngInVac*1.25 },
-        //{ key: "rocketExhaustVelocitySLEngAtSeaLevel", min: rocketExhaustVelocitySLEngAtSeaLevel*0.8, max: rocketExhaustVelocitySLEngAtSeaLevel*1.25 },
+        { key: "rocketExhaustVelocitySLEngInVac", min: rocketExhaustVelocitySLEngInVac*0.8, max: rocketExhaustVelocitySLEngInVac*1.25 },
+        { key: "rocketExhaustVelocitySLEngAtSeaLevel", min: rocketExhaustVelocitySLEngAtSeaLevel*0.8, max: rocketExhaustVelocitySLEngAtSeaLevel*1.25 },
         { key: "rocketExhaustVelocityVacEngInVac", min: rocketExhaustVelocityVacEngInVac*0.8, max: rocketExhaustVelocityVacEngInVac*1.25 },
         { key: "rocketExhaustVelocityVacEngAtSeaLevel", min: rocketExhaustVelocityVacEngAtSeaLevel*0.8, max: rocketExhaustVelocityVacEngAtSeaLevel*1.25 },
-        //{ key: "rocketCoefficientOfDrag", min: rocketCoefficientOfDrag*0.8, max: rocketCoefficientOfDrag*1.25 },
+        { key: "rocketCoefficientOfDrag", min: rocketCoefficientOfDrag*0.8, max: rocketCoefficientOfDrag*1.25 },
         { key: "rocketStage1StructuralLoadLimit", min: rocketStage1StructuralLoadLimit*0.8, max: rocketStage1StructuralLoadLimit*1.25 },
         { key: "rocketStage2StructuralLoadLimit", min: rocketStage2StructuralLoadLimit*0.8, max: rocketStage2StructuralLoadLimit*1.25 },
         { key: "rocketStage1RecoveryPropellantMass", min: rocketStage1RecoveryPropellantMass*0.8, max: rocketStage1RecoveryPropellantMass*1.25 },
@@ -203,7 +199,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
 
       function testFunction(simInputParamters) {
         const simResults = simRocketFlight(simInputParamters)
-        return simResults.rootMeanSquaredErrorSpeed + Math.abs(simResults.mecoTime-empiricalMECOTime)*10
+        return simResults.rootMeanSquaredErrorSpeed + Math.abs(simResults.mecoTime-empiricalMECOTime)*40
         //return Math.abs(simResults.mecoTime-empiricalMECOTime)*10
       }
 
@@ -241,9 +237,13 @@ export function defineUpdateTrajectoryCurvesRocket () {
       propellantMassFlowRateVersusTimeData,
       convectiveHeatingVersusTimeData,
       radiativeHeatingVersusTimeData,
+      deltaVVersusTimeData,
+      orientationCorrectionVersusTimeData,
       totalMassVersusTimeData,
       apogeeAltitudeVersusTimeData,
       perigeeAltitudeVersusTimeData,
+      firstApsisVersusTimeData,
+      secondApsisVersusTimeData,
       rootMeanSquaredErrorSpeed,
       rootMeanSquaredErrorAlt} = simResults
   
@@ -363,7 +363,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
     
     if (dParamWithUnits['showAerodynamicDragVersusTime'].value) {
       this.xyChart.removeCurve("Aerodynamic Drag")
-      this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, 0.00001, 0xffff00, "Bright Yellow", "Aerodynamic Drag (100's of kN)")
+      this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, 0.00001, 0xff00ff, "Bright Magenta", "Aerodynamic Drag (100's of kN)")
     }
     
     if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) {
@@ -378,12 +378,29 @@ export function defineUpdateTrajectoryCurvesRocket () {
     
     if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) {
       this.xyChart.removeCurve("Orbital Apogee Altitude")
-      this.xyChart.addCurve("Orbital Apogee Altitude", "m", "m", apogeeAltitudeVersusTimeData, 1, 0x0000ff, "Bright Blue", "Orbital Apogee Altitude (km)")
+      this.xyChart.addCurve("Orbital Apogee Altitude", "m", "100's km", apogeeAltitudeVersusTimeData, 1e-5, 0x0000ff, "Bright Blue", "Orbital Apogee Distance (100's km)")
     }
     
     if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) {
       this.xyChart.removeCurve("Orbital Perigee Distance")
-      this.xyChart.addCurve("Orbital Perigee Distance", "m", "m", perigeeAltitudeVersusTimeData, 1, 0xffc000, "Bright Golden", "Orbital Perigee Distance (km)")
+      this.xyChart.addCurve("Orbital Perigee Distance", "m", "100's km", perigeeAltitudeVersusTimeData, 1e-5, 0xffc000, "Bright Golden", "Orbital Perigee Distance (100's km)")
+    }
+
+    if (dParamWithUnits['showFirstApsisVersusTime'].value) {
+      this.xyChart.removeCurve("First Apsis")
+      this.xyChart.addCurve("First Apsis", "m", "100's km", apogeeAltitudeVersusTimeData, 1e-5, 0x0000ff, "Bright Blue", "First Apsis (100's km)")
+    }
+    
+    if (dParamWithUnits['showSecondApsisVersusTime'].value) {
+      this.xyChart.removeCurve("Second Apsis")
+      this.xyChart.addCurve("Second Apsis", "m", "100's km", perigeeAltitudeVersusTimeData, 1e-5, 0xffc000, "Bright Golden", "Second Apsis (100's km)")
+    }
+
+    if (dParamWithUnits['showOrbitalAltitudeVersusTime'].value) {
+      const a = planetRadius + rocketDesiredOrbitalAltitude
+      const orbitalAltitudeData = [new THREE.Vector3(0, a, 0), new THREE.Vector3(700, a, 0)]
+      this.xyChart.removeCurve("Orbital Altitude")
+      this.xyChart.addCurve("Orbital Altitude", "m", "100's km", orbitalAltitudeData, 1e-5, tram.tab10Colors[3].hex, tram.tab10Colors[3].name, "Orbital Altitude (100's of km)")
     }
     
     //if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) {
@@ -395,6 +412,16 @@ export function defineUpdateTrajectoryCurvesRocket () {
     //  this.xyChart.removeCurve("Convective Heating")
     //  this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, 1, 0xffc080, "Bright Light Orange", "Radiative Heating (W/m2)")
     // }
+
+    if (dParamWithUnits['showDeltaVVersusTime'].value) {
+      this.xyChart.removeCurve("Delta-V")
+      this.xyChart.addCurve("Delta-V", "m/s", "100's m/s", deltaVVersusTimeData, 0.01, 0xff00ff, "Bright Magenta", "Delta-V (100's m/s)")
+    }
+
+    if (dParamWithUnits['showOrientationCorrectionVersusTime'].value) {
+      this.xyChart.removeCurve("Orientation Correction")
+      this.xyChart.addCurve("Orientation Correction", "rad", "rad", orientationCorrectionVersusTimeData, 1, 0x0000ff, "Bright Blue", "Orientation Correction (rad)")
+    }
     
     this.xyChart.drawLegend(14, 22)
 

@@ -28,6 +28,8 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['rocketStage2SeaLevelEngines'].value = 3
   guidParamWithUnits['rocketStage2VacuumEngines'].value = 3
   
+  guidParamWithUnits['rocketPayloadMass'].value = 0
+
   guidParamWithUnits['launcherMarkerRadius'].value = 50
 
   //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
@@ -50,17 +52,22 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['showUpwardAccelerationVersusTime'].value = false
   guidParamWithUnits['showApogeeAltitudeVersusTime'].value = false
   guidParamWithUnits['showPerigeeAltitudeVersusTime'].value = false
+  guidParamWithUnits['showFirstApsisVersusTime'].value = true
+  guidParamWithUnits['showSecondApsisVersusTime'].value = true
   guidParamWithUnits['showAltitudeVersusTime'].value = true
   guidParamWithUnits['showAirPressureVersusTime'].value = false
   guidParamWithUnits['showDownrangeDistanceVersusTime'].value = false
   guidParamWithUnits['showAirSpeedVersusTime'].value = true
   guidParamWithUnits['showAerodynamicDragVersusTime'].value = false
   guidParamWithUnits['showPropellantMassFlowRateVersusTime'].value = false
-  guidParamWithUnits['showTotalMassVersusTime'].value = true
+  guidParamWithUnits['showTotalMassVersusTime'].value = false
+  guidParamWithUnits['showOrbitalAltitudeVersusTime'].value = true
+  guidParamWithUnits['showDeltaVVersusTime'].value = true
+  guidParamWithUnits['showOrientationCorrectionVersusTime'].value = false
 
 
   guidParamWithUnits['showStars'].value = false
-  guidParamWithUnits['rocketCoastTime'].value = 480
+  guidParamWithUnits['rocketCoastTime'].value = 700
   guidParamWithUnits['launcherXyChartMaxT'].value = 100*60
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 5
   guidParamWithUnits['launchVehicleScaleFactor'].value = 3
@@ -71,18 +78,19 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
 
   nonGUIParams['initialReferencePoint'] = '' //'feederRailEntrancePosition'
 
-  guidParamWithUnits['rocketStage1DryMass'].value = 164000
-  guidParamWithUnits['rocketStage2DryMass'].value = 100000
-  guidParamWithUnits['rocketStage1RecoveryPropellantMass'].value = 690000
+  guidParamWithUnits['rocketStage1DryMass'].value = 154415
+  guidParamWithUnits['rocketStage2DryMass'].value = 123458
+  guidParamWithUnits['rocketStage1RecoveryPropellantMass'].value = 654000
   guidParamWithUnits['rocketStage2RecoveryPropellantMass'].value = 48000
-  guidParamWithUnits['rocketExhaustVelocityVacEngInVac'].value = 4400
-  guidParamWithUnits['rocketExhaustVelocityVacEngAtSeaLevel'].value = 3446
+  guidParamWithUnits['rocketExhaustVelocityVacEngInVac'].value = 3520
+  guidParamWithUnits['rocketExhaustVelocityVacEngAtSeaLevel'].value = 3451
   guidParamWithUnits['rocketExhaustVelocitySLEngInVac'].value = 2700
   guidParamWithUnits['rocketExhaustVelocitySLEngAtSeaLevel'].value = 2600
   guidParamWithUnits['rocketCoefficientOfDrag'].value = 0.6
-  guidParamWithUnits['rocketStage1StructuralLoadLimit'].value = 25500000
-  guidParamWithUnits['rocketStage2StructuralLoadLimit'].value = 2800000
+  guidParamWithUnits['rocketStage1StructuralLoadLimit'].value = 27300000
+  guidParamWithUnits['rocketStage2StructuralLoadLimit'].value = 2842463
   guidParamWithUnits['rocketSeparationDelay'].value = 5
+  guidParamWithUnits['rocketDesiredOrbitalAltitude'].value = 200000
 
   nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-5694311.049928793, 2779249.1163286944, -715034.8056602069)
   nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.8930025235698165, 0.43586569390757035, -0.11210526201928114)

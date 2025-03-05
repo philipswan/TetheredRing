@@ -17,6 +17,7 @@ import * as LaunchTrajectoryRocket from './launchTrajectoryRocket.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 import * as EngineeringDetails from './EngineeringDetails.js'
+import regression from 'regression'
 import { StarshipIFT1 } from './datasets/StarshipIFT1.js'
 import { StarshipIFT2 } from './datasets/StarshipIFT2.js'
 import { StarshipIFT3 } from './datasets/StarshipIFT3.js'
@@ -281,10 +282,19 @@ export class launcher {
                 lastShipAlt = entry.y
               }
             })
+            const regressionData = smoothedShipAlt.map(entry => [entry.x, entry.y/1000])
+            this.shipAltRegression = regression.polynomial(regressionData, {order: 6, precision: 20})
+            console.log(this.shipAltRegression)
+            // smoothedShipAlt.length = 0
+            // for (let t = 0; t < regressionData[regressionData.length-1][0]; t+=.1) {
+            //   const y = this.shipAltRegression.predict(t)[1] * 1000
+            //   smoothedShipAlt.push(new THREE.Vector3(t, y, 0))
+            // }
+
             this.empiricalStarshipIFTSpeed = tram.interpolateCurve(curve.shipSpeed, 0.25)
             this.empiricalStarshipIFTAltitude = tram.interpolateCurve(smoothedShipAlt, 0.25)
 
-            this.xyChart.addCurve("Empirical Starship IFT Speed", "m/s", "100's m/s", this.empiricalStarshipIFTSpeed, 0.01, tram.tab10Colors[4].hex, tram.tab10Colors[4].name, "Empirical Starship IFT Speed (100's m/s)")
+            // this.xyChart.addCurve("Empirical Starship IFT Speed", "m/s", "100's m/s", this.empiricalStarshipIFTSpeed, 0.01, tram.tab10Colors[4].hex, tram.tab10Colors[4].name, "Empirical Starship IFT Speed (100's m/s)")
             this.xyChart.addCurve("Empirical Starship IFT Altitude", "m", "km", this.empiricalStarshipIFTAltitude, 0.001, tram.tab10Colors[5].hex, tram.tab10Colors[5].name, "Empirical Starship IFT Altitude (km)")
           })
         }

@@ -569,7 +569,6 @@ const guidParamWithUnits = {
   rocketStage2BodyLength: {value: 36.28, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderRocket},
   rocketNoseConeLength: {value: 13.72, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderRocket},
   rocketDesiredOrbitalAltitude: {value: 200000, units: 'm', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderRocket},
-  rocketOrientationControlLogKP: {value: Math.log(0.0001), units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderRocket},
   rocketSeparationDelay: {value: 5, units: 's', autoMap: true, min: 0, max: 20, updateFunction: updateLauncher, folder: folderRocket},
   rocketCoastTime: {value: 1250, units: 's', autoMap: true, min: 10, max: 5000, updateFunction: updateLauncher, folder: folderRocket},
   showStarshipIFT6Telemetry: {value: true, autoMap: true, updateFunction: updateLauncher, folder: folderRocket},
@@ -695,8 +694,13 @@ const guidParamWithUnits = {
   showTotalMassVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showApogeeAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showPerigeeAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showFirstApsisVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showSecondApsisVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showOrbitalAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   //showConvectiveHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   //showRadiativeHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showDeltaVVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showOrientationCorrectionVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   animateMovingRingSegments: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateElevatorCars: {value: true, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   animateTransitVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateTransitsystem, folder: folderRendering},
@@ -1154,17 +1158,17 @@ function updateLogoSprite() {
 }
 
 const xyChart = new XYChart()
-xyChart.setWidth(1600)
-xyChart.setHeight(700)
+xyChart.setWidth(1800)
+xyChart.setHeight(800)
 xyChart.setMinX(0)
 xyChart.setMinY(0)
 xyChart.setMaxX(700)  // 700
-xyChart.setMaxY(150)  // 130
+xyChart.setMaxY(130)  // 130
 xyChart.setMajorX(100)
 xyChart.setMajorY(10)
 xyChart.setMinorX(10)
 xyChart.setMinorY(10)
-xyChart.setLegendPosition(1600-350, 0)
+xyChart.setLegendPosition(1600-200, 0)
 xyChart.name = 'xyChart'
 sceneOrtho.add(xyChart)
 

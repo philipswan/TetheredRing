@@ -1999,7 +1999,7 @@ export function adamOptimize(
   tunableParams,
   initialStepSize = 1, // Initial learning rate
   alpha = 1e-5, // Scaled step size factor
-  maxIterations = 10,
+  maxIterations = 5,
   tolerance = 1e-6
 ) {
   let params = { ...fullParams }
@@ -2191,3 +2191,82 @@ export function cycloid3D(s, r, startPos, initialDirection) {
   return { cycloidPosition, cycloidTangent }
 }
 
+
+// // Usage Example
+// const sampleData = {
+//   x: [0, 1, 2, 3, 4, 5],
+//   y: [10, 20, 15, 25, 30, 40]
+// };
+
+// tram.openPlotWindow(sampleData)
+//   .then(() => console.log("Plot window opened successfully"))
+//   .catch(err => console.error(err));
+
+export function openPlotWindow(data) {
+  return new Promise((resolve, reject) => {
+    const plotWindow = window.open("", "_blank", "width=800,height=600");
+
+    if (!plotWindow) {
+      reject("Popup blocked! Allow popups and try again.");
+      return;
+    }
+
+    // Wait until the new window's document is fully available
+    const checkWindowReady = setInterval(() => {
+      if (plotWindow.document.readyState === "complete") {
+        clearInterval(checkWindowReady);
+
+        // Inject HTML and Plotly.js script
+        plotWindow.document.write(`
+          <html>
+          <head>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+          </head>
+          <body>
+            <div id="plot" style="width:100%;height:100%;"></div>
+            <script>
+              const trace = {
+                x: ${JSON.stringify(data.x)},
+                y: ${JSON.stringify(data.y)},
+                mode: 'lines+markers',
+                type: 'scatter'
+              };
+              Plotly.newPlot('plot', [trace]);
+            </script>
+          </body>
+          </html>
+        `);
+
+        resolve(plotWindow);
+      }
+    }, 100);
+  });
+}
+
+
+
+// export function openPlotWindow(data) {
+//   // Create a new window
+//   const plotWindow = window.open("", "_blank", "width=800,height=600")
+  
+//   // Basic HTML template with Plotly.js
+//   plotWindow.document.write(`
+//     <html>
+//     <head>
+//       <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+//     </head>
+//     <body>
+//       <div id="plot" style="width:100%;height:100%;"></div>
+//       <script>
+//         const trace = {
+//           x: ${JSON.stringify(data.x)},
+//           y: ${JSON.stringify(data.y)},
+//           mode: 'lines+markers',
+//           type: 'scatter'
+//         };
+//         Plotly.newPlot('plot', [trace]);
+//       </script>
+//     </body>
+//     </html>
+//   `)
+// }
