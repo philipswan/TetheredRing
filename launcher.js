@@ -25,6 +25,7 @@ import { StarshipIFT4 } from './datasets/StarshipIFT4.js'
 import { StarshipIFT5 } from './datasets/StarshipIFT5.js'
 import { StarshipIFT6 } from './datasets/StarshipIFT6.js'
 import { StarshipIFT7 } from './datasets/StarshipIFT7.js'
+import { StarshipIFT8 } from './datasets/StarshipIFT8.js'
 import { get } from 'lodash'
 
 //import { arrow } from './markers.js'
@@ -226,6 +227,7 @@ export class launcher {
           //curves.push({prefix: "IFT5", dataset: StarshipIFT5, boostAlt: ift5BoosterAlititudeVersusTimeData, boostSpeed: ift5BboosterAirSpeedVersusTimeData, shipAlt: ift5StarshipAlititudeVersusTimeData, shipSpeed: ift5StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[5].hex, colorName: tram.tab10Colors[5].name})
           //curves.push({prefix: "IFT6", dataset: StarshipIFT6, boostAlt: ift6BoosterAlititudeVersusTimeData, boostSpeed: ift6BboosterAirSpeedVersusTimeData, shipAlt: ift6StarshipAlititudeVersusTimeData, shipSpeed: ift6StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[6].hex, colorName: tram.tab10Colors[6].name})
           curves.push({prefix: "IFT7", dataset: StarshipIFT7, boostAlt: ift7BoosterAlititudeVersusTimeData, boostSpeed: ift7BboosterAirSpeedVersusTimeData, shipAlt: ift7StarshipAlititudeVersusTimeData, shipSpeed: ift7StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[8].hex, colorName: tram.tab10Colors[8].name})
+          //curves.push({prefix: "IFT8", dataset: StarshipIFT8, boostAlt: ift7BoosterAlititudeVersusTimeData, boostSpeed: ift7BboosterAirSpeedVersusTimeData, shipAlt: ift7StarshipAlititudeVersusTimeData, shipSpeed: ift7StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[9].hex, colorName: tram.tab10Colors[9].name})
           curves.forEach(curve => {
             curve.dataset.forEach(entry => {
               if ((entry.boost_speed != "NaN") && (entry.boost_speed_confidence > 75)) {
