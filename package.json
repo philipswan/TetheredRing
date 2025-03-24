@@ -17,7 +17,7 @@
     "ccapture.js": "^1.1.0",
     "dat.gui": "^0.7.7",
     "lodash": "^4.17.21",
-    "tailwindcss": "^2.2.2",
+    "regression": "^2.0.1",
     "three": "^0.172.0",
     "vite-plugin-top-level-await": "^1.4.4"
   },
