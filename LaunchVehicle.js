@@ -306,7 +306,7 @@ export class virtualLaunchVehicle {
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     const res = refFrame.curve.findRelevantCurve(deltaT)
     const relevantCurve = res.relevantCurve
-    const t = deltaT/relevantCurve.duration
+    const t = deltaT - res.relevantCurveStartTime
 
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
@@ -411,7 +411,7 @@ export class virtualLaunchVehicle {
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
-      const t = deltaT/relevantCurve.duration
+      const t = deltaT - res.relevantCurveStartTime
       const pointOnRelevantCurve = relevantCurve.getPoint(Math.max(0, t))
       return pointOnRelevantCurve
     }
@@ -428,7 +428,7 @@ export class virtualLaunchVehicle {
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
-      const t = deltaT/relevantCurve.duration
+      const t = deltaT - res.relevantCurveStartTime
       const position = relevantCurve.getPoint(t)
       const forward = relevantCurve.getTangent(t)
       const upward = relevantCurve.getNormal(t)
@@ -436,6 +436,7 @@ export class virtualLaunchVehicle {
       const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
       const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
       const orientation = relevantCurve.getQuaternion(t, modelForward, modelUpward)
+
       return {
         position: position,
         forward: forward,
