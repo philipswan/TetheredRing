@@ -1476,6 +1476,7 @@ export function defineUpdateTrajectoryCurves () {
     if (t5a-t4>0) {
       if (!this.evacuatedTubeCurve) {
         this.evacuatedTubeCurve = new CatmullRomSuperCurve3(this.evacuatedTubeCurveControlPoints)
+        this.evacuatedTubeCurve.setAlwaysAwayNormalMode()
       }
       else {
         this.evacuatedTubeCurve.setPoints(this.evacuatedTubeCurveControlPoints)
@@ -1487,6 +1488,7 @@ export function defineUpdateTrajectoryCurves () {
       if (this.animateElevatedEvacuatedTubeDeployment) {
         // We need a second curve that we can animate while referring to the original curve to obtain coordinates
         this.coiledElevatedEvacuatedTubeCurve = new CatmullRomSuperCurve3(this.evacuatedTubeCurveControlPoints)
+        this.coiledElevatedEvacuatedTubeCurve.setAlwaysAwayNormalMode()
         this.coiledElevatedEvacuatedTubeCurve.curveType = 'centripetal'
         this.coiledElevatedEvacuatedTubeCurve.closed = false
         this.coiledElevatedEvacuatedTubeCurve.tension = 0
@@ -1505,6 +1507,7 @@ export function defineUpdateTrajectoryCurves () {
     // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
     if (!this.freeFlightPositionCurve) {
       this.freeFlightPositionCurve = new CatmullRomSuperCurve3(freeFlightPositionCurveControlPoints)
+      this.freeFlightPositionCurve.setAlwaysAwayNormalMode()
     }
     else {
       this.freeFlightPositionCurve.setPoints(freeFlightPositionCurveControlPoints)

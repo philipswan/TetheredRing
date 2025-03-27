@@ -112,8 +112,13 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 		this.tension = tension;
 
 		this.duration = 0;
+    this.normalMode = null
 
 	}
+
+  setAlwaysAwayNormalMode() {
+    this.normalMode = 'alwaysAway'
+  }
 
 	setPoints( points ) {
 
@@ -330,8 +335,17 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 	}
 
 	getNormal( t, optionalTarget = new Vector3() ) {
-	
-		return this.getRawNormal(t, optionalTarget).normalize();
+    
+    if (this.normalMode === 'alwaysAway') {
+      const tangent = this.getTangent(t)
+      const position = this.getPoint(t)
+      const binormal = tangent.clone().cross(position).normalize()
+      const normal = binormal.clone().cross(tangent)
+      return normal
+    }
+    else {
+  		return this.getRawNormal(t, optionalTarget).normalize();
+    }
 
 	}
 	
@@ -347,7 +361,15 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 
 	getBinormal( t, optionalTarget = new Vector3() ) {
 
-		return this.getRawBinormal(t, optionalTarget).normalize();		
+    if (this.normalMode === 'alwaysAway') {
+      const tangent = this.getTangent(t)
+      const position = this.getPoint(t)
+      const binormal = tangent.clone().cross(position).normalize()
+      return binormal
+    }
+    else {
+  		return this.getRawBinormal(t, optionalTarget).normalize();
+    }
 
 	}
 	
@@ -436,33 +458,35 @@ class CatmullRomSuperCurve3 extends SuperCurve {
 	getTangentAt(u, optionalTarget = new Vector3() ) {
 
 		const t = this.getUtoTmapping( u );
-		return this.getTangent( t, optionalTarget );
+		return this.getTangent(t, optionalTarget );
 
 	}
 
 	getRawNormalAt(u, optionalTarget = new Vector3() ) {
 
 		const t = this.getUtoTmapping( u );
-		return this.getRawNormal( t, optionalTarget );
+		return this.getRawNormal(t, optionalTarget );
 
 	}
 
 	getNormalAt(u, optionalTarget = new Vector3() ) {
 
-		return this.getRawNormalAt(u, optionalTarget).normalize();
+		const t = this.getUtoTmapping( u );
+		return this.getNormal(t, optionalTarget).normalize();
 	
 	}
 
 	getRawBinormalAt(u, optionalTarget = new Vector3() ) {
 
 		const t = this.getUtoTmapping( u );
-		return this.getRawBinormal( t, optionalTarget );
+		return this.getRawBinormal(t, optionalTarget );
 
 	}
 	
 	getBinormalAt(u, optionalTarget = new Vector3() ) {
 
-		return this.getRawBinormalAt(u, optionalTarget).normalize();
+		const t = this.getUtoTmapping( u );
+		return this.getBinormal(t, optionalTarget).normalize();
 	
 	}
 
