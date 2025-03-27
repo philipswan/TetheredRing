@@ -45,11 +45,11 @@ class CircleSuperCurve3 extends SuperCurve {
     return this.duration
   }
 
-  getPoint(t, optionalTarget) {
-    const d = this.tTod(t) / this.length
+  getPoint(i, optionalTarget) {
+    const d = i * this.length
     return this.getPointAt(d, optionalTarget)
   }
-
+  
   getPointAt(d, optionalTarget) {
     // d is a number from 0 to 1 which indicates the desired distance along the curve 
     const point = optionalTarget || new Vector3();

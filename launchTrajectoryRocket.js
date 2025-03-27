@@ -43,12 +43,18 @@ export function defineUpdateTrajectoryCurvesRocket () {
     let rocketVacuumEngineRadius = dParamWithUnits['rocketVacuumEngineRadius'].value
     let rocketCoefficientOfDrag = dParamWithUnits['rocketCoefficientOfDrag'].value
     let rocketSeparationDelay = dParamWithUnits['rocketSeparationDelay'].value
+    let useCycloidFactor = 0.1 //dParamWithUnits['useCycloidFactor'].value
+    let cycloidRadius = 200000*0.55 // 
 
     const rocketCoastTime = dParamWithUnits['rocketCoastTime'].value
     const launcherXyChartMaxT = dParamWithUnits['launcherXyChartMaxT'].value
     const verbose = dParamWithUnits['verboseLogging'].value
 
     let tStep = .25 // second
+
+    // Hack
+    let speedMaxTime = 480 // seconds (IFT8)
+    let altMaxTime = 480 // seconds (IFT8)
  
     let RV
     let velocityDueToPlanetsRotation
@@ -74,6 +80,9 @@ export function defineUpdateTrajectoryCurvesRocket () {
       mdot_max: rocketSeaLevelEnginePropellantFlowRate,    // Peak mass flow rate (kg/s)
       ve_max: rocketExhaustVelocitySLEngAtSeaLevel,        // Peak exhaust velocity (m/s)
     }
+
+    const ch4Fraction = 800/(800+2800)
+    const loxFraction = 2800/(800+2800)
 
     // engineParams.P0 = 0
     // for (let mdot = 0; mdot <= engineParams.mdot_max; mdot += engineParams.mdot_max/64) {
@@ -117,11 +126,19 @@ export function defineUpdateTrajectoryCurvesRocket () {
     this.launchTrajectoryWhiteMarker.position.copy(R0)  // For Debug
 
     const empiricalStarshipIFTAltitude = this.empiricalStarshipIFTAltitude
+    const empiricalaltitudeRegressionData = this.empiricalaltitudeRegressionData
     const empiricalStarshipIFTSpeed = this.empiricalStarshipIFTSpeed
+    const empiricalBoosterCH4Mass = this.empiricalBoosterCH4Mass
+    const empiricalBoosterLOXMass = this.empiricalBoosterLOXMass
+    const empiricalStarshipCH4Mass = this.empiricalStarshipCH4Mass
+    const empiricalStarshipLOXMass = this.empiricalStarshipLOXMass
+    const empericalBoosterOrientation = this.empericalBoosterOrientation
+    const empericalStarshipOrientation = this.empericalStarshipOrientation
     const empiricalMECOTime = 154  // Value for IFT7
 
     const orbitalElementsFromStateVector = this.getOrbitalElementsFromStateVectorWrapper()
     const RV_from_R0V0Aandt = this.getRV_from_R0V0AandtWrapper()
+    const empiricalData = this.empiricalData
 
     const simInputParamters = {
       // Static Parameters
@@ -132,8 +149,9 @@ export function defineUpdateTrajectoryCurvesRocket () {
       V0PlusPlanetRotation,
       rocketCoastTime,
       tStep,
-      empiricalStarshipIFTAltitude,
-      empiricalStarshipIFTSpeed,
+      speedMaxTime,
+      altMaxTime,
+      empiricalData,
       orbitalElementsFromStateVector,
       RV_from_R0V0Aandt,
       launcherXyChartMaxT,
@@ -146,6 +164,8 @@ export function defineUpdateTrajectoryCurvesRocket () {
       rocketEffectiveRadius,
       // Potentially Tunable Parameters
       engineParams,
+      ch4Fraction,
+      loxFraction,
       rocketDesiredOrbitalAltitude,
       rocketStage1DryMass,
       rocketStage2DryMass,
@@ -163,7 +183,9 @@ export function defineUpdateTrajectoryCurvesRocket () {
       rocketCoefficientOfDrag,
       rocketStage1StructuralLoadLimit,
       rocketStage2StructuralLoadLimit,
-      rocketSeparationDelay
+      rocketSeparationDelay,
+      useCycloidFactor,
+      cycloidRadius
     }
 
     let simResults
@@ -171,23 +193,25 @@ export function defineUpdateTrajectoryCurvesRocket () {
     if (autoTuneSimParams) {
       const tunableParams = [
         //{ key: "rocketDesiredOrbitalAltitude", min: rocketDesiredOrbitalAltitude-100000, max: rocketDesiredOrbitalAltitude+100000 },
-        { key: "rocketStage1DryMass", min: rocketStage1DryMass*0.8, max: rocketStage1DryMass*1.25 },
-        { key: "rocketStage2DryMass", min: rocketStage2DryMass*0.8, max: rocketStage2DryMass*1.25 },
+        // { key: "rocketStage1DryMass", min: rocketStage1DryMass*0.8, max: rocketStage1DryMass*1.25 },
+        // { key: "rocketStage2DryMass", min: rocketStage2DryMass*0.8, max: rocketStage2DryMass*1.25 },
         //{ key: "rocketPayloadMass", min: rocketPayloadMass*0.8, max: rocketPayloadMass*1.25 },
-        //{ key: "initialStage1PropellantMass", min: initialStage1PropellantMass*0.8, max: initialStage1PropellantMass*1.25 },
-        //{ key: "initialStage2PropellantMass", min: initialStage2PropellantMass*0.8, max: initialStage2PropellantMass*1.25 },
+        { key: "initialStage1PropellantMass", min: initialStage1PropellantMass*0.8, max: initialStage1PropellantMass*1.25 },
+        // { key: "initialStage2PropellantMass", min: initialStage2PropellantMass*0.8, max: initialStage2PropellantMass*1.25 },
         //{ key: "rocketSeaLevelEnginePropellantFlowRate", min: rocketSeaLevelEnginePropellantFlowRate*0.8, max: rocketSeaLevelEnginePropellantFlowRate*1.25 },
         //{ key: "rocketVacuumEnginePropellantFlowRate", min: rocketVacuumEnginePropellantFlowRate*0.8, max: rocketVacuumEnginePropellantFlowRate*1.25 },
-        { key: "rocketExhaustVelocitySLEngInVac", min: rocketExhaustVelocitySLEngInVac*0.8, max: rocketExhaustVelocitySLEngInVac*1.25 },
-        { key: "rocketExhaustVelocitySLEngAtSeaLevel", min: rocketExhaustVelocitySLEngAtSeaLevel*0.8, max: rocketExhaustVelocitySLEngAtSeaLevel*1.25 },
-        { key: "rocketExhaustVelocityVacEngInVac", min: rocketExhaustVelocityVacEngInVac*0.8, max: rocketExhaustVelocityVacEngInVac*1.25 },
-        { key: "rocketExhaustVelocityVacEngAtSeaLevel", min: rocketExhaustVelocityVacEngAtSeaLevel*0.8, max: rocketExhaustVelocityVacEngAtSeaLevel*1.25 },
-        { key: "rocketCoefficientOfDrag", min: rocketCoefficientOfDrag*0.8, max: rocketCoefficientOfDrag*1.25 },
-        { key: "rocketStage1StructuralLoadLimit", min: rocketStage1StructuralLoadLimit*0.8, max: rocketStage1StructuralLoadLimit*1.25 },
-        { key: "rocketStage2StructuralLoadLimit", min: rocketStage2StructuralLoadLimit*0.8, max: rocketStage2StructuralLoadLimit*1.25 },
-        { key: "rocketStage1RecoveryPropellantMass", min: rocketStage1RecoveryPropellantMass*0.8, max: rocketStage1RecoveryPropellantMass*1.25 },
-        { key: "rocketStage2RecoveryPropellantMass", min: rocketStage2RecoveryPropellantMass*0.8, max: rocketStage2RecoveryPropellantMass*1.25 },
+        // { key: "rocketExhaustVelocitySLEngInVac", min: rocketExhaustVelocitySLEngInVac*0.8, max: rocketExhaustVelocitySLEngInVac*1.25 },
+        // { key: "rocketExhaustVelocitySLEngAtSeaLevel", min: rocketExhaustVelocitySLEngAtSeaLevel*0.8, max: rocketExhaustVelocitySLEngAtSeaLevel*1.25 },
+        // { key: "rocketExhaustVelocityVacEngInVac", min: rocketExhaustVelocityVacEngInVac*0.8, max: rocketExhaustVelocityVacEngInVac*1.25 },
+        // { key: "rocketExhaustVelocityVacEngAtSeaLevel", min: rocketExhaustVelocityVacEngAtSeaLevel*0.8, max: rocketExhaustVelocityVacEngAtSeaLevel*1.25 },
+        // { key: "rocketCoefficientOfDrag", min: rocketCoefficientOfDrag*0.8, max: rocketCoefficientOfDrag*1.25 },
+        // { key: "rocketStage1StructuralLoadLimit", min: rocketStage1StructuralLoadLimit*0.8, max: rocketStage1StructuralLoadLimit*1.25 },
+        // { key: "rocketStage2StructuralLoadLimit", min: rocketStage2StructuralLoadLimit*0.8, max: rocketStage2StructuralLoadLimit*1.25 },
+        // { key: "rocketStage1RecoveryPropellantMass", min: rocketStage1RecoveryPropellantMass*0.8, max: rocketStage1RecoveryPropellantMass*1.25 },
+        // { key: "rocketStage2RecoveryPropellantMass", min: rocketStage2RecoveryPropellantMass*0.8, max: rocketStage2RecoveryPropellantMass*1.25 },
         //{ key: "rocketSeparationDelay", min: rocketSeparationDelay-2, max: rocketSeparationDelay+2 }
+        //{ key: "useCycloidFactor", min: 0, max: .5 },
+        //{ key: "cycloidRadius", min: 50000, max: 200000 }
       ]
 
       // Create a copy of the original tunable parameters
@@ -199,7 +223,8 @@ export function defineUpdateTrajectoryCurvesRocket () {
 
       function testFunction(simInputParamters) {
         const simResults = simRocketFlight(simInputParamters)
-        return simResults.rootMeanSquaredErrorSpeed + Math.abs(simResults.mecoTime-empiricalMECOTime)*40
+        //return simResults.rootMeanSquaredErrorSpeed + simResults.rootMeanSquaredErrorAlt + Math.abs(simResults.mecoTime-empiricalMECOTime)*40
+        return simResults.rootMeanSquaredErrorAlt
         //return Math.abs(simResults.mecoTime-empiricalMECOTime)*10
       }
 
@@ -219,7 +244,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
       })
     }
     else {
-      simResults = simRocketFlight(simInputParamters)
+      simResults = simRocketFlight(simInputParamters, this.scene)
     }
 
     // Expand simResults
@@ -239,11 +264,25 @@ export function defineUpdateTrajectoryCurvesRocket () {
       radiativeHeatingVersusTimeData,
       deltaVVersusTimeData,
       orientationCorrectionVersusTimeData,
+
+      angularMomentumVectorVersusTimeData,
+      eccentricityVersusTimeData,
+      rightAscensionOfAscendingNodeVersusTimeData,
+      inclinationVersusTimeData,
+      argumentOfPerigeeVersusTimeData,
+      trueAnomalyVersusTimeData,
+      semimajorAxisVersusTimeData,
+
+      predictedAltitudeVersusTime,
       totalMassVersusTimeData,
+      boosterCH4MassVersusTimeData,
+      boosterLOXMassVersusTimeData,
+      shipCH4MassVersusTimeData,
+      shipLOXMassVersusTimeData,
       apogeeAltitudeVersusTimeData,
       perigeeAltitudeVersusTimeData,
-      firstApsisVersusTimeData,
-      secondApsisVersusTimeData,
+      closeApsisVersusTimeData,
+      farApsisVersusTimeData,
       rootMeanSquaredErrorSpeed,
       rootMeanSquaredErrorAlt} = simResults
   
@@ -332,95 +371,155 @@ export function defineUpdateTrajectoryCurvesRocket () {
 
     if (dParamWithUnits['showForwardAccelerationVersusTime'].value) { 
       this.xyChart.removeCurve("Forward Acceleration")
-      this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, 1, 0xff0000, "Bright Red", "Forward Acceleration (m/s2)")
+      this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, (y)=>y*1, 0xff0000, "Bright Red", "Forward Acceleration (m/s2)")
     }
     
     if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) {
       this.xyChart.removeCurve("Upward Acceleration")
-      this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, 1, 0x00ff00, "Bright Green", "Upward Acceleration (m/s2)")
+      this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, (y)=>y*1, 0x00ff00, "Bright Green", "Upward Acceleration (m/s2)")
     }
     
     if (dParamWithUnits['showAltitudeVersusTime'].value)  {
       this.xyChart.removeCurve("Altitude")
-      this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, 0.001, 0x80ff00, "Bright Lime", "Altitude (km)")
+      this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, (y)=>y*0.001, 0x80ff00, "Bright Lime", "Altitude (km)")
     }
     
     const airPressureAtSeaLevel = planetSpec.airPressureAtAltitude(0)
     if (dParamWithUnits['showAirPressureVersusTime'].value) {
       this.xyChart.removeCurve("Air Pressure")
-      this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, 100/airPressureAtSeaLevel, 0xff8000, "Bright Orange", "Air Pressure (% of sea level)")
+      this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, (y)=>y*100/airPressureAtSeaLevel, 0xff8000, "Bright Orange", "Air Pressure (% of sea level)")
     }
     
     if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) {
       this.xyChart.removeCurve("Downrange Distance")
-      this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, .00001, 0xff00ff, "Bright Magenta", "Downrange Distance (100's of km)")
+      this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, (y)=>y*.00001, 0xff00ff, "Bright Magenta", "Downrange Distance (100's of km)")
     }
     
     if (dParamWithUnits['showAirSpeedVersusTime'].value) {
       this.xyChart.removeCurve("Air Speed")
-      this.xyChart.addCurve("Air Speed", "m/s", "100's m/s", airSpeedVersusTimeData, 0.01, 0x00ffff, "Bright Cyan", "Air Speed (100's m/s)")
+      this.xyChart.addCurve("Air Speed", "m/s", "100's m/s", airSpeedVersusTimeData, (y)=>y*0.01, 0x00ffff, "Bright Cyan", "Air Speed (100's m/s)")
     }
     
     if (dParamWithUnits['showAerodynamicDragVersusTime'].value) {
       this.xyChart.removeCurve("Aerodynamic Drag")
-      this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, 0.00001, 0xff00ff, "Bright Magenta", "Aerodynamic Drag (100's of kN)")
+      this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, (y)=>y*0.00001, 0xff00ff, "Bright Magenta", "Aerodynamic Drag (100's of kN)")
     }
     
     if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) {
       this.xyChart.removeCurve("Propellant Mass Flow Rate")
-      this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "1000's of kg/s", propellantMassFlowRateVersusTimeData, 0.001, 0x00ff80, "Bright Teal", "Propellant Mass Flow Rate (1000's of kg/s)")
+      this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "1000's of kg/s", propellantMassFlowRateVersusTimeData, (y)=>y*0.001, 0x00ff80, "Bright Teal", "Propellant Mass Flow Rate (1000's of kg/s)")
     }
     
     if (dParamWithUnits['showTotalMassVersusTime'].value) {
       this.xyChart.removeCurve("Vehicle Mass")
-      this.xyChart.addCurve("Vehicle Mass", "kg", "100000's of kg", totalMassVersusTimeData, 1e-5, 0xff007f, "Bright Pink", "Vehicle Mass (100000's of kg)")
+      this.xyChart.addCurve("Vehicle Mass", "kg", "100000's of kg", totalMassVersusTimeData, (y)=>y*1e-5, 0xff007f, "Bright Pink", "Vehicle Mass (100000's of kg)")
+    }
+
+    if (dParamWithUnits['showBoosterCH4MassVersusTime'].value) {
+      this.xyChart.removeCurve("Booster CH4 Mass")
+      this.xyChart.addCurve("Booster CH4 Mass", "kg", "1000's of kg", boosterCH4MassVersusTimeData, (y)=>y*0.00005, 0x00ff80, "Bright Teal", "Booster CH4 Mass (20000's of kg)")
+    }
+
+    if (dParamWithUnits['showBoosterLOXMassVersusTime'].value) {
+      this.xyChart.removeCurve("Booster LOX Mass")
+      this.xyChart.addCurve("Booster LOX Mass", "kg", "1000's of kg", boosterLOXMassVersusTimeData, (y)=>y*0.00005, 0xff007f, "Bright Pink", "Booster LOX Mass (20000's of kg)")
+    }
+
+    if (dParamWithUnits['showShipCH4MassVersusTime'].value) {
+      this.xyChart.removeCurve("Ship CH4 Mass")
+      this.xyChart.addCurve("Ship CH4 Mass", "kg", "1000's of kg", shipCH4MassVersusTimeData, (y)=>y*0.00005, 0x00ff80, "Bright Teal", "Ship CH4 Mass (20000's of kg)")
+    }
+
+    if (dParamWithUnits['showShipLOXMassVersusTime'].value) {
+      this.xyChart.removeCurve("Ship LOX Mass")
+      this.xyChart.addCurve("Ship LOX Mass", "kg", "1000's of kg", shipLOXMassVersusTimeData, (y)=>y*0.00005, 0xff007f, "Bright Pink", "Ship LOX Mass (20000's of kg)")
     }
     
     if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) {
       this.xyChart.removeCurve("Orbital Apogee Altitude")
-      this.xyChart.addCurve("Orbital Apogee Altitude", "m", "100's km", apogeeAltitudeVersusTimeData, 1e-5, 0x0000ff, "Bright Blue", "Orbital Apogee Distance (100's km)")
+      this.xyChart.addCurve("Orbital Apogee Altitude", "m", "100's km", apogeeAltitudeVersusTimeData, (y)=>y*5e-4, 0x0000ff, "Bright Blue", "Orbital Apogee Distance (100's km)")
     }
     
     if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) {
       this.xyChart.removeCurve("Orbital Perigee Distance")
-      this.xyChart.addCurve("Orbital Perigee Distance", "m", "100's km", perigeeAltitudeVersusTimeData, 1e-5, 0xffc000, "Bright Golden", "Orbital Perigee Distance (100's km)")
+      this.xyChart.addCurve("Orbital Perigee Distance", "m", "100's km", perigeeAltitudeVersusTimeData, (y)=>y*1e-5, 0xffc000, "Bright Golden", "Orbital Perigee Distance (100's km)")
     }
 
-    if (dParamWithUnits['showFirstApsisVersusTime'].value) {
-      this.xyChart.removeCurve("First Apsis")
-      this.xyChart.addCurve("First Apsis", "m", "100's km", apogeeAltitudeVersusTimeData, 1e-5, 0x0000ff, "Bright Blue", "First Apsis (100's km)")
+    if (dParamWithUnits['showCloseApsisVersusTime'].value) {
+      this.xyChart.removeCurve("Close Apsis")
+      this.xyChart.addCurve("Close Apsis", "m", "100's km", closeApsisVersusTimeData, (y)=>y*1e-5, 0x0000ff, "Bright Blue", "Close Apsis (100's km)")
     }
     
-    if (dParamWithUnits['showSecondApsisVersusTime'].value) {
-      this.xyChart.removeCurve("Second Apsis")
-      this.xyChart.addCurve("Second Apsis", "m", "100's km", perigeeAltitudeVersusTimeData, 1e-5, 0xffc000, "Bright Golden", "Second Apsis (100's km)")
+    if (dParamWithUnits['showFarApsisVersusTime'].value) {
+      this.xyChart.removeCurve("Far Apsis")
+      this.xyChart.addCurve("Far Apsis", "m", "100's km", farApsisVersusTimeData, (y)=>y*1e-5, 0xffc000, "Bright Golden", "Far Apsis (100's km)")
     }
 
     if (dParamWithUnits['showOrbitalAltitudeVersusTime'].value) {
       const a = planetRadius + rocketDesiredOrbitalAltitude
       const orbitalAltitudeData = [new THREE.Vector3(0, a, 0), new THREE.Vector3(700, a, 0)]
       this.xyChart.removeCurve("Orbital Altitude")
-      this.xyChart.addCurve("Orbital Altitude", "m", "100's km", orbitalAltitudeData, 1e-5, tram.tab10Colors[3].hex, tram.tab10Colors[3].name, "Orbital Altitude (100's of km)")
+      this.xyChart.addCurve("Orbital Altitude", "m", "100's km", orbitalAltitudeData, (y)=>y*1e-5, tram.tab10Colors[3].hex, tram.tab10Colors[3].name, "Orbital Altitude (100's of km)")
     }
     
     //if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) {
     //  this.xyChart.removeCurve("Convective Heating")
-    //  this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2", convectiveHeatingVersusTimeData, 1, 0xffff7f, "Bright Light Yellow", "Convective Heating (W/m2)")
+    //  this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2", convectiveHeatingVersusTimeData, (y)=>y*1, 0xffff7f, "Bright Light Yellow", "Convective Heating (W/m2)")
     // }
     
     //if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) {
     //  this.xyChart.removeCurve("Convective Heating")
-    //  this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, 1, 0xffc080, "Bright Light Orange", "Radiative Heating (W/m2)")
+    //  this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, (y)=>y*1, 0xffc080, "Bright Light Orange", "Radiative Heating (W/m2)")
     // }
 
     if (dParamWithUnits['showDeltaVVersusTime'].value) {
       this.xyChart.removeCurve("Delta-V")
-      this.xyChart.addCurve("Delta-V", "m/s", "100's m/s", deltaVVersusTimeData, 0.01, 0xff00ff, "Bright Magenta", "Delta-V (100's m/s)")
+      this.xyChart.addCurve("Delta-V", "m/s", "100's m/s", deltaVVersusTimeData, (y)=>y*0.01, 0xff00ff, "Bright Magenta", "Delta-V (100's m/s)")
     }
 
     if (dParamWithUnits['showOrientationCorrectionVersusTime'].value) {
       this.xyChart.removeCurve("Orientation Correction")
-      this.xyChart.addCurve("Orientation Correction", "rad", "rad", orientationCorrectionVersusTimeData, 1, 0x0000ff, "Bright Blue", "Orientation Correction (rad)")
+      this.xyChart.addCurve("Orientation Correction", "rad", "rad", orientationCorrectionVersusTimeData, (y)=>y*1, 0x0000ff, "Bright Blue", "Orientation Correction (rad)")
+    }
+
+    if (dParamWithUnits['showAngularMomentumVectorVersusTime'].value) {
+      this.xyChart.removeCurve("Angular Momentum Vector")
+      this.xyChart.addCurve("Angular Momentum Vector", "km2/s", "1000's km2/s", angularMomentumVectorVersusTimeData, (y)=>y*1e-6, 0xff00ff, "Bright Magenta", "Angular Momentum Vector (1000's km2/s)")
+    }
+
+    if (dParamWithUnits['showEccentricityVersusTime'].value) {
+      this.xyChart.removeCurve("Eccentricity")
+      this.xyChart.addCurve("Eccentricity", "", "", eccentricityVersusTimeData, (y)=>y*100, 0xff0000, "Bright Red", "Eccentricity")
+    }
+
+    if (dParamWithUnits['showRightAscensionOfAscendingNodeVersusTime'].value) {
+      this.xyChart.removeCurve("Right Ascension Of Ascending Node")
+      this.xyChart.addCurve("Right Ascension Of Ascending Node", "rad", "rad", simResults.rightAscensionOfAscendingNodeVersusTimeData, (y)=>y*1, 0x00ff00, "Bright Green", "Right Ascension Of Ascending Node (rad)")
+    }
+
+    if (dParamWithUnits['showInclinationVersusTime'].value) {
+      this.xyChart.removeCurve("Inclination")
+      this.xyChart.addCurve("Inclination", "rad", "rad", inclinationVersusTimeData, (y)=>y*100, 0xff8000, "Bright Orange", "Inclination (rad)")
+    }
+
+    if (dParamWithUnits['showArgumentOfPerigeeVersusTime'].value) {
+      this.xyChart.removeCurve("Argument Of Perigee")
+      this.xyChart.addCurve("Argument Of Perigee", "rad", "rad", argumentOfPerigeeVersusTimeData, (y)=>y*1000, 0x00ff00, "Bright Green", "Argument Of Perigee (rad)")
+    }
+
+    if (dParamWithUnits['showTrueAnomalyVersusTime'].value) {
+      this.xyChart.removeCurve("True Anomaly")
+      this.xyChart.addCurve("True Anomaly", "rad", "rad", trueAnomalyVersusTimeData, (y)=>y*10, 0xffc000, "Bright Golden", "True Anomaly (rad)")
+    }
+
+    if (dParamWithUnits['showSemimajorAxisVersusTime'].value) {
+      this.xyChart.removeCurve("Semimajor Axis")
+      this.xyChart.addCurve("Semimajor Axis", "m", "m", semimajorAxisVersusTimeData, (y)=>y*1e-5, 0x00ff00, "Bright Green", "Semimajor Axis (m)")
+    }
+
+    if (dParamWithUnits['showPredictedAltitudeVersusTime'].value) {
+      this.xyChart.removeCurve("Predicted Altitude")
+      this.xyChart.addCurve("Predicted Altitude", "m", "km", predictedAltitudeVersusTime, (y)=>y*0.001, 0xff8000, "Bright Orange", "Predicted Altitude (km)")
     }
     
     this.xyChart.drawLegend(14, 22)
