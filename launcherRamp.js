@@ -111,26 +111,25 @@ export class CalculateSpeedAndPositionVersusTime {
 }
 
 export class CreateConversionFunctions {
-  constructor(rampConversionCurvePoints, timeWithinRamp) {
+  constructor(rampConversionCurvePoints, timeWithinRamp, launchRampLength) {
     const rampConversionCurve = new THREE.CatmullRomCurve3(rampConversionCurvePoints)
 
     const launchRamptToiConvertor = function (t) {
       // Time to "interpolation distance" conversion
       // Interpolation distance is a value that is useful for interpolating between points on the curve,
       // in this case the rampConversionCurve.
-      return t / timeWithinRamp
+      const d = launchRamptTodConvertor(t)
+      return d / launchRampLength
     }
     const launchRamptTodConvertor = function (t) {
       // Time to Distance Convertor
-      const iForLookup = launchRamptToiConvertor(t)
-      const interpolatedPoint = rampConversionCurve.getPoint(iForLookup)
+      const interpolatedPoint = rampConversionCurve.getPoint(t/timeWithinRamp)
       const distance = interpolatedPoint.x
       return distance
     }
     const launchRamptTosConvertor = function (t) {
       // Time to Speed Convertor
-      const iForLookup = launchRamptToiConvertor(t)
-      const interpolatedPoint = rampConversionCurve.getPoint(iForLookup)
+      const interpolatedPoint = rampConversionCurve.getPoint(t/timeWithinRamp)
       const speed = interpolatedPoint.y
       return speed
     }

@@ -408,7 +408,7 @@ export function defineUpdateTrajectoryCurves () {
     this.launchVehicleTimeWithinRamp = launchVehicleTimeWithinRamp
 
     let launchVehicleRamptToiConvertor, launchVehicleRamptTodConvertor, launchVehicleRamptTosConvertor
-    [launchVehicleRamptToiConvertor, launchVehicleRamptTodConvertor, launchVehicleRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(launchVehicleRampConversionCurvePoints, launchVehicleTimeWithinRamp)
+    [launchVehicleRamptToiConvertor, launchVehicleRamptTodConvertor, launchVehicleRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(launchVehicleRampConversionCurvePoints, launchVehicleTimeWithinRamp, this.launcherRampLength)
     const launchRampExitVelocity = launchVehicleRamptTosConvertor(launchVehicleTimeWithinRamp)
 
     // We would like to decelerate the adaptive nut and bring it to a stop while it's on the ramp.
@@ -431,7 +431,7 @@ export function defineUpdateTrajectoryCurves () {
     this.adaptiveNutTimeWithinRamp = adaptiveNutTimeWithinRamp
 
     let adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor
-    [adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp)
+    [adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp, this.launcherRampLength)
 
     // Next design the downward arcing part of the sled's return path
 
@@ -511,11 +511,10 @@ export function defineUpdateTrajectoryCurves () {
 
     const feederRailCurvetToiConvertor = function (t) {
       // Time to "interpolation distance" conversion
-      return t
+      return (launcherMassDriver1InitialVelocity * t) / launcherFeederRailLength
     }
     const feederRailCurvetTodConvertor = function (t) {
-      const tt = feederRailCurvetToiConvertor(t)
-      return launcherMassDriver1InitialVelocity * tt
+      return launcherMassDriver1InitialVelocity * t
     }
     const feederRailCurvetTosConvertor = function (t) {
       // Time to speed conversion
@@ -570,15 +569,13 @@ export function defineUpdateTrajectoryCurves () {
 
     const massDriver1tToiConvertor = function (t) {
       // Time to "interpolation distance" conversion
-      return t
+      return (launcherMassDriver1InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t) / launcherMassDriver1Length  // v0*t + 1/2 at^2
     }
     const massDriver1tTosConvertor = function (t) {
-      const tt = massDriver1tToiConvertor(t)
-      return launcherMassDriver1InitialVelocity + launcherMassDriverForwardAcceleration * tt
+      return launcherMassDriver1InitialVelocity + launcherMassDriverForwardAcceleration * t
     }
     const massDriver1tTodConvertor = function (t) {
-      const tt = massDriver1tToiConvertor(t)
-      return launcherMassDriver1InitialVelocity * tt + 0.5 * launcherMassDriverForwardAcceleration * tt * tt  // v0*t + 1/2 at^2
+      return launcherMassDriver1InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
     }
     this.massDriver1Curve.addtToiConvertor(massDriver1tToiConvertor)
     this.massDriver1Curve.addtTosConvertor(massDriver1tTosConvertor)
@@ -625,16 +622,13 @@ export function defineUpdateTrajectoryCurves () {
 
     const massDriver2tToiConvertor = function (t) {
       // Time to "interpolation distance" conversion
-      return t
+      return (launcherMassDriver2InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t) / launcherMassDriver2Length  // v0*t + 1/2 at^2
     }
     const massDriver2tTosConvertor = function (t) {
-      const tt = massDriver2tToiConvertor(t)
-      return launcherMassDriver2InitialVelocity + launcherMassDriverForwardAcceleration * tt  // 1/2 at^2
+      return launcherMassDriver2InitialVelocity + launcherMassDriverForwardAcceleration * t  // 1/2 at^2
     }
-    this.massDriver2Curve.addtTosConvertor(massDriver2tTosConvertor)
     const massDriver2tTodConvertor = function (t) {
-      const tt = massDriver2tToiConvertor(t)
-      return launcherMassDriver2InitialVelocity * tt + 0.5 * launcherMassDriverForwardAcceleration * tt * tt  // v0*t + 1/2 at^2
+      return launcherMassDriver2InitialVelocity * t + 0.5 * launcherMassDriverForwardAcceleration * t * t  // v0*t + 1/2 at^2
     }
     this.massDriver2Curve.addtToiConvertor(massDriver2tToiConvertor)
     this.massDriver2Curve.addtTodConvertor(massDriver2tTodConvertor)
@@ -935,6 +929,7 @@ export function defineUpdateTrajectoryCurves () {
         lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
       }
       this.totalLengthOfLaunchSystem += this.launcherSuspendedEvacuatedTubeLength
+      this.launchVehicleAirSpeedAtExit = vehicleAirSpeed
 
       const evacuatedTubeConversionCurve = new THREE.CatmullRomCurve3(evacuatedTubeConversionCurvePoints)
 

@@ -46,10 +46,9 @@ class CircleSuperCurve3 extends SuperCurve {
   }
 
   getPoint(i, optionalTarget) {
-    const d = i * this.length
-    return this.getPointAt(d, optionalTarget)
+    return this.getPointAt(i, optionalTarget)
   }
-  
+
   getPointAt(d, optionalTarget) {
     // d is a number from 0 to 1 which indicates the desired distance along the curve 
     const point = optionalTarget || new Vector3();
@@ -59,9 +58,8 @@ class CircleSuperCurve3 extends SuperCurve {
     return point
   }
 
-  getTangent(t, optionalTarget) {
-    const d = this.tTod(t) / this.length
-    return this.getTangentAt(d, optionalTarget)
+  getTangent(i, optionalTarget) {
+    return this.getTangentAt(i, optionalTarget)
   }
 
   getTangentAt(d, optionalTarget) {
@@ -73,9 +71,8 @@ class CircleSuperCurve3 extends SuperCurve {
     return vector
   }
 
-  getNormal(t, optionalTarget) {
-    const d = this.tTod(t) / this.length
-    return this.getNormalAt(d, optionalTarget)
+  getNormal(i, optionalTarget) {
+    return this.getNormalAt(i, optionalTarget)
   }
 
   getNormalAt(d, optionalTarget) {
@@ -88,9 +85,10 @@ class CircleSuperCurve3 extends SuperCurve {
     return vector
   }
 
-  getBinormal(t, optionalTarget) {
-    const d = this.tTod(t) / this.length
-    return this.getBinormalAt(d, optionalTarget)
+  getBinormal(i, optionalTarget) {
+    const vector = optionalTarget || new Vector3();
+    vector.copy(this.binormal)
+    return vector
   }
 
   getBinormalAt(d, optionalTarget) {
@@ -111,9 +109,8 @@ class CircleSuperCurve3 extends SuperCurve {
     this.tTos = tTosConvertor
   }
 
-  getQuaternion(t, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
-    const d = this.tTod(t) / this.length
-    return this.getQuaternionAt(d, objectForward, objectUpward, optionalTarget)
+  getQuaternion(i, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
+    return this.getQuaternionAt(i, objectForward, objectUpward, optionalTarget)
   }
 
   getQuaternionAt(d, objectForward = new Vector3(0, 1, 0), objectUpward = new Vector3(0, 0, 1), optionalTarget = new Quaternion() ) {
@@ -121,7 +118,7 @@ class CircleSuperCurve3 extends SuperCurve {
     const q1 = optionalTarget
     const tangent = this.getTangentAt(d)
     const normal = this.getNormalAt(d)
-        q1.setFromUnitVectors(objectForward, tangent)
+    q1.setFromUnitVectors(objectForward, tangent)
     const rotatedObjectUpwardVector = objectUpward.clone().applyQuaternion(q1)
     const q2 = new Quaternion
     q2.setFromUnitVectors(rotatedObjectUpwardVector, normal)
