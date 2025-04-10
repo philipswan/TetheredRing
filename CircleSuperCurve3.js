@@ -88,14 +88,14 @@ class CircleSuperCurve3 extends SuperCurve {
   getBinormal(i, optionalTarget) {
     const vector = optionalTarget || new Vector3();
     vector.copy(this.binormal)
-    if (!this.normalInwards) vector.negate()
+    if (this.normalInwards) vector.negate()
     return vector
   }
 
   getBinormalAt(d, optionalTarget) {
     const vector = optionalTarget || new Vector3();
     vector.copy(this.binormal)
-    if (!this.normalInwards) vector.negate()
+    if (this.normalInwards) vector.negate()
     return vector
   }
   
