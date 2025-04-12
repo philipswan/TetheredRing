@@ -331,6 +331,8 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.isDynamic =  true
       virtualAdaptiveNut.hasChanged = true
       virtualAdaptiveNut.scene = scene
+      virtualAdaptiveNut.greenMaterial = new THREE.MeshPhongMaterial({color: 0x00ff00})
+      virtualAdaptiveNut.redMaterial = new THREE.MeshPhongMaterial({color: 0xff0000})
     }
   
     static addNewVirtualObjects(refFrames) {
@@ -557,6 +559,7 @@ export class virtualAdaptiveNut {
                 grapplerComponent.setRotationFromQuaternion(internalOrientation)
                 grapplerComponent.rotateY(leftRightSign*thetaOffset + midTheta)
                 grapplerComponent.rotateZ(-leftRightSign*padTwistActuation)
+                grapplerComponent.material = (switchoverSignal==0) ? virtualAdaptiveNut.redMaterial : virtualAdaptiveNut.greenMaterial
               }
               else if (grapplerComponent.name==='adaptiveNut_pivot') {
                 // Update the positions of the ends of the struts that are attached to the grapplers
