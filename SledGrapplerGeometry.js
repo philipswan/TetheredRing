@@ -45,10 +45,14 @@ class SledGrapplerPlacementInfo {
     this.shaftToGrapplerPad = shaftToGrapplerPad
     this.additionalRotation = additionalRotation
 
-    this.numGrapplerSegments = 4 // Must be an even number
+    this.numGrapplerSegments = 8 // Must be an even number
     this.midRib = this.numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
+    const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
+    const betweenGrapplerSpacing = grapplerSpacing * this.betweenGrapplerFactor
+    this.grapplerMidOffset = betweenGrapplerSpacing/2 + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
     this.offset = null // Later will be new Vector3()
     this.orientation = null // Later will be new Quaternion()
+    this.stowed = false
     this.switchoverSignal = null // Later will be an number from 0 to 1
     this.screwPitch = null // Later will be a number from 0 to 1
     this.launchSledGrapplerMaxRangeOfMotion = launchSledGrapplerMaxRangeOfMotion
@@ -59,15 +63,15 @@ class SledGrapplerPlacementInfo {
 
   // ToDo: I don't think we need launchSledGrapplerRangeFactor as a parameter. It should be a property of the class.
   generatePlacementInfo(grapplerDistance, launchSledGrapplerRangeFactor) {
-    const grapplerSpacing = 1.0 / this.numGrapplers * this.bodyLength
-    const betweenGrapplerSpacing = grapplerSpacing * this.betweenGrapplerFactor
     // See LauncherMathDocumentation.docx for the derivation of the following equations
 
     const cA = 0.5 * this.acceleration
     const cB = this.initialVelocity
     const cBSqrd = this.initialVelocity**2
 
-    const gPlus = grapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+    // Grappler distance is the distance from the back of the adaptive nut to back of the grappler pad.
+    // We need the distance to the middle of the grappler pad. We'll call this "gPlus"
+    const gPlus = grapplerDistance + this.grapplerMidOffset
     const cC = this.initialDistance - (this.distanceToSledAft + gPlus)
     let time
     if (cBSqrd - 4*cA*cC < 0) {
@@ -84,9 +88,9 @@ class SledGrapplerPlacementInfo {
     const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
     const outerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
 
-    // Code to calculate how rapidly the graplers are moving at the given grapplerDistance
+    // Code to calculate how rapidly the grapplers are moving at the given grapplerDistance
     //const midGrapplerDistance = this.bodyLength / 2
-    //const gPlus_Mid = midGrapplerDistance + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
+    //const gPlus_Mid = midGrapplerDistance + betweenGrapplerSpacing/2 + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
     //const cC_Mid = this.initialDistance - (this.distanceToSledAft + gPlus_Mid)
     //const deltaAngle = ( -Math.sqrt(cBSqrd - 4*cA*cC)  + Math.sqrt(cBSqrd - 4*cA*cC_Mid)) / (2*cA) * this.revolutionsPerSecond
 
@@ -111,8 +115,13 @@ class SledGrapplerPlacementInfo {
 
     // Before the grappler rotates away from the midpoint all the way to maxRotationAwayFromMidPoint, it will hit rotationAwayLimit. At this point it
     // will start to move from thread to adjacent thread. The switchover a signal is a number from 0 to 1 that represents how much the grapper is pushed back towards
-    // the midpoint position. It will push teh grappler to teh midpoimt and then allow it to return to the rotationAwayLimit position on the adjacent thread.
-    this.switchoverSignal = Math.max(0, Math.abs(rotationAwayFromMidPoint) - rotationAwayLimit) / (maxRotationAwayFromMidPoint - rotationAwayLimit)
+    // the midpoint position. It will push the grappler to the midpoimt and then allow it to return to the rotationAwayLimit position on the adjacent thread.
+    if (this.stowed) {
+      this.switchoverSignal = 1
+    }
+    else {
+      this.switchoverSignal = Math.max(0, Math.abs(rotationAwayFromMidPoint) - rotationAwayLimit) / (maxRotationAwayFromMidPoint - rotationAwayLimit)
+    }
 
     //chartRow = ''
     // for (let i = 0; i<=this.switchoverSignal; i++) {
@@ -182,6 +191,10 @@ class SledGrapplerGeometry extends BufferGeometry {
 
     const numGrapplerSegments = 8 // Must be an even number
     const midRib = numGrapplerSegments/2  // Assumes that numGrapplerSegments is an even number
+    const grapplerSpacing = 1.0 / numGrapplers * bodyLength
+    const betweenGrapplerSpacing = grapplerSpacing * betweenGrapplerFactor
+    const segmentSpacing = (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+    const grapplerMidOffset = betweenGrapplerSpacing/2 + midRib * segmentSpacing
 
     const vertices = []
     const normals = []
@@ -205,8 +218,6 @@ class SledGrapplerGeometry extends BufferGeometry {
 
     function generateBufferData() {
 
-      const grapplerSpacing = 1.0 / numGrapplers * bodyLength
-      const betweenGrapplerSpacing = grapplerSpacing * betweenGrapplerFactor
       const cA = 0.5 * acceleration
       const cB = initialVelocity
       const cBSqrd = initialVelocity**2
@@ -237,7 +248,7 @@ class SledGrapplerGeometry extends BufferGeometry {
       }
 
       // g, gPlus, and midwayGPlus are all distances measured from the start of the screw.
-      const midwayGPlus = g + (numGrapplerSegments/2) * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+      const midwayGPlus = g + grapplerMidOffset
       const averageRadius = (shaftRadius + threadRadius) / 2
       const averageRadiusTimes2Pi = 2 * Math.PI * averageRadius
 
@@ -247,7 +258,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         // i indexes the start (0) and end (1) of the downrange distance spanned by a single grappler.
         // Figure out the screw's rotation at the locaton of each grappler
         // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
-        const gPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+        const gPlus = g + betweenGrapplerSpacing/2 + i * segmentSpacing
         const cC = initialDistance - (distanceToSledAft + gPlus)
         const time = calcTime(cA, cB, cBSqrd, cC)
         gList[i] = gPlus
@@ -267,7 +278,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
 
         // Reduce the arc length of the grappler's magnetic pad by a factor of grapplerPadLengthFactor
-        const fullGPlus = g + i * (grapplerSpacing - betweenGrapplerSpacing) / numGrapplerSegments
+        const fullGPlus = g + betweenGrapplerSpacing/2 + i * segmentSpacing
         const gPlus = (fullGPlus - midwayGPlus)*grapplerPadLengthFactor + midwayGPlus
         const cC = initialDistance - (distanceToSledAft + gPlus)
         const time = calcTime(cA, cB, cBSqrd, cC)

@@ -21,7 +21,7 @@ export class adaptiveNutModel {
 
     // Proceedurally generate the Launch Sled's body (note: y-axis is in the direction the rocket is pointing, z-axis is up when the rocket is lying on it's side)
     const adaptiveNutBodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
-    adaptiveNutBodyGeometry.translate(0, bodyLength/2 - (bodyLength-grapplerLength)/2 - adaptiveNutForwardsOffset, 0)
+    adaptiveNutBodyGeometry.translate(0, bodyLength/2 - adaptiveNutForwardsOffset, 0)
     // const adaptiveNutBodyTexture = new THREE.TextureLoader().load('textures/adaptiveNutBodyTexture.jpg', function(texture) {adaptiveNutBodyMaterial.needsUpdate = true})
     // const adaptiveNutBodyMaterial = new THREE.MeshPhongMaterial( {map: adaptiveNutBodyTexture})
     const adaptiveNutBodyMaterial = new THREE.MeshPhongMaterial( {color: 0x7f6f7f})
@@ -83,14 +83,13 @@ export class adaptiveNutModel {
     function addGrapplers(adaptiveNutMesh) {
       // Create the sled's grapplers
       const distanceToSledAft = 0
-      const firstGrapplerDistance = 0
-      const lastGrapplerDistance = grapplerLength
+      const firstGrapplerDistance = (bodyLength-grapplerLength) / 2
       const grapplerSpacing = 1.0 / numGrapplers * grapplerLength
-      
+    
       const midwayPositionList = ['top', 'bottom']
       midwayPositionList.forEach(midwayPosition => {
         const midwayRotation = (midwayPosition==='top') ? 0.5 : 0
-        for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+        for (let i = 0, grapplerDistance = firstGrapplerDistance; i<numGrapplers; i++, grapplerDistance += grapplerSpacing) {
           const grapplerGroup = new THREE.Group()
           grapplerGroup.name = 'grappler'
           grapplerGroup.userData = {index: i, midwayRotation: midwayRotation}  // Save the index of the grappler here
@@ -179,7 +178,7 @@ export class adaptiveNutModel {
       const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
       const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
-      const initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
+      const initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
       const numGrapplers = dParamWithUnits['adaptiveNutNumGrapplers'].value
       const magnetThickness = dParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value
       const betweenGrapplerFactor = dParamWithUnits['adaptiveNutBetweenGrapplerFactor'].value
@@ -286,6 +285,7 @@ export class virtualAdaptiveNut {
   
       virtualAdaptiveNut.timeOfLastUpdate = clock.getElapsedTime() - virtualAdaptiveNut.updatePeriod
       virtualAdaptiveNut.launcherMassDriverLength = launcherMassDriverLength
+      virtualAdaptiveNut.adaptiveNutBodyLength = dParamWithUnits['adaptiveNutBodyLength'].value
       virtualAdaptiveNut.adaptiveNutGrapplerLength = dParamWithUnits['adaptiveNutGrapplerLength'].value
       virtualAdaptiveNut.sidewaysOffset = dParamWithUnits['adaptiveNutSidewaysOffset'].value
       virtualAdaptiveNut.upwardsOffset = dParamWithUnits['adaptiveNutUpwardsOffset'].value
@@ -303,7 +303,7 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.ballJointRadius = dParamWithUnits['adaptiveNutGrapplerBallJointRadius'].value
       virtualAdaptiveNut.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
       virtualAdaptiveNut.launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
-      virtualAdaptiveNut.initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
+      virtualAdaptiveNut.initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
       virtualAdaptiveNut.adaptiveNutGrapplerRangeFactor = dParamWithUnits['adaptiveNutGrapplerRangeFactor'].value
 
       // Because the sled inferfaces with the screw, we need to obtains some screw parameters as well...
@@ -392,7 +392,6 @@ export class virtualAdaptiveNut {
         const acceleration = virtualAdaptiveNut.launcherMassDriverForwardAcceleration
         const initialVelocity = virtualAdaptiveNut.launcherMassDriver1InitialVelocity
         const initialDistance = virtualAdaptiveNut.initialDistance
-        const grapplerLength = virtualAdaptiveNut.adaptiveNutGrapplerLength
         const adaptiveNutWidthDiv2 = virtualAdaptiveNut.adaptiveNutWidth / 2
   
         // Next we need to position the launch sled's legs so that they interface with the screws
@@ -435,10 +434,12 @@ export class virtualAdaptiveNut {
         let grapplerSwitchoverSignal = []
         let grapplerThreadPitch = []
   
-        const firstGrapplerDistance = 0
-        const lastGrapplerDistance = grapplerLength
+        const bodyLength = virtualAdaptiveNut.adaptiveNutBodyLength
+        const grapplerLength = virtualAdaptiveNut.adaptiveNutGrapplerLength
+        const firstGrapplerDistance = (bodyLength-grapplerLength) / 2
         const grapplerSpacing = 1.0 / numGrapplers * grapplerLength
-  
+
+        // ToDo: Probably a bit wasteful to recreate this object every time update the model
         const info = new SledGrapplerPlacementInfo(
           shaftOuterRadius,
           threadRadius,
@@ -460,7 +461,7 @@ export class virtualAdaptiveNut {
           virtualAdaptiveNut.minMaxArray
         )
   
-        for (let i = 0, grapplerDistance = firstGrapplerDistance; grapplerDistance<lastGrapplerDistance; i++, grapplerDistance += grapplerSpacing) {
+        for (let i = 0, grapplerDistance = firstGrapplerDistance; i<numGrapplers; i++, grapplerDistance += grapplerSpacing) {
           info.generatePlacementInfo(grapplerDistance, virtualAdaptiveNut.adaptiveNutGrapplerRangeFactor)
           grapplerOffset[i] = info.offset
           grapplerSwitchoverSignal[i] = info.switchoverSignal
