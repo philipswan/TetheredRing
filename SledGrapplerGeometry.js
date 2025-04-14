@@ -52,35 +52,45 @@ class SledGrapplerPlacementInfo {
     this.grapplerMidOffset = betweenGrapplerSpacing/2 + this.midRib * (grapplerSpacing - betweenGrapplerSpacing) / this.numGrapplerSegments
     this.offset = null // Later will be new Vector3()
     this.orientation = null // Later will be new Quaternion()
-    this.stowed = false
     this.switchoverSignal = null // Later will be an number from 0 to 1
     this.screwPitch = null // Later will be a number from 0 to 1
     this.launchSledGrapplerMaxRangeOfMotion = launchSledGrapplerMaxRangeOfMotion
     this.launchSledGrapplerTopDeadCenterRotation = launchSledGrapplerTopDeadCenterRotation
     this.minMaxArray = minMaxArray
 
+    this.cA = 0.5 * this.acceleration
+    this.cB = this.initialVelocity
+    this.cBSqrd = this.initialVelocity**2
+
+    const midwayGrapplerDistance = this.bodyLength / 2
+    const midwayGPlus = midwayGrapplerDistance + this.grapplerMidOffset
+    const cC = this.initialDistance - (this.distanceToSledAft + midwayGPlus)
+    this.midwayTime = this.calcTime(this.cA, this.cB, this.cBSqrd, cC)
+
+  }
+
+  calcTime(cA, cB, cBSqrd, cC) {
+    let time
+    if (cBSqrd - 4*cA*cC < 0) {
+      time = (-cB - 0) / (2*cA)
+    }
+    else {
+      time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
+    }
+    return time
   }
 
   // ToDo: I don't think we need launchSledGrapplerRangeFactor as a parameter. It should be a property of the class.
   generatePlacementInfo(grapplerDistance, launchSledGrapplerRangeFactor) {
     // See LauncherMathDocumentation.docx for the derivation of the following equations
 
-    const cA = 0.5 * this.acceleration
-    const cB = this.initialVelocity
-    const cBSqrd = this.initialVelocity**2
 
     // Grappler distance is the distance from the back of the adaptive nut to back of the grappler pad.
     // We need the distance to the middle of the grappler pad. We'll call this "gPlus"
     const gPlus = grapplerDistance + this.grapplerMidOffset
     const cC = this.initialDistance - (this.distanceToSledAft + gPlus)
-    let time
-    if (cBSqrd - 4*cA*cC < 0) {
-      // This part of the sled is at a location that doesn't satisfy the distance = f{t, a, v0, d0} equation.
-      time = (-cB - 0) / (2*cA)
-    }
-    else {
-      time = (-cB - Math.sqrt(cBSqrd - 4*cA*cC)) / (2*cA)
-    }
+
+    const time = this.calcTime(this.cA, this.cB, this.cBSqrd, cC)
 
     const rateOfChangeInForwardDisplacement = this.initialVelocity + this.acceleration * time   // We're going to assume that the launch sled does not start from zero velocity because this would require an thread pitch of zero, which is not manufacturable.
     const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
@@ -113,13 +123,13 @@ class SledGrapplerPlacementInfo {
     const rangeLimit2 = Math.max(0, maxRotationAwayFromMidPoint - launchSledGrapplerRangeFactor / Math.abs(outerThreadPitch))
     const rotationAwayLimit = Math.min(rangeLimit1, rangeLimit2)
 
-    // Before the grappler rotates away from the midpoint all the way to maxRotationAwayFromMidPoint, it will hit rotationAwayLimit. At this point it
-    // will start to move from thread to adjacent thread. The switchover a signal is a number from 0 to 1 that represents how much the grapper is pushed back towards
-    // the midpoint position. It will push the grappler to the midpoimt and then allow it to return to the rotationAwayLimit position on the adjacent thread.
-    if (this.stowed) {
+    if (Math.abs(time - this.midwayTime) > 0.01) {
       this.switchoverSignal = 1
     }
     else {
+      // Before the grappler rotates away from the midpoint all the way to maxRotationAwayFromMidPoint, it will hit rotationAwayLimit. At this point it
+      // will start to move from thread to adjacent thread. The switchover a signal is a number from 0 to 1 that represents how much the grapper is pushed back towards
+      // the midpoint position. It will push the grappler to the midpoint and then allow it to return to the rotationAwayLimit position on the adjacent thread.
       this.switchoverSignal = Math.max(0, Math.abs(rotationAwayFromMidPoint) - rotationAwayLimit) / (maxRotationAwayFromMidPoint - rotationAwayLimit)
     }
 

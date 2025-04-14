@@ -682,6 +682,8 @@ export class virtualAdaptiveNut {
         const d = relevantCurve.tTod(deltaT - res.relevantCurveStartTime) / res.relevantCurveLength
         //const i = Math.max(0, relevantCurve.tToi(deltaT - res.relevantCurveStartTime))
         const pointOnRelevantCurve = relevantCurve.getPointAt(Math.max(0, d))
+        const forwardToCenter = relevantCurve.getTangentAt(d).multiplyScalar(virtualAdaptiveNut.adaptiveNutBodyLength/2)
+        pointOnRelevantCurve.add(forwardToCenter)
         return pointOnRelevantCurve
       }
       else {
