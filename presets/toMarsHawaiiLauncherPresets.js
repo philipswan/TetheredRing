@@ -23,7 +23,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     const massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
     const rampExitAltitude = 4000 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
     toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
-    toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+    //toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
 
   }
   else {
@@ -33,7 +33,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     const rampExitAltitude = 1500 // m
     toMarsFromMoonLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
   }
-  guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 300
+  guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80000 // 300
 
   guidParamWithUnits['launcherFeederRailLength'].value = 0
 
@@ -45,8 +45,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleEffectiveRadius
   //launcherPayloadDeliveredToOrbit
-  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
-  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
+  guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
   //launchVehicleCoefficientOfDrag
   //launcherXyChartMaxT
   //launcherServiceLife
@@ -107,11 +107,11 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //launchSledForwardsOffset
   //launchSledNumModels
   
-  //guidParamWithUnits['launcherScrewRotationRate'].value = 200
+  //guidParamWithUnits['launcherMassDriverScrewRotationRate'].value = 200
 
   // Grappler Parameters
-  guidParamWithUnits['launchSledNumGrapplers'].value = 64
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
+  guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
+  guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
  
   // Parameters that are going to effect the launch system's performance...
   // Launch Angle (launcherRampUpwardAcceleration)
@@ -175,7 +175,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showStars'].value = true
   //guidParamWithUnits['showLaunchTrajectory'].value = true
   guidParamWithUnits['launcherCoastTime'].value = 100*20
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
   //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
   guidParamWithUnits['logZoomRate'].value = -3
@@ -183,19 +183,19 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showMarkers'].value = true
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 10
-  nonGUIParams['farClip'] = 1000000000
+  nonGUIParams['nearClip'] = 1
+  nonGUIParams['farClip'] = 100000000
 
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(98.94242870318703, -63.433976754080504, -84.42750348616391)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
 
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-15.401019364362583, 1.4742208924144506, 4.857152966782451)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2899585701484135, 0.3347774151120973, -0.896575769206572)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-18.82346588699147, -12.121040514670312, -3.740331665612757)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2899585701484135, 0.3347774151120973, -0.896575769206572)
-
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-10.22879414097406, 1.391210527624935, 1.4851894294843078)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
+  
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-887323.9041289391, 70376.78830169467, 91036.49722965527)

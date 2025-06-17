@@ -18,12 +18,12 @@ export function launchLookingBackwards(guidParamWithUnits, guidParam, gui, nonGU
 
   guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 300 // Limit the number of brackets since they temporarily alias
   
-  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
-  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
+  guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
 
   // Grappler Parameters
-  guidParamWithUnits['launchSledNumGrapplers'].value = 64
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
+  guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
+  guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
 
   // Hawaii
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 

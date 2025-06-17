@@ -30,25 +30,25 @@ export function edwardsAirforceBasePresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['launcherRampEndLatitude'].value = cameraCoordinateFromGoogle.latitude - feederRailEntranceOffsets.latitude + 0.0033 //+ distance * Math.cos(angle) // 35.3
   guidParamWithUnits['launcherRampEndLongitude'].value = cameraCoordinateFromGoogle.longitude - feederRailEntranceOffsets.longitude + .05 //+ distance * Math.sin(angle) // -108.8 // moving the end of the ranp a little bit east 
 
-  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
-  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
+  guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
   //guidParamWithUnits['launcherMarkerRadius'].value = 500
   
-  //guidParamWithUnits['launcherScrewRotationRate'].value = 200
+  //guidParamWithUnits['launcherMassDriverScrewRotationRate'].value = 200
 
   // Grappler Parameters
-  guidParamWithUnits['launchSledNumGrapplers'].value = 64
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
-  guidParamWithUnits['launchSledShaftToGrapplerPad'].value = 0.02
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.01
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerClearanceFactor'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerPadTwistPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointClearance'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointRadius'].value = 0.04
-  guidParamWithUnits['launchSledGrapplerRangeFactor'].value = .01
-  guidParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value = 0.125
-  guidParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value = 0.5
+  guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
+  guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
+  guidParamWithUnits['adaptiveNutShaftToGrapplerPad'].value = 0.02
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayDistance'].value = 0.01
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerClearanceFactor'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerPadTwistPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointClearance'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointRadius'].value = 0.04
+  guidParamWithUnits['adaptiveNutGrapplerRangeFactor'].value = .01
+  guidParamWithUnits['adaptiveNutGrapplerMaxRangeOfMotion'].value = 0.125
+  guidParamWithUnits['adaptiveNutGrapplerTopDeadCenterRotation'].value = 0.5
  
   // Parameters that are going to effect the launch system's performance...
   // Launch Angle (launcherRampUpwardAcceleration)

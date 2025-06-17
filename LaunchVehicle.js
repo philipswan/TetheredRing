@@ -352,7 +352,8 @@ export class virtualLaunchVehicle {
       else {
         orientationVector = relevantCurve.freeFlightOrientationCurve.getPointAt(d)  // This curve's "positions" are made from of tangent vectors
       }
-      if (true) {
+      if (false) {
+        // This mode doesn't seem to work correctly for the rocket launch.
         orientation.multiply(new THREE.Quaternion().setFromUnitVectors(forward, orientationVector))
       }
       else {
@@ -387,7 +388,7 @@ export class virtualLaunchVehicle {
     let shockwaveConeLengthFactor
     if (relevantCurve.name==='freeFlightPositionCurve') {
       if (virtualLaunchVehicle.launchVehicleAdaptiveThrust) {
-        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(t)
+        const vehicleTelemetry = relevantCurve.freeFlightTelemetryCurve.getPoint(i)
         const vehicleAirSpeed = vehicleTelemetry.x
         const aerodynamicDrag = vehicleTelemetry.y 
         const fuelFlowRate = vehicleTelemetry.z
@@ -449,10 +450,14 @@ export class virtualLaunchVehicle {
       if (virtualLaunchVehicle.useT) {
         const i = relevantCurve.tToi(t)
         pointOnRelevantCurve = relevantCurve.getPoint(i)
+        const forwardToCenter = relevantCurve.getTangent(i).multiplyScalar(virtualLaunchVehicle.forwardsOffset + (virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength)/2)
+        pointOnRelevantCurve.add(forwardToCenter)
       }
       else {
         const d = relevantCurve.tTod(t) / res.relevantCurveLength
         pointOnRelevantCurve = relevantCurve.getPointAt(d)
+        const forwardToCenter = relevantCurve.getTangentAt(d).multiplyScalar(virtualLaunchVehicle.forwardsOffset + (virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength)/2)
+        pointOnRelevantCurve.add(forwardToCenter)
       }
       return pointOnRelevantCurve
     }
@@ -489,6 +494,8 @@ export class virtualLaunchVehicle {
         rightward = relevantCurve.getBinormalAt(d)
         orientation = relevantCurve.getQuaternionAt(d, modelForward, modelUpward)
       }
+
+      position.add(forward.clone().multiplyScalar(virtualLaunchVehicle.forwardsOffset + (virtualLaunchVehicle.bodyLength + virtualLaunchVehicle.noseconeLength)/2))
 
       return {
         position: position,

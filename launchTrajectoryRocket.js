@@ -314,6 +314,8 @@ export function defineUpdateTrajectoryCurvesRocket () {
     // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube
     if (!this.freeFlightPositionCurve) {
       this.freeFlightPositionCurve = new CatmullRomSuperCurve3(freeFlightPositionCurveControlPoints)
+      this.freeFlightPositionCurve.setAlwaysAwayNormalMode()
+
     }
     else {
       this.freeFlightPositionCurve.setPoints(freeFlightPositionCurveControlPoints)

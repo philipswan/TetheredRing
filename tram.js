@@ -717,9 +717,9 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   //console.log('timeWithinMassDriverMinutes', timeWithinMassDriverMinutes)
 
   const launcherMassDriverScrewThreadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value // m
-  const launcherScrewRotationRate = dParamWithUnits['launcherScrewRotationRate'].value // rad/s
+  const launcherMassDriverScrewRotationRate = dParamWithUnits['launcherMassDriverScrewRotationRate'].value // rad/s
   const launcherScrewThreadCircumference = 2 * Math.PI * launcherMassDriverScrewThreadRadius
-  const launcherScrewThreadRimSpeed = launcherScrewThreadCircumference * launcherScrewRotationRate
+  const launcherScrewThreadRimSpeed = launcherScrewThreadCircumference * launcherMassDriverScrewRotationRate
   console.log('launcherScrewThreadRimSpeed', launcherScrewThreadRimSpeed)
   specs['launcherScrewThreadRimSpeed'] = {value: launcherScrewThreadRimSpeed, units: "m/s"}
   // The GE-90 has a fan diameter of 3124 mm and a rotational speed of 3475 RPM. Their circumferential velocity is d·π·57.917 = 568 m/s
@@ -819,9 +819,9 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   //console.log('diameterOfCarbonFiberStrut', diameterOfCarbonFiberStrut)
 
   const permeabilityOfFreeSpace = dParamWithUnits['permeabilityOfFreeSpace'].value // H/m
-  const launchSledAMBMaxMagneticFluxDensity = dParamWithUnits['launchSledAMBMaxMagneticFluxDensity'].value // T 
-  const launchSledAMBMagneticFluxDensityPortion = dParamWithUnits['launchSledAMBMagneticFluxDensityPortion'].value // T 
-  const launchSledAMBAverageMagneticFluxDensity = launchSledAMBMaxMagneticFluxDensity * launchSledAMBMagneticFluxDensityPortion
+  const launcherMassDriverScrewFlightSaturationFluxDensity = dParamWithUnits['launcherMassDriverScrewFlightSaturationFluxDensity'].value // T 
+  const launcherMassDriverScrewFlightMagneticFluxDensityPortion = dParamWithUnits['launcherMassDriverScrewFlightMagneticFluxDensityPortion'].value // T 
+  const launchSledAMBAverageMagneticFluxDensity = launcherMassDriverScrewFlightSaturationFluxDensity * launcherMassDriverScrewFlightMagneticFluxDensityPortion
   specs['launchSledAMBAverageMagneticFluxDensity'] = {value: launchSledAMBAverageMagneticFluxDensity, units: 'T'}
   //console.log('launchSledAMBAverageMagneticFluxDensity', launchSledAMBAverageMagneticFluxDensity)
 
@@ -829,7 +829,8 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['launchVehicleAreaOfAirgap'] = {value: launchVehicleAreaOfAirgap, units: 'm^2'}
   //console.log('launchVehicleAreaOfAirgap', launchVehicleAreaOfAirgap)
 
-  const launcherScrewToothContactPatchWidth = dParamWithUnits['launcherScrewToothContactPatchWidth'].value // m
+  const launcherMassDriverScrewGrapplePadStartRadius = dParamWithUnits['launcherMassDriverScrewGrapplePadStartRadius'].value // m
+  const launcherScrewToothContactPatchWidth = launcherMassDriverScrewThreadRadius - launcherMassDriverScrewGrapplePadStartRadius
   const launcherScrewToothContactPatchLength = launchVehicleAreaOfAirgap / launcherScrewToothContactPatchWidth
   specs['launcherScrewToothContactPatchLength'] = {value: launcherScrewToothContactPatchLength, units: 'm'}
   //console.log('launcherScrewToothContactPatchLength', launcherScrewToothContactPatchLength)
@@ -1401,7 +1402,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  const launcherStartDelayInSeconds = 21 //120
+  const launcherStartDelayInSeconds = 12 //120
   return Math.max(0, timeSinceStart - launcherStartDelayInSeconds) * slowDownPassageOfTime
 }
 
@@ -1737,7 +1738,8 @@ export function calculateThreadStarts(baseDistanceAlongScrew, theadStarts) {
   // ToDo: This is a proof of concept. We need to implement a more accurate algorithm for adjusting the number of thread starts as the vehicle progresses down the launcher.
   //return (baseDistanceAlongScrew<2000) ? 1 : (baseDistanceAlongScrew<5000) ? 2 : (baseDistanceAlongScrew<20000) ? 4 : 8
   if (theadStarts==0) {
-    return (baseDistanceAlongScrew<400) ? 1 : (baseDistanceAlongScrew<5000) ? 2 : 4
+    //return (baseDistanceAlongScrew<400) ? 1 : (baseDistanceAlongScrew<5000) ? 2 : 4
+    return (baseDistanceAlongScrew<5000) ? 2 : 4
   }
   else {
     return theadStarts
@@ -1914,7 +1916,7 @@ export function interpolateCurve(curve, tStep) {
   return newCurve
 }
 
-export function diffTwoCurves(curve1, curve2) {
+export function diffTwoCurves(curve1, curve2, maxTime) {
   if (!curve1.length || !curve2.length) {
     throw new Error("Both curves must have data points.")
   }
@@ -1937,7 +1939,12 @@ export function diffTwoCurves(curve1, curve2) {
     let d2 = curve2[i + offset]
 
     if (d1.x === d2.x) {
-      sumOfSquares += (d1.y - d2.y) ** 2
+      if (d1.x<=maxTime) {
+        sumOfSquares += (d1.y - d2.y) ** 2
+      }
+    }
+    else {
+      debugger
     }
   }
 
@@ -1998,7 +2005,7 @@ export function adamOptimize(
   fullParams,
   tunableParams,
   initialStepSize = 1, // Initial learning rate
-  alpha = 1e-5, // Scaled step size factor
+  alpha = 1e-2, // Scaled step size factor
   maxIterations = 5,
   tolerance = 1e-6
 ) {
@@ -2047,8 +2054,9 @@ export function adamOptimize(
         bestValue = trialValue
         newParams = { ...trialParams }
         lastImprovementFactor = factor
-        factor *= 1.1 // Increase step size to accelerate convergence
-      } else {
+        factor *= 1.5 // Increase step size to accelerate convergence
+      }
+      else {
         // If we overshoot, start backtracking
         if (lastImprovementFactor !== 1) {
           // **Binary search backtracking**

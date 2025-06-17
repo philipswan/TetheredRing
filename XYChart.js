@@ -153,10 +153,10 @@ export class XYChart extends THREE.Group {
   drawGridlines() {
     const xScale = this.width / (this.maxX - this.minX);
     const yScale = this.height / (this.maxY - this.minY);
-    const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x606060 });
-    const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0x303030 });
-    //const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0xc0c0c0 });
-    //const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0xefefef });
+    // const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x606060 });
+    // const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0x303030 });
+    const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0xc0c0c0 });
+    const faintGridLineMaterial = new THREE.LineBasicMaterial({ color: 0xefefef });
 
     // Create the grid lines and labels
     for (let x = this.minX; x <= this.maxX; x += this.majorX) {
@@ -167,7 +167,7 @@ export class XYChart extends THREE.Group {
       const gridLine = new THREE.Line(gridLineGeometry, gridLineMaterial);
       this.add(gridLine);
       // Create a text description for the grid label and specify that that the anchor point should be on the right.
-      this.textDescriptions.push({text: x.toString(), name: 'y-axis labels', x: xPos, y: -4, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'top'})
+      this.textDescriptions.push({text: x.toString(), name: 'x-axis labels', x: xPos, y: -4, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'top'})
     }
     for (let x = this.minX; x <= this.maxX; x += this.minorX) {
       // Skip the positions of the y axis and the major Grid lines
@@ -189,7 +189,8 @@ export class XYChart extends THREE.Group {
       const gridLine = new THREE.Line(gridLineGeometry, gridLineMaterial);
       this.add(gridLine);
       // Create a text description for the grid label and specify that that the anchor point should be on the right.
-      this.textDescriptions.push({text: y.toString(), name: 'y-axis labels', x: -4, y: yPos, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'right'})
+      this.textDescriptions.push({text: y.toString(), name: 'y-axis left labels', x: -4, y: yPos, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'right'})
+      this.textDescriptions.push({text: ((y-80)*2).toString(), name: 'y-axis right labels', x: this.width+4, y: yPos, rotation: 0, fontSize: this.gridLabelsFontSize, color: 0x808080, anchor: 'left'})
     }
   }
 
@@ -257,7 +258,7 @@ export class XYChart extends THREE.Group {
     }
   }
 
-  addCurve(curveName, curveUnits, curveScaledUnits, curveXYPoints, curveYScale, curveColor, curveColorName, legendText) {
+  addCurve(curveName, curveUnits, curveScaledUnits, curveXYPoints, remapY, curveColor, curveColorName, legendText) {
 
     const xScale = this.width / (this.maxX - this.minX);
     const yScale = this.height / (this.maxY - this.minY);
@@ -278,8 +279,16 @@ export class XYChart extends THREE.Group {
         point.y = 0
       }
       else {
-        if ((point.x >= this.minX) && (point.x <= this.maxX) && (point.y*curveYScale >= this.minY) && (point.y*curveYScale <= this.maxY)) {
-          const currentPoint = new THREE.Vector3((point.x-this.minX)*xScale, (point.y*curveYScale-this.minY)*yScale, 0)
+        let remappedY
+        if (typeof(remapY)==="function") {
+          remappedY = remapY(point.y)
+        }
+        else {
+          remappedY = point.y * remapY
+          debugger
+        }
+        if ((point.x >= this.minX) && (point.x <= this.maxX) && (remappedY >= this.minY) && (remappedY <= this.maxY)) {
+          const currentPoint = new THREE.Vector3((point.x-this.minX)*xScale, (remappedY-this.minY)*yScale, 0)
           if (!lastUnculledPoint || (lastUnculledPoint.distanceToSquared(currentPoint) > 0.5)) {
             lastUnculledPoint = currentPoint
             culledCurvePoints.push(currentPoint)
@@ -302,7 +311,7 @@ export class XYChart extends THREE.Group {
       // Recreate the line's geometry using the new points
       curveLine.geometry.setFromPoints(culledCurvePoints)
       //curveLine.material.color = curveColor
-      this.curveInfo[index] = {name: curveName, units: curveUnits, yScale: curveYScale, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine}
+      this.curveInfo[index] = {name: curveName, units: curveUnits, remapY: remapY, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine}
     }
     else {
       const curveGeometry = new THREE.BufferGeometry().setFromPoints(culledCurvePoints);
@@ -310,7 +319,7 @@ export class XYChart extends THREE.Group {
       curveLine = new THREE.Line(curveGeometry, curveMaterial);
       curveLine.name = curveName
       this.add(curveLine);
-      this.curveInfo.push({name: curveName, units: curveUnits, yScale: curveYScale, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine})
+      this.curveInfo.push({name: curveName, units: curveUnits, remapY: remapY, scaledUnits: curveScaledUnits, color: curveColor, colorName: curveColorName, legendText: localLegendText, largestX: largestX, largestY: largestY, mesh: curveLine})
     }
     curveLine.geometry.computeBoundingSphere() // This checks for invalid values in the geometry
 

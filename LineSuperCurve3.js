@@ -76,7 +76,7 @@ class LineSuperCurve3 extends SuperCurve {
 		const q1 = optionalTarget
 		const tangent = this.getTangentAt(d)
 		const normal = this.getNormalAt(d)
-        q1.setFromUnitVectors(objectForward, tangent)
+    q1.setFromUnitVectors(objectForward, tangent)
 		const rotatedObjectUpwardVector = objectUpward.clone().applyQuaternion(q1)
 		const q2 = new Quaternion.setFromUnitVectors(rotatedObjectUpwardVector, normal)
 		q2.multiply(q1)

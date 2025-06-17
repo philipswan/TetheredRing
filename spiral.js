@@ -32,7 +32,7 @@ export function getSpiralParameters(r0, rInc, arcLength) {
     }
 
     // Find the total theta for the given arc length
-    function findTheta(targetLength, tolerance = 1e-6) {
+    function findTheta(targetLength, tolerance = 1e-9) {
         
         const maxLength = targetLength
         let low = 0, high = maxLength

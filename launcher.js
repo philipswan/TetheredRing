@@ -17,16 +17,7 @@ import * as LaunchTrajectoryRocket from './launchTrajectoryRocket.js'
 import * as OrbitMath from './OrbitMath.js'
 import * as SaveGeometryAsSTL from './SaveGeometryAsSTL.js'
 import * as EngineeringDetails from './EngineeringDetails.js'
-import regression from 'regression'
-import { StarshipIFT1 } from './datasets/StarshipIFT1.js'
-import { StarshipIFT2 } from './datasets/StarshipIFT2.js'
-import { StarshipIFT3 } from './datasets/StarshipIFT3.js'
-import { StarshipIFT4 } from './datasets/StarshipIFT4.js'
-import { StarshipIFT5 } from './datasets/StarshipIFT5.js'
-import { StarshipIFT6 } from './datasets/StarshipIFT6.js'
-import { StarshipIFT7 } from './datasets/StarshipIFT7.js'
-import { StarshipIFT8 } from './datasets/StarshipIFT8.js'
-import { get } from 'lodash'
+import { ExtractedTelemetryLoader } from './ExtractedTelemetryLoader.js'
 
 //import { arrow } from './markers.js'
 //import { FrontSide } from 'three'
@@ -42,6 +33,7 @@ export class launcher {
     // }
     
     // this.worker.postMessage("Hello World!");
+    // console.log("AmbientPressure at 15km", planetSpec.airPressureAtAltitude(15000))
 
     this.clock = clock
     this.versionNumber = 0
@@ -149,8 +141,8 @@ export class launcher {
         // Hack
         //this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({wireframe: true, color: 0xffffff})
         //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({wireframe: true, color: 0x7f7f7f})
-        this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({color: 0xffffff})
-        this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({color: 0x7f7f7f})
+        this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({color: 0xffffff})
+        this.massDriverScrewMaterials[0] = new THREE.MeshPhongMaterial({color: 0x4f4faf})
         //this.massDriverScrewMaterials[1] = new THREE.MeshPhongMaterial({map: this.massDriverScrewTexture})
 
         this.update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
@@ -190,115 +182,8 @@ export class launcher {
       case 1:
         // Add the curves from Starship's televised telemetry
         if (dParamWithUnits['showStarshipIFT6Telemetry'].value) {
-          const ift1BoosterAlititudeVersusTimeData = []
-          const ift1BboosterAirSpeedVersusTimeData = []
-          const ift1StarshipAlititudeVersusTimeData = []
-          const ift1StarshipAirSpeedVersusTimeData = []
-          const ift2BoosterAlititudeVersusTimeData = []
-          const ift2BboosterAirSpeedVersusTimeData = []
-          const ift2StarshipAlititudeVersusTimeData = []
-          const ift2StarshipAirSpeedVersusTimeData = []
-          const ift3BoosterAlititudeVersusTimeData = []
-          const ift3BboosterAirSpeedVersusTimeData = []
-          const ift3StarshipAlititudeVersusTimeData = []
-          const ift3StarshipAirSpeedVersusTimeData = []
-          const ift4BoosterAlititudeVersusTimeData = []
-          const ift4BboosterAirSpeedVersusTimeData = []
-          const ift4StarshipAlititudeVersusTimeData = []
-          const ift4StarshipAirSpeedVersusTimeData = []
-          const ift5BoosterAlititudeVersusTimeData = []
-          const ift5BboosterAirSpeedVersusTimeData = []
-          const ift5StarshipAlititudeVersusTimeData = []
-          const ift5StarshipAirSpeedVersusTimeData = []
-          const ift6BoosterAlititudeVersusTimeData = []
-          const ift6BboosterAirSpeedVersusTimeData = []
-          const ift6StarshipAlititudeVersusTimeData = []
-          const ift6StarshipAirSpeedVersusTimeData = []
-          const ift7BoosterAlititudeVersusTimeData = []
-          const ift7BboosterAirSpeedVersusTimeData = []
-          const ift7StarshipAlititudeVersusTimeData = []
-          const ift7StarshipAirSpeedVersusTimeData = []
-
-          const curves = []
-          //curves.push({prefix: "IFT1", dataset: StarshipIFT1, boostAlt: ift1BoosterAlititudeVersusTimeData, boostSpeed: ift1BboosterAirSpeedVersusTimeData, shipAlt: ift1StarshipAlititudeVersusTimeData, shipSpeed: ift1StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[1].hex, colorName: tram.tab10Colors[1].name})
-          //curves.push({prefix: "IFT2", dataset: StarshipIFT2, boostAlt: ift2BoosterAlititudeVersusTimeData, boostSpeed: ift2BboosterAirSpeedVersusTimeData, shipAlt: ift2StarshipAlititudeVersusTimeData, shipSpeed: ift2StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[2].hex, colorName: tram.tab10Colors[2].name})
-          //curves.push({prefix: "IFT3", dataset: StarshipIFT3, boostAlt: ift3BoosterAlititudeVersusTimeData, boostSpeed: ift3BboosterAirSpeedVersusTimeData, shipAlt: ift3StarshipAlititudeVersusTimeData, shipSpeed: ift3StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[3].hex, colorName: tram.tab10Colors[3].name})
-          //curves.push({prefix: "IFT4", dataset: StarshipIFT4, boostAlt: ift4BoosterAlititudeVersusTimeData, boostSpeed: ift4BboosterAirSpeedVersusTimeData, shipAlt: ift4StarshipAlititudeVersusTimeData, shipSpeed: ift4StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[4].hex, colorName: tram.tab10Colors[4].name})
-          //curves.push({prefix: "IFT5", dataset: StarshipIFT5, boostAlt: ift5BoosterAlititudeVersusTimeData, boostSpeed: ift5BboosterAirSpeedVersusTimeData, shipAlt: ift5StarshipAlititudeVersusTimeData, shipSpeed: ift5StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[5].hex, colorName: tram.tab10Colors[5].name})
-          //curves.push({prefix: "IFT6", dataset: StarshipIFT6, boostAlt: ift6BoosterAlititudeVersusTimeData, boostSpeed: ift6BboosterAirSpeedVersusTimeData, shipAlt: ift6StarshipAlititudeVersusTimeData, shipSpeed: ift6StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[6].hex, colorName: tram.tab10Colors[6].name})
-          curves.push({prefix: "IFT7", dataset: StarshipIFT7, boostAlt: ift7BoosterAlititudeVersusTimeData, boostSpeed: ift7BboosterAirSpeedVersusTimeData, shipAlt: ift7StarshipAlititudeVersusTimeData, shipSpeed: ift7StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[8].hex, colorName: tram.tab10Colors[8].name})
-          //curves.push({prefix: "IFT8", dataset: StarshipIFT8, boostAlt: ift7BoosterAlititudeVersusTimeData, boostSpeed: ift7BboosterAirSpeedVersusTimeData, shipAlt: ift7StarshipAlititudeVersusTimeData, shipSpeed: ift7StarshipAirSpeedVersusTimeData, color: tram.tab10Colors[9].hex, colorName: tram.tab10Colors[9].name})
-          curves.forEach(curve => {
-            curve.dataset.forEach(entry => {
-              if ((entry.boost_speed != "NaN") && (entry.boost_speed_confidence > 75)) {
-                curve.boostSpeed.push(new THREE.Vector3(entry.timeInSec, entry.boost_speed / 3.6))
-                const l = curve.boostSpeed.length
-                if ((l>2) && (Math.abs(curve.boostSpeed[l-1].y - curve.boostSpeed[l-2].y) > 100)) {
-                  console.log("boostSpeed", entry.timeInSec, entry.boost_speed)
-                }
-              }
-              
-              if ((entry.boost_alt != "NaN") && (entry.boost_alt_confidence > 90)) {
-                curve.boostAlt.push(new THREE.Vector3(entry.timeInSec, entry.boost_alt * 1000))
-                const l = curve.boostAlt.length
-                if ((l>2) && (Math.abs(curve.boostAlt[l-1].y - curve.boostAlt[l-2].y) > 1000)) {
-                  console.log("boostAlt", entry.timeInSec, entry.boost_alt)
-                }
-              }
-              
-              if ((entry.ship_speed != "NaN") && (entry.ship_speed_confidence > 90)) {
-                curve.shipSpeed.push(new THREE.Vector3(entry.timeInSec, entry.ship_speed / 3.6))
-                const l = curve.shipSpeed.length
-                if ((l>2) && (Math.abs(curve.shipSpeed[l-1].y - curve.shipSpeed[l-2].y) > 100)) {
-                  console.log("shipSpeed", entry.timeInSec, entry.ship_speed)
-                }
-              }
-              
-              if ((entry.ship_alt != "NaN") && (entry.ship_alt_confidence > 90)) {
-                curve.shipAlt.push(new THREE.Vector3(entry.timeInSec, entry.ship_alt * 1000))
-                const l = curve.shipAlt.length
-                if ((l>2) && (Math.abs(curve.shipAlt[l-1].y - curve.shipAlt[l-2].y) > 1000)) {
-                  console.log("ShipAlt", entry.timeInSec, entry.ship_alt)
-                }
-              }
-            })
-        
-            // this.xyChart.addCurve(curve.prefix+" Booster Altitude", "m", "km", curve.boostAlt, 0.001, curve.color, curve.colorName, curve.prefix+" Booster Altitude (km)")
-            // this.xyChart.addCurve(curve.prefix+" Booster Air Speed", "m/s", "100's m/s", curve.boostSpeed, 0.01, curve.color, curve.colorName, curve.prefix+" Booster Air Speed (100's m/s)")
-            // this.xyChart.addCurve(curve.prefix+" Starship Altitude", "m", "km", curve.shipAlt, 0.001, curve.color, curve.colorName, curve.prefix+" Starship Altitude (km)")
-            // this.xyChart.addCurve(curve.prefix+" Starship Air Speed", "m/s", "100's m/s", curve.shipSpeed, 0.01, curve.color, curve.colorName, curve.prefix+" Starship Air Speed (100's m/s)")
-            this.xyChart.addCurve(curve.prefix+" Starship Altitude", "m", "km", curve.shipAlt, 0.001, tram.tab10Colors[2].hex, tram.tab10Colors[2].name, curve.prefix+" Starship Altitude (km)")
-            this.xyChart.addCurve(curve.prefix+" Booster Altitude", "m", "km", curve.boostAlt, 0.001, tram.tab10Colors[0].hex, tram.tab10Colors[0].name, curve.prefix+" Booster Altitude (km)")
-            this.xyChart.addCurve(curve.prefix+" Starship Air Speed", "m/s", "100's m/s", curve.shipSpeed, 0.01, tram.tab10Colors[3].hex, tram.tab10Colors[3].name, curve.prefix+" Starship Air Speed (100's m/s)")
-            this.xyChart.addCurve(curve.prefix+" Booster Air Speed", "m/s", "100's m/s", curve.boostSpeed, 0.01, tram.tab10Colors[1].hex, tram.tab10Colors[1].name, curve.prefix+" Booster Air Speed (100's m/s)")
-
-            const smoothedShipAlt = []
-            let lastShipAlt = 0
-            curve.shipAlt.forEach((entry, index) => {
-              if (index == 0) {
-                smoothedShipAlt.push(entry)
-                lastShipAlt = entry.y
-              }
-              else if (entry.y != lastShipAlt) {
-                smoothedShipAlt.push(entry)
-                lastShipAlt = entry.y
-              }
-            })
-            const regressionData = smoothedShipAlt.map(entry => [entry.x, entry.y/1000])
-            this.shipAltRegression = regression.polynomial(regressionData, {order: 6, precision: 20})
-            console.log(this.shipAltRegression)
-            // smoothedShipAlt.length = 0
-            // for (let t = 0; t < regressionData[regressionData.length-1][0]; t+=.1) {
-            //   const y = this.shipAltRegression.predict(t)[1] * 1000
-            //   smoothedShipAlt.push(new THREE.Vector3(t, y, 0))
-            // }
-
-            this.empiricalStarshipIFTSpeed = tram.interpolateCurve(curve.shipSpeed, 0.25)
-            this.empiricalStarshipIFTAltitude = tram.interpolateCurve(smoothedShipAlt, 0.25)
-
-            // this.xyChart.addCurve("Empirical Starship IFT Speed", "m/s", "100's m/s", this.empiricalStarshipIFTSpeed, 0.01, tram.tab10Colors[4].hex, tram.tab10Colors[4].name, "Empirical Starship IFT Speed (100's m/s)")
-            this.xyChart.addCurve("Empirical Starship IFT Altitude", "m", "km", this.empiricalStarshipIFTAltitude, 0.001, tram.tab10Colors[5].hex, tram.tab10Colors[5].name, "Empirical Starship IFT Altitude (km)")
-          })
+          const telemetryLoader = new ExtractedTelemetryLoader()
+          this.empiricalData = telemetryLoader.loadExtractedTelemetry(dParamWithUnits, this.xyChart)
         }
 
         // Create and add the launch vechicle models
@@ -527,6 +412,7 @@ export class launcher {
     this.lastElevatedEvacuatedTubeDeploymentAlpha = -1
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     this.showMarkers = dParamWithUnits['showMarkers'].value
+    this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
 
     switch (dParamWithUnits['launchTrajectorySelector'].value) {
       default:
@@ -617,6 +503,7 @@ export class launcher {
 
   drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys) {
 
+    
     const color = new THREE.Color()
     const launchTrajectoryPoints = []
     const launchTrajectoryColors = []
@@ -658,6 +545,13 @@ export class launcher {
         //currVehiclePosition = relevantCurve.getPoint(t).sub(refPosition)
         currVehiclePosition = relevantCurve.getPointAt(d).sub(refPosition)
       } 
+
+      // const position = relevantCurve.getPointAt(d) 
+      // const normal = relevantCurve.getNormalAt(d)
+      // const binormal = relevantCurve.getBinormalAt(d)
+      // this.scene.add(arrow(position, normal, 100))
+      // this.scene.add(arrow(position, binormal, 100))
+
       launchTrajectoryPoints.push(prevVehiclePosition)
       launchTrajectoryPoints.push(currVehiclePosition)
       prevVehiclePosition = currVehiclePosition.clone()
@@ -794,6 +688,7 @@ export class launcher {
 launcher.prototype.animate = LauncherAnimate.defineAnimate()
 launcher.prototype.removeOldMassDriverTubes = LauncherAnimate.defineRemoveOldMassDriverTubes()
 launcher.prototype.generateNewMassDriverTubes = LauncherAnimate.defineGenerateNewMassDriverTubes()
+launcher.prototype.updateMassDriverTubes = LauncherAnimate.defineUpdateMassDriverTubes()
 launcher.prototype.trajectoryCurvesParametersHaveChanged = LaunchTrajectoryUtils.defineTrajectoryCurvesParametersHaveChanged()
 launcher.prototype.updateTrajectoryCurves = LaunchTrajectoryUtils.defineUpdateTrajectoryCurves()
 launcher.prototype.updateTrajectoryCurvesRocket = LaunchTrajectoryRocket.defineUpdateTrajectoryCurvesRocket()

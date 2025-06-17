@@ -61,6 +61,8 @@ export function toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launche
   console.log('a_earth', a_earth);
   console.log('launchVehicleAirspeed', launchVehicleAirspeed);
 
+  guidParamWithUnits['launchFromPlanet'].value = "Earth"
+  guidParamWithUnits['launchToPlanet'].value = "Venus"
   guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude; // m
   guidParamWithUnits['launcherRampExitAltitude'].value = rampExitAltitude; // m
   guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000; // m

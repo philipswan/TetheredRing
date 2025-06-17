@@ -660,10 +660,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['showElevatorCars'].value = false
     guidParamWithUnits['showHabitats'].value = false
     guidParamWithUnits['showSolarArrays'].value = false
-    guidParamWithUnits['showLaunchTrajectory'].value = false
+    guidParamWithUnits['showLaunchTrajectory'].value = true
     guidParamWithUnits['showMassDriverTube'].value = true
-    guidParamWithUnits['showMassDriverAccelerationScrews'].value = true
-    guidParamWithUnits['showMassDriverDecelerationScrews'].value = true
+    guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
+    guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
     guidParamWithUnits['showMassDriverRail'].value = true
     guidParamWithUnits['showMassDriverBrackets'].value = true
     guidParamWithUnits['showLaunchSleds'].value = true
@@ -676,12 +676,12 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
     guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 4.5
     guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
+    guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
     //guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 31700
     guidParamWithUnits['launcherMassDriverExitVelocity'].value = 1000
     guidParamWithUnits['launchVehicleScaleFactor'].value = 1
     guidParamWithUnits['launchSledScaleFactor'].value = 1
-    guidParamWithUnits['numVirtualLaunchVehicles'].value = 20
+    guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
 
     // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(384587.067768322, -4036766.0558425565, -4923631.703887237)
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.06029407718038538, -0.6328686129320207, -0.7719079887023231)

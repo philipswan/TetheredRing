@@ -15,6 +15,7 @@ class ScrewGeometry extends BufferGeometry {
     shaftInnerRadius = 0.8,
     threadRadius = 2,
     threadThickness = .2,
+    threadTaperRatio = .25,
     threadStarts = 2,
     baseDistanceAlongScrew = 0,
     initialVelocity = 1,
@@ -34,6 +35,7 @@ class ScrewGeometry extends BufferGeometry {
       shaftInnerRadius: shaftInnerRadius,
       threadRadius: threadRadius,
       threadThickness: threadThickness,
+      threadTaperRatio: threadTaperRatio,
       threadStarts: threadStarts,   // Indicates how many flights the thread has. 1 means that the thread is a single helix. 2 means that the thread is a double helix. 3 means that the thread is a triple helix. etc.
       baseDistanceAlongScrew: baseDistanceAlongScrew,  // This the distance from the start of the mass driver to the start of this segment of the screw.
       initialVelocity: initialVelocity,
@@ -299,7 +301,7 @@ class ScrewGeometry extends BufferGeometry {
       const threadHalfOfCrossWidth = Math.min(threadThickness * Math.sqrt(threadPitch**2+1) / Math.abs(threadPitch), shaftOuterRadius/2);
       const threadBaseHalfAngle = Math.asin(threadHalfOfCrossWidth/shaftOuterRadius)
       const threadBaseEndAngle = 2 * Math.PI / threadStarts
-      const threadTopHalfAngle = Math.asin(threadHalfOfCrossWidth/threadRadius)
+      const threadTopHalfAngle = Math.asin(threadHalfOfCrossWidth*threadTaperRatio/threadRadius)
       // generate normals and vertices for the current segment
       const angularStep1 = (threadBaseEndAngle - threadBaseHalfAngle) / radialSegments
 

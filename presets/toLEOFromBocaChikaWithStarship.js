@@ -35,25 +35,18 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
   setAllShowsToFalse(guidParamWithUnits)
   guidParamWithUnits['showLogo'].value = false
-  guidParamWithUnits['showEarthsSurface'].value = false
+  guidParamWithUnits['showEarthsSurface'].value = true
   guidParamWithUnits['showEarthsAtmosphere'].value = false
-  guidParamWithUnits['showLaunchTrajectory'].value = false
-  guidParamWithUnits['showMassDriverTube'].value = false
-  guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
-  guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
-  guidParamWithUnits['showMassDriverRail'].value = false
-  guidParamWithUnits['showMassDriverBrackets'].value = false
-  guidParamWithUnits['showLaunchSleds'].value = false
+  guidParamWithUnits['showLaunchTrajectory'].value = true
   guidParamWithUnits['showLaunchVehicles'].value = true
-  guidParamWithUnits['showAdaptiveNuts'].value = false
   guidParamWithUnits['trackingMode'].value = 0
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0   // The 'P' key will point the camera at a point with altitude = 0
   guidParamWithUnits['showForwardAccelerationVersusTime'].value = false
   guidParamWithUnits['showUpwardAccelerationVersusTime'].value = false
   guidParamWithUnits['showApogeeAltitudeVersusTime'].value = false
   guidParamWithUnits['showPerigeeAltitudeVersusTime'].value = false
-  guidParamWithUnits['showFirstApsisVersusTime'].value = true
-  guidParamWithUnits['showSecondApsisVersusTime'].value = true
+  guidParamWithUnits['showCloseApsisVersusTime'].value = false
+  guidParamWithUnits['showFarApsisVersusTime'].value = false
   guidParamWithUnits['showAltitudeVersusTime'].value = true
   guidParamWithUnits['showAirPressureVersusTime'].value = false
   guidParamWithUnits['showDownrangeDistanceVersusTime'].value = false
@@ -61,9 +54,18 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['showAerodynamicDragVersusTime'].value = false
   guidParamWithUnits['showPropellantMassFlowRateVersusTime'].value = false
   guidParamWithUnits['showTotalMassVersusTime'].value = false
-  guidParamWithUnits['showOrbitalAltitudeVersusTime'].value = true
-  guidParamWithUnits['showDeltaVVersusTime'].value = true
+  guidParamWithUnits['showOrbitalAltitudeVersusTime'].value = false
+  guidParamWithUnits['showDeltaVVersusTime'].value = false
   guidParamWithUnits['showOrientationCorrectionVersusTime'].value = false
+  guidParamWithUnits['showAngularMomentumVectorVersusTime'].value = false
+  guidParamWithUnits['showEccentricityVersusTime'].value = false
+  guidParamWithUnits['showRightAscensionOfAscendingNodeVersusTime'].value = false
+  guidParamWithUnits['showInclinationVersusTime'].value = false
+  guidParamWithUnits['showArgumentOfPerigeeVersusTime'].value = false
+  guidParamWithUnits['showTrueAnomalyVersusTime'].value = false
+  guidParamWithUnits['showSemimajorAxisVersusTime'].value = false
+  guidParamWithUnits['showPredictedAltitudeVersusTime'].value = false
+
 
 
   guidParamWithUnits['showStars'].value = false
@@ -74,14 +76,14 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   guidParamWithUnits['logZoomRate'].value = -3
   guidParamWithUnits['showXYChart'].value = true
   guidParamWithUnits['showMarkers'].value = false
-  guidParamWithUnits['enableBackgroundAlpha'].value = 0
+  guidParamWithUnits['enableBackgroundAlpha'].value = 1
 
   nonGUIParams['initialReferencePoint'] = '' //'feederRailEntrancePosition'
 
   guidParamWithUnits['rocketStage1DryMass'].value = 154415
   guidParamWithUnits['rocketStage2DryMass'].value = 123458
   guidParamWithUnits['rocketStage1RecoveryPropellantMass'].value = 654000
-  guidParamWithUnits['rocketStage2RecoveryPropellantMass'].value = 48000
+  guidParamWithUnits['rocketStage2RecoveryPropellantMass'].value = 28000
   guidParamWithUnits['rocketExhaustVelocityVacEngInVac'].value = 3520
   guidParamWithUnits['rocketExhaustVelocityVacEngAtSeaLevel'].value = 3451
   guidParamWithUnits['rocketExhaustVelocitySLEngInVac'].value = 2700

@@ -5,7 +5,7 @@ THREE.Vector3.prototype.isFinite = function () {
   return Number.isFinite(this.x) && Number.isFinite(this.y) && Number.isFinite(this.z);
 }
 
-export function simRocketFlight(simInputParameters, verbose) {
+export function simRocketFlight(simInputParameters, scene, verbose) {
 
   // Expand the input parameters into individual variables
   const {
@@ -17,8 +17,9 @@ export function simRocketFlight(simInputParameters, verbose) {
     V0PlusPlanetRotation,
     rocketCoastTime,
     tStep,
-    empiricalStarshipIFTAltitude,
-    empiricalStarshipIFTSpeed,
+    speedMaxTime,
+    altMaxTime,
+    empiricalData,
     orbitalElementsFromStateVector,
     RV_from_R0V0Aandt,
     launcherXyChartMaxT,
@@ -31,6 +32,8 @@ export function simRocketFlight(simInputParameters, verbose) {
     rocketEffectiveRadius,
     // Potentially Tunable Parameters
     engineParams,
+    ch4Fraction,
+    loxFraction,
     rocketDesiredOrbitalAltitude,
     rocketStage1DryMass,
     rocketStage2DryMass,
@@ -48,7 +51,9 @@ export function simRocketFlight(simInputParameters, verbose) {
     rocketCoefficientOfDrag,
     rocketStage1StructuralLoadLimit,
     rocketStage2StructuralLoadLimit,
-    rocketSeparationDelay
+    rocketSeparationDelay,
+    useCycloidFactor,
+    cycloidRadius
   } = simInputParameters;
 
   let vehiclePosition
@@ -62,8 +67,8 @@ export function simRocketFlight(simInputParameters, verbose) {
   let coe
   let apogeeDistance
   let perigeeDistance
-  let firstApsis
-  let secondApsis
+  let closeApsis
+  let farApsis
   let mecoTime
   let estimatedTimeToMECO
   let t
@@ -85,15 +90,28 @@ export function simRocketFlight(simInputParameters, verbose) {
   const aerodynamicDragVersusTimeData = []
   const propellantMassFlowRateVersusTimeData = []
   const totalMassVersusTimeData = []
+  const boosterCH4MassVersusTimeData = []
+  const boosterLOXMassVersusTimeData = []
+  const shipCH4MassVersusTimeData = []
+  const shipLOXMassVersusTimeData = []
   const apogeeAltitudeVersusTimeData = []
   const perigeeAltitudeVersusTimeData = []
-  const firstApsisVersusTimeData = []
-  const secondApsisVersusTimeData = []
+  const closeApsisVersusTimeData = []
+  const farApsisVersusTimeData = []
   const convectiveHeatingVersusTimeData = []
   const radiativeHeatingVersusTimeData = []
   const deltaVVersusTimeData = []
   const orientationCorrectionVersusTimeData = []
-  
+
+  const angularMomentumVectorVersusTimeData = []
+  const eccentricityVersusTimeData = []
+  const rightAscensionOfAscendingNodeVersusTimeData = []
+  const inclinationVersusTimeData = []
+  const argumentOfPerigeeVersusTimeData = []
+  const trueAnomalyVersusTimeData = []
+  const semimajorAxisVersusTimeData = []
+  const predictedAltitudeVersusTime = []
+
   const printOrbitalElements = verbose && true
   
   const totalSplinePoints = Math.floor(rocketCoastTime/tStep) // Place spline points at roughly tStep intervals along the launch path (warning - this is not exact)
@@ -120,7 +138,6 @@ export function simRocketFlight(simInputParameters, verbose) {
   let abortFreeFlight = false
   let vehicleOrientation
 
-  const cycloidRadius = 80000*0.4 // ToDo: This should really be another tunable parameter
   const padVelocityDueToEarthsRotation = new THREE.Vector3(0, 2 * Math.PI / planetSpec.lengthOfSiderealDay, 0).cross(R0)
   const downrangeDirection = R0.clone().cross(padVelocityDueToEarthsRotation).cross(R0).normalize()
 
@@ -159,7 +176,7 @@ export function simRocketFlight(simInputParameters, verbose) {
     }
     else if (coe.eccentricity<1) {
       // Elliptical orbit
-      [firstApsis, secondApsis] = calculateNextTwoApsides(coe)
+      [closeApsis, farApsis] = findCloseAndFarApsis(coe, RV.R, scene, true)
       const c = coe.semimajorAxis * coe.eccentricity
       apogeeDistance = coe.semimajorAxis + c
       perigeeDistance = coe.semimajorAxis - c
@@ -326,23 +343,37 @@ export function simRocketFlight(simInputParameters, verbose) {
     const dragVector = vehicleVelocityRelativeToAir.clone().normalize().multiplyScalar(-aerodynamicDrag)
     const rotationAxis = new THREE.Vector3().crossVectors(R0, downrangeDirection).normalize()
 
-    const flightProfile = 0
+    const flightProfile = 2
+    let minAngle, maxAngle
     switch (flightProfile) {
     case 0:
-      if (distanceTravelledAlongTrajectory<cycloidRadius*0.15) {
+      if (distanceTravelledAlongTrajectory<cycloidRadius*useCycloidFactor) {
         const cycloidResult = tram.cycloid3D(distanceTravelledAlongTrajectory, cycloidRadius, R0, downrangeDirection)
         vehicleOrientation = cycloidResult.cycloidTangent.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t*planetsRotationRateInHz)
         //console.log('vehicleOrientation', t, vehicleOrientation.angleTo(RV.R)*180/Math.PI)
       }
       else {
-        const minAngle = Math.max(orientationCorrectionAngle - 0.1, -Math.PI/4)
-        const maxAngle = Math.min(orientationCorrectionAngle + 0.1, Math.PI/4)
-        // Aerodynamic drag force
-        const dragVector = vehicleVelocityRelativeToAir.clone().normalize().multiplyScalar(-aerodynamicDrag)
+        minAngle = Math.max(orientationCorrectionAngle - 0.1, -Math.PI/6)
+        maxAngle = Math.min(orientationCorrectionAngle + 0.1, Math.PI/6)
         const initialAngle = 0
-        const empiricalAltitudeDatapoint = empiricalStarshipIFTAltitude.find(point => point.x === t+tStep*40)
-        if (empiricalAltitudeDatapoint) {
-          const targetDistance = planetRadius + empiricalAltitudeDatapoint.y
+        //const empiricalAltitudeDatapoint = empiricalData.starshipAltitude.find(point => point.x === t+tStep*40)
+        const regressionData = empiricalData.altitudeRegressionData
+        // Predict the altitude with the two nearest regressions, and then blend the results in proportion to the points distance from the two regreesions
+        const tMin = regressionData.tMin
+        const tMax = regressionData.tMax
+        const futureT = t+tStep*50
+
+        if ((futureT>=tMin) && (futureT<=tMax)) {
+          const numRegressions = regressionData.regressions.length
+          const pos = numRegressions*(futureT-tMin)/(tMax-tMin)
+          const intPos = Math.floor(pos)
+          const intPosPlus1 = Math.min(intPos+1, numRegressions-1)
+          const frac = pos-intPos
+          const predictedAlt0 = regressionData.regressions[intPos].predict(futureT)[1]
+          const predictedAlt1 = regressionData.regressions[intPosPlus1].predict(futureT)[1]
+          const predictedAltitude = tram.lerp(predictedAlt0, predictedAlt1, frac)
+          const targetDistance = planetRadius + predictedAltitude
+          predictedAltitudeVersusTime.push(new THREE.Vector3(futureT, predictedAltitude, 0))
 
           orientationCorrectionAngle = optimizeOrientation(
             minAngle,
@@ -352,7 +383,7 @@ export function simRocketFlight(simInputParameters, verbose) {
             dragVector,
             thrust,
             mTotal,
-            tStep*40,
+            tStep*50,
             rotationAxis,
             RV_from_R0V0Aandt
           )
@@ -362,27 +393,39 @@ export function simRocketFlight(simInputParameters, verbose) {
       }
       break
     case 1:
-      // Find the orientation that will shrink the apogeeError and perigeeError by the same factor.
-      const targetFirstApsis = planetRadius + 100000
-      const targetSecondApsis = planetRadius + 200000
-      const minAngle = -0.1
-      const maxAngle = 0.1
-      orientationCorrectionAngle = optimizeOrientation2(
-        minAngle,
-        maxAngle,
-        RV,
-        dragVector,
-        thrust,
-        mTotal,
-        tStep,
-        rotationAxis,
-        targetFirstApsis,
-        targetSecondApsis
-      )
-      vehicleOrientation = RV.V.clone().normalize().applyAxisAngle(rotationAxis, orientationCorrectionAngle)
+      if (distanceTravelledAlongTrajectory<cycloidRadius*useCycloidFactor) {
+        const cycloidResult = tram.cycloid3D(distanceTravelledAlongTrajectory, cycloidRadius, R0, downrangeDirection)
+        vehicleOrientation = cycloidResult.cycloidTangent.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t*planetsRotationRateInHz)
+        //console.log('vehicleOrientation', t, vehicleOrientation.angleTo(RV.R)*180/Math.PI)
+      }
+      else {
+        // Find the orientation that will shrink the apogeeError and perigeeError by the same factor.
+        const targetCloseApsis = planetRadius + 100000
+        const targetFarApsis = planetRadius + 200000
+        minAngle = -0.1
+        maxAngle = 0.1
+        orientationCorrectionAngle = optimizeOrientation2(
+          minAngle,
+          maxAngle,
+          RV,
+          dragVector,
+          thrust,
+          mTotal,
+          tStep,
+          rotationAxis,
+          targetCloseApsis,
+          targetFarApsis
+        )
+        vehicleOrientation = RV.V.clone().normalize().applyAxisAngle(rotationAxis, orientationCorrectionAngle)
+      }
+      break
+    case 2:
+      // Use the orientation obtained from emerical data
+      const empericalShipOrientationInDegrees = interpolatePoint(empiricalData.starshipOrientation, t)
+      const empiricalShipOrientationInRadians = empericalShipOrientationInDegrees.y * Math.PI / 180
+      vehicleOrientation = RV.R.clone().normalize().applyAxisAngle(rotationAxis, empiricalShipOrientationInRadians)
       break
     }
-
 
     // if (t%3==0) {
     //   this.scene.add(arrow(vehiclePositionRelativeToPlanet, vehicleOrientation.clone(), 100, 1, 1, 0xff0000))
@@ -435,16 +478,28 @@ export function simRocketFlight(simInputParameters, verbose) {
       aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       propellantMassFlowRateVersusTimeData.push(new THREE.Vector3(t, propellantFlowRate, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
       totalMassVersusTimeData.push(new THREE.Vector3(t, mTotal, 0))
+      boosterCH4MassVersusTimeData.push(new THREE.Vector3(t, rocketStage1PropellantMass*ch4Fraction, 0))
+      boosterLOXMassVersusTimeData.push(new THREE.Vector3(t, rocketStage1PropellantMass*loxFraction, 0))
+      shipCH4MassVersusTimeData.push(new THREE.Vector3(t, rocketStage2PropellantMass*ch4Fraction, 0))
+      shipLOXMassVersusTimeData.push(new THREE.Vector3(t, rocketStage2PropellantMass*loxFraction, 0))
       if (coe.eccentricity<1) {
-        apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, Math.max(0, apogeeDistance), 0))
+        apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, Math.max(0, apogeeDistance-planetRadius), 0))
         perigeeAltitudeVersusTimeData.push(new THREE.Vector3(t, Math.max(0, perigeeDistance), 0))
-        firstApsisVersusTimeData.push(new THREE.Vector3(t, Math.max(0, firstApsis), 0))
-        secondApsisVersusTimeData.push(new THREE.Vector3(t, Math.max(0, secondApsis), 0))
+        closeApsisVersusTimeData.push(new THREE.Vector3(t, Math.max(0, closeApsis), 0))
+        farApsisVersusTimeData.push(new THREE.Vector3(t, Math.max(0, farApsis), 0))
       }
       convectiveHeatingVersusTimeData.push(new THREE.Vector3(t, qconv, 0))
       radiativeHeatingVersusTimeData.push(new THREE.Vector3(t, qrad, 0))
       deltaVVersusTimeData.push(new THREE.Vector3(t, deltaV, 0))
       orientationCorrectionVersusTimeData.push(new THREE.Vector3(t, 60+orientationCorrectionAngle*180/Math.PI, 0))
+      
+      angularMomentumVectorVersusTimeData.push(new THREE.Vector3(t, coe.angularMomentumVector, 0))
+      eccentricityVersusTimeData.push(new THREE.Vector3(t, coe.eccentricity, 0))
+      rightAscensionOfAscendingNodeVersusTimeData.push(new THREE.Vector3(t, coe.rightAscensionOfAscendingNode, 0))
+      inclinationVersusTimeData.push(new THREE.Vector3(t, coe.inclination, 0))
+      argumentOfPerigeeVersusTimeData.push(new THREE.Vector3(t, coe.argumentOfPerigee, 0))
+      trueAnomalyVersusTimeData.push(new THREE.Vector3(t, coe.trueAnomaly, 0))
+      semimajorAxisVersusTimeData.push(new THREE.Vector3(t, coe.semimajorAxis, 0))
     }
 
     // Update the propellant mass
@@ -484,8 +539,8 @@ export function simRocketFlight(simInputParameters, verbose) {
     
   }
 
-  const rootMeanSquaredErrorSpeed = tram.diffTwoCurves(empiricalStarshipIFTSpeed, airSpeedVersusTimeData)
-  const rootMeanSquaredErrorAlt = tram.diffTwoCurves(empiricalStarshipIFTAltitude, altitudeVersusTimeData)
+  const rootMeanSquaredErrorSpeed = tram.diffTwoCurves(empiricalData.starshipSpeed, airSpeedVersusTimeData, speedMaxTime)
+  const rootMeanSquaredErrorAlt = tram.diffTwoCurves(empiricalData.starshipAltitude, altitudeVersusTimeData, altMaxTime)
 
   return {
     freeFlightConversionCurveControlPoints,
@@ -505,12 +560,24 @@ export function simRocketFlight(simInputParameters, verbose) {
     deltaVVersusTimeData,
     orientationCorrectionVersusTimeData,
     totalMassVersusTimeData,
+    boosterCH4MassVersusTimeData,
+    boosterLOXMassVersusTimeData,
+    shipCH4MassVersusTimeData,
+    shipLOXMassVersusTimeData,
     apogeeAltitudeVersusTimeData,
     perigeeAltitudeVersusTimeData,
-    firstApsisVersusTimeData,
-    secondApsisVersusTimeData,
+    closeApsisVersusTimeData,
+    farApsisVersusTimeData,
     rootMeanSquaredErrorSpeed,
     rootMeanSquaredErrorAlt,
+    angularMomentumVectorVersusTimeData,
+    eccentricityVersusTimeData,
+    rightAscensionOfAscendingNodeVersusTimeData,
+    inclinationVersusTimeData,
+    argumentOfPerigeeVersusTimeData,
+    trueAnomalyVersusTimeData,
+    semimajorAxisVersusTimeData,
+    predictedAltitudeVersusTime,
     mecoTime
   }
 
@@ -587,15 +654,15 @@ export function simRocketFlight(simInputParameters, verbose) {
     mTotal,
     tStep,
     rotationAxis,
-    targetFirstApsis,
-    targetSecondApsis
+    targetCloseApsis,
+    targetFarApsis
   ){
     const maxIterations = 10
     const tolerance = 1e-6
     const currentCOE = orbitalElementsFromStateVector(RV.R, RV.V)
-    const [currentFirstApsis, currentSecondApsis] = calculateNextTwoApsides(RV)
-    const currentFirstApsisError = Math.abs(currentFirstApsis - targetFirstApsis)
-    const currentSecondApsisError = Math.abs(currentSecondApsis - targetSecondApsis)
+    const [currentCloseApsis, currentFarApsis] = calculateNextTwoApsides(currentCOE)
+    const currentCloseApsisError = Math.abs(currentCloseApsis - targetCloseApsis)
+    const currentFarApsisError = Math.abs(currentFarApsis - targetFarApsis)
 
     // Search for the most optimal orientationCorrectionAngle
     let left = minAngle
@@ -636,11 +703,12 @@ export function simRocketFlight(simInputParameters, verbose) {
     function determineOptimality(orientationCorrectionAngle) {
       const experimentalRV = generateNextRV(orientationCorrectionAngle)
       const experimentalCOE = orbitalElementsFromStateVector(experimentalRV.R, experimentalRV.V)
-      const [experimentalFirstApsis, experimentalSecondApsis] = calculateNextTwoApsides(experimentalCOE)
-      const experimentalFirstApsisError = targetFirstApsis - experimentalFirstApsis
-      const experimentalSecondApsisError = targetSecondApsis - experimentalSecondApsis
-      const optimality = Math.abs(experimentalFirstApsisError / currentFirstApsisError - experimentalSecondApsisError / currentSecondApsisError)
-      return optimality
+      const experimentalApogee = experimentalCOE.semimajorAxis * (1 + experimentalCOE.eccentricity)
+      const tTotal = 500
+      const targetPerigeeAltitude = 148000
+      const targetApogee = planetRadius + Math.pow(t/tTotal, 0.5) * targetPerigeeAltitude
+      const closeApsisError = Math.abs(targetApogee - experimentalApogee)
+      return closeApsisError
     }
 
     // Function to evaluate cost given an angle
@@ -657,6 +725,36 @@ export function simRocketFlight(simInputParameters, verbose) {
 
   }
 
+  function interpolatePoint(points, t) {
+    if (!Array.isArray(points) || points.length < 2) return null
+  
+    // Find two closest points that bound t
+    let lower = null
+    let upper = null
+  
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      if (p1.x <= t && p2.x >= t) {
+        lower = p1
+        upper = p2
+        break
+      }
+    }
+  
+    if (!lower || !upper) {
+      // t is outside the range — clamp to the closest point
+      if (t < points[0].x) return points[0]
+      if (t > points[points.length - 1].x) return points[points.length - 1]
+    }
+  
+    // Interpolate between lower and upper
+    const alpha = (t - lower.x) / (upper.x - lower.x)
+    const interpolatedPoint = new THREE.Vector3().lerpVectors(lower, upper, alpha)
+  
+    return interpolatedPoint
+  }
+  
   function calculateNextTwoApsides(COE) {
     // Compute the flight path angle (γ)
     const nu = COE.trueAnomaly
@@ -664,16 +762,103 @@ export function simRocketFlight(simInputParameters, verbose) {
     const a = COE.semimajorAxis
     const gamma = Math.atan((e * Math.sin(nu)) / (1 + e * Math.cos(nu)))
     // Calculate the first and second apsis of the orbit
-    let firstApsis, secondApsis
+    let closeApsis, farApsis
     if (gamma>0) {
-      firstApsis = a * (1 + e)
-      secondApsis = a * (1 - e)
+      closeApsis = a * (1 + e)
+      farApsis = a * (1 - e)
     }
     else {
-      firstApsis = a * (1 - e)
-      secondApsis = a * (1 + e)
+      closeApsis = a * (1 - e)
+      farApsis = a * (1 + e)
     }
-    return [firstApsis, secondApsis]
+    return [closeApsis, farApsis]
   }
 
+  function computeApsisPositions(coe) {
+    const { semimajorAxis: a, eccentricity: e, inclination: i, 
+            rightAscensionOfTheAscendingNode: RA, argumentOfPerigee: w } = coe
+  
+    // Compute periapsis and apoapsis distances
+    const rPeriapsis = a * (1 - e)
+    const rApoapsis = a * (1 + e)
+  
+    // Predefine orbital plane positions (no need for cos/sin calculations)
+    const periapsisOrbital = new THREE.Vector3(rPeriapsis, 0, 0)
+    const apoapsisOrbital = new THREE.Vector3(-rApoapsis, 0, 0)
+  
+    // Compute rotation matrix for full transformation (3-1-3 sequence)
+    const rotationMatrix = computeRotationMatrix(RA, i, w)
+  
+    // Apply rotation to transform into inertial space
+    const periapsisInertial = applyMatrixToVector(rotationMatrix, periapsisOrbital)
+    const apoapsisInertial = applyMatrixToVector(rotationMatrix, apoapsisOrbital)
+  
+    return { periapsisInertial, apoapsisInertial }
+  }
+  
+  // Function to determine closest and farthest apsis
+  function findCloseAndFarApsis(coe, R, scene = null, verbose = false) {
+    // Compute apsis positions
+    const { periapsisInertial, apoapsisInertial } = computeApsisPositions(coe)
+  
+    // Compute distances to R
+    const distToPeriapsis = periapsisInertial.distanceTo(R)
+    const distToApoapsis = apoapsisInertial.distanceTo(R)
+    if (verbose) {
+      // Add a shere to the scene to visualize the apsides
+      // const marker = new THREE.Mesh(new THREE.SphereGeometry(planetRadius * 0.01, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ff00 }))
+      // marker.position.copy(periapsisInertial)
+      // scene.add(marker.clone())
+      // marker.material.color.setHex(0xff0000)
+      // marker.position.copy(apoapsisInertial)
+      // scene.add(marker)
+      // scene.add(new THREE.Mesh(new THREE.SphereGeometry(planetRadius * 0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff0000 })).position.copy(periapsisInertial))
+      // scene.add(new THREE.Mesh(new THREE.SphereGeometry(planetRadius * 0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0x0000ff })).position.copy(apoapsisInertial))
+      const apoapsis = coe.semimajorAxis * (1 + coe.eccentricity)
+      const periapsis = coe.semimajorAxis * (1 - coe.eccentricity)
+      //console.log('distToPeriapsis', Math.round(distToPeriapsis), 'distToApoapsis', Math.round(distToApoapsis), Math.round(apoapsis), Math.round(periapsis), (distToPeriapsis < distToApoapsis)?"P":"A")
+    }
+  
+    // Determine closest apsis
+    if (distToPeriapsis < distToApoapsis) {
+      return [periapsisInertial, apoapsisInertial]
+    }
+    else {
+      return [apoapsisInertial, periapsisInertial]
+    }
+  }
+  
+  // Compute 3-1-3 Rotation Matrix (Ω, i, ω)
+  function computeRotationMatrix(RA, i, w) {
+    const cosRA = Math.cos(RA), sinRA = Math.sin(RA)
+    const cosI = Math.cos(i), sinI = Math.sin(i)
+    const cosW = Math.cos(w), sinW = Math.sin(w)
+  
+    return [
+      [
+        cosRA * cosW - sinRA * sinW * cosI,
+        -cosRA * sinW - sinRA * cosW * cosI,
+        sinRA * sinI
+      ],
+      [
+        sinRA * cosW + cosRA * sinW * cosI,
+        -sinRA * sinW + cosRA * cosW * cosI,
+        -cosRA * sinI
+      ],
+      [
+        sinW * sinI,
+        cosW * sinI,
+        cosI
+      ]
+    ]
+  }
+  
+  // Apply 3x3 Matrix to a 3D Vector
+  function applyMatrixToVector(matrix, vector) {
+    const x = matrix[0][0] * vector.x + matrix[0][1] * vector.y + matrix[0][2] * vector.z
+    const y = matrix[1][0] * vector.x + matrix[1][1] * vector.y + matrix[1][2] * vector.z
+    const z = matrix[2][0] * vector.x + matrix[2][1] * vector.y + matrix[2][2] * vector.z
+    return new THREE.Vector3(x, y, z)
+  }  
+  
 }

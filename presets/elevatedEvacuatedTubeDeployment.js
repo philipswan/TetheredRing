@@ -135,8 +135,8 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleEffectiveRadius
   //launcherPayloadDeliveredToOrbit
-  guidParamWithUnits['numLaunchesPerMarsTransferWindow'].value = 14*4 // 14 days, four lauches per day
-  guidParamWithUnits['numberOfMarsTransferWindows'].value = 10
+  guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
+  guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
   guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
   guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
   //launchVehicleCoefficientOfDrag
@@ -187,12 +187,12 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   //launchVehicleNonPayloadMass
 
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1 //300
+  guidParamWithUnits['launchVehicleScaleFactor'].value = 1
   //launchVehicleSpacingInSeconds
-  guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
+  guidParamWithUnits['numVirtualLaunchVehicles'].value = 10
   //launchVehicleNumModels
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1 //5
-  guidParamWithUnits['numVirtualMassDriverTubes'].value = 8192
+  guidParamWithUnits['numVirtualMassDriverTubes'].value = 2048
   //launcherMassDriverRailWidth
   //launcherMassDriverRailHeight
   //launchRailUpwardsOffset
@@ -236,21 +236,21 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['numVirtualLaunchSleds'].value = 1
   //launchSledNumModels
   
-  //guidParamWithUnits['launcherScrewRotationRate'].value = 200
+  //guidParamWithUnits['launcherMassDriverScrewRotationRate'].value = 200
 
   // Grappler Parameters
-  guidParamWithUnits['launchSledNumGrapplers'].value = 64
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
-  guidParamWithUnits['launchSledShaftToGrapplerPad'].value = 0.02
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.01
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerClearanceFactor'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerPadTwistPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointClearance'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointRadius'].value = 0.04
-  guidParamWithUnits['launchSledGrapplerRangeFactor'].value = .01
-  guidParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value = 0.125
-  guidParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value = 0.5
+  guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
+  guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
+  guidParamWithUnits['adaptiveNutShaftToGrapplerPad'].value = 0.02
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayDistance'].value = 0.01
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerClearanceFactor'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerPadTwistPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointClearance'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointRadius'].value = 0.04
+  guidParamWithUnits['adaptiveNutGrapplerRangeFactor'].value = .01
+  guidParamWithUnits['adaptiveNutGrapplerMaxRangeOfMotion'].value = 0.125
+  guidParamWithUnits['adaptiveNutGrapplerTopDeadCenterRotation'].value = 0.5
 
 
   guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
@@ -288,7 +288,7 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['showMassDriverRail'].value = false
   guidParamWithUnits['showMassDriverBrackets'].value = false
   guidParamWithUnits['showLaunchSleds'].value = false
-  guidParamWithUnits['showLaunchVehicles'].value = false
+  guidParamWithUnits['showLaunchVehicles'].value = true
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
 
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0
@@ -321,10 +321,15 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2615612.8248107596, 2170606.9722907306, -5417133.88077425)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
   
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2521193.687990027, 2156670.6146795545, -5460247.303511132)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2529801.4986878247, 2151133.1508836164, -5462373.430248479)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2521193.687990027, 2156670.6146795545, -5460247.303511132)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2529801.4986878247, 2151133.1508836164, -5462373.430248479)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3948421634529454, 0.3368415451626478, -0.8547733263340858)
+
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2612079.736064095, 2154050.6680898434, -5420045.393951382)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.40873395613032204, 0.337055270952551, -0.8481334195921997)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2612674.4690546147, 2153923.456214351, -5420083.737448411)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.40873395613032204, 0.337055270952551, -0.8481334195921997)
 
   // Hawaii Big Island
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
@@ -336,7 +341,7 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   // )} 
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 100
+  nonGUIParams['nearClip'] = 1
   nonGUIParams['farClip'] = 100000000
 
   // Improvements...

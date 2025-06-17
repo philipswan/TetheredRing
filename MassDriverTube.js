@@ -1,5 +1,7 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { CatmullRomSuperCurve3 } from './SuperCurves'
+import { arrow } from './markers'
 
 export class massDriverTubeModel {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
@@ -11,7 +13,6 @@ export class massDriverTubeModel {
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7fffff, transparent: true, depthWrite: false, opacity: 0.25})
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7f5050, transparent: true, depthWrite: false, opacity: 0.25})
     //this.massDriverTubeMaterial = new THREE.MeshPhongMaterial( {wireframe: true})
-    const textureCallback = 
     //this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
     this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture2.png')
     this.tubeTexture.repeat.set(4, 4)
@@ -19,10 +20,23 @@ export class massDriverTubeModel {
     this.tubeTexture.wrapT = THREE.MirroredRepeatWrapping
     //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {map: this.tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 1, shininess: 0.5} )
     //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, color: 0x7fffff, transparent: true, opacity: 1, shininess: 0.5} )
-    this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.4, shininess: 0.5} )
-    this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.05, shininess: 0.5} )
+    this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.15, shininess: 0.5} )
+    this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.5, shininess: 0.5, color: 0x000000} )
+    this.massDriverTubeMaterial3 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, shininess: 0.5} )
+    this.massDriverTubeMaterial4 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.5, shininess: 0.5} )
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { map: this.tubeTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6, shininess: 0.5} )
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, color: 0x101015, transparent: true, opacity: 0.95, shininess: 0.5} )
+
+    this.liftFanRoughSpacing = this.radius * 4 // This is the distance between lift fans along the elevated evacuated.
+
+    this.liftFanHubGeometry = new THREE.SphereGeometry(this.radius * 0.1, 16, 16)
+    this.liftFanHubGeometry.scale(1, 1, 3)
+    this.liftFanDiskGeometry = new THREE.SphereGeometry(this.radius * 1.5, 4, 64)
+    this.liftFanDiskGeometry.scale(1, 1, 0.05)
+    // this.liftFanCowlingGeometry = new THREE.TorusGeometry(this.radius*1.6, this.radius/32, 16, 64)
+    // this.liftFanCowlingGeometry.scale(1, 1, 4)
+    // this.liftFanGeometry = mergeGeometries([this.liftFanHubGeometry, this.liftFanCowlingGeometry])
+    
   }
 
   update(dParamWithUnits) {
@@ -32,15 +46,43 @@ export class massDriverTubeModel {
   
   createModel(curve, segmentIndex) {
 
-    //const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    // Hack
-    const modelLengthSegments = 4    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
+    let modelLengthSegments    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
     const modelsCurvePosition = (segmentIndex + 0.5) / this.massDriverTubeSegments
     const refPoint = curve.getPointAt(modelsCurvePosition)
+
+    // Figure out the length of this segment - this might not work well when the elevated evacuated tube is coiled...
+    let tubeSegmentLength = 0
+    let p0, p1
+    p0 = curve.getPointAt((segmentIndex + 0) / this.massDriverTubeSegments)
+    for (let i = 1; i<=20; i++) {
+      p1 = curve.getPointAt((segmentIndex + i/20) / this.massDriverTubeSegments)
+      tubeSegmentLength += p0.distanceTo(p1)
+      p0 = p1
+    }
+
+    // We need to orient the model so that it is aligned with the curve at this point
+    // Hack - make the part of the tube that's off in the distance larger to make it more visible.
+    const res = curve.findRelevantCurveAt(modelsCurvePosition)
+    let exagerateTubeFactor = 1
+    let aboveGround = true
+    if ((res.relevantCurve.name!='elevatedEvacuatedTube') && (res.relevantCurve.name!='coiledElevatedEvacuatedTube')) {
+      // Not elevated evacuated tube
+      exagerateTubeFactor = 1
+      modelLengthSegments = 4
+      aboveGround = false
+    }
+    else {
+      exagerateTubeFactor = 5
+      modelLengthSegments = 4
+      aboveGround = true
+    }
+    // End Hack
+    //modelLengthSegments = 4
+
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
     const orientation = curve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
@@ -58,15 +100,54 @@ export class massDriverTubeModel {
     }
 
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
-    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius, modelRadialSegments, false)
+    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius * exagerateTubeFactor, modelRadialSegments, false)
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
     //const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, (segmentIndex%10==0) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
-    let aboveGround = true
     // Hack for Olympus Mons clip
     //aboveGround = (segmentIndex<=126 || segmentIndex>250)
     // Hack for Hawaii clip
     //aboveGround = (segmentIndex<=211 || segmentIndex>228)  // That is, not in a tunnel
-    const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, (aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
+    const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, (!aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
+    const massDriverTubeMesh = new THREE.Group().add(tubeMesh)
+    const liftFansPerSegment = Math.round(tubeSegmentLength / this.liftFanRoughSpacing)
+
+    for (let i = 0; i<liftFansPerSegment; i++) {
+      const modelsCurvePosition = (segmentIndex + (i+0.5)/liftFansPerSegment) / this.massDriverTubeSegments
+      const res = curve.findRelevantCurveAt(modelsCurvePosition)
+      if ((res.relevantCurve.name=='elevatedEvacuatedTube') || (res.relevantCurve.name=='coiledElevatedEvacuatedTube')) {
+        const point = curve.getPointAt(modelsCurvePosition)
+        const tangent = curve.getTangentAt(modelsCurvePosition)
+        const normal = curve.getNormalAt(modelsCurvePosition)
+        const binormal = curve.getBinormalAt(modelsCurvePosition)
+
+        for (let lr = -1; lr<=1; lr+=2) {
+          const fanPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*3))
+          const relFanPos = fanPos.clone().sub(refPoint).applyQuaternion(orientation)
+          const fanOrientation = fanPos.clone().normalize().applyQuaternion(orientation)
+
+          const liftFanHubMesh = new THREE.Mesh(this.liftFanHubGeometry, this.massDriverTubeMaterial3)
+          liftFanHubMesh.position.copy(relFanPos)
+          liftFanHubMesh.lookAt(relFanPos.clone().add(fanOrientation))
+          liftFanHubMesh.name = "liftFanHub"
+          massDriverTubeMesh.add(liftFanHubMesh)
+          
+          const liftFanDiskMesh = new THREE.Mesh(this.liftFanDiskGeometry, this.massDriverTubeMaterial4)
+          liftFanDiskMesh.position.copy(relFanPos)
+          liftFanDiskMesh.lookAt(relFanPos.clone().add(fanOrientation))
+          liftFanDiskMesh.scale.set(1, 1, 0.05)
+          liftFanDiskMesh.name = "liftFanDisk"
+          massDriverTubeMesh.add(liftFanDiskMesh)
+          
+          // const liftFanCowlingMesh = new THREE.Mesh(this.liftFanCowlingGeometry, this.massDriverTubeMaterial3)
+          // liftFanCowlingMesh.position.copy(relFanPos)
+          // liftFanCowlingMesh.lookAt(relFanPos.clone().add(fanOrientation))
+          // liftFanCowlingMesh.scale.set(1, 1, 4)
+          // liftFanCowlingMesh.name = "liftFanCowling"
+          // massDriverTubeMesh.add(liftFanCowlingMesh)
+        }
+      }
+    }
+
     massDriverTubeMesh.renderOrder = 999
 
     // Debug code
@@ -121,7 +202,7 @@ export class virtualMassDriverTube {
     static update(dParamWithUnits, versionNumber) {
       virtualMassDriverTube.numObjects = dParamWithUnits['showMassDriverTube'].value ? dParamWithUnits['numVirtualMassDriverTubes'].value : 0
       virtualMassDriverTube.isVisible = dParamWithUnits['showMassDriverTube'].value
-      virtualMassDriverTube.isDynamic =  false
+      virtualMassDriverTube.isDynamic =  true
       virtualMassDriverTube.hasChanged = true
       virtualMassDriverTube.versionNumber = versionNumber
     }
@@ -136,6 +217,7 @@ export class virtualMassDriverTube {
         for (let i = 0; i < n; i++) {
           const d = (i+0.5)/n
           const vmdt = new virtualMassDriverTube(d)
+          vmdt.index = i
           vmdt.model = tubeModelObject.createModel(refFrame.curve, i)
           vmdt.model.name = 'massDriverTube'
           const zoneIndex = refFrame.curve.getZoneIndexAt(d)
@@ -160,7 +242,7 @@ export class virtualMassDriverTube {
       }
       else {
         if (virtualMassDriverTube.isVisible) {
-          if (this.versionNumber!=virtualMassDriverTube.versionNumber) {
+          if (virtualMassDriverTube.hasChanged || this.versionNumber!=virtualMassDriverTube.versionNumber) {
             // Something about the design has been updated so this instance also needs to be updated
             const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
             const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"

@@ -93,6 +93,8 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
   console.log('v_spacecraft_LEO', v_spacecraft_LEO)
   console.log('v_minus_vleo', v_minus_vleo)
 
+  guidParamWithUnits['launchFromPlanet'].value = "Earth"
+  guidParamWithUnits['launchToPlanet'].value = "Mars"
   guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude // m
   guidParamWithUnits['launcherRampExitAltitude'].value = rampExitAltitude // m
   guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000 // m

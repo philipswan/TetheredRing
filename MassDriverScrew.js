@@ -20,6 +20,7 @@ export class massDriverScrewModel {
         const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
         const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+        const threadTaperRatio = dParamWithUnits['launcherMassDriverScrewThreadTaperRatio'].value
         const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
         const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
         const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
@@ -35,7 +36,7 @@ export class massDriverScrewModel {
         const baseDistanceAlongScrew = segmentIndex * segmentSpacing
         const threadStarts = tram.calculateThreadStarts(baseDistanceAlongScrew, dParamWithUnits['launcherMassDriverScrewThreadStarts'].value)
         const screwLength = segmentSpacing - bracketThickness
-        const initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
+        const initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
 
         // The point of breaking the screw into segments relates to the need to display the brackets.
         const modelRadialSegments = ((!highRes) ? 12 : 96) / Math.min(threadStarts, 4)
@@ -46,6 +47,7 @@ export class massDriverScrewModel {
             shaftInnerRadius,
             threadRadius,
             threadThickness,
+            threadTaperRatio,
             threadStarts,
             baseDistanceAlongScrew,
             launcherMassDriver1InitialVelocity,
@@ -66,6 +68,7 @@ export class massDriverScrewModel {
       const shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
       const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
       const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+      const threadTaperRatio = dParamWithUnits['launcherMassDriverScrewThreadTaperRatio'].value
       // ToDo: If the thread starts are variable, then we need a more complex calculation for the screw's volume.
       const threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
       const screwRoughLength = dParamWithUnits['launcherMassDriverScrewRoughLength'].value
@@ -74,16 +77,16 @@ export class massDriverScrewModel {
       const shaftOuterArea = Math.PI * shaftOuterRadius**2
       const threadHeight = threadRadius - shaftOuterRadius
       
-      const massDriverScrewCrosssectionalArea = shaftOuterArea - shaftInnerArea + threadHeight * threadThickness * threadStarts
+      const massDriverScrewCrosssectionalArea = shaftOuterArea - shaftInnerArea + threadHeight * threadThickness*(1+threadTaperRatio)/2 * threadStarts
       specs['massDrivermassDriverScrewCrosssectionalArea'] = {value: massDriverScrewCrosssectionalArea, units: "m2"}
       const massDriverScrewVolume = massDriverScrewCrosssectionalArea * screwRoughLength
       specs['massDriverScrewVolume'] = {value: massDriverScrewVolume, units: "m3"}
-      const densityOfMaterial = dParamWithUnits['launcherMassDriverScrewBracketDensity'].value
+      const densityOfMaterial = dParamWithUnits['launcherMassDriverScrewMaterialDensity'].value
       const massDriverScrewMass = massDriverScrewVolume * densityOfMaterial
       specs['massDriverScrewMass'] = {value: massDriverScrewMass, units: "kg"}
-      const costOfMaterial = dParamWithUnits['launcherMassDriverScrewBracketMaterialCost'].value
+      const costOfMaterial = dParamWithUnits['launcherMassDriverScrewMaterialCost'].value
       const screwCost = massDriverScrewMass * costOfMaterial
-      specs['massDriverScrewMaterialCost'] = {value: screwCost, units: "USD"}  
+      specs['massDriverScrewMaterialCost'] = {value: screwCost, units: "USD"}
 
     }
 }
@@ -122,6 +125,7 @@ export class virtualMassDriverScrew {
     virtualMassDriverScrew.shaftInnerRadius = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
     virtualMassDriverScrew.threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
     virtualMassDriverScrew.threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
+    virtualMassDriverScrew.threadTaperRatio = dParamWithUnits['launcherMassDriverScrewThreadTaperRatio'].value
     virtualMassDriverScrew.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
     virtualMassDriverScrew.launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
     virtualMassDriverScrew.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
@@ -129,7 +133,7 @@ export class virtualMassDriverScrew {
     
     virtualMassDriverScrew.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     virtualMassDriverScrew.numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value
-    virtualMassDriverScrew.initialDistance = dParamWithUnits['adaptiveNutGrapplerLength'].value / 2
+    virtualMassDriverScrew.initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
 
     virtualMassDriverScrew.isVisible = dParamWithUnits['showMassDriverAccelerationScrews'].value
     virtualMassDriverScrew.isDynamic =  true
@@ -225,6 +229,7 @@ export class virtualMassDriverScrew {
             virtualMassDriverScrew.shaftInnerRadius,
             virtualMassDriverScrew.threadRadius,
             virtualMassDriverScrew.threadThickness,
+            virtualMassDriverScrew.threadTaperRatio,
             //virtualMassDriverScrew.threadStarts,
             threadStarts,
             baseDistanceAlongScrew,
@@ -235,7 +240,7 @@ export class virtualMassDriverScrew {
             modelRadialSegments,
             minLengthSegmentsPerMeter)
           om.children[1].geometry = om.children[0].geometry
-          const select = (((this.index % 1024) <= 32) && (this.index<256*128)) ? 0 : 1
+          const select = 0 //(((this.index % 1024) <= 32) && (this.index<256*128)) ? 0 : 1
           om.children[0].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
           om.children[1].material = virtualMassDriverScrew.massDriverScrewMaterials[select]
           om.userData = this.index

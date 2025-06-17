@@ -72,18 +72,18 @@ export function grapplerEngineeringPresets(guidParamWithUnits, guidParam, gui, n
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 150
   guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 4
 
-  guidParamWithUnits['launchSledNumGrapplers'].value = 64
-  guidParamWithUnits['launchSledGrapplerMagnetThickness'].value = 0.06  // m
-  guidParamWithUnits['launchSledShaftToGrapplerPad'].value = 0.02
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayDistance'].value = 0.01
-  guidParamWithUnits['launchSledGrapplerPadLiftAwayPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerClearanceFactor'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerPadTwistPortion'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointClearance'].value = 0.1
-  guidParamWithUnits['launchSledGrapplerBallJointRadius'].value = 0.04
-  guidParamWithUnits['launchSledGrapplerRangeFactor'].value = .01
-  guidParamWithUnits['launchSledGrapplerMaxRangeOfMotion'].value = 0.125
-  guidParamWithUnits['launchSledGrapplerTopDeadCenterRotation'].value = 0.5
+  guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
+  guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
+  guidParamWithUnits['adaptiveNutShaftToGrapplerPad'].value = 0.02
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayDistance'].value = 0.01
+  guidParamWithUnits['adaptiveNutGrapplerPadLiftAwayPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerClearanceFactor'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerPadTwistPortion'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointClearance'].value = 0.1
+  guidParamWithUnits['adaptiveNutGrapplerBallJointRadius'].value = 0.04
+  guidParamWithUnits['adaptiveNutGrapplerRangeFactor'].value = .01
+  guidParamWithUnits['adaptiveNutGrapplerMaxRangeOfMotion'].value = 0.125
+  guidParamWithUnits['adaptiveNutGrapplerTopDeadCenterRotation'].value = 0.5
 
 
 

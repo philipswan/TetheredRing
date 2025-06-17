@@ -6,6 +6,7 @@ export function defineAnimate () {
 
   return function (timeSinceStart, cameraPosition, elevatedEvacuatedTubeDeploymentAlpha) {
     // Move the virtual models of the launched vehicles along the launch trajectory
+
     let zoneIndex
     const assignModelList = []
     const removeModelList = []
@@ -29,49 +30,69 @@ export function defineAnimate () {
 
     if (this.animateElevatedEvacuatedTubeDeployment && (elevatedEvacuatedTubeDeploymentAlpha != this.lastElevatedEvacuatedTubeDeploymentAlpha)) {
       const originalTubeLength = this.evacuatedTubeCurve.getLength()
-      const animatedEvacuatedTubeCurveControlPoints = []
       // We need to create a curve that follows the original curve to some fraction "Alpha" of it's length to a point
       // "A", after which it will spiral around a point "B" that is a distance "C" to the side of point A, where C is
       // proportional to the spiral's inner diameter, "r0" plus (E-r0)(1-Alpha), where E is the spiral's outer diameter.
       
-      const alpha = Math.max(0.05, elevatedEvacuatedTubeDeploymentAlpha)
-      const alpha2 = 1 - Math.min(0.05, elevatedEvacuatedTubeDeploymentAlpha) / 0.05
-      const r0 = 1000 // m
-      const rInc = -25 // m
+      // "alpha" is the extent to which the tube is uncoiled.
+      // "alpha2" is the extent to which the coiled tube is elevated above its landing platform.
+      // "neverCoiledPortion" is the portion of the tube near the base that will always remain uncoiled.
+      // It is also the split between time spent levitating the coiled tube verticlly off of its platform and time spent unwinding the coil.
+      const neverCoiledPortion = 0.05
+      const alpha = Math.max(neverCoiledPortion, elevatedEvacuatedTubeDeploymentAlpha)
+      const alpha2 = 1 - Math.min(neverCoiledPortion, elevatedEvacuatedTubeDeploymentAlpha) / neverCoiledPortion
+      const r0 = 2000 // m - represents the inner radius of the coiled elevated evacuated tube
+      const rInc = 0 //-50 // m - represents the distance between adjacent tubes in the coiled elevated evacuated tube
       const A = this.evacuatedTubeCurve.getPointAt(alpha)
       const tangent = this.evacuatedTubeCurve.getTangentAt(alpha)
       const biNormal = tangent.clone().cross(A.clone().normalize())
       //const B = A.clone().add(biNormal.clone().multiplyScalar(-C))
       const P0 = this.evacuatedTubeCurve.getPointAt(0)
       const P0Length = P0.length()
-      for (let alphaI = 0; alphaI<alpha; alphaI+=0.001) {
-        const P = this.evacuatedTubeCurve.getPointAt(alphaI)
-        const PLength = P.length()
-        const scaleBy = (P0Length-3*(PLength-P0Length)*alpha2)/P0Length
-        animatedEvacuatedTubeCurveControlPoints.push(P.multiplyScalar(scaleBy))
-      }
+      // Map points along the original evacuated tube curve to a new set of roughly equaly spaced points.
+      // For the uncoiled portion of the coiled evacuated tube curve, we can obtain these points from the original evacuated tube curve.
+      const totalNumebrOfNewPoints = 4096
+      const animatedEvacuatedTubeCurveControlPoints = []
       const coilCenterPoint = A.clone().add(biNormal.clone().multiplyScalar(-r0))
       const coilCenterPointLength = coilCenterPoint.length()
-      const scaleBy = (P0Length-3*(coilCenterPointLength-P0Length)*alpha2)/P0Length
-      this.coilCenterMarker.position.copy(coilCenterPoint.multiplyScalar(scaleBy))
       const arcLength = originalTubeLength * (1-alpha)
       const spiralParameters = getSpiralParameters(r0, rInc, arcLength)
-      //console.log(arcLength, spiralParameters)
-      for (let k = 0; k<1024; k++) {
-        const theta = spiralParameters.totalTheta * k/1023
-        const spiralXY = getSpiralCoordinates(spiralParameters, theta);
-        const P = A.clone()
-          .add(biNormal.clone().multiplyScalar(spiralXY.x))
-          .add(tangent.clone().multiplyScalar(spiralXY.y))
+
+      for (let i = 0; i<totalNumebrOfNewPoints; i++) {
+        const alphaI = i / (totalNumebrOfNewPoints - 1)
+        let P
+        if (alphaI <= alpha) {
+          // For the uncoiled portion of the coiled evacuated tube curve, we can obtain these points from the original evacuated tube curve.
+          P = this.evacuatedTubeCurve.getPointAt(alphaI)
+        }
+        else {
+          const alphaC = (alphaI - alpha)
+          const theta = alphaC * originalTubeLength / r0  // ToDo: This is inaccurate, only works for rInc = 0
+          const spiralXY = getSpiralCoordinates(spiralParameters, theta);
+          P = A.clone()
+            .add(biNormal.clone().multiplyScalar(spiralXY.x))
+            .add(tangent.clone().multiplyScalar(spiralXY.y))
+        }
         const PLength = P.length()
         const scaleBy = (P0Length-3*(PLength-P0Length)*alpha2)/P0Length  // "scaleBy" is a factor that is used to lower the coiled tube to the ground
         animatedEvacuatedTubeCurveControlPoints.push(P.multiplyScalar(scaleBy))
       }
 
+      // Update the position of the coil center marker
+      const scaleBy = (P0Length-3*(coilCenterPointLength-P0Length)*alpha2)/P0Length
+      this.coilCenterMarker.position.copy(coilCenterPoint.multiplyScalar(scaleBy))
+
       this.coiledElevatedEvacuatedTubeCurve.setPoints(animatedEvacuatedTubeCurveControlPoints)
       this.coiledElevatedEvacuatedTubeCurve.updateArcLengths()
-      this.removeOldMassDriverTubes()
-      this.generateNewMassDriverTubes()
+      //this.removeOldMassDriverTubes()
+      //this.generateNewMassDriverTubes()
+      const totalLen = this.polyCurveForrf3.getLength()
+      const eetLen = this.coiledElevatedEvacuatedTubeCurve.getLength()
+      const segLen = totalLen / this.massDriverTubeSegments
+      const minD = Math.max(0, (totalLen - eetLen*(1-alpha) - segLen) / totalLen)
+      const maxD = Math.min(1, (totalLen - eetLen*(1-alpha) + segLen) / totalLen)
+      this.updateMassDriverTubes(minD, maxD)
+      this.virtualMassDriverTube.hasChanged = true
       this.lastElevatedEvacuatedTubeDeploymentAlpha = elevatedEvacuatedTubeDeploymentAlpha
     }
 
@@ -447,13 +468,46 @@ export function defineRemoveOldMassDriverTubes() {
       // Destroy all of the massdriver tube models since these can't be reused when we change the shape of the tube
       this.virtualMassDriverTube.unallocatedModels.forEach(model => {
         this.scene.remove(model)
-        model.geometry.dispose()
+        model.traverse(child => {
+          if (child.isMesh) {
+            child.geometry.dispose()
+          }
+        })
         model = null
       })
       this.virtualMassDriverTube.unallocatedModels.splice(0, this.virtualMassDriverTube.unallocatedModels.length)
     }
   }
 }
+
+export function defineUpdateMassDriverTubes() {
+  return function (minD = 0, maxD = 1) {
+    if (this.virtualMassDriverTube.numObjects > 0) {
+      // Find and iterate through all of the virtual mass driver tubes
+      const objectName = 'virtualMassDriverTubes'
+      const refFrames = this.virtualMassDriverTube.refFrames
+      refFrames.forEach(refFrame => {
+        for (let zoneIndex = 0; zoneIndex < refFrame.wedges.length; zoneIndex++) {
+          if (objectName in refFrame.wedges[zoneIndex]) {
+            const wedgeList = refFrame.wedges[zoneIndex][objectName]
+            wedgeList.forEach(vobj => {
+              // Check whether the virtual object's d value is within the provided range
+              if (vobj.d>=minD && vobj.d<=maxD) {
+                const index = vobj.index
+                if (vobj.model) this.scene.remove(vobj.model)
+                // Create a new model that is fitted to new the shape of the curve
+                vobj.model = this.tubeModelObject.createModel(refFrame.curve, index)
+                this.scene.add(vobj.model)
+              }
+            })
+          }
+        }
+      })
+    }
+    //console.timeEnd('UpdateMassDriverTubes')
+  }
+}
+
 
 export function defineGenerateNewMassDriverTubes() {
   return function () {

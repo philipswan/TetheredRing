@@ -5,6 +5,7 @@ import * as kmlutils from './kmlutils.js'
 import * as tram from './tram.js'
 import * as LauncherRamp from './launcherRamp.js'
 import { mx_bilerp_0 } from 'three/src/nodes/materialx/lib/mx_noise.js'
+import { arrow } from './markers'
 
 export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
@@ -110,10 +111,24 @@ export function defineUpdateTrajectoryCurves () {
     const launcherCoastTime = dParamWithUnits['launcherCoastTime'].value
     const launcherXyChartMaxT = dParamWithUnits['launcherXyChartMaxT'].value
     const launchVehicleEffectiveRadius = dParamWithUnits['launchVehicleEffectiveRadius'].value
+    const evacuatedTubeInteriorPressure = dParamWithUnits['evacuatedTubeInteriorPressure'].value
     const verbose = dParamWithUnits['verboseLogging'].value
 
     forwardAcceleration = launcherMassDriverForwardAcceleration
-
+    // Use the ideal gas formula to calculate the density of the evacuated tube's interior gas.
+    // Assume the gas is air at 20 degrees C and evacuatedTubeInteriorPressure Pa.
+    const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
+    const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
+    const launchVehicleNoseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
+    const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value
+    const temperatureK = 20 + 273.15 // K
+    const R_air = 287.05
+    const evacuatedTubeInteriorGasDensity = evacuatedTubeInteriorPressure / (R_air * temperatureK) // kg/m3
+    const launchVehicleCrossSectionalArea = Math.PI * (launchVehicleRadius**2) // m2
+    const aerodnamicDragFactor = launchVehicleCoefficientOfDrag * evacuatedTubeInteriorGasDensity * launchVehicleCrossSectionalArea / 2
+    this.energyLostToDragWhileInTube = 0
+    this.energyLostToDragWhileInAtmosphere = 0
+    
     // Determine the time in the mass driver from acceleration, initial velocity, and final velocity
     // vf = v0 + at, therefore t = (vf-v0)/a
     const launcherMassDriver2AccelerationTime = (launcherMassDriverExitVelocity - launcherMassDriver2InitialVelocity) / forwardAcceleration
@@ -414,11 +429,11 @@ export function defineUpdateTrajectoryCurves () {
     // We would like to decelerate the adaptive nut and bring it to a stop while it's on the ramp.
     // Afterwards it should be able to slide backwards down the ramp and then coast back to the start of the launcher.
 
-    //const adaptiveNutRampAcceleration = dParamWithUnits['adaptiveNutRampAcceleration'].value 
+    //const launcherAdaptiveNutRampAcceleration = dParamWithUnits['launcherAdaptiveNutRampAcceleration'].value 
     const rampLength = allowableUpwardTurningRadius * angleACB
     // Adding a fudge factor of 0.9 to force the adaptive nut to continue past the end of the ramp to avoid an unhandled edge case
-    const adaptiveNutRampAcceleration = -(launcherMassDriverExitVelocity**2)/2/rampLength*1 // v^2=2ax, therefore a=v^2/(2x) 
-    //console.log('adaptiveNutRampAcceleration', adaptiveNutRampAcceleration)
+    const launcherAdaptiveNutRampAcceleration = -(launcherMassDriverExitVelocity**2)/2/rampLength*1 // v^2=2ax, therefore a=v^2/(2x) 
+    //console.log('launcherAdaptiveNutRampAcceleration', launcherAdaptiveNutRampAcceleration)
     let adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp
     [adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp] = new LauncherRamp.CalculateSpeedAndPositionVersusTime(
       launcherMassDriverExitVelocity,
@@ -427,7 +442,7 @@ export function defineUpdateTrajectoryCurves () {
       planetSpec,
       allowableUpwardTurningRadius,
       angleACB,
-      adaptiveNutRampAcceleration)
+      launcherAdaptiveNutRampAcceleration)
     this.adaptiveNutTimeWithinRamp = adaptiveNutTimeWithinRamp
 
     let adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor
@@ -465,6 +480,10 @@ export function defineUpdateTrajectoryCurves () {
     const aerodynamicDragVersusTimeData = []
     const fuelMassFlowRateVersusTimeData = []
     const totalMassVersusTimeData = []
+    const boosterCH4MassVersusTimeData = []
+    const boosterLOXMassVersusTimeData = []
+    const shipCH4MassVersusTimeData = []
+    const shipLOXMassVersusTimeData = []
     const apogeeAltitudeVersusTimeData = []
     const perigeeAltitudeVersusTimeData = []
     const convectiveHeatingVersusTimeData = []
@@ -537,6 +556,10 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = this.feederRailCurve.tTos(t - t0)
       distanceTravelled = this.feederRailCurve.tTod(t - t0)
       const vehiclePosition = this.feederRailCurve.getPointAt(distanceTravelled/launcherFeederRailLength)
+      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
+      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
       if (t==0) {
         // This is used in main.js to warp the camera over to the location where the mass driver starts
         this.startOfMassDriver1Position = vehiclePosition.clone()
@@ -548,7 +571,7 @@ export function defineUpdateTrajectoryCurves () {
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
         upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
-        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
         // totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
         // convectiveHeatingVersusTimeData.push(new THREE.Vector3(t, qconv, 0))
@@ -594,6 +617,10 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = this.massDriver1Curve.tTos(t - t1)
       distanceTravelled = this.massDriver1Curve.tTod(t - t1)
       const vehiclePosition = this.massDriver1Curve.getPointAt(distanceTravelled/launcherMassDriver1Length)
+      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
+      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -601,7 +628,7 @@ export function defineUpdateTrajectoryCurves () {
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
         upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
-        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
         totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
         // convectiveHeatingVersusTimeData.push(new THREE.Vector3(t, qconv, 0))
@@ -647,6 +674,10 @@ export function defineUpdateTrajectoryCurves () {
       vehicleAirSpeed = this.massDriver2Curve.tTos(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
       distanceTravelled = this.massDriver2Curve.tTod(t - t2, launcherMassDriver2InitialVelocity, forwardAcceleration)
       const vehiclePosition = this.massDriver2Curve.getPointAt(distanceTravelled/launcherMassDriver2Length)
+      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
+      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -654,7 +685,7 @@ export function defineUpdateTrajectoryCurves () {
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
         upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
-        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
         totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
         // convectiveHeatingVersusTimeData.push(new THREE.Vector3(t, qconv, 0))
@@ -720,6 +751,10 @@ export function defineUpdateTrajectoryCurves () {
       vehiclePosition = this.launchRampCurve[1].getPointAt(distanceTravelled / this.launcherRampLength)
       altitude = vehiclePosition.length() - this.planetRadius
       airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
+      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
       const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
       if (t<=launcherXyChartMaxT) {
@@ -729,7 +764,7 @@ export function defineUpdateTrajectoryCurves () {
         airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
         forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
         upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, upwardAcceleration, 0))
-        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+        aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
         fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
         totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
         // convectiveHeatingVersusTimeData.push(new THREE.Vector3(t, qconv, 0))
@@ -781,6 +816,11 @@ export function defineUpdateTrajectoryCurves () {
       vehiclePosition = this.launchRampCurve[1].getPointAt(distanceTravelled / sledReturnCircleLength)
       altitude = vehiclePosition.length() - this.planetRadius
       airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
+      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
+
       // Just to be explicate that we're not including downward arching part of the sled's return path in the launch trajectory curve and telemetry for the xychart
       // const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       // const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
@@ -791,7 +831,7 @@ export function defineUpdateTrajectoryCurves () {
       // airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
       // forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
       // upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, upwardAcceleration, 0))
-      // aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the mass drivers evacuated tube
+      // aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
       // fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
       // totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
       //}
@@ -893,8 +933,10 @@ export function defineUpdateTrajectoryCurves () {
         altitude = RV.R.length() - this.planetRadius
         airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
 
-        const aerodynamicDrag = 0
-        // const airDensity = 0
+        // ToDo - Potentially the aerodnamicDragFactor will drop as altitude increases - but with a frequent launch cadence, gas will probably be pushed up the tube.
+        const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
+        const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+        this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
         // const qconv = 0
         // const qrad = 0
 
@@ -916,8 +958,8 @@ export function defineUpdateTrajectoryCurves () {
           airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
           forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
           upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, 0, 0))
-          aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
-          fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0)) // ToDo: Should make this a function of the level of vacuum and type of gas inside the suspended evacuated tube
+          aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
+          fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
           totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
           if (coe.eccentricity<1) {
             apogeeAltitudeVersusTimeData.push(new THREE.Vector3(t, initialApogeeDistance - this.planetRadius, 0))
@@ -964,10 +1006,6 @@ export function defineUpdateTrajectoryCurves () {
     // Create the part of the trajectory where the vehicle coasts on an eliptical or hyperbolic trajectory after it leaves the evacuated tube
     // ***************************************************************
     // We'll need to generate some parameters to help us calculate the aerodynamic drag on the vehicle while it's traveling through the rarified upper atmosphere 
-    const launchVehicleRadius = dParamWithUnits['launchVehicleRadius'].value
-    const launchVehicleBodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-    const launchVehicleNoseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
-    const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value
     const adaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
     const maxFuelFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
     const launcherMaxEyesInAcceleration = dParamWithUnits['launcherMaxEyesInAcceleration'].value
@@ -1033,6 +1071,9 @@ export function defineUpdateTrajectoryCurves () {
       const airDensity = planetSpec.airDensityAtAltitude(altitude)
 
       const aerodynamicDrag = tram.getAerodynamicDrag(airDensity, launchVehicleCoefficientOfDrag, vehicleAirSpeed, launchVehicleRadius, launchVehicleBodyLength)
+      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
+      this.energyLostToDragWhileInAtmosphere += powerUsedToOvercomeAerodynamicDrag * tStep
+
       const qconv = vehicleAirSpeed**3 * (airDensity/launchVehicleEffectiveRadius)**0.5
       const qrad = vehicleAirSpeed**8 * airDensity**1.2 * launchVehicleEffectiveRadius**0.5
 
@@ -1387,6 +1428,7 @@ export function defineUpdateTrajectoryCurves () {
       }
     }
     this.durationOfFreeFlight = t - t5a
+    this.remainingPropellantAfterFreeFlight = mPropellant
     //console.log('done')
 
     distanceTravelled += distanceTravelledOutsideLaunchSystem
@@ -1477,28 +1519,48 @@ export function defineUpdateTrajectoryCurves () {
       if (!this.evacuatedTubeCurve) {
         this.evacuatedTubeCurve = new CatmullRomSuperCurve3(this.evacuatedTubeCurveControlPoints)
         this.evacuatedTubeCurve.setAlwaysAwayNormalMode()
+        this.evacuatedTubeCurve.name = 'elevatedEvacuatedTube'
+        this.evacuatedTubeCurve.curveType = 'centripetal'
+        this.evacuatedTubeCurve.closed = false
+        this.evacuatedTubeCurve.tension = 0
       }
       else {
         this.evacuatedTubeCurve.setPoints(this.evacuatedTubeCurveControlPoints)
         this.evacuatedTubeCurve.updateArcLengths()
       }
-      this.evacuatedTubeCurve.curveType = 'centripetal'
-      this.evacuatedTubeCurve.closed = false
-      this.evacuatedTubeCurve.tension = 0
       if (this.animateElevatedEvacuatedTubeDeployment) {
-        // We need a second curve that we can animate while referring to the original curve to obtain coordinates
-        this.coiledElevatedEvacuatedTubeCurve = new CatmullRomSuperCurve3(this.evacuatedTubeCurveControlPoints)
-        this.coiledElevatedEvacuatedTubeCurve.setAlwaysAwayNormalMode()
-        this.coiledElevatedEvacuatedTubeCurve.curveType = 'centripetal'
-        this.coiledElevatedEvacuatedTubeCurve.closed = false
-        this.coiledElevatedEvacuatedTubeCurve.tension = 0
+        if (!this.coiledElevatedEvacuatedTubeCurve) {
+          // We need a second curve that we can animate while referring to the original curve to obtain coordinates
+          this.coiledElevatedEvacuatedTubeCurve = new CatmullRomSuperCurve3(this.evacuatedTubeCurveControlPoints)
+          this.coiledElevatedEvacuatedTubeCurve.name = 'coiledElevatedEvacuatedTube'
+          this.coiledElevatedEvacuatedTubeCurve.setAlwaysAwayNormalMode()
+          this.coiledElevatedEvacuatedTubeCurve.curveType = 'centripetal'
+          this.coiledElevatedEvacuatedTubeCurve.closed = false
+          this.coiledElevatedEvacuatedTubeCurve.tension = 0
+
+          // console.log(this.evacuatedTubeCurveControlPoints)
+          // const sc = this.coiledElevatedEvacuatedTubeCurve
+          // for (let i = sc.points.length-10; i<sc.points.length; i++) {
+          //   const controlPoint = sc.points[i]
+          //   console.log(controlPoint)
+          //   const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
+          //   const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+          //   const controlPointMesh = new arrow(controlPoint, controlPoint.clone().normalize(), 20000, 0.5, 1, 0x7f5050)
+          //   this.scene.add(controlPointMesh)
+          // }
+
+        }
+        else {
+          this.coiledElevatedEvacuatedTubeCurve.setPoints(this.evacuatedTubeCurveControlPoints)
+          this.evacuatedTubeCurveControlPoints.updateArcLengths()
+        }
       }  
 
       this.evacuatedTubeCurve.addtToiConvertor(evacuatedTubetToiConvertor)
       this.evacuatedTubeCurve.addtTodConvertor(evacuatedTubetTodConvertor)
       this.evacuatedTubeCurve.addtTosConvertor(evacuatedTubetTosConvertor)
       this.evacuatedTubeCurve.setDuration(this.timeWithinEvacuatedTube)
-      this.evacuatedTubeCurve.name = "evacuatedTubeCurve"
+      this.evacuatedTubeCurve.name = "elevatedEvacuatedTube"
     }
     else {
       this.evacuatedTubeCurve = null
@@ -1564,19 +1626,19 @@ export function defineUpdateTrajectoryCurves () {
     this.freeFlightPositionCurve.freeFlightTelemetryCurve = this.freeFlightTelemetryCurve
 
     this.xyChart.clearCurves()
-    if (dParamWithUnits['showForwardAccelerationVersusTime'].value) this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, 1, 0xffff00, "Yellow", "Forward Acceleration (m/s2)")
-    if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, 1, 0xff8000, "Orange", "Upward Acceleration (m/s2)")
-    if (dParamWithUnits['showAltitudeVersusTime'].value) this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, 0.001, 0xffc080, "Light Brown", "Altitude (km)")
-    if (dParamWithUnits['showAirPressureVersusTime'].value) this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, 100/airPressureAtSeaLevel, 0xff0000, "Red", "Air Pressure (% of sea level)")
-    if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, .00001, 0x0000ff, "Blue", "Downrange Distance (100's of km)")
-    if (dParamWithUnits['showAirSpeedVersusTime'].value) this.xyChart.addCurve("Air Speed", "m/s", "km/s", airSpeedVersusTimeData, 0.001, 0x00ffff, "Cyan", "Air Speed (km/s)")
-    if (dParamWithUnits['showAerodynamicDragVersusTime'].value) this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, 0.00001, 0x80ff80, "Bright Green", "Aerodynamic Drag (100's of kN)")
-    if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "10's of kg/s", fuelMassFlowRateVersusTimeData, 0.1, 0x7f7fff, "Blue", "Propellant Mass Flow Rate (10's of kg/s)")
-    if (dParamWithUnits['showTotalMassVersusTime'].value) this.xyChart.addCurve("Vehicle Mass", "kg", "1000's of kg", totalMassVersusTimeData, 0.001, 0xff7fff, "Purple", "Vehicle Mass (1000's of kg)")
-    if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Apogee Altiude", "m", "m", apogeeAltitudeVersusTimeData, 1, 0xffffff, "White", launchVehicleDesiredOrbitalAltitude, "Orbital Apogee Altitude (km)")
-    if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Perigee Distance", "m", "m", perigeeAltitudeVersusTimeData, 1, 0xffff7f, "White", this.planetRadius + launchVehicleDesiredOrbitalAltitude, "Orbital Perigee Distance (km)")
-    //if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2",  convectiveHeatingVersusTimeData, 1, 0xffff7f, "LightYellow", "Convective Heating (W/m2)")
-    //if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, 1, 0xffc080, "LightOrange", "Radiative Heating (W/m2)")
+    if (dParamWithUnits['showForwardAccelerationVersusTime'].value) this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, (y)=>y*1, 0xffff00, "Yellow", "Forward Acceleration (m/s2)")
+    if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, (y)=>y*1, 0xff8000, "Orange", "Upward Acceleration (m/s2)")
+    if (dParamWithUnits['showAltitudeVersusTime'].value) this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, (y)=>y*0.001, 0xffc080, "Light Brown", "Altitude (km)")
+    if (dParamWithUnits['showAirPressureVersusTime'].value) this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, (y)=>y*100/airPressureAtSeaLevel, 0xff0000, "Red", "Air Pressure (% of sea level)")
+    if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, (y)=>y*.00001, 0x0000ff, "Blue", "Downrange Distance (100's of km)")
+    if (dParamWithUnits['showAirSpeedVersusTime'].value) this.xyChart.addCurve("Air Speed", "m/s", "km/s", airSpeedVersusTimeData, (y)=>y*0.001, 0x00ffff, "Cyan", "Air Speed (km/s)")
+    if (dParamWithUnits['showAerodynamicDragVersusTime'].value) this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, (y)=>y*0.00001, 0x80ff80, "Bright Green", "Aerodynamic Drag (100's of kN)")
+    if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "10's of kg/s", fuelMassFlowRateVersusTimeData, (y)=>y*0.1, 0x7f7fff, "Blue", "Propellant Mass Flow Rate (10's of kg/s)")
+    if (dParamWithUnits['showTotalMassVersusTime'].value) this.xyChart.addCurve("Vehicle Mass", "kg", "1000's of kg", totalMassVersusTimeData, (y)=>y*0.001, 0xff7fff, "Purple", "Vehicle Mass (1000's of kg)")
+    if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Apogee Altiude", "m", "m", apogeeAltitudeVersusTimeData, (y)=>y*1, 0xffffff, "White", launchVehicleDesiredOrbitalAltitude, "Orbital Apogee Altitude (km)")
+    if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Perigee Distance", "m", "m", perigeeAltitudeVersusTimeData, (y)=>y*1, 0xffff7f, "White", this.planetRadius + launchVehicleDesiredOrbitalAltitude, "Orbital Perigee Distance (km)")
+    //if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2",  convectiveHeatingVersusTimeData, (y)=>y*1, 0xffff7f, "LightYellow", "Convective Heating (W/m2)")
+    //if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, (y)=>y*1, 0xffc080, "LightOrange", "Radiative Heating (W/m2)")
     this.xyChart.drawLegend(14, 22)
 
     // forwardAccelerationVersusTimeData.forEach(point => {
@@ -1601,11 +1663,12 @@ export function defineUpdateTrajectoryCurves () {
       console.print('===================================================')
       // console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000000), 'MN')
       // console.print("RS-25 Engine Thrust 2279 kN")
-      console.print("Vehicle Initial Mass", Math.round(m0), 'kg')
+      //console.print("Vehicle Initial Mass", Math.round(m0), 'kg')
       console.print("MassDriver1 Time", Math.round(launcherMassDriver1AccelerationTime*10)/10, 'sec')
       console.print("MassDriver2 Time", Math.round(launcherMassDriver2AccelerationTime*10)/10, 'sec (' + Math.round(launcherMassDriver2AccelerationTime*100/60)/100, 'min)')
       console.print("Ramp Time", Math.round(this.launchVehicleTimeWithinRamp*10)/10, 'sec')
       console.print("Evacuate Tube Time", Math.round(this.timeWithinEvacuatedTube*10)/10, 'sec')
+      console.print("Time at Elevated Evacuated Tube Exit", launcherMassDriver1AccelerationTime + launcherMassDriver2AccelerationTime + this.launchVehicleTimeWithinRamp + this.timeWithinEvacuatedTube, 'sec')
       console.print("Total Time on Chart X-Axis", Math.round(t6a), 'sec (' + Math.round(t6a/6)/10 + ' min)')
       console.print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/10)/100, 'km (',  Math.round(this.launcherMassDriver1Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
       console.print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/10)/100, 'km (',  Math.round(this.launcherMassDriver2Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
@@ -1613,6 +1676,7 @@ export function defineUpdateTrajectoryCurves () {
       console.print("Suspended Evacuated Tube Length", Math.round(this.launcherSuspendedEvacuatedTubeLength/10)/100, 'km (',  Math.round(this.launcherSuspendedEvacuatedTubeLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
       console.print("Suspended Evacuated Tube Exit Altitude", Math.round(launcherEvacuatedTubeExitAltitude/10)/100, 'km')
       console.print("Total Length Of Launch System", Math.round(this.totalLengthOfLaunchSystem/10)/100, 'km')
+      console.print('Hit \'s\' to print out more specifications.')
 
       // const massDriverCost = (this.launcherMassDriver1Length + this.launcherMassDriver2Length) * massDriverCostPerMeter
       // const rampCost = this.launcherRampLength * rampCostPerMeter
