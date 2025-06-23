@@ -699,7 +699,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['launcherMassDriver1Length'] = {value: launcher.launcherMassDriver1Length, units: "m"}
   specs['launcherMassDriver2Length'] = {value: launcher.launcherMassDriver2Length, units: "m"}
   specs['launcherRampLength'] = {value: launcher.launcherRampLength, units: "m"}
-  specs['launcherSuspendedEvacuatedTubeLength'] = {value: launcher.launcherSuspendedEvacuatedTubeLength, units: "m"}
+  specs['launcherElevatedEvacuatedTubeLength'] = {value: launcher.launcherElevatedEvacuatedTubeLength, units: "m"}
   specs['totalLengthOfLaunchSystem'] = {value: launcher.totalLengthOfLaunchSystem, units: "m"}
   specs['totalLengthOfLaunchSystem'] = {value: launcher.totalLengthOfLaunchSystem, units: "m"}
 

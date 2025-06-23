@@ -78,15 +78,7 @@ export class massDriverScrewModel {
       const threadHeight = threadRadius - shaftOuterRadius
       
       const massDriverScrewCrosssectionalArea = shaftOuterArea - shaftInnerArea + threadHeight * threadThickness*(1+threadTaperRatio)/2 * threadStarts
-      specs['massDrivermassDriverScrewCrosssectionalArea'] = {value: massDriverScrewCrosssectionalArea, units: "m2"}
-      const massDriverScrewVolume = massDriverScrewCrosssectionalArea * screwRoughLength
-      specs['massDriverScrewVolume'] = {value: massDriverScrewVolume, units: "m3"}
-      const densityOfMaterial = dParamWithUnits['launcherMassDriverScrewMaterialDensity'].value
-      const massDriverScrewMass = massDriverScrewVolume * densityOfMaterial
-      specs['massDriverScrewMass'] = {value: massDriverScrewMass, units: "kg"}
-      const costOfMaterial = dParamWithUnits['launcherMassDriverScrewMaterialCost'].value
-      const screwCost = massDriverScrewMass * costOfMaterial
-      specs['massDriverScrewMaterialCost'] = {value: screwCost, units: "USD"}
+      specs['massDriverScrewCrosssectionalArea'] = {value: massDriverScrewCrosssectionalArea, units: "m2"}
 
     }
 }

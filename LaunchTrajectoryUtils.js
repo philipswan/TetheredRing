@@ -146,7 +146,7 @@ export function defineUpdateTrajectoryCurves () {
     this.launcherMassDriver1Length = launcherMassDriver1Length
     this.launcherMassDriver2Length = launcherMassDriver2Length
     this.launcherMassDriverScrewRoughLength = dParamWithUnits['launcherMassDriverScrewRoughLength'].value  // This is the length we want to specify for dynamic model allocation purposes, not a real dimension used to specify the hardware.
-    this.massDriverAccelerationScrewSegments = Math.ceil(launcherMassDriver2Length / this.launcherMassDriverScrewRoughLength)
+    const launcherMassDriverScrewBracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     this.totalLengthOfLaunchSystem = launcherFeederRailLength + launcherMassDriver1Length + launcherMassDriver2Length
     this.animateElevatedEvacuatedTubeDeployment = dParamWithUnits['animateElevatedEvacuatedTubeDeployment'].value
 
@@ -841,7 +841,7 @@ export function defineUpdateTrajectoryCurves () {
     // ***************************************************************
     // Create the part of the trajectory where the vehicle coasts on an elliptical or hyperbolic trajectory within the evacuated tube
     // ***************************************************************
-    this.launcherSuspendedEvacuatedTubeLength = 0
+    this.launcherElevatedEvacuatedTubeLength = 0
 
     // const R0 = evacuatedTubeEntrancePosition.clone()
     const R0 = this.launchRampCurve[1].getPointAt(1)
@@ -941,14 +941,14 @@ export function defineUpdateTrajectoryCurves () {
         // const qrad = 0
 
         const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
-        this.launcherSuspendedEvacuatedTubeLength += deltaDistanceTravelled
+        this.launcherElevatedEvacuatedTubeLength += deltaDistanceTravelled
 
         const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
-        if (isNaN(vehicleAirSpeed) || isNaN(this.launcherSuspendedEvacuatedTubeLength) || isNaN(vehiclePositionRelativeToPlanet.x) || isNaN(vehiclePositionRelativeToPlanet.y) || isNaN(vehiclePositionRelativeToPlanet.z)) {
+        if (isNaN(vehicleAirSpeed) || isNaN(this.launcherElevatedEvacuatedTubeLength) || isNaN(vehiclePositionRelativeToPlanet.x) || isNaN(vehiclePositionRelativeToPlanet.y) || isNaN(vehiclePositionRelativeToPlanet.z)) {
           console.log('Nan Error')
         }
         // Collect control points for curves
-        evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, this.launcherSuspendedEvacuatedTubeLength, t6a))
+        evacuatedTubeConversionCurvePoints.push(new THREE.Vector3(vehicleAirSpeed, this.launcherElevatedEvacuatedTubeLength, t6a))
         this.evacuatedTubeCurveControlPoints.push(vehiclePositionRelativeToPlanet)
         if (t<=launcherXyChartMaxT) {
           // Save telemery...
@@ -970,7 +970,7 @@ export function defineUpdateTrajectoryCurves () {
         }
         lastVehiclePositionRelativeToPlanet = vehiclePositionRelativeToPlanet
       }
-      this.totalLengthOfLaunchSystem += this.launcherSuspendedEvacuatedTubeLength
+      this.totalLengthOfLaunchSystem += this.launcherElevatedEvacuatedTubeLength
       this.launchVehicleAirSpeedAtExit = vehicleAirSpeed
 
       const evacuatedTubeConversionCurve = new THREE.CatmullRomCurve3(evacuatedTubeConversionCurvePoints)
@@ -1660,6 +1660,7 @@ export function defineUpdateTrajectoryCurves () {
           console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY*curve.yScale), curve.scaledUnits)
         }
       })
+      
       console.print('===================================================')
       // console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000000), 'MN')
       // console.print("RS-25 Engine Thrust 2279 kN")
@@ -1673,19 +1674,25 @@ export function defineUpdateTrajectoryCurves () {
       console.print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/10)/100, 'km (',  Math.round(this.launcherMassDriver1Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
       console.print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/10)/100, 'km (',  Math.round(this.launcherMassDriver2Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
       console.print("Ramp Length", Math.round(this.launcherRampLength/10)/100, 'km (',  Math.round(this.launcherRampLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
-      console.print("Suspended Evacuated Tube Length", Math.round(this.launcherSuspendedEvacuatedTubeLength/10)/100, 'km (',  Math.round(this.launcherSuspendedEvacuatedTubeLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
+      console.print("Suspended Evacuated Tube Length", Math.round(this.launcherElevatedEvacuatedTubeLength/10)/100, 'km (',  Math.round(this.launcherElevatedEvacuatedTubeLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
       console.print("Suspended Evacuated Tube Exit Altitude", Math.round(launcherEvacuatedTubeExitAltitude/10)/100, 'km')
       console.print("Total Length Of Launch System", Math.round(this.totalLengthOfLaunchSystem/10)/100, 'km')
       console.print('Hit \'s\' to print out more specifications.')
 
       // const massDriverCost = (this.launcherMassDriver1Length + this.launcherMassDriver2Length) * massDriverCostPerMeter
       // const rampCost = this.launcherRampLength * rampCostPerMeter
-      // const suspendedEvacuatedTubeCost = this.launcherSuspendedEvacuatedTubeLength * suspendedEvacuatedTubeCostPerMeter
+      // const suspendedEvacuatedTubeCost = this.launcherElevatedEvacuatedTubeLength * suspendedEvacuatedTubeCostPerMeter
       // console.print("MassDriver Cost", Math.round(massDriverCost/1e6)/1e3, 'billion USD')
       // console.print("Ramp Cost", Math.round(rampCost/1e6)/1e3, 'billion USD')
       // console.print("Suspended Evacuated Tube Cost", Math.round(suspendedEvacuatedTubeCost/1e6)/1e3, 'billion USD')
       // console.print('==================================================')
     }
+
+    // Note that each segment has launcherMassDriverNumScrews screws
+    this.massDriverAccelerationScrewSegments = Math.ceil(launcherMassDriver2Length / this.launcherMassDriverScrewRoughLength)
+    this.rampDeccelerationScrewSegments = Math.ceil(this.launcherRampLength / this.launcherMassDriverScrewRoughLength)
+    this.massDriverAccelerationScrewSegmentExactLength = launcherMassDriver2Length / this.massDriverAccelerationScrewSegments - launcherMassDriverScrewBracketThickness  // Should subtract a little extra for clearance
+    this.rampDeccelerationScrewSegmentExactLength = this.launcherRampLength / this.rampDeccelerationScrewSegments - launcherMassDriverScrewBracketThickness  // Should subtract a little extra for clearance
 
     if (genLauncherKMLFile) {
       // Start a polyline...
