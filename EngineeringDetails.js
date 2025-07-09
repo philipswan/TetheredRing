@@ -283,7 +283,7 @@ export function define_genLauncherSpecs() {
 
     const elevatedEvacuatedTubeTotalMass = launcherElevatedEvacuatedTubeTubeMass * XAGV40MaxTakeoffMass / (XAGV40MaxTakeoffMass - XAGV40DryMass)
     specs['elevatedEvacuatedTubeTotalMass'] = {value: elevatedEvacuatedTubeTotalMass, units: "kg"}
-    console.print("elevatedEvacuatedTubeTotalMass, ", myFormat(elevatedEvacuatedTubeTotalMass/1e9), "B kg")
+    console.print("elevatedEvacuatedTubeTotalMass, ", myFormat(elevatedEvacuatedTubeTotalMass/1e6, 2), "M kg")
 
     const elevatedEvacuatedTubeTotalMassPerMeter = elevatedEvacuatedTubeTotalMass / launcherElevatedEvacuatedTubeLength
     specs['elevatedEvacuatedTubeTotalMassPerMeter'] = {value: elevatedEvacuatedTubeTotalMassPerMeter, units: "kg/m"}
@@ -342,7 +342,7 @@ export function define_genLauncherSpecs() {
 
     // Aeronautic lift
     const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
-    console.print("wholesaleCostOfElectricity, ", myFormat(wholesaleCostOfElectricity, 3), "USD/J")
+    console.print("wholesaleCostOfElectricity, ", myFormat(wholesaleCostOfElectricity, 6), "USD/J")
 
     const costOfGeneratingLiftAeronautically = 7e-7 // USD/N/s  From below Eq.42 in "The Techno-Economic Viability of Actively Supported Structures for Terrestrial Transit and Space Launch"
     const forceOfGravityOnTube = launcherElevatedEvacuatedTubeTubeMass * 9.81

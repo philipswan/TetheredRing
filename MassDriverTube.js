@@ -20,10 +20,14 @@ export class massDriverTubeModel {
     this.tubeTexture.wrapT = THREE.MirroredRepeatWrapping
     //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {map: this.tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 1, shininess: 0.5} )
     //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, color: 0x7fffff, transparent: true, opacity: 1, shininess: 0.5} )
-    this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.15, shininess: 0.5} )
+    
+    this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.85, shininess: 0.5} )
+    //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, shininess: 0.5} )
+
     this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.5, shininess: 0.5, color: 0x000000} )
     this.massDriverTubeMaterial3 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, shininess: 0.5} )
     this.massDriverTubeMaterial4 = new THREE.MeshPhongMaterial( { side: THREE.FrontSide, transparent: true, opacity: 0.5, shininess: 0.5} )
+    this.massDriverTubeMaterial5 = new THREE.LineBasicMaterial( { color: 0x4897f8, transparent: true, opacity: 0.5 })
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { map: this.tubeTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6, shininess: 0.5} )
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, color: 0x101015, transparent: true, opacity: 0.95, shininess: 0.5} )
 
@@ -36,7 +40,10 @@ export class massDriverTubeModel {
     // this.liftFanCowlingGeometry = new THREE.TorusGeometry(this.radius*1.6, this.radius/32, 16, 64)
     // this.liftFanCowlingGeometry.scale(1, 1, 4)
     // this.liftFanGeometry = mergeGeometries([this.liftFanHubGeometry, this.liftFanCowlingGeometry])
-    
+
+    this.liftFanPylonGeometry = new THREE.CylinderGeometry(this.radius/16, this.radius/8, this.radius*2, 16)
+    this.liftFanPylonGeometry.rotateZ(Math.PI/2)
+
   }
 
   update(dParamWithUnits) {
@@ -71,12 +78,12 @@ export class massDriverTubeModel {
     let aboveGround = true
     if ((res.relevantCurve.name!='elevatedEvacuatedTube') && (res.relevantCurve.name!='coiledElevatedEvacuatedTube')) {
       // Not elevated evacuated tube
-      exagerateTubeFactor = 1
+      exagerateTubeFactor = 10
       modelLengthSegments = 4
       aboveGround = false
     }
     else {
-      exagerateTubeFactor = 5
+      exagerateTubeFactor = 1
       modelLengthSegments = 4
       aboveGround = true
     }
@@ -100,14 +107,31 @@ export class massDriverTubeModel {
     }
 
     const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
-    const massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius * exagerateTubeFactor, modelRadialSegments, false)
+    let massDriverTubeGeometry, massDriverTubeMaterial
+    // const lodEnabled = false
+    // if (!lodEnabled) {
+      massDriverTubeGeometry = new THREE.TubeGeometry(massDriverSegmentCurve, modelLengthSegments, this.radius * exagerateTubeFactor, modelRadialSegments, false)
+      massDriverTubeMaterial = this.massDriverTubeMaterial1
+    // }
+    // else {
+    //   // LOD enabled - doesn't work - unreolved bug
+    //   const linePoints = []
+    //   for (let i = 0; i<modelLengthSegments; i++) {
+    //     linePoints.push(massDriverSegmentCurve.getPointAt(i/modelLengthSegments))
+    //   }
+    //   console.log(linePoints)
+    //   massDriverTubeGeometry = new THREE.BufferGeometry().setFromPoints(linePoints)
+    //   massDriverTubeMaterial = this.massDriverTubeMaterial5
+    // }
     // massDriverTubeGeometry.computeBoundingSphere() // No benefit seen
     //const massDriverTubeMesh = new THREE.Mesh(massDriverTubeGeometry, (segmentIndex%10==0) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
     // Hack for Olympus Mons clip
     //aboveGround = (segmentIndex<=126 || segmentIndex>250)
     // Hack for Hawaii clip
     //aboveGround = (segmentIndex<=211 || segmentIndex>228)  // That is, not in a tunnel
-    const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, (!aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
+    //const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, (!aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
+    const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
+    tubeMesh.name = "massDriverTubeSegment"
     const massDriverTubeMesh = new THREE.Group().add(tubeMesh)
     const liftFansPerSegment = Math.round(tubeSegmentLength / this.liftFanRoughSpacing)
 
@@ -121,13 +145,17 @@ export class massDriverTubeModel {
         const binormal = curve.getBinormalAt(modelsCurvePosition)
 
         for (let lr = -1; lr<=1; lr+=2) {
-          const fanPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*3))
+          const hubPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*3))
+          const fanPos = hubPos.clone().add(normal.clone().multiplyScalar(this.radius*.2))
+          const pylonPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*2))
+          const relHubPos = hubPos.clone().sub(refPoint).applyQuaternion(orientation)
           const relFanPos = fanPos.clone().sub(refPoint).applyQuaternion(orientation)
+          const relPylonPos = pylonPos.clone().sub(refPoint).applyQuaternion(orientation)
           const fanOrientation = fanPos.clone().normalize().applyQuaternion(orientation)
 
           const liftFanHubMesh = new THREE.Mesh(this.liftFanHubGeometry, this.massDriverTubeMaterial3)
-          liftFanHubMesh.position.copy(relFanPos)
-          liftFanHubMesh.lookAt(relFanPos.clone().add(fanOrientation))
+          liftFanHubMesh.position.copy(relHubPos)
+          liftFanHubMesh.lookAt(relHubPos.clone().add(fanOrientation))
           liftFanHubMesh.name = "liftFanHub"
           massDriverTubeMesh.add(liftFanHubMesh)
           
@@ -144,6 +172,13 @@ export class massDriverTubeModel {
           // liftFanCowlingMesh.scale.set(1, 1, 4)
           // liftFanCowlingMesh.name = "liftFanCowling"
           // massDriverTubeMesh.add(liftFanCowlingMesh)
+
+          const liftFanPylonMesh = new THREE.Mesh(this.liftFanPylonGeometry, this.massDriverTubeMaterial3)
+          liftFanPylonMesh.position.copy(relPylonPos)
+          liftFanPylonMesh.scale.set(-lr, .25, 1)
+          liftFanPylonMesh.lookAt(relPylonPos.clone().add(fanOrientation))
+          liftFanPylonMesh.name = "liftFanPylon"
+          massDriverTubeMesh.add(liftFanPylonMesh)
         }
       }
     }
