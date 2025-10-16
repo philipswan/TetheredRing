@@ -1402,7 +1402,7 @@ export function interplanetaryDeltaV() {
 }
 
 export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  const launcherStartDelayInSeconds = 12 //120
+  const launcherStartDelayInSeconds = 25 //120
   return Math.max(0, timeSinceStart - launcherStartDelayInSeconds) * slowDownPassageOfTime
 }
 
@@ -2251,7 +2251,24 @@ export function openPlotWindow(data) {
   });
 }
 
+export function estimateVehicleVolumeMass(radius, bodyLength, noseconeLength, rocketEngineLength) {
+  // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
+  const r = radius
+  const bl = bodyLength
+  const ncl = noseconeLength
+  const rel = rocketEngineLength
+  
+  const π = Math.PI
+  const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
+  const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
+  const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
+  const skinMaterialDensity = 8000 // kg/m3
+  const rocketEngineMass = 3177 // kg (based on RS-25)
+  const avionicsEtcMass = 1000 // kg
 
+  const dryMass = skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
+  return {interiorVolume, dryMass}
+}
 
 // export function openPlotWindow(data) {
 //   // Create a new window

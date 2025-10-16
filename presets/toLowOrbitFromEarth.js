@@ -1,12 +1,10 @@
 import * as THREE from 'three'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
 import { showMassDriver } from "./cameraShotHelperFunctions"
-import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
+import * as tram from '../tram'
 import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
-import { toVenusFromEarthLauncherArchitecture } from './toVenusFromEarthLauncherArchitecture.js'
-import { toMarsFromMoonLauncherArchitecture } from './toMarsFromMoonLauncherArchitecture.js'
 
-export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams) {
+export function toLowOrbitFromEarth(guidParamWithUnits, nonGUIParams) {
 
   // Uses Monna Kea launch location
   guidParamWithUnits['finalLocationRingCenterLatitude'].value = 74.34
@@ -14,116 +12,61 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
   // Location specific parameters that will affect the architecture
-  const useEarth = true
-  if (useEarth) {
-    // Mauna Kea (19.820667, -155.468056)
-    const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
-    const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ramp a little bit east 
-    //const massDriverAltitude = -150 // m (below sea level) (at the moment we can't see it below the ocean so, for now, raising it above the ocean)
-    const massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
-    const rampExitAltitude = 4000 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
-    toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
-    //toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
+  // Mauna Kea (19.820667, -155.468056)
+  const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
+  const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ramp a little bit east 
+  const launchVehicleAirspeed = 8000 // m/s
 
-  }
-  else {
-    const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
-    const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ranp a little bit east 
-    const massDriverAltitude = 1000 // m
-    const rampExitAltitude = 1500 // m
-    toMarsFromMoonLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
-  }
+  guidParamWithUnits['launchFromPlanet'].value = "Earth"
+  guidParamWithUnits['launchToPlanet'].value = "Low Earth Orbit"
+  guidParamWithUnits['launcherMassDriverAltitude'].value = 100 // m
+  guidParamWithUnits['launcherRampExitAltitude'].value = 4500 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
+  guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = 15000 // m
+  guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 50
+  guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 100
+  guidParamWithUnits['launcherMassDriverExitVelocity'].value = launchVehicleAirspeed     // m/s
+  guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
+  guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
+  guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
+  guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false
+  guidParamWithUnits['launcherCoastTime'].value = 100*60
+  guidParamWithUnits['launcherFeederRailLength'].value = 30
+  guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 0 // Auto mode
+
+  const r = guidParamWithUnits['launchVehicleRadius'].value
+  const bl = guidParamWithUnits['launchVehicleBodyLength'].value
+  const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
+  const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
+  const {interiorVolume, dryMass} = tram.estimateVehicleVolumeMass(r, bl, ncl, rel)
+  const propellantDensity = 360 // kg/m3
+  const payloadDensity = 360 // kg/m3
+  const propellantMass = 3000
+  const payloadMass = (interiorVolume - propellantMass / propellantDensity) * payloadDensity
+  guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
+  guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
+  guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
+  //launchVehicleNonPayloadMass
+  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
+  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 160
+  guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
+  guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
+  //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
+  guidParamWithUnits['launcherRampTurningRadius'].value = 381000
+  guidParamWithUnits['launcherRampTurningRadius'].value = 49096
+  guidParamWithUnits['launcherRampDesignMode'].value = 0
+  guidParamWithUnits['planetName'].value = "Earth"
+  guidParamWithUnits['launcherLocationMode'].value = 1
+  guidParamWithUnits['launcherRampEndLatitude'].value = launcherRampEndLatitude
+  guidParamWithUnits['launcherRampEndLongitude'].value = launcherRampEndLongitude
+
+  guidParamWithUnits['propellantNeededForLandingOnMars'].value = 1000 //kg // ToDo - We need to make a proper estimate of this
   guidParamWithUnits['launcherMassDriverScrewNumBrackets'].value = 80000 // 300
-
   guidParamWithUnits['launcherFeederRailLength'].value = 0
-
-  // Mount Everest
-  // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
-  // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
-  // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  //launchVehicleSledMass
-  //launchVehicleDesiredOrbitalAltitude
-  //launchVehicleEffectiveRadius
-  //launcherPayloadDeliveredToOrbit
   guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
   guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
-  //launchVehicleCoefficientOfDrag
-  //launcherXyChartMaxT
-  //launcherServiceLife
-  //launcherLaunchesPerYear
-  //launchSystemForwardScaleFactor
-  //launchSystemUpwardScaleFactor
-  //launchSystemRightwardScaleFactor
-  //launchSystemRightwardScaleFactor
-  //launchVehicleUpwardsOffset
-  //launchVehicleForwardsOffset
-  //guidParamWithUnits['launchVehicleRadius'].value = 1.5
-  //guidParamWithUnits['launchVehicleBodyLength'].value = 10
-  //launchVehicleFlameLength
-  //launchVehicleNoseconeLength
-  //launchVehicleRocketEngineLength
-  //launchVehicleShockwaveConeLength
-
-
-  //launchVehicleNumModels
-  //numVirtualMassDriverTubes
-  //launcherMassDriverRailWidth
-  //launcherMassDriverRailHeight
-  //launchRailUpwardsOffset
-  //numVirtualMassDriverRailsPerZone
-  //launcherMassDriverBracketWidth
-  //launcherMassDriverBracketHeight  
-  //launcherMassDriverBracketRibWidth
-  //launcherMassDriverBracketNumModels
-  // guidParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value = 0.375 * .25/5
-  // guidParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value = 0.3 * .25/5
-  // guidParamWithUnits['launcherMassDriverScrewThreadRadius'].value = .5 * .25/5
-  // guidParamWithUnits['launcherMassDriverScrewThreadThickness'].value = .05 * .25/5
-  //guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 2
-  //launcherMassDriverScrewRoughLength
-  //launcherMassDriverScrewSidewaysOffset
-  //launcherMassDriverScrewUpwardsOffset
-  //launcherMassDriverScrewRevolutionsPerSecond
-  //launcherMassDriverScrewBracketThickness
-  //launcherMassDriverScrewBracketDensity
-  //launcherMassDriverScrewBracketMaterialCost
-  //launcherMassDriverScrewNumBrackets
-  //launcherMassDriverScrewMaterialDensity
-  //launcherMassDriverScrewMaterialCost
-  //launcherMassDriverTubeLinerThickness
-  //launcherMassDriverTubeWallThickness
-  //launcherMassDriverTubeMaterial0Density
-  //launcherMassDriverTubeMaterial0Cost
-  //launcherMassDriverTubeMaterial1Density
-  //launcherMassDriverTubeMaterial1Cost
-  //launcherEvacuatedTubeNumModels
-  guidParamWithUnits['launcherMarkerRadius'].value = 500
-  //launchSledSpacingInSeconds
-  //launchSledWidth
-  //launchSledHeight
-  //launchSledBodyLength
-  //launchSledSidewaysOffset
-  //launchSledUpwardsOffset
-  //launchSledForwardsOffset
-  //launchSledNumModels
-  
-  //guidParamWithUnits['launcherMassDriverScrewRotationRate'].value = 200
-
-  // Grappler Parameters
   guidParamWithUnits['adaptiveNutNumGrapplers'].value = 64
   guidParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value = 0.06  // m
  
-  // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
-  // Propellant Mass (launchVehiclePropellantMass)
-  // Altitude of Ramp Exit
-  // Altitude of Evauated Tube Exit
-  // Desired Orbital Altitude
-
-  // The optimiztion loop will need to adjust the launch angle and propellant mass to achieve the desired orbit
-  // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
-  // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
-
   // Launch Trajectory Parameters
 
   // Hawaii Big Island
@@ -175,10 +118,9 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showStars'].value = true
   //guidParamWithUnits['showLaunchTrajectory'].value = true
   guidParamWithUnits['launcherCoastTime'].value = 100*20
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
-  guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
   guidParamWithUnits['logZoomRate'].value = -3
   guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showMarkers'].value = true

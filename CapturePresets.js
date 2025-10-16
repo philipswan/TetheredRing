@@ -1,11 +1,11 @@
 import * as THREE from 'three'
-import * as tram from './tram.js'
 import { launchVehicleDollyShot } from './presets/launchVehicleDollyShot.js'
 import { demonstratorLauncher } from './presets/demonstratorLauncher.js'
 import { grapplerEngineeringPresets } from './presets/grapplerEngineeringPresets.js'
 import { toMarsHawaiiLauncherPresets } from './presets/toMarsHawaiiLauncherPresets.js'
 import { elevatedEvacuatedTubeDeployment } from './presets/elevatedEvacuatedTubeDeployment.js'
 import { toLEOFromBocaChikaWithStarship } from './presets/toLEOFromBocaChikaWithStarship.js'
+import { toLowOrbitFromEarth } from './presets/toLowOrbitFromEarth.js'
 import { olympusMonsLauncher } from './presets/olympusMonsLauncher.js'
 import { edwardsAirforceBasePresets } from './presets/edwardsAirforceBasePresets.js'
 import { launchLookingBackwards } from './presets/launchLookingBackwards.js'
@@ -35,7 +35,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
 
 
-  switch (0) {
+  switch (22) {
     case 0:
       defaultBehaviour()
       break
@@ -116,6 +116,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       break
     case 25:
       launchLookingBackwards(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 26:
+      toLowOrbitFromEarth(guidParamWithUnits, nonGUIParams)
       break
   }
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import * as tram from '../tram.js'
 
 export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude) {
 
@@ -67,14 +68,24 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
 
   // Length of earth's sideral day in seconds
   const t_earth = 86164.0905 // s
-  // Velocity of spacecraft at earth's surface at the hyperbolic orbit perigee in the inertial reference frame
+  
+  // Velocity of spacecraft at earth's surface - energy consercation approach (see https://youtu.be/cW1-7SWXnIk?list=PL04kBjbWQWOPYBfbw2zqnMbWHNjU3MDYB&t=4546)
+  const secondCosmicVelocityEarth = Math.sqrt(g_earth * 2 / r_earth) // m/s
+  const spacecraftVelocityAtEarthSurfaceInertialFrame = Math.sqrt(v_earth_excess**2 + secondCosmicVelocityEarth**2) // m/s
+  console.log('spacecraftVelocityAtEarthSurfaceInertialFrame', spacecraftVelocityAtEarthSurfaceInertialFrame)
+
+  // Velocity at earth's surface due to earth's rotation
+  const v_earth_rotation = 2*Math.PI*(r_earth+massDriverAltitude) * Math.cos(launcherRampEndLatitude*Math.PI/180) / t_earth // m/s
+  console.log('v_earth_rotation', v_earth_rotation)
+
+  const spacecraftVelocityAtEarthSurfaceECEFFrame = spacecraftVelocityAtEarthSurfaceInertialFrame - v_earth_rotation // m/s
+  console.log('spacecraftVelocityAtEarthSurfaceECEFFrame', spacecraftVelocityAtEarthSurfaceECEFFrame)
+
+  // Velocity of spacecraft at earth's surface - using hyperbolic orbit perigee in the inertial reference frame
   const launchVehiclePerigeeSpeed = Math.sqrt(g_earth * 2 / (r_earth+massDriverAltitude) + g_earth / Math.abs(a_earth)) // m/s
   //const launchVehiclePerigeeSpeed2 = Math.sqrt(g_earth * 2 / (r_earth+200000) + g_earth / Math.abs(a_earth)) // m/s
   console.log('*** launchVehiclePerigeeSpeed', launchVehiclePerigeeSpeed)
   //console.log('*** launchVehiclePerigeeSpeed2', launchVehiclePerigeeSpeed2)
-  // Velocity at earth's surface due to earth's rotation
-  const v_earth_rotation = 2*Math.PI*(r_earth+massDriverAltitude) * Math.cos(launcherRampEndLatitude*Math.PI/180) / t_earth // m/s
-  console.log('v_earth_rotation', v_earth_rotation)
   // Velocity of spacecraft at earth's surface in ECEF coordinates
   const launchVehicleAirspeed = launchVehiclePerigeeSpeed - v_earth_rotation // m/s
   // Velocity of a satellite in 200km LEO orbit
@@ -110,20 +121,12 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
   guidParamWithUnits['launcherFeederRailLength'].value = 30
   guidParamWithUnits['launcherMassDriverScrewThreadStarts'].value = 0 // Auto mode
 
-  // Estimte the launchVehicle's volume and dry mass from its mass diameter and length
   const r = guidParamWithUnits['launchVehicleRadius'].value
   const bl = guidParamWithUnits['launchVehicleBodyLength'].value
   const ncl = guidParamWithUnits['launchVehicleNoseconeLength'].value
   const rel = guidParamWithUnits['launchVehicleRocketEngineLength'].value
-  const π = Math.PI
-  const interiorVolume = r**2 * π * (bl - rel  + ncl/3)
-  const surfaceArea = 2 * π * r * bl + π * r * Math.sqrt(ncl**2 + r**2)
-  const skinThickness = 0.003  // Includes any ribs, stringers, etc as well as skin
-  const skinMaterialDensity = 8000 // kg/m3
-  const rocketEngineMass = 3177 // kg (based on RS-25)
-  const avionicsEtcMass = 1000 // kg
+  const {interiorVolume, dryMass} = tram.estimateVehicleVolumeMass(r, bl, ncl, rel)
 
-  const dryMass = skinMaterialDensity * surfaceArea * skinThickness + rocketEngineMass + avionicsEtcMass
   // Allocate the volume between the payload and the propellant
   const propellantDensity = 360 // kg/m3
   const payloadDensity = 360 // kg/m3
@@ -131,7 +134,7 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
   const payloadMass = (interiorVolume - propellantMass / propellantDensity) * payloadDensity
   console.log('dryMass', dryMass)
   console.log('payloadMass', payloadMass)
-  console.log('propellantMass', payloadMass)
+  console.log('propellantMass', propellantMass)
   console.log('totalMass', payloadMass + dryMass)
 
   guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg

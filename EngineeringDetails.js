@@ -478,6 +478,15 @@ export function define_genLauncherSpecs() {
     const m0 = mVehicle + mPayload + initialPropellantMass
     specs['launchVehicleInitialMass'] = {value: m0, units: "kg"}
     console.print("launchVehicleInitialMass, ", myFormat(m0), "kg")
+
+    const m1 = mVehicle + mPayload + this.remainingPropellantAfterFreeFlight
+    specs['launchVehicleEarthDepartureMass'] = {value: m1, units: "kg"}
+    console.print("launchVehicleEarthDepartureMass, ", myFormat(m1), "kg")
+
+    const propellantMassUsedDuringFreeFlight = initialPropellantMass - this.remainingPropellantAfterFreeFlight
+    specs['propellantMassUsedDuringFreeFlight'] = {value: propellantMassUsedDuringFreeFlight, units: "kg"}
+    console.print("propellantMassUsedDuringFreeFlight, ", myFormat(propellantMassUsedDuringFreeFlight), "kg")
+
     const launchTrainMass = mAdaptiveNut + mSled + mVehicle + mPayload + initialPropellantMass
     specs['launchTrainMass'] = {value: launchTrainMass, units: "kg"}
     console.print("launchTrainMass, ", myFormat(launchTrainMass), "kg")

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import * as tram from './tram.js'
-import {getSpiralParameters, getSpiralCoordinates} from './spiral.js'
+import {getSpiralCoordinates} from './spiral.js'
 
 export function defineAnimate () {
 
@@ -42,7 +42,7 @@ export function defineAnimate () {
       const alpha = Math.max(neverCoiledPortion, elevatedEvacuatedTubeDeploymentAlpha)
       const alpha2 = 1 - Math.min(neverCoiledPortion, elevatedEvacuatedTubeDeploymentAlpha) / neverCoiledPortion
       const r0 = 2000 // m - represents the inner radius of the coiled elevated evacuated tube
-      const rInc = 0 //-50 // m - represents the distance between adjacent tubes in the coiled elevated evacuated tube
+      const rInc = -50 // m - represents the distance between adjacent tubes in the coiled elevated evacuated tube
       const A = this.evacuatedTubeCurve.getPointAt(alpha)
       const tangent = this.evacuatedTubeCurve.getTangentAt(alpha)
       const biNormal = tangent.clone().cross(A.clone().normalize())
@@ -51,15 +51,13 @@ export function defineAnimate () {
       const P0Length = P0.length()
       // Map points along the original evacuated tube curve to a new set of roughly equaly spaced points.
       // For the uncoiled portion of the coiled evacuated tube curve, we can obtain these points from the original evacuated tube curve.
-      const totalNumebrOfNewPoints = 4096
+      const totalNumberOfNewPoints = 4096
       const animatedEvacuatedTubeCurveControlPoints = []
       const coilCenterPoint = A.clone().add(biNormal.clone().multiplyScalar(-r0))
       const coilCenterPointLength = coilCenterPoint.length()
-      const arcLength = originalTubeLength * (1-alpha)
-      const spiralParameters = getSpiralParameters(r0, rInc, arcLength)
 
-      for (let i = 0; i<totalNumebrOfNewPoints; i++) {
-        const alphaI = i / (totalNumebrOfNewPoints - 1)
+      for (let i = 0; i<totalNumberOfNewPoints; i++) {
+        const alphaI = i / (totalNumberOfNewPoints - 1)
         let P
         if (alphaI <= alpha) {
           // For the uncoiled portion of the coiled evacuated tube curve, we can obtain these points from the original evacuated tube curve.
@@ -67,8 +65,8 @@ export function defineAnimate () {
         }
         else {
           const alphaC = (alphaI - alpha)
-          const theta = alphaC * originalTubeLength / r0  // ToDo: This is inaccurate, only works for rInc = 0
-          const spiralXY = getSpiralCoordinates(spiralParameters, theta);
+          const spiralPosition = alphaC * originalTubeLength
+          const spiralXY = getSpiralCoordinates(r0, rInc, spiralPosition);
           P = A.clone()
             .add(biNormal.clone().multiplyScalar(spiralXY.x))
             .add(tangent.clone().multiplyScalar(spiralXY.y))
@@ -89,8 +87,10 @@ export function defineAnimate () {
       const totalLen = this.polyCurveForrf3.getLength()
       const eetLen = this.coiledElevatedEvacuatedTubeCurve.getLength()
       const segLen = totalLen / this.massDriverTubeSegments
-      const minD = Math.max(0, (totalLen - eetLen*(1-alpha) - segLen) / totalLen)
-      const maxD = Math.min(1, (totalLen - eetLen*(1-alpha) + segLen) / totalLen)
+      // const minD = Math.max(0, (totalLen - eetLen*(1-alpha) - 4*segLen) / totalLen)
+      // const maxD = Math.min(1, (totalLen - eetLen*(1-alpha) + 4*segLen) / totalLen)
+      const minD = 0
+      const maxD = 1
       this.updateMassDriverTubes(minD, maxD)
       this.virtualMassDriverTube.hasChanged = true
       this.lastElevatedEvacuatedTubeDeploymentAlpha = elevatedEvacuatedTubeDeploymentAlpha

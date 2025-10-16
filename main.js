@@ -403,6 +403,7 @@ const guidParamWithUnits = {
   numVirtualLaunchVehicles: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEntranceAirlockAdditionalLength: {value: 250-50, units: 'm', autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualHumanFigures: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
@@ -445,6 +446,7 @@ const guidParamWithUnits = {
 
   // Assuming Concrete with a stainless steel outer liner for the ,assdriver tube
   launcherMassDriverTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  exagerateNonElevatedTubeFactor: {value: 1, units: '', autoMap: true, min: 1, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeLinerThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeWallThickness: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverTubeMaterial0Density: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -669,6 +671,7 @@ const guidParamWithUnits = {
   showSolarArrays: {value: false, units: '', autoMap: true, updateFunction: updateTransitsystem, folder: folderRendering},
   showLaunchTrajectory: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverTube: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showLiftFans: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverRail: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverBrackets: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showMassDriverAccelerationScrews: {value: massDriverShows, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -700,8 +703,9 @@ const guidParamWithUnits = {
   showCloseApsisVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showFarApsisVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showOrbitalAltitudeVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  //showConvectiveHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
-  //showRadiativeHeatingVersusTime: {value: false, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showConvectiveHeatingVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showRadiativeHeatingVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
+  showHeatShieldTemperatureVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showDeltaVVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showOrientationCorrectionVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
   showAngularMomentumVectorVersusTime: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderRendering},
@@ -1170,11 +1174,11 @@ function updateLogoSprite() {
 }
 
 const xyChart = new XYChart()
-xyChart.setWidth(1500)
-xyChart.setHeight(700)
+xyChart.setWidth(1000)
+xyChart.setHeight(600)
 xyChart.setMinX(0)
 xyChart.setMinY(0)
-xyChart.setMaxX(700)  // 700
+xyChart.setMaxX(300)  // 700
 xyChart.setMaxY(160)  // 130
 xyChart.setMajorX(100)
 xyChart.setMajorY(10)
@@ -3234,26 +3238,34 @@ function onKeyDown( event ) {
       break;
     case 72: /*H*/
       // Sweep a parameter to generate data for a graph 
-      let results = []
+      let results1 = []
+      let results2 = []
+      let results3 = []
       if (true) {
-        const sweptParameter1 = 'numLaunchesPerMarsTransferSeason'
-        const sweptParameter2 = 'launcherMassDriverExitVelocity'
+        const sweptParameter1 = 'launcherMassDriverForwardAcceleration'
+        const sweptParameter2 = 'launcherRampUpwardAcceleration'
         const backup1 = guidParamWithUnits[sweptParameter1].value
         const backup2 = guidParamWithUnits[sweptParameter2].value
         genSpecs = true
-        for (let sweptValue1 = 50; sweptValue1<=250; sweptValue1+=50) {
+        for (let sweptValue1 = 80; sweptValue1<=80; sweptValue1+=10) {
           guidParamWithUnits[sweptParameter1].value = sweptValue1
-          for (let sweptValue2 = 8000; sweptValue2<=15000; sweptValue2+=1000) {
+          for (let sweptValue2 = 50; sweptValue2<=250; sweptValue2+=10) {
             guidParamWithUnits[sweptParameter2].value = sweptValue2
             Object.entries(guidParamWithUnits).forEach(([k, v]) => {
               guidParam[k] = v.value
             })
             updateRing()
-            results.push(Math.round(specs['costPerKgLandedOnMars'].value))
+            results1.push(Math.round(specs['launcherTotalCapitalCost'].value/1e6)/1e3)
+            results2.push(Math.round(specs['launcherElevatedEvacuatedTubeLength'].value/1e3))
+            results3.push(Math.round(specs['launchVehicleTimeWithinRamp'].value*100)/100)
           }
           //results.forEach(r => {r = r.toFixed(2)})
-          console.log(sweptValue1, ...results)
-          results = []
+          console.log("launcherTotalCapitalCost\n", results1.join("\n"))
+          console.log("launcherElevatedEvacuatedTubeLength\n", results2.join("\n"))
+          console.log("launchVehicleTimeWithinRamp\n", results3.join("\n"))
+          results1 = []
+          results2 = []
+          results3 = []
         }
         guidParamWithUnits[sweptParameter1].value = backup1
         guidParamWithUnits[sweptParameter2].value = backup2
@@ -3912,8 +3924,8 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
   // Values for Olympus Mons clip
   // const width = 2100
   // const height = 900
-  const width = 1920
-  const height = 1080
+  const width = 1920*2
+  const height = 1080*2
 
 
   renderer.setSize(width, height)

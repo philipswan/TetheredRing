@@ -13,9 +13,9 @@ export class massDriverTubeModel {
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7fffff, transparent: true, depthWrite: false, opacity: 0.25})
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, color: 0x7f5050, transparent: true, depthWrite: false, opacity: 0.25})
     //this.massDriverTubeMaterial = new THREE.MeshPhongMaterial( {wireframe: true})
-    //this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
-    this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture2.png')
-    this.tubeTexture.repeat.set(4, 4)
+    this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture.png')
+    //this.tubeTexture = new THREE.TextureLoader().load('textures/TubeTexture2.png')
+    this.tubeTexture.repeat.set(4, 1)
     this.tubeTexture.wrapS = THREE.MirroredRepeatWrapping
     this.tubeTexture.wrapT = THREE.MirroredRepeatWrapping
     //this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( {map: this.tubeTexture, side: THREE.FrontSide, transparent: true, opacity: 1, shininess: 0.5} )
@@ -44,11 +44,14 @@ export class massDriverTubeModel {
     this.liftFanPylonGeometry = new THREE.CylinderGeometry(this.radius/16, this.radius/8, this.radius*2, 16)
     this.liftFanPylonGeometry.rotateZ(Math.PI/2)
 
+    this.exagerateNonElevatedTubeFactor = dParamWithUnits['exagerateNonElevatedTubeFactor'].value
+
   }
 
   update(dParamWithUnits) {
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
     this.radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
+    this.showLiftFans = dParamWithUnits['showLiftFans'].value
   }
   
   createModel(curve, segmentIndex) {
@@ -78,13 +81,13 @@ export class massDriverTubeModel {
     let aboveGround = true
     if ((res.relevantCurve.name!='elevatedEvacuatedTube') && (res.relevantCurve.name!='coiledElevatedEvacuatedTube')) {
       // Not elevated evacuated tube
-      exagerateTubeFactor = 10
+      exagerateTubeFactor = this.exagerateNonElevatedTubeFactor
       modelLengthSegments = 4
       aboveGround = false
     }
     else {
       exagerateTubeFactor = 1
-      modelLengthSegments = 4
+      modelLengthSegments = 64
       aboveGround = true
     }
     // End Hack
@@ -135,50 +138,55 @@ export class massDriverTubeModel {
     const massDriverTubeMesh = new THREE.Group().add(tubeMesh)
     const liftFansPerSegment = Math.round(tubeSegmentLength / this.liftFanRoughSpacing)
 
-    for (let i = 0; i<liftFansPerSegment; i++) {
-      const modelsCurvePosition = (segmentIndex + (i+0.5)/liftFansPerSegment) / this.massDriverTubeSegments
-      const res = curve.findRelevantCurveAt(modelsCurvePosition)
-      if ((res.relevantCurve.name=='elevatedEvacuatedTube') || (res.relevantCurve.name=='coiledElevatedEvacuatedTube')) {
-        const point = curve.getPointAt(modelsCurvePosition)
-        const tangent = curve.getTangentAt(modelsCurvePosition)
-        const normal = curve.getNormalAt(modelsCurvePosition)
-        const binormal = curve.getBinormalAt(modelsCurvePosition)
+    if (this.showLiftFans) {
+      for (let i = 0; i<liftFansPerSegment; i++) {
+        const modelsCurvePosition = (segmentIndex + (i+0.5)/liftFansPerSegment) / this.massDriverTubeSegments
+        const res = curve.findRelevantCurveAt(modelsCurvePosition)
+        if ((res.relevantCurve.name=='elevatedEvacuatedTube') || (res.relevantCurve.name=='coiledElevatedEvacuatedTube')) {
+          const point = curve.getPointAt(modelsCurvePosition)
+          const tangent = curve.getTangentAt(modelsCurvePosition)
+          const normal = curve.getNormalAt(modelsCurvePosition)
+          const binormal = curve.getBinormalAt(modelsCurvePosition)
 
-        for (let lr = -1; lr<=1; lr+=2) {
-          const hubPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*3))
-          const fanPos = hubPos.clone().add(normal.clone().multiplyScalar(this.radius*.2))
-          const pylonPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*2))
-          const relHubPos = hubPos.clone().sub(refPoint).applyQuaternion(orientation)
-          const relFanPos = fanPos.clone().sub(refPoint).applyQuaternion(orientation)
-          const relPylonPos = pylonPos.clone().sub(refPoint).applyQuaternion(orientation)
-          const fanOrientation = fanPos.clone().normalize().applyQuaternion(orientation)
+          for (let lr = -1; lr<=1; lr+=2) {
+            const hubPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*3)).add(normal.clone().multiplyScalar(this.radius*.2))
+            const fanPos = hubPos.clone().add(normal.clone().multiplyScalar(this.radius*.2))
+            const pylonPos = point.clone().add(binormal.clone().multiplyScalar(lr*this.radius*2)).add(normal.clone().multiplyScalar(this.radius*.1))
+            const relHubPos = hubPos.clone().sub(refPoint).applyQuaternion(orientation)
+            const relFanPos = fanPos.clone().sub(refPoint).applyQuaternion(orientation)
+            const relPylonPos = pylonPos.clone().sub(refPoint).applyQuaternion(orientation)
+            const fanDirection = fanPos.clone().normalize()
+            const pylonOrientation = fanDirection.clone().applyAxisAngle(tangent, -lr*Math.PI/32).applyQuaternion(orientation)
+            fanDirection.applyAxisAngle(tangent, Math.PI/32) // Rotate the fan direction to be perpendicular to the tube
+            const fanOrientation = fanDirection.applyQuaternion(orientation)
 
-          const liftFanHubMesh = new THREE.Mesh(this.liftFanHubGeometry, this.massDriverTubeMaterial3)
-          liftFanHubMesh.position.copy(relHubPos)
-          liftFanHubMesh.lookAt(relHubPos.clone().add(fanOrientation))
-          liftFanHubMesh.name = "liftFanHub"
-          massDriverTubeMesh.add(liftFanHubMesh)
-          
-          const liftFanDiskMesh = new THREE.Mesh(this.liftFanDiskGeometry, this.massDriverTubeMaterial4)
-          liftFanDiskMesh.position.copy(relFanPos)
-          liftFanDiskMesh.lookAt(relFanPos.clone().add(fanOrientation))
-          liftFanDiskMesh.scale.set(1, 1, 0.05)
-          liftFanDiskMesh.name = "liftFanDisk"
-          massDriverTubeMesh.add(liftFanDiskMesh)
-          
-          // const liftFanCowlingMesh = new THREE.Mesh(this.liftFanCowlingGeometry, this.massDriverTubeMaterial3)
-          // liftFanCowlingMesh.position.copy(relFanPos)
-          // liftFanCowlingMesh.lookAt(relFanPos.clone().add(fanOrientation))
-          // liftFanCowlingMesh.scale.set(1, 1, 4)
-          // liftFanCowlingMesh.name = "liftFanCowling"
-          // massDriverTubeMesh.add(liftFanCowlingMesh)
+            const liftFanHubMesh = new THREE.Mesh(this.liftFanHubGeometry, this.massDriverTubeMaterial3)
+            liftFanHubMesh.position.copy(relHubPos)
+            liftFanHubMesh.lookAt(relHubPos.clone().add(fanOrientation))
+            liftFanHubMesh.name = "liftFanHub"
+            massDriverTubeMesh.add(liftFanHubMesh)
+            
+            const liftFanDiskMesh = new THREE.Mesh(this.liftFanDiskGeometry, this.massDriverTubeMaterial4)
+            liftFanDiskMesh.position.copy(relFanPos)
+            liftFanDiskMesh.lookAt(relFanPos.clone().add(fanOrientation))
+            liftFanDiskMesh.scale.set(1, 1, 0.05)
+            liftFanDiskMesh.name = "liftFanDisk"
+            massDriverTubeMesh.add(liftFanDiskMesh)
+            
+            // const liftFanCowlingMesh = new THREE.Mesh(this.liftFanCowlingGeometry, this.massDriverTubeMaterial3)
+            // liftFanCowlingMesh.position.copy(relFanPos)
+            // liftFanCowlingMesh.lookAt(relFanPos.clone().add(fanOrientation))
+            // liftFanCowlingMesh.scale.set(1, 1, 4)
+            // liftFanCowlingMesh.name = "liftFanCowling"
+            // massDriverTubeMesh.add(liftFanCowlingMesh)
 
-          const liftFanPylonMesh = new THREE.Mesh(this.liftFanPylonGeometry, this.massDriverTubeMaterial3)
-          liftFanPylonMesh.position.copy(relPylonPos)
-          liftFanPylonMesh.scale.set(-lr, .25, 1)
-          liftFanPylonMesh.lookAt(relPylonPos.clone().add(fanOrientation))
-          liftFanPylonMesh.name = "liftFanPylon"
-          massDriverTubeMesh.add(liftFanPylonMesh)
+            const liftFanPylonMesh = new THREE.Mesh(this.liftFanPylonGeometry, this.massDriverTubeMaterial3)
+            liftFanPylonMesh.position.copy(relPylonPos)
+            liftFanPylonMesh.scale.set(-lr, .25, 1)
+            liftFanPylonMesh.lookAt(relPylonPos.clone().add(pylonOrientation))
+            liftFanPylonMesh.name = "liftFanPylon"
+            massDriverTubeMesh.add(liftFanPylonMesh)
+          }
         }
       }
     }

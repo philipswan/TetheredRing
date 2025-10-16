@@ -189,10 +189,10 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
 
   guidParamWithUnits['launchVehicleScaleFactor'].value = 1
   //launchVehicleSpacingInSeconds
-  guidParamWithUnits['numVirtualLaunchVehicles'].value = 10
+  guidParamWithUnits['numVirtualLaunchVehicles'].value = 100
   //launchVehicleNumModels
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1 //5
-  guidParamWithUnits['numVirtualMassDriverTubes'].value = 2048
+  //guidParamWithUnits['numVirtualMassDriverTubes'].value = 2048
   //launcherMassDriverRailWidth
   //launcherMassDriverRailHeight
   //launchRailUpwardsOffset
@@ -296,8 +296,9 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['launchSledCameraRange'].value = 10000
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 2000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
-  guidParamWithUnits['orbitControlsRotateSpeed'].value = 2
+  guidParamWithUnits['orbitControlsRotateSpeed'].value = .2
   guidParamWithUnits['animateElevatedEvacuatedTubeDeployment'].value = true
+  guidParamWithUnits['exagerateNonElevatedTubeFactor'].value = 10
   guidParamWithUnits['logZoomRate'].value = -3
 
 
