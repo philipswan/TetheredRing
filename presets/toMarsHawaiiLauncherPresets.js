@@ -41,9 +41,9 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // guidParamWithUnits['launcherRampEndLatitude'].value = 27.9881
   // guidParamWithUnits['launcherRampEndLongitude'].value = 86.925
   // launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
-  //launchVehicleSledMass
+  //launchSledMass
   //launchVehicleDesiredOrbitalAltitude
-  //launchVehicleEffectiveRadius
+  //launchVehicleNoseConeTipRadius
   //launcherPayloadDeliveredToOrbit
   guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
   guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
@@ -180,7 +180,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
   //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
   guidParamWithUnits['logZoomRate'].value = -3
-  guidParamWithUnits['showXYChart'].value = false
+  guidParamWithUnits['showXYChart'].value = true
   guidParamWithUnits['showMarkers'].value = true
 
   nonGUIParams['overrideClipPlanes'] = true

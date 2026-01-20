@@ -10,6 +10,7 @@ import { massDriverTubeModel, virtualMassDriverTube } from './MassDriverTube.js'
 import { massDriverRailModel, virtualMassDriverRail } from './MassDriverRail.js'
 import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBracket.js'
 import { massDriverScrewModel, virtualMassDriverScrew } from './MassDriverScrew.js'
+import { humanFigureModel, virtualHumanFigure } from './HumanFigure.js'
 //import { evacuatedTubeModel, virtualEvacuatedTube } from './EvacuatedTube.js'
 import * as LauncherAnimate from './launcherAnimate.js'
 import * as LaunchTrajectoryUtils from './LaunchTrajectoryUtils.js'
@@ -97,6 +98,7 @@ export class launcher {
         this.tubeModelObject = new massDriverTubeModel(dParamWithUnits)
         this.railModelObject = new massDriverRailModel(dParamWithUnits)
         this.bracketModelObject = new massDriverBracketModel(dParamWithUnits)
+        this.humanFigureModelObject = new humanFigureModel()
 
         // Create rail materials
         this.massDriverRailMaterials = []
@@ -334,6 +336,10 @@ export class launcher {
         virtualMassDriverTube.updateParameters = [dParamWithUnits, this.versionNumber]
         virtualMassDriverTube.tearDownParameters = [dParamWithUnits]
         virtualMassDriverTube.addObjectsParameters = [this.scene, this.tubeModelObject]
+        addVirtualObjectToReferenceFrame(this.refFrames, 0, virtualHumanFigure)
+        virtualHumanFigure.updateParameters = [dParamWithUnits, this.scene]
+        virtualHumanFigure.tearDownParameters = [dParamWithUnits]
+        virtualHumanFigure.addObjectsParameters = [this.scene, this.humanFigureModelObject]
 
         this.refFrames.forEach(refFrame => {
           refFrame.initialize()
@@ -345,7 +351,7 @@ export class launcher {
           refFrame.timeSinceStart = timeSinceStart
         })
 
-        this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle]
+        this.objectClasses = [virtualMassDriverTube, virtualMassDriverRail, virtualMassDriverBracket, virtualMassDriverScrew, virtualAdaptiveNut, virtualLaunchSled, virtualLaunchVehicle, virtualHumanFigure]
         this.virtualMassDriverTube = virtualMassDriverTube
         break
       case 1:

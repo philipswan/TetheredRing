@@ -1,17 +1,25 @@
 import { massDriverBracketModel } from "./MassDriverBracket"
 import { massDriverScrewModel } from "./MassDriverScrew"
 import * as tram from './tram.js'
+import { myFormat } from './tram.js'
+import * as progCosts from './MarsHumanOutpostProgramCost.js'
 
 export function define_genLauncherSpecs() {
 
   return function (dParamWithUnits, specs, planetSpec) {
 
-    const myFormat = function (value, fractionDigits = 0) {
-      return value.toLocaleString('en-US', {
-        minimumFractionDigits: fractionDigits,
-        maximumFractionDigits: fractionDigits
-      })
-    }
+    const ro = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
+    const ri = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
+    const σ_y = dParamWithUnits['launcherMassDriverScrewMaterialYieldStrength'].value
+    const ρ = dParamWithUnits['launcherMassDriverScrewMaterialDensity'].value
+    const f = dParamWithUnits['launcherMassDriverScrewEngineeringFactor'].value
+    const s2gp = dParamWithUnits['adaptiveNutShaftToGrapplerPad'].value
+    const tr = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
+    const mVehicle = dParamWithUnits['launchVehicleEmptyMass'].value
+    const mPayload = dParamWithUnits['launchVehiclePayloadMass'].value
+    const initialPropellantMass = dParamWithUnits['launchVehiclePropellantMass'].value
+    const mSled = dParamWithUnits['launchSledMass'].value
+    const mAdaptiveNut = dParamWithUnits['launcherAdaptiveNutMass'].value
 
     const launcherMassDriverLength = this.launcherMassDriver1Length+this.launcherMassDriver2Length
     specs['launcherMassDriverLength'] = {value: launcherMassDriverLength, units: "m"}
@@ -115,6 +123,7 @@ export function define_genLauncherSpecs() {
     console.print("launcherMassDriver2Length, ", myFormat(this.launcherMassDriver2Length), "m")
     console.print("launcherRampLength, ", myFormat(this.launcherRampLength), "m")
     console.print("launcherElevatedEvacuatedTubeLength, ", myFormat(launcherElevatedEvacuatedTubeLength), "m")
+    console.print("upwardAngleAtEndOfRamp", myFormat(this.upwardAngleAtEndOfRamp*180/Math.PI, 2), "degrees")
 
     console.print("launcherMassDriverBracketsCostOfMaterials, ", myFormat(specs['launcherMassDriverBracketsCostOfMaterials'].value/1e9, 3), "B USD")
     console.print("launcherMassDriverRailsCostOfMaterials, ", myFormat(specs['launcherMassDriverRailsCostOfMaterials'].value/1e9, 3), "B USD")
@@ -242,7 +251,43 @@ export function define_genLauncherSpecs() {
     specs['launcherRampTotalCost'] = {value: launcherRampTotalCost, units: "USD"}
     console.print("launcherRampTotalCost, ", myFormat(launcherRampTotalCost/1e9, 3), "B USD")
 
-    // Elevated Evacuated Tube (EVT) - Aeronautically Supported Case
+    // Elevated Evacuated Tube (EVT) - Aeronautically Supported Case  
+    const breakingGuidwayLength = launcherElevatedEvacuatedTubeLength
+    const launchSledInitialSpeed = this.launcherRampExitSpeed
+    const launchSledDeceleration = launchSledInitialSpeed**2 / (2 * breakingGuidwayLength)
+    specs['launchSledDeceleration'] = {value: launchSledDeceleration, units: "m/s²"}
+    console.print("launchSledDeceleration, ", myFormat(launchSledDeceleration), "m/s²")
+
+    const launchSledBrakingForce = mSled * launchSledDeceleration
+    specs['launchSledBrakingForce'] = {value: launchSledBrakingForce, units: "N"}
+    console.print("launchSledBrakingForce, ", myFormat(launchSledBrakingForce/1e6, 3), "MN")
+
+    const launchSledBrakingGuidewayEngineeringFactor = 1.5
+    const launchSledBrakingGuidewayTensileStrength = 500e6 // Pa - Assume Aluminum 7075-T6
+    const launchSledBrakingGuidewayCrosssectionalArea = launchSledBrakingForce * launchSledBrakingGuidewayEngineeringFactor / launchSledBrakingGuidewayTensileStrength
+
+    const launchSledBrakingGuidewayDiameter = Math.sqrt(4 * launchSledBrakingGuidewayCrosssectionalArea / Math.PI)
+    specs['launchSledBrakingGuidewayDiameter'] = {value: launchSledBrakingGuidewayDiameter, units: "m"}
+    console.print("launchSledBrakingGuidewayDiameter, ", myFormat(launchSledBrakingGuidewayDiameter*100, 2), "cm")
+
+    const launchSledBrakingGuidewayMaterialDensity = 2810 // kg/m3 - Assume Aluminum 7075-T6
+    const launchSledBrakingGuidewayMassPerMeter = launchSledBrakingGuidewayCrosssectionalArea * launchSledBrakingGuidewayMaterialDensity
+    specs['launchSledBrakingGuidewayMassPerMeter'] = {value: launchSledBrakingGuidewayMassPerMeter, units: "kg/m"}
+    console.print("launchSledBrakingGuidewayMassPerMeter, ", myFormat(launchSledBrakingGuidewayMassPerMeter, 2), "kg/m")
+
+    const launchSledKineticEnergy = 0.5 * mSled * launchSledInitialSpeed**2
+    specs['launchSledKineticEnergy'] = {value: launchSledKineticEnergy, units: "J"}
+    console.print("launchSledKineticEnergy, ", myFormat(launchSledKineticEnergy/1e9, 3), "GJ")
+
+    const launchSledBreakingGuidewayEnergyPerMeter = launchSledKineticEnergy / breakingGuidwayLength
+    specs['launchSledBreakingGuidewayEnergyPerMeter'] = {value: launchSledBreakingGuidewayEnergyPerMeter, units: "J/m"}
+    console.print("launchSledBreakingGuidewayEnergyPerMeter, ", myFormat(launchSledBreakingGuidewayEnergyPerMeter/1e6, 3), "MJ/m")
+
+    const launchSledBrakingGuidewayHeatCapacity = 930 // J/kg-K - Assume Aluminum 7075-T6
+    const launchSledBrakingGuidewayTemperatureRisePerLaunch = launchSledBreakingGuidewayEnergyPerMeter / (launchSledBrakingGuidewayMassPerMeter * launchSledBrakingGuidewayHeatCapacity)
+    specs['brakingGuidewayTemperatureRise'] = {value: launchSledBrakingGuidewayTemperatureRisePerLaunch, units: "K"}
+    console.print("launchSledBrakingGuidewayTemperatureRisePerLaunch, ", myFormat(launchSledBrakingGuidewayTemperatureRisePerLaunch, 2), "K")
+
     // Evacuated Tube
     const launcherElevatedEvacuatedTubeTubeCostPerMeter = 6047.9 * 1e6 / 52582 // "Spirit Aerosystems Annual Report and Form 10-K", https://investor.spiritaero.com/filings-financials/FinancialDocs/default.aspx net revenues divided by meters of fuselage they produced in 2023.
     specs['launcherElevatedEvacuatedTubeTubeCostPerMeter'] = {value: launcherElevatedEvacuatedTubeTubeCostPerMeter, units: "USD/m"}
@@ -324,12 +369,11 @@ export function define_genLauncherSpecs() {
     console.print("launcherTotalCapitalCostAfterRecycling, ", myFormat(launcherTotalCapitalCostAfterRecycling/1e9, 3), "B USD")
 
     // Operating costs
-    const marsTransferSeasonDurationInDays = 14 // days
-    const marsTransferSeasonDuration = marsTransferSeasonDurationInDays * 24 * 3600 // sec
     const marsTransferWindowDurationInHours = 2 // hours
-    const marsTransferWindowDuration = marsTransferWindowDurationInHours * 3600 // sec
-    const marsTransferWindowsDuration = 14*24*3600 // 14 days
+    const marsTransferSeasonDurationInDays = 14 // days
     const numLaunchesPerMarsTransferSeason = dParamWithUnits['numLaunchesPerMarsTransferSeason'].value
+    const marsTransferWindowDuration = marsTransferWindowDurationInHours * 3600 // sec
+    const marsTransferSeasonDuration = marsTransferSeasonDurationInDays * 24 * 3600 // sec
     const averageLaunchesPerMarsTransferWindow = numLaunchesPerMarsTransferSeason / marsTransferSeasonDurationInDays
     const maxLaunchesPerMarsTransferWindow = Math.ceil(averageLaunchesPerMarsTransferWindow)
     specs['maxLaunchesPerMarsTransferWindow'] = {value: maxLaunchesPerMarsTransferWindow, units: "launches"}
@@ -339,6 +383,36 @@ export function define_genLauncherSpecs() {
     specs['launchSpacingDuringWindow'] = {value: launchSpacingDuringWindow, units: "sec"}
     console.print("launchSpacingDuringWindow, ", myFormat(launchSpacingDuringWindow), "sec")
     const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+    const launcherRampUpwardAcceleration = dParamWithUnits['launcherRampUpwardAcceleration'].value
+
+    // Air friction of screw flights
+    const P = dParamWithUnits['evacuatedTubeInteriorPressure'].value // Pa
+    const T = dParamWithUnits['evacuatedTubeInteriorTemperature'].value // K
+    const R = 287 // J/kg-K
+    const airDensityInTube = P / (R * T) // kg/m3
+    const fri = ro  // flight inner radius
+    const fro = tr  // flight outer radius
+    const launcherMassDriverScrewThreadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value // m
+    let totalFlightSpan = 0
+    const dStep = 1000 // m
+    for (let d = 0; d<launcherMassDriverLength + launcherRampLength; d+=dStep) {
+      const starts = tram.calculateThreadStarts(d, launcherMassDriverScrewThreadStarts)
+      totalFlightSpan += launcherMassDriverNumScrews * starts * dStep
+    }
+    const Cd = 1.2 // Drag coefficient of flat plate perpendicular to flow
+    // Fusion360 stress simulations determined that the screw flight tips can travel at 530 m/s with an engineering factor of 1.5
+    const launcherMassDriverScrewAngularVelocity = dParamWithUnits['launcherMassDriverScrewMaxTipSpeed'].value / tr
+
+    // dτ=dD⋅r=0.5 ρ C_d ​l ω^2 r^3 dr
+    // Integrating from r=fri to r=fro:
+    // τ=0.5 ρ C_d ​l ω^2 (fro^4 - fri^4)/4
+    const torqueToOvercomeScrewFlightAirFriction = 0.5 / 4 * airDensityInTube * Cd * totalFlightSpan * launcherMassDriverScrewAngularVelocity**2 * (fro**4 - fri**4)
+    const powerToOvercomeScrewFlightAirFriction = torqueToOvercomeScrewFlightAirFriction * launcherMassDriverScrewAngularVelocity
+    specs['powerToOvercomeScrewFlightAirFriction'] = {value: powerToOvercomeScrewFlightAirFriction, units: "W"}
+    console.print("powerToOvercomeScrewFlightAirFriction", myFormat(powerToOvercomeScrewFlightAirFriction/1e9, 2), "GW")
+    // Note this is really just an upper bound based on a still air assumption.
+    // In practice the screws will circulate the rarified air within the tube rather than pushing against still air
+    // resulting in much less drag and much lower power requirements.
 
     // Aeronautic lift
     const wholesaleCostOfElectricity = dParamWithUnits['wholesaleCostOfElectricity'].value
@@ -399,6 +473,15 @@ export function define_genLauncherSpecs() {
     specs['entranceAirlockVolume'] = {value: entranceAirlockVolume, units: "m3"}
     console.print("entranceAirlockVolume, ", myFormat(entranceAirlockVolume), "m3")
     //const entranceAirlockPumpDownTime = entranceAirlockVolume / vacuumPumpingSpeed * Math.log(outsidePressure/vacuumPumpUltimateTotalPressure)  // https://www.youtube.com/watch?v=bb7E2HAIqp4
+    const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
+    const clutchActivationTimeAtExit = adaptiveNutLength / launcherMassDriverExitVelocity // s
+    specs['clutchActivationTimeAtExit'] = {value: clutchActivationTimeAtExit, units: "s"}
+    console.print("clutchActivationTimeAtExit, ", myFormat(clutchActivationTimeAtExit, 5), "s")
+
+    const launcherMassDriverScrewRotationRate = dParamWithUnits['launcherMassDriverScrewRotationRate'].value // rad/s
+    const screwRotationDuringClutchActivation = launcherMassDriverScrewRotationRate * Math.PI * 2 * clutchActivationTimeAtExit // rad
+    specs['screwRotationDuringClutchActivation'] = {value: screwRotationDuringClutchActivation, units: "rad"}
+    console.print("screwRotationDuringClutchActivation, ", myFormat(screwRotationDuringClutchActivation, 2), "rad")
 
     // Tube Evacuation
     const numberOfVacuumPumps = 10000
@@ -470,11 +553,6 @@ export function define_genLauncherSpecs() {
     console.print("operatingCostOfPullingVacuumInsideExitAirlock, ", myFormat(operatingCostOfPullingVacuumInsideExitAirlock), "USD")
 
     // Accelerating Vehicles
-    const mVehicle = dParamWithUnits['launchVehicleEmptyMass'].value
-    const mPayload = dParamWithUnits['launchVehiclePayloadMass'].value
-    const initialPropellantMass = dParamWithUnits['launchVehiclePropellantMass'].value
-    const mSled = dParamWithUnits['launchVehicleSledMass'].value
-    const mAdaptiveNut = dParamWithUnits['launcherAdaptiveNutMass'].value
     const m0 = mVehicle + mPayload + initialPropellantMass
     specs['launchVehicleInitialMass'] = {value: m0, units: "kg"}
     console.print("launchVehicleInitialMass, ", myFormat(m0), "kg")
@@ -537,18 +615,49 @@ export function define_genLauncherSpecs() {
     specs['totalEnergyCostPerLaunch'] = {value: totalEnergyCostPerLaunch, units: "USD"}
     console.print("totalEnergyCostPerLaunch, ", myFormat(totalEnergyCostPerLaunch), "USD")
 
-    const totalEnergyDuringLaunchSeason = totalEnergyPerLaunch * numLaunchesPerMarsTransferSeason
+    const totalEnergyDuringLaunchSeason = totalEnergyPerLaunch * numLaunchesPerMarsTransferSeason + (powerToOvercomeScrewFlightAirFriction + powerDrawOfLiftNacels) * marsTransferSeasonDuration // J
     specs['totalEnergyDuringLaunchSeason'] = {value: totalEnergyDuringLaunchSeason, units: "J"}
     console.print("totalEnergyDuringLaunchSeason, ", (totalEnergyDuringLaunchSeason/1e9).toLocaleString('en-US', {maximumFractionDigits:2}), "GJ")
 
-    const powerRequirementsDuringLaunchSeason = totalEnergyPerLaunch * maxLaunchesPerMarsTransferWindow / (24*3600) // W
+    const powerRequirementsDuringLaunchSeason = totalEnergyPerLaunch * maxLaunchesPerMarsTransferWindow / (24*3600) + powerToOvercomeScrewFlightAirFriction + powerDrawOfLiftNacels // W
     specs['powerRequirementsDuringLaunchSeason'] = {value: powerRequirementsDuringLaunchSeason, units: "W"}
     console.print("powerRequirementsDuringLaunchSeason, ", (powerRequirementsDuringLaunchSeason/1e6).toLocaleString('en-US', {maximumFractionDigits:2}), "MW")
 
-    const totalEnergyCostForAllLaunches = totalEnergyCostPerLaunch * numberOfMarsTransferSeasons * numLaunchesPerMarsTransferSeason
+    const energyCostDuringLaunchSeason = totalEnergyDuringLaunchSeason * wholesaleCostOfElectricity
+    specs['energyCostDuringLaunchSeason'] = {value: energyCostDuringLaunchSeason, units: "USD"}
+    console.print("energyCostDuringLaunchSeason, ", (energyCostDuringLaunchSeason/1e6).toLocaleString('en-US', {maximumFractionDigits:2}), "M USD")
+
+    const totalEnergyCostForAllLaunches = energyCostDuringLaunchSeason * numberOfMarsTransferSeasons
     specs['totalEnergyCostForAllLaunches'] = {value: totalEnergyCostForAllLaunches, units: "USD"}
     console.print("totalEnergyCostForAllLaunches, ", totalEnergyCostForAllLaunches.toLocaleString('en-US', {maximumFractionDigits:2}), "USD")
 
+    // Calculate the loading that the launch sled must support
+    const launchSledAndSpacecraftTotalMass = mSled + mVehicle + mPayload + initialPropellantMass
+    specs['launchSledAndSpacecraftTotalMass'] = {value: launchSledAndSpacecraftTotalMass, units: "kg"}
+    console.print("launchSledAndSpacecraftTotalMass, ", myFormat(launchSledAndSpacecraftTotalMass), "kg")
+
+    const launchSledPeakNormalForce = launchSledAndSpacecraftTotalMass * (launcherRampUpwardAcceleration+9.81)  // N
+    specs['launchSledPeakNormalForce'] = {value: launchSledPeakNormalForce, units: "N"}
+    console.print("launchSledPeakNormalForce, ", myFormat(launchSledPeakNormalForce/1e6, 2), "MN (", myFormat(launchSledPeakNormalForce/9.81/1e3, 2), "tons force)")
+
+    const launchSledBodyLength = dParamWithUnits['launchSledBodyLength'].value
+    const launchSledAirgapWidth = dParamWithUnits['launchSledAirgapWidth'].value
+    const launchSledAirgapArea = launchSledBodyLength * launchSledAirgapWidth
+    specs['launchSledAirgapArea'] = {value: launchSledAirgapArea, units: "m2"}
+    console.print("launchSledAirgapArea, ", myFormat(launchSledAirgapArea), "m2")
+
+    const permeabilityOfFreeSpace = dParamWithUnits['permeabilityOfFreeSpace'].value // H/m
+    const launchSledMagneticFieldStrength = Math.sqrt(launchSledPeakNormalForce * permeabilityOfFreeSpace / launchSledAirgapArea)
+    specs['launchSledMagneticFieldStrength'] = {value: launchSledMagneticFieldStrength, units: "T"}
+    console.print("launchSledMagneticFieldStrength, ", myFormat(launchSledMagneticFieldStrength, 2), "T")
+
+    const mro = launchSledAirgapWidth*3/16
+    const mri = launchSledAirgapWidth/16
+    const magnetCoreDensity = dParamWithUnits['launchSledElectromagnetCoreDensity'].value
+    // Volume of a single electromagnet core (a semi-cylinder) times four for two on each side of the launch sled times the core material denisity
+    const launchSledElectromagnetMass = 2 * launchSledBodyLength * Math.PI*(mro**2-mri**2) / 2 * magnetCoreDensity
+    specs['launchSledElectromagnetMass'] = {value: launchSledElectromagnetMass, units: "kg"}
+    console.print("launchSledElectromagnetMass, ", myFormat(launchSledElectromagnetMass), "kg")
     // There's are additional startup costs to spin up the screws, keep them spinning in a vaccum, and then stop them.
     // As the screws can serve as a spinning reserve for the national grid, these costs mght be offset by selling grid stabilization services
     // to power utilities. This is a complex calculation that is beyond the scope of this model.
@@ -567,6 +676,11 @@ export function define_genLauncherSpecs() {
     specs['totalCapitalCosts'] = {value: totalCapitalCosts, units: "USD"}
     console.print("*** totalCapitalCosts, ", (totalCapitalCosts/1e9).toLocaleString('en-US', {maximumFractionDigits:2}), "B USD")
     
+    // Seasonal Operating Costs
+    const seasonalOperatingCosts = energyCostDuringLaunchSeason + launchVehicleCost * numLaunchesPerMarsTransferSeason
+    specs['seasonalOperatingCosts'] = {value: seasonalOperatingCosts, units: "USD"}
+    console.print("seasonalOperatingCosts, ", (seasonalOperatingCosts/1e9).toLocaleString('en-US', {maximumFractionDigits:2}), "B USD")
+
     // Total Operating Costs
     const totalOperatingCosts = totalEnergyCostForAllLaunches + totalLaunchVehicleCosts
     specs['totalOperatingCosts'] = {value: totalOperatingCosts, units: "USD"}
@@ -579,6 +693,10 @@ export function define_genLauncherSpecs() {
     const payloadLandedOnMarsPerLaunch = Math.max(0, this.payloadPlusRemainingPropellant - propellantNeededForLandingOnMars)
     console.print("payloadLandedOnMarsPerLaunch", payloadLandedOnMarsPerLaunch.toLocaleString('en-US', {maximumFractionDigits:0}), "kg")
 
+    const seasonalPayloadLandedOnMars = payloadLandedOnMarsPerLaunch * numLaunchesPerMarsTransferSeason
+    specs['seasonalPayloadLandedOnMars'] = {value: seasonalPayloadLandedOnMars, units: "kg"}
+    console.print("seasonalPayloadLandedOnMars, ", seasonalPayloadLandedOnMars.toLocaleString('en-US', {maximumFractionDigits:0}), "kg")
+
     const totalPayloadLandedOnMars = payloadLandedOnMarsPerLaunch * numberOfMarsTransferSeasons * numLaunchesPerMarsTransferSeason
     specs['totalPayloadLandedOnMars'] = {value: totalPayloadLandedOnMars, units: "kg"}
     console.print("totalPayloadLandedOnMars, ", totalPayloadLandedOnMars.toLocaleString('en-US', {maximumFractionDigits:0}), "kg")
@@ -588,30 +706,29 @@ export function define_genLauncherSpecs() {
     console.print("costPerKgOfPayloadLandedOnMars, ", costPerKgOfPayloadLandedOnMars.toLocaleString('en-US', {maximumFractionDigits:2}), "USD")
 
     // Hoop stress estimate within the screw shaft
-    const ro = dParamWithUnits['launcherMassDriverScrewShaftOuterRadius'].value
-    const ri = dParamWithUnits['launcherMassDriverScrewShaftInnerRadius'].value
-    const σ_y = dParamWithUnits['launcherMassDriverScrewMaterialYieldStrength'].value
-    const ρ = dParamWithUnits['launcherMassDriverScrewMaterialDensity'].value
-    const f = dParamWithUnits['launcherMassDriverScrewEngineeringFactor'].value
-
     const maxHoopStress = σ_y/f
     specs['maxHoopStress'] = {value: maxHoopStress, units: "Pa"}
     console.print("maxHoopStress, ", myFormat(maxHoopStress/1e6), "MPa")
 
+    // Note - this does not yet consider the additional stress due to the mass of the screw flights or extra speed at the ends of the flights.
     const screwShaftMaxRateOfRotation = Math.sqrt(σ_y/f/ρ/(ro**2-ri**2))  // Units are radians per second
     specs['screwShaftMaxRateOfRotation'] = {value: screwShaftMaxRateOfRotation, units: "rad/s"}
-    const screwShaftMaxRateOfRotationRPM = screwShaftMaxRateOfRotation * 60 / (2 * Math.PI) // Convert to RPM
-    console.print("screwShaftMaxRateOfRotation, ", myFormat(screwShaftMaxRateOfRotation, 2), "rad/s", myFormat(screwShaftMaxRateOfRotationRPM), "RPM")
+    console.print("screwShaftMaxRateOfRotation, ", myFormat(screwShaftMaxRateOfRotation, 2), "rad/s")
 
-    // Note - this does not yet consider the additional stress due to the mass of the screw flights or extra speed at the ends of the flights.
-    const screwShaftMaxRimSpeed = screwShaftMaxRateOfRotation * ro
+    const screwMaxRateOfRotation = launcherMassDriverScrewAngularVelocity   // rad/s
+    specs['screwMaxRateOfRotation'] = {value: screwMaxRateOfRotation, units: "rad/s"}
+    console.print("screwMaxRateOfRotation, ", myFormat(screwMaxRateOfRotation, 2), "rad/s")
+
+    const screwMaxRateOfRotationRPM = screwMaxRateOfRotation * 60 / (2 * Math.PI) // Convert to RPM
+    specs['screwMaxRateOfRotationRPM'] = {value: screwMaxRateOfRotationRPM, units: "RPM"}
+    console.print("screwMaxRateOfRotationRPM, ", myFormat(screwMaxRateOfRotationRPM), "RPM")
+    
+    const screwShaftMaxRimSpeed = screwMaxRateOfRotation * ro
     specs['screwShaftMaxRimSpeed'] = {value: screwShaftMaxRimSpeed, units: "m/s"}
     console.print("screwShaftMaxRimSpeed, ", myFormat(screwShaftMaxRimSpeed, 2), "m/s")
 
-    const s2gp = dParamWithUnits['adaptiveNutShaftToGrapplerPad'].value
-    const tr = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
     const midPadRadius = (ro + s2gp + tr)/2
-    const screwThreadFaceSpeed = screwShaftMaxRateOfRotation * midPadRadius
+    const screwThreadFaceSpeed = screwMaxRateOfRotation * midPadRadius
     specs['screwThreadFaceSpeed'] = {value: screwThreadFaceSpeed, units: "m/s"}
     console.print("screwThreadFaceSpeed, ", myFormat(screwThreadFaceSpeed, 2), "m/s")
 
@@ -643,7 +760,6 @@ export function define_genLauncherSpecs() {
     specs['powerToClutches'] = {value: powerToClutches, units: "W"}
     console.print("powerToClutches, ", myFormat(powerToClutches/1e9, 3), "GW")
 
-    const permeabilityOfFreeSpace = dParamWithUnits['permeabilityOfFreeSpace'].value // H/m
     const launcherMassDriverScrewFlightSaturationFluxDensity = dParamWithUnits['launcherMassDriverScrewFlightSaturationFluxDensity'].value // T 
     const launcherMassDriverScrewFlightMagneticFluxDensityPortion = dParamWithUnits['launcherMassDriverScrewFlightMagneticFluxDensityPortion'].value // T 
     const launcherScrewFlightAverageMagneticFluxDensity = launcherMassDriverScrewFlightSaturationFluxDensity * launcherMassDriverScrewFlightMagneticFluxDensityPortion
@@ -705,10 +821,10 @@ export function define_genLauncherSpecs() {
     console.print('equivalentFieldFrequency', equivalentFieldFrequency)
 
     const Cm = 7.3e-3 // W/kg
-    // const alpha = 1.71  // 3% Si Electrical Steel
-    // const beta = 1.36  // 3% Si Electrical Steel 
-    const alpha = 2.1   // Guess for 350 Maraging Steel 
-    const beta = 3.0    // Guess for 350 Maraging Steel
+    const alpha = 1.71  // 3% Si Electrical Steel
+    const beta = 1.36  // 3% Si Electrical Steel 
+    // const alpha = 2.1   // Guess for 350 Maraging Steel 
+    // const beta = 3.0    // Guess for 350 Maraging Steel
 
     // Steinmetz equation for eddy current power loss in the screw flights
     const peakEddyCurrentPowerLossPerStrip = Cm * B**alpha * equivalentFieldFrequency**beta
@@ -736,6 +852,127 @@ export function define_genLauncherSpecs() {
     // const electricalResistivity = dParamWithUnits['launcherMassDriverScrewMaterialElectricalResistivity'].value
     // const powerLossDueToEddyCurrents = B**2 * d**2 * v**2 / 6 / electricalResistivity
     // debugger
+
+    // Flywheel Calculations
+    const flywheelOuterRadius = dParamWithUnits['launcherMassDriverFlywheelOuterRadius'].value
+    const flywheelInnerRadius = dParamWithUnits['launcherMassDriverFlywheelInnerRadius'].value
+    const launcherMassDriverScrewRoughLength = dParamWithUnits['launcherMassDriverScrewRoughLength'].value
+    const flywheelLengthFactor = dParamWithUnits['launcherMassDriverFlywheelLengthFactor'].value
+    const flywheelDensity = dParamWithUnits['launcherMassDriverFlywheelMaterialDensity'].value
+    const flywheelYieldStrength = dParamWithUnits['launcherMassDriverFlywheelMaterialYieldStrength'].value
+    const flywheelEngineeringFactor = dParamWithUnits['launcherMassDriverFlywheelEngineeringFactor'].value
+    const flywheelFinalRateOfRotation = screwMaxRateOfRotation
+    const flywheelLength = launcherMassDriverScrewRoughLength * flywheelLengthFactor
+
+    const flywheelVolume = Math.PI * flywheelLength * (flywheelOuterRadius**2 - flywheelInnerRadius**2)
+    specs['flywheelVolume'] = {value: flywheelVolume, units: 'm^3'}
+    console.print('flywheelVolume', myFormat(flywheelVolume, 2), "m^3")
+
+    const flywheelMass = flywheelVolume * flywheelDensity
+    specs['flywheelMass'] = {value: flywheelMass, units: 'kg'}
+    console.print('flywheelMass', myFormat(flywheelMass), "kg")
+
+    const flywheelMomentOfInertia = 0.5 * Math.PI * flywheelDensity * flywheelLength * (flywheelOuterRadius**4 - flywheelInnerRadius**4)
+    specs['flywheelMomentOfInertia'] = {value: flywheelMomentOfInertia, units: 'kg*m^2'}
+    console.print('flywheelMomentOfInertia', myFormat(flywheelMomentOfInertia, 2), "kg*m^2")
+    
+    const flywheelFinalKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelFinalRateOfRotation**2
+    specs['flywheelFinalKineticEnergy'] = {value: flywheelFinalKineticEnergy, units: 'J'}
+    console.print('flywheelFinalKineticEnergy', myFormat(flywheelFinalKineticEnergy/1e6, 3), "MJ")
+
+    const kineticEnergyTransferedByOneScrewSegment = launchTrainMass * launcherMassDriverForwardAcceleration * launcherMassDriverScrewRoughLength / launcherMassDriverNumScrews
+    specs['kineticEnergyTransferedByOneScrewSegment'] = {value: kineticEnergyTransferedByOneScrewSegment, units: 'J'}
+    console.print('kineticEnergyTransferedByOneScrewSegment', myFormat(kineticEnergyTransferedByOneScrewSegment/1e6, 3), "MJ")
+
+    const changeInFlywheelRotationRate = kineticEnergyTransferedByOneScrewSegment / flywheelMomentOfInertia / screwMaxRateOfRotation
+    specs['changeInFlywheelRotationRate'] = {value: changeInFlywheelRotationRate, units: 'rad/s'}
+    console.print('changeInFlywheelRotationRate', myFormat(changeInFlywheelRotationRate, 1), "rad/s (", myFormat(changeInFlywheelRotationRate/(2*Math.PI), 1), "RPS)")
+
+    const flywheelInitialRateOfRotation = flywheelFinalRateOfRotation + changeInFlywheelRotationRate
+    specs['flywheelInitialRateOfRotation'] = {value: flywheelInitialRateOfRotation, units: 'rad/s'}
+    console.print('flywheelInitialRateOfRotation', myFormat(flywheelInitialRateOfRotation), "rad/s")
+    console.print('flywheelFinalRateOfRotation', myFormat(flywheelFinalRateOfRotation), "rad/s")
+
+    // Check the flywheels maximum rate of rotation based on hoop stress (assume same material as screws)
+    const flywheelMaxRateOfRotation = Math.sqrt(flywheelYieldStrength/flywheelEngineeringFactor/flywheelDensity/(flywheelOuterRadius**2 - flywheelInnerRadius**2))
+    specs['flywheelMaxRateOfRotation'] = {value: flywheelMaxRateOfRotation, units: 'rad/s'}
+    console.print('flywheelMaxRateOfRotation', myFormat(flywheelMaxRateOfRotation), "rad/s")
+
+    const flywheelInitialKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelInitialRateOfRotation**2
+    specs['flywheelInitialKineticEnergy'] = {value: flywheelInitialKineticEnergy, units: 'J'}
+    console.print('flywheelInitialKineticEnergy', myFormat(flywheelInitialKineticEnergy/1e6, 3), "MJ")
+        
+    const energyAddedToOneFlywheelBetweenLaunches = flywheelInitialKineticEnergy - flywheelFinalKineticEnergy
+    specs['energyAddedToOneFlywheelBetweenLaunches'] = {value: energyAddedToOneFlywheelBetweenLaunches, units: 'J'}
+    console.print('energyAddedToOneFlywheelBetweenLaunches', myFormat(energyAddedToOneFlywheelBetweenLaunches/1e6, 3), "MJ")
+
+    const flywheelEnergyConvertedToHeatPerLaunch = energyAddedToOneFlywheelBetweenLaunches - kineticEnergyTransferedByOneScrewSegment
+    specs['flywheelEnergyConvertedToHeatPerLaunch'] = {value: flywheelEnergyConvertedToHeatPerLaunch, units: 'J'}
+    console.print('flywheelEnergyConvertedToHeatPerLaunch', myFormat(flywheelEnergyConvertedToHeatPerLaunch/1e6, 3), "MJ")
+
+    const energySuppliedToFlywheelMotorPerLaunch = energyAddedToOneFlywheelBetweenLaunches / launcherAccelerationEfficiency
+    specs['energySuppliedToFlywheelMotorPerLaunch'] = {value: energySuppliedToFlywheelMotorPerLaunch, units: 'J'}
+    console.print('energySuppliedToFlywheelMotorPerLaunch', myFormat(energySuppliedToFlywheelMotorPerLaunch/1e6, 3), "MJ")
+
+    const specificHeatOfScrewMaterial = dParamWithUnits['launcherMassDriverScrewMaterialSpecificHeatCapacity'].value
+    const specificHeatOfFlywheelMaterial = dParamWithUnits['launcherMassDriverScrewMaterialSpecificHeatCapacity'].value
+
+    const temperatureIncreaseInFlywheelPerLaunch = flywheelEnergyConvertedToHeatPerLaunch/2 / (flywheelMass * specificHeatOfFlywheelMaterial)
+    specs['temperatureIncreaseInFlywheelPerLaunch'] = {value: temperatureIncreaseInFlywheelPerLaunch, units: 'K'}
+    console.print('temperatureIncreaseInFlywheelPerLaunch', myFormat(temperatureIncreaseInFlywheelPerLaunch, 2), "K")
+
+    const temperatureIncreaseInScrewSegmentPerLaunch = flywheelEnergyConvertedToHeatPerLaunch/2 / ( launcherMassDriverScrewMass * specificHeatOfScrewMaterial)
+    specs['temperatureIncreaseInScrewSegmentPerLaunch'] = {value: temperatureIncreaseInScrewSegmentPerLaunch, units: 'K'}
+    console.print('temperatureIncreaseInScrewSegmentPerLaunch', myFormat(temperatureIncreaseInScrewSegmentPerLaunch, 2), "K")
+
+    const heatEnergyGenerationRateInScrewSegment = flywheelEnergyConvertedToHeatPerLaunch/2 / launchSpacingDuringWindow
+    specs['heatEnergyGenerationRateInScrewSegment'] = {value: heatEnergyGenerationRateInScrewSegment, units: 'W'}
+    console.print('heatEnergyGenerationRateInScrewSegment', myFormat(heatEnergyGenerationRateInScrewSegment), "W")
+
+    const heatEnergyGenerationRateInFlywheel = flywheelEnergyConvertedToHeatPerLaunch/2 / launchSpacingDuringWindow
+    specs['heatEnergyGenerationRateInFlywheel'] = {value: heatEnergyGenerationRateInFlywheel, units: 'W'}
+    console.print('heatEnergyGenerationRateInFlywheel', myFormat(heatEnergyGenerationRateInFlywheel), "W")
+
+    const launcherMassDriverScrewSurfaceArea = Math.PI * 2*tr * launcherMassDriverScrewRoughLength
+    const σ_SB = dParamWithUnits['stefanBoltzmannConstant'].value
+    const tAmbient = 273+25 // K - Assume 25C ambient temperature within the launch tube
+    const tScrew = 273+300 // K - Assume 300C screw temperature during operation
+    const screwEmissivity = dParamWithUnits['launcherMassDriverScrewMaterialEmissivity'].value
+    const netRadiativeHeatTransferRate =  σ_SB * launcherMassDriverScrewSurfaceArea * screwEmissivity * ( tScrew**4 - tAmbient**4 ) // K/s
+    specs['netRadiativeHeatTransferRate'] = {value: netRadiativeHeatTransferRate, units: 'W'}
+    console.print('netRadiativeHeatTransferRate', myFormat(netRadiativeHeatTransferRate), "W")
+
+    // The following calculations apply only to the end of the acceleration section.
+    console.print('grapplerPadContactLength', myFormat(grapplerPadContactLength, 2), "m")
+
+    const flywheelDecelerationTime = grapplerPadContactLength / massDriverExitSpeed
+    specs['flywheelDecelerationTime'] = {value: flywheelDecelerationTime, units: 's'}
+    console.print('flywheelDecelerationTime', myFormat(flywheelDecelerationTime*1e3, 2), "ms")
+
+    const flywheelAngularAcceleration = changeInFlywheelRotationRate / flywheelDecelerationTime
+    specs['flywheelAngularAcceleration'] = {value: flywheelAngularAcceleration, units: 'rad/s^2'}
+    console.print('flywheelAngularAcceleration', myFormat(flywheelAngularAcceleration, 2), "rad/s^2")
+
+    // Radians or relative rotation needed to bring the flywheel to a stop relative to the screw
+    const slipAngleBetweenFlywheelAndScrew = changeInFlywheelRotationRate**2 / (2 * flywheelAngularAcceleration)
+    specs['slipAngleBetweenFlywheelAndScrew'] = {value: slipAngleBetweenFlywheelAndScrew, units: 'rad'}
+    console.print('slipAngleBetweenFlywheelAndScrew', myFormat(slipAngleBetweenFlywheelAndScrew, 2), "rad")
+    
+    const slipDistanceBetweenFlywheelAndScrew = slipAngleBetweenFlywheelAndScrew * flywheelOuterRadius
+    specs['slipDistanceBetweenFlywheelAndScrew'] = {value: slipDistanceBetweenFlywheelAndScrew, units: 'm'}
+    console.print('slipDistanceBetweenFlywheelAndScrew', myFormat(slipDistanceBetweenFlywheelAndScrew, 3), "m")
+
+    const relativeInitialRimSpeed = changeInFlywheelRotationRate * flywheelOuterRadius
+    specs['relativeInitialRimSpeed'] = {value: relativeInitialRimSpeed, units: 'm/s'}
+    console.print('relativeInitialRimSpeed', myFormat(relativeInitialRimSpeed, 2), "m/s")
+
+    const accelerationAtFlywheelRim = relativeInitialRimSpeed**2 / (2 * slipDistanceBetweenFlywheelAndScrew)
+    specs['accelerationAtFlywheelRim'] = {value: accelerationAtFlywheelRim, units: 'm/s^2'}
+    console.print('accelerationAtFlywheelRim', myFormat(accelerationAtFlywheelRim), "m/s^2")
+
+    const energySuppliedToAllFlywheelMotorsPerLaunch = energySuppliedToFlywheelMotorPerLaunch * this.massDriverAccelerationScrewSegments * launcherMassDriverNumScrews
+    specs['energySuppliedToAllFlywheelMotorsPerLaunch'] = {value: energySuppliedToAllFlywheelMotorsPerLaunch, units: 'J'}
+    console.print('energySuppliedToAllFlywheelMotorsPerLaunch', myFormat(energySuppliedToAllFlywheelMotorsPerLaunch/1e9), "GJ (equivalent to", myFormat(energySuppliedToAllFlywheelMotorsPerLaunch/3.6e9), "MWh)")
 
     // const orbitalRingCircumference = 2 * Math.PI * (planetSpec.ellipsoid.a+300000)
     // const orbitalRingMass = orbitalRingCircumference * 0.01**2 * Math.PI * dParamWithUnits['launcherMassDriverScrewMaterialDensity'].value
@@ -787,6 +1024,12 @@ export function define_genLauncherSpecs() {
     console.print("The total capital cost of the launch system is", myFormat(totalCapitalCosts/1e9, 2), "B USD.")
     console.print("The operating costs over ~20 years of operation are", myFormat(totalOperatingCosts/1e9, 2), "B USD.")
     console.print("The cost per kg landed on Mars is", myFormat(costPerKgOfPayloadLandedOnMars), "USD.")
+
+    const [totalCostWithRockets, totalCostWithVPSL] = progCosts.calculateMarsHumanOutpostProgramCost(seasonalPayloadLandedOnMars, numberOfMarsTransferSeasons, totalCapitalCosts, seasonalOperatingCosts)
+    
+    console.print("----- Mars Human Outpost Program Cost Estimate -----")
+    console.print("Total Program Cost with Chemical Rockets: ", myFormat(totalCostWithRockets/1e9, 2), "B USD")
+    console.print("Total Program Cost with VPSL: ", myFormat(totalCostWithVPSL/1e9, 2), "B USD")
 
     const variableNames = [
       "launcherMassDriverLength",
@@ -889,6 +1132,7 @@ export function define_genLauncherSpecs() {
       totalOperatingCosts: "Total Operating Costs",
       totalPayloadLandedOnMars: "Total Payload Landed on Mars",
       costPerKgOfPayloadLandedOnMars: "Cost Per Kg of Payload Landed on Mars"
+
     }
     
     console.print("===========================================")

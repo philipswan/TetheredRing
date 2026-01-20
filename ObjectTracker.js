@@ -21,6 +21,7 @@ export class ObjectTracker {
     this.closestTrackedObject.fill(null, 0, this.closestTrackedObject.length)
 
     this.trackingPoint = null    // This is the location of the object which was under the sprite when user last pressed the 'P' key  
+    this.cameraPosition = null   // This is the location where the camera should move to when tracking the object
     this.lastTrackingPoint = null
     this.trackingFrame = null
     this.lastTrackingFrame = null
@@ -137,6 +138,12 @@ export class ObjectTracker {
       }
       else {
         this.trackingPoint = rawPoint
+      }
+      if (objectType=='coilCenterMarker') {
+        // Find the launcher object in the scene
+        const launcherStart = tetheredRingRefCoordSys.localToWorld(launchSystemObject.feederRailEntrancePosition)
+        const direction = rawPoint.clone().sub(launcherStart).normalize()
+        this.cameraPosition = launcherStart.clone().add(direction.multiplyScalar(1.0 * launcherStart.distanceTo(rawPoint)))
       }
       // We can only track one object at a time, so stop tracking the other objects
       this.pressedHotkeyToTrackableObject.forEach((tableObjectType, tableHotkey) => {

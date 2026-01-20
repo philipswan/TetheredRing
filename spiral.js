@@ -15,7 +15,7 @@ function arcLength(theta, r0, a) {
 }
 
 // Invert S(θ)=s on a known bracket [0, thetaHi] via bisection
-function thetaFromArcLength(s, r0, a, tol = 1e-15) {
+function thetaFromArcLength(s, r0, a, tol = 1e-18) {
   if (s <= 0) return 0
   if (a === 0) return s / r0
 

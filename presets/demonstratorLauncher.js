@@ -113,9 +113,9 @@ export function demonstratorLauncher(guidParamWithUnits, guidParam, gui, nonGUIP
   guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
   //guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
   guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
-  //launchVehicleSledMass
+  //launchSledMass
   //launchVehicleDesiredOrbitalAltitude
-  //launchVehicleEffectiveRadius
+  //launchVehicleNoseConeTipRadius
   //launcherPayloadDeliveredToOrbit
   guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
   guidParamWithUnits['launchVehicleAdaptiveThrust'].value = false

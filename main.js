@@ -57,6 +57,7 @@ import googleEarthProjectFile from './components/CameraControl/googleEarthStudio
 import { tetheredRingSystem } from './tetheredRingSystem.js'
 import { MultiModeTrial } from './MultiModeTrial.js'
 import mountainList from './components/mountainList.json'
+import { cameraPosition } from 'three/tsl'
 
 //import { makePlanetTexture } from './planetTexture.js'
 
@@ -176,6 +177,8 @@ const guidParamWithUnits = {
   transitVehicleForwardOffset: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 3, updateFunction: updateTransitsystem, folder: folderEngineering},
 
   permeabilityOfFreeSpace: {value: 4*Math.PI*1e-7, units: "N/A2", autoMap: true, min: 0, max: 0.0001, updateFunction: adjustRingDesign, folder: folderEngineering},
+  launchSledElectromagnetCoreDensity: {value: 7800, units: "kg/m3", autoMap: true, min: 1000, max: 20000, updateFunction: adjustRingDesign, folder: folderEngineering},
+  stefanBoltzmannConstant: {value: 5.670374419e-8, units: "W/m2/K4", autoMap: true, min: 0, max: 1e-6, updateFunction: adjustRingDesign, folder: folderEngineering},
 
   // Engineering Parameters - Ring
   ringFinalAltitude: {value: 32000, units: "m", autoMap: true, min: 0, max: 200000, updateFunction: adjustRingDesign, folder: folderEngineering},
@@ -355,10 +358,10 @@ const guidParamWithUnits = {
   launcherMassDriverExitVelocity: {value: 8000-360, units: 'm/s', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleSeaLevelRocketExhaustVelocity: {value: 3590, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleVacuumRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleSledMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherAdaptiveNutMass: {value: 10000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledMass: {value: 2000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherAdaptiveNutMass: {value: 9000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleDesiredOrbitalAltitude: {value: 200000, units: 'm', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
-  launchVehicleEffectiveRadius: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleNoseConeTipRadius: {value: 0.001, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   numLaunchesPerMarsTransferSeason: {value: 14*4, units: '', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
   numberOfMarsTransferSeasons: {value: 10, units: '', autoMap: true, min: 1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
@@ -423,9 +426,11 @@ const guidParamWithUnits = {
   launcherMassDriverScrewShaftOuterRadius: {value: 0.228, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewGrapplePadStartRadius: {value: 0.4, units: 'm', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadRadius: {value: 0.5, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewMaxTipSpeed: {value: 530, units: 'm/s', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadThickness: {value: 0.07, units: 'm', autoMap: true, min: .01, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewThreadTaperRatio: {value: 0.25, units: '', autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher}, // This is the ratio of the thread diameter to the screw diameter
   launcherMassDriverScrewThreadStarts: {value: 4, units: '', autoMap: true, min: 1, max: 4, step: 1, updateFunction: updateLauncher, folder: folderLauncher},   // This is the number of individual threads in the screw
+  // "RoughLength" should be interpreted as "RoughSpacing", or the distance from the start of one screw to the start of the next
   launcherMassDriverScrewRoughLength: {value: 5, units: "", autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewSidewaysOffset: {value: 3, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewUpwardsOffset: {value: 0.5, units: "m", autoMap: true, min: -100, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
@@ -436,6 +441,8 @@ const guidParamWithUnits = {
   launcherMassDriverScrewNumBrackets: {value: 80000, units: "", autoMap: true, min: 0, max: 20000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewMaterialYieldStrength: {value: 690000000, units: "Pa", autoMap: true, min: 0, max: 1000000000, updateFunction: updateLauncher, folder: folderLauncher}, // https://www.unionfab.com/blog/2024/03/yield-strength-of-steel
   launcherMassDriverScrewMaterialDensity: {value: 7850, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewMaterialSpecificHeatCapacity: {value: 500, units: "J/kg/K", autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverScrewMaterialEmissivity: {value: 0.5, units: "", autoMap: true, min: 0, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewMaterialPricePerKgBuy: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewMaterialPricePerKgSell: {value: 0.5, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewEngineeringFactor: {value: 1.5, units: "", autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
@@ -443,6 +450,12 @@ const guidParamWithUnits = {
   launcherMassDriverScrewRotationRate: {value: 206.7, units: 's-1', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewFlightSaturationFluxDensity: {value: 1.9, units: 'T', autoMap: true, min: 0.1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverScrewFlightMagneticFluxDensityPortion: {value: 0.8, units: '', autoMap: true, min: 0.1, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelOuterRadius: {value: 0.145, units: 'm', autoMap: true, min: 0.1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelInnerRadius: {value: 0.1, units: 'm', autoMap: true, min: 0.1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelLengthFactor: {value: 0.9, units: 'm', autoMap: true, min: 0.1, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelMaterialDensity: {value: 7850, units: 'kg/m3', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelMaterialYieldStrength: {value: 690000000, units: 'Pa', autoMap: true, min: 0, max: 1000000000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverFlywheelEngineeringFactor: {value: 1.5, units: "", autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
 
   // Assuming Concrete with a stainless steel outer liner for the ,assdriver tube
   launcherMassDriverTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -462,7 +475,8 @@ const guidParamWithUnits = {
 
   elevateEvacuatedTubeInnerRadius: {value: 4.5, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   elevateEvacuatedTubeThickness: {value: 0.002, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
-  evacuatedTubeInteriorPressure: {value: 5, units: 'Pa', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  evacuatedTubeInteriorPressure: {value: 1, units: 'Pa', autoMap: true, min: 0, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
+  evacuatedTubeInteriorTemperature: {value: 273.15+20, units: 'K', autoMap: true, min: 0, max: 400, updateFunction: updateLauncher, folder: folderLauncher},
   elevatedEvacuatedTubeHvdcCableVoltage: {value: 1100000, units: 'V', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
   elevatedEvacuatedTubeHvdcCableCurrentDensity: {value: 2e6, units: 'A/m2', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
   elevatedEvacuatedTubeHvdcCableMaterialDensity: {value: 2700, units: 'kg/m3', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -472,6 +486,7 @@ const guidParamWithUnits = {
   launchSledWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledHeight: {value: .25, units: 'm', autoMap: true, min: .1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
+  launchSledAirgapWidth: {value: 0.48, units: 'm', autoMap: true, min: .001, max: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledForwardsOffset: {value: 13, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1866,6 +1881,7 @@ const mouse = {
 }
 let intersectionPoint = new THREE.Vector3
 let targetPoint = new THREE.Vector3
+let cameraCoordinates = new THREE.Vector3
 let animateRingRaising = false
 let animateRingLowering = false
 let animateRingMovingOut = false
@@ -2899,6 +2915,7 @@ function onKeyDown( event ) {
         objectTracker.findNearestObject(dParamWithUnits, scene, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
         if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
           targetPoint = objectTracker.trackingPoint.clone()
+          cameraCoordinates = objectTracker.cameraPosition.clone()
           setupTweeningOperation()
           orbitControls.rotationSpeed = 0.01
         }
@@ -3225,8 +3242,10 @@ function onKeyDown( event ) {
       break;
     case 83: /*S*/
       genSpecs = true
+      genSpecsFile = true
       updateRing()
       genSpecs = false
+      genSpecsFile = false
       break;
     case 88: /*X*/
       animateZoomingIn = false
@@ -3623,8 +3642,10 @@ function setupTweeningOperation() {
   setOrbitControlsTargetUpVector()
 
   tweeningActive = true
+
+  const newCameraLocation = (cameraCoordinates!==null) ? cameraCoordinates.clone() : orbitControls.target.clone()
   new TWEEN.Tween(orbitControls.target)
-    .to(orbitControlsTargetPoint, tweeningTime)
+    .to(newCameraLocation, tweeningTime)
     .easing(TWEEN.Easing.Linear.None)
     .start(timeSinceStart*1000)
     .onComplete(() => {tweeningActive = false})
@@ -3924,8 +3945,8 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
   // Values for Olympus Mons clip
   // const width = 2100
   // const height = 900
-  const width = 1920*2
-  const height = 1080*2
+  const width = 1920
+  const height = 1080
 
 
   renderer.setSize(width, height)

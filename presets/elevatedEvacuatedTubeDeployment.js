@@ -131,9 +131,9 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, g
   guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3590  // m/s  (Based on RS-25 Sea Level)
   //guidParamWithUnits['launchVehicleSeaLevelRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
   guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
-  //launchVehicleSledMass
+  //launchSledMass
   //launchVehicleDesiredOrbitalAltitude
-  //launchVehicleEffectiveRadius
+  //launchVehicleNoseConeTipRadius
   //launcherPayloadDeliveredToOrbit
   guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
   guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
