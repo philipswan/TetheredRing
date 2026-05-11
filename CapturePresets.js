@@ -11,6 +11,7 @@ import { edwardsAirforceBasePresets } from './presets/edwardsAirforceBasePresets
 import { launchLookingBackwards } from './presets/launchLookingBackwards.js'
 import { multipleRings } from './presets/multipleRings.js'
 import { multipleUSRings } from './presets/multipleUSRings.js'
+import { toOrbitFromMoonLauncherPresets } from './presets/toOrbitFromMoonLauncherPresets.js'
 
 export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -119,6 +120,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       break
     case 26:
       toLowOrbitFromEarth(guidParamWithUnits, nonGUIParams)
+      break
+    case 27:
+      toOrbitFromMoonLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
   }
 

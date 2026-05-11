@@ -728,6 +728,9 @@ export function define_genLauncherSpecs() {
     console.print("screwShaftMaxRimSpeed, ", myFormat(screwShaftMaxRimSpeed, 2), "m/s")
 
     const midPadRadius = (ro + s2gp + tr)/2
+    specs['midPadRadius'] = {value: midPadRadius, units: "m"}
+    console.print("midPadRadius, ", myFormat(midPadRadius, 2), "m")
+
     const screwThreadFaceSpeed = screwMaxRateOfRotation * midPadRadius
     specs['screwThreadFaceSpeed'] = {value: screwThreadFaceSpeed, units: "m/s"}
     console.print("screwThreadFaceSpeed, ", myFormat(screwThreadFaceSpeed, 2), "m/s")

@@ -45,6 +45,7 @@ import * as Launcher from './launcher.js'
 import * as kmlutils from './kmlutils.js'
 import * as markers from './markers.js'
 import * as CapturePresets from './CapturePresets.js'
+import { analyzeLauncherTerrainDisplacement } from './launcherTerrainAnalysis.js'
 
 // load camera preset vectors from external file
 import cameraPresets from './cameraPresets.json' assert { type: 'json' }
@@ -2936,6 +2937,15 @@ function onKeyDown( event ) {
       Object.entries(instances).forEach(([k, v]) => {
         console.log(k, v)
       })
+      break
+    case 55: /*7*/
+      // Analyze launcher ramp terrain displacement
+      if (enableLaunchSystem && launchSystemObject) {
+        analyzeLauncherTerrainDisplacement(launchSystemObject, planetMeshes, planetSpec, tram, scene)
+      }
+      else {
+        console.log('Launch system not enabled or not initialized')
+      }
       break
     case 56: /*8*/
       // Put the moon into the camera's field of view

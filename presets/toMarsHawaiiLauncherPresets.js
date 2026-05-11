@@ -2,9 +2,9 @@ import * as THREE from 'three'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
 import { showMassDriver } from "./cameraShotHelperFunctions"
 import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvidedBackground.js'
-import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
+import { toMarsFromEarthLauncherArchitecture } from './toAFromBLauncherArchitecture.js'
 import { toVenusFromEarthLauncherArchitecture } from './toVenusFromEarthLauncherArchitecture.js'
-import { toMarsFromMoonLauncherArchitecture } from './toMarsFromMoonLauncherArchitecture.js'
+import { toMarsFromMoonLauncherArchitecture } from './toAFromBLauncherArchitecture.js'
 
 export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -16,6 +16,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Location specific parameters that will affect the architecture
   const useEarth = true
   if (useEarth) {
+    guidParamWithUnits['planetName'].value = "Earth"
     // Mauna Kea (19.820667, -155.468056)
     const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
     const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ramp a little bit east 
@@ -27,6 +28,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
 
   }
   else {
+    guidParamWithUnits['planetName'].value = "Moon"
     const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
     const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ranp a little bit east 
     const massDriverAltitude = 1000 // m
@@ -178,13 +180,13 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 500.0
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
   guidParamWithUnits['logZoomRate'].value = -3
-  guidParamWithUnits['showXYChart'].value = true
-  guidParamWithUnits['showMarkers'].value = true
+  guidParamWithUnits['showXYChart'].value = false
+  guidParamWithUnits['showMarkers'].value = false
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 1
+  nonGUIParams['nearClip'] = 100
   nonGUIParams['farClip'] = 100000000
 
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
@@ -192,10 +194,16 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(98.94242870318703, -63.433976754080504, -84.42750348616391)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2672085688689862, 0.33374015320741873, -0.9040006033516111)
 
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-10.22879414097406, 1.391210527624935, 1.4851894294843078)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-10.22879414097406, 1.391210527624935, 1.4851894294843078)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
+    
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-696258.734928957, 114001.08046871657, 371135.95967124123)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-815556.0828945136, -93118.84250173089, 204892.60024699476)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
+
   
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)

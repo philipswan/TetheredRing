@@ -527,7 +527,7 @@ export function defineUpdateTrajectoryCurves () {
     let heatShieldTemperature = 100 // K - Assume that the heat shield is precooled by circulating liquid hydrogen through it before launch
 
     t = 0
-    tStep = 1 // second
+    tStep = .25 // second
 
     // ***************************************************************
     // Create the part of the trajectory where the vehicles are on a feeder rail waiting to be launched
@@ -561,7 +561,7 @@ export function defineUpdateTrajectoryCurves () {
     //console.log('Creating mass driver part of trajectory.')
     upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
     altitude = launcherMassDriverAltitude
-    airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+    airPressureInPascals = evacuatedTubeInteriorPressure
 
     // The curves use are Earth-Centered-Earth-Fixed (ECEF) speeds and distances, not inertial frame speeds and distances
     for (t = t0; t < t1; t += tStep) {
@@ -576,8 +576,8 @@ export function defineUpdateTrajectoryCurves () {
         // This is used in main.js to warp the camera over to the location where the mass driver starts
         this.startOfMassDriver1Position = vehiclePosition.clone()
       }
-      const qConv = 0 // Assume no convective heating while in the mass driver
-      const qRad = 0 // Assume no radiative heating while in the mass driver
+      const qConv = tram.calculateQConv(vehicleAirSpeed, evacuatedTubeInteriorGasDensity, launchVehicleNoseConeTipRadius)
+      const qRad = tram.calculateQRad(vehicleAirSpeed, evacuatedTubeInteriorGasDensity)
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -625,7 +625,7 @@ export function defineUpdateTrajectoryCurves () {
     //console.log('Creating mass driver part of trajectory.')
     upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
     altitude = launcherMassDriverAltitude
-    airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+    airPressureInPascals = evacuatedTubeInteriorPressure
 
     for (t = t1; t < t2; t += tStep) {
       // These are curve speeds and distances, not absolute speeds and distances
@@ -636,8 +636,8 @@ export function defineUpdateTrajectoryCurves () {
       const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
       const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
       this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
-      const qConv = 0 // Assume no convective heating while in the mass driver
-      const qRad = 0 // Assume no radiative heating while in the mass driver
+      const qConv = tram.calculateQConv(vehicleAirSpeed, evacuatedTubeInteriorGasDensity, launchVehicleNoseConeTipRadius)
+      const qRad = tram.calculateQRad(vehicleAirSpeed, evacuatedTubeInteriorGasDensity)
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -685,7 +685,7 @@ export function defineUpdateTrajectoryCurves () {
     //console.log('Creating mass driver part of trajectory.')
     upwardAcceleration = 0   // This does not include the acceleration of gravity from the planet
     altitude = launcherMassDriverAltitude
-    airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+    airPressureInPascals = evacuatedTubeInteriorPressure
 
     for (t = t2; t < t3; t += tStep) {
       // These are curve speeds and distances, not absolute speeds and distances
@@ -696,8 +696,8 @@ export function defineUpdateTrajectoryCurves () {
       const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
       const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
       this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
-      const qConv = 0 // Assume no convective heating while in the mass driver
-      const qRad = 0 // Assume no radiative heating while in the mass driver
+      const qConv = tram.calculateQConv(vehicleAirSpeed, evacuatedTubeInteriorGasDensity, launchVehicleNoseConeTipRadius)
+      const qRad = tram.calculateQRad(vehicleAirSpeed, evacuatedTubeInteriorGasDensity)
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -773,15 +773,15 @@ export function defineUpdateTrajectoryCurves () {
       distanceTravelled = this.launchRampCurve[1].tTod(t - t3)
       vehiclePosition = this.launchRampCurve[1].getPointAt(distanceTravelled / this.launcherRampLength)
       altitude = vehiclePosition.length() - this.planetRadius
-      airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      airPressureInPascals = evacuatedTubeInteriorPressure
       // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
       const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
       const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
       this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
       const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
-      const qConv = 0 // Assume no convective heating while in the mass driver
-      const qRad = 0 // Assume no radiative heating while in the mass driver
+      const qConv = tram.calculateQConv(vehicleAirSpeed, evacuatedTubeInteriorGasDensity, launchVehicleNoseConeTipRadius)
+      const qRad = tram.calculateQRad(vehicleAirSpeed, evacuatedTubeInteriorGasDensity)
       if (t<=launcherXyChartMaxT) {
         altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
         airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
@@ -884,7 +884,7 @@ export function defineUpdateTrajectoryCurves () {
       distanceTravelled = this.launchRampCurve[1].tTod(t - t4)
       vehiclePosition = this.launchRampCurve[1].getPointAt(distanceTravelled / sledReturnCircleLength)
       altitude = vehiclePosition.length() - this.planetRadius
-      airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+      airPressureInPascals = evacuatedTubeInteriorPressure
       // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
       const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
       const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
@@ -990,14 +990,14 @@ export function defineUpdateTrajectoryCurves () {
         vehicleAirSpeed = vehicleVelocityRelativeToAir.length()  // Yes, we're calculating this even though the evacuated tube is evacuated. Need it for tTos and so we can plot it on the xychart
         const vehiclePositionRelativeToPlanet = vehiclePosition.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -2*Math.PI*t6a/planetSpec.lengthOfSiderealDay)
         altitude = RV.R.length() - this.planetRadius
-        airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
+        airPressureInPascals = evacuatedTubeInteriorPressure
 
         // ToDo - Potentially the aerodynamicDragFactor will drop as altitude increases - but with a frequent launch cadence, gas will probably be pushed up the tube.
         const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
         const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
         this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
-        const qConv = 0 // Assume no convective heating while in the mass driver
-        const qRad = 0 // Assume no radiative heating while in the mass driver
+        const qConv = tram.calculateQConv(vehicleAirSpeed, evacuatedTubeInteriorGasDensity, launchVehicleNoseConeTipRadius)
+        const qRad = tram.calculateQRad(vehicleAirSpeed, evacuatedTubeInteriorGasDensity)
 
         const deltaDistanceTravelled = lastVehiclePositionRelativeToPlanet.distanceTo(vehiclePositionRelativeToPlanet) // ToDo: Would be better to find the equation for distance traveled along a hyperbolic path versus time.
         this.launcherElevatedEvacuatedTubeLength += deltaDistanceTravelled
@@ -1123,10 +1123,6 @@ export function defineUpdateTrajectoryCurves () {
       const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + rampBaseLength + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
       distanceTravelledOutsideLaunchSystem += deltaDistanceTravelled
 
-      if (isNaN(airPressureInPascals)) {
-        console.error('NaN Error')
-        const airPressureInPascals = planetSpec.airPressureAtAltitude(altitude)
-      }
       const airPressureInAtmospheres = airPressureInPascals / 101325
       const launchVehicleRocketExhaustVelocity = tram.lerp(launchVehicleVacuumRocketExhaustVelocity, launchVehicleSeaLevelRocketExhaustVelocity, airPressureInAtmospheres)
   
@@ -1139,21 +1135,27 @@ export function defineUpdateTrajectoryCurves () {
 
       const dynamicPressure = 0.5 * airDensity * vehicleAirSpeed**2
       // Placeholder code
-      const prandtlNumberOfAir = 0.71
-      const recoveryFactorLaminarFlow = Math.sqrt(prandtlNumberOfAir)
-      const recoveryFactorTurbulentFlow = prandtlNumberOfAir**(1/3)
-      const ratioOfSpecificHeatsOfAir = 1.4
-      const tInfinity = planetSpec.airTemperatureInKelvinAtAltitude(altitude)
-      const speedOfSound = Math.sqrt(ratioOfSpecificHeatsOfAir * planetSpec.specificGasConstantForAir * tInfinity)
-      const adiabaticWallTemperature = tInfinity * (1 + recoveryFactorTurbulentFlow * (ratioOfSpecificHeatsOfAir - 1) / 2 * (vehicleAirSpeed/speedOfSound)**2)
-      console.log('adiabaticWallTemperature at t=', myFormat(t), 's is', myFormat(adiabaticWallTemperature), 'K')
+      let adiabaticWallTemperature = 0
+      if (airDensity>0) {
+        const prandtlNumberOfAir = 0.71
+        const recoveryFactorLaminarFlow = Math.sqrt(prandtlNumberOfAir)
+        const recoveryFactorTurbulentFlow = prandtlNumberOfAir**(1/3)
+        const ratioOfSpecificHeatsOfAir = 1.4
+        const tInfinity = planetSpec.airTemperatureInKelvinAtAltitude(altitude)
+        const speedOfSound = Math.sqrt(ratioOfSpecificHeatsOfAir * planetSpec.specificGasConstantForAir * tInfinity)
+        adiabaticWallTemperature = tInfinity * (1 + recoveryFactorTurbulentFlow * (ratioOfSpecificHeatsOfAir - 1) / 2 * (vehicleAirSpeed/speedOfSound)**2)
+      }
+      else {
+        adiabaticWallTemperature = 0
+      }
+      //console.log('adiabaticWallTemperature at t=', myFormat(t), 's is', myFormat(adiabaticWallTemperature), 'K')
+      
       const heatShieldEmissivity = 0.8
       const heatShieldTemperature = ((heatShieldEmissivity * 5.67e-8)**-1 * (0.5 * airDensity * vehicleAirSpeed**3 + heatShieldEmissivity * 5.67e-8 * adiabaticWallTemperature**4))**0.25
 
-      const qConv = kConv * vehicleAirSpeed**3 * (airDensity/launchVehicleNoseConeTipRadius)**0.5
+      const qConv = tram.calculateQConv(vehicleAirSpeed, airDensity, launchVehicleNoseConeTipRadius)
       const qConvTip = qConv * 4 * Math.PI * launchVehicleNoseConeTipRadius**2 / 2
-      //const qRad = vehicleAirSpeed**8 * airDensity**1.2 * launchVehicleNoseConeTipRadius**0.5
-      const qRad = kRad * vehicleAirSpeed**4 * airDensity
+      const qRad = tram.calculateQRad(vehicleAirSpeed, airDensity)
 
       // Print out some of the peak values that occur at the moment the vehicle leaves the evacuated tube
       if (i===0) {
@@ -1744,6 +1746,20 @@ export function defineUpdateTrajectoryCurves () {
     if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, (y)=>y*1, 0xffc080, "Light Orange", "Radiative Heating (W/m2)")
     if (dParamWithUnits['showHeatShieldTemperatureVersusTime'].value) this.xyChart.addCurve("Heat Shield Temperature", "K", "K", heatShieldTemperatureVersusTimeData, (y)=>y*0.1, 0xff0000, "Red", "Heat Shield Temperature (10's K)")
     this.xyChart.drawLegend(14, 22)
+
+    //console.print("Altitude (km)", "Air Pressure (Pa)", "Aerodynamic Drag (N)", "Convective Heating (W/mm2)")
+    function list(array1, array2, array3, array4, array5) {
+      for (let i = 0; i<array1.length; i++) {
+        console.print(array1[i].x, array1[i].y, array2[i].y, array3[i].y, array4[i].y/1e6, array5[i].y/1e6)
+      }
+    }
+    // console.print("altitudeVersusTimeData")
+    // //list(altitudeVersusTimeData)
+    // console.log("airPressureVersusTimeData")
+    //list(altitudeVersusTimeData, airPressureVersusTimeData, aerodynamicDragVersusTimeData, convectiveHeatingVersusTimeData, radiativeHeatingVersusTimeData)
+    // console.log(aerodynamicDragVersusTimeData)
+    // console.log(convectiveHeatingVersusTimeData)
+    // console.log(radiativeHeatingVersusTimeData)
 
     // forwardAccelerationVersusTimeData.forEach(point => {
     //   if (point.y<0) {

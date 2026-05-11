@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
-import { toMarsFromEarthLauncherArchitecture } from './toMarsFromEarthLauncherArchitecture.js'
+import { toMarsFromEarthLauncherArchitecture } from './toAFromBLauncherArchitecture.js'
 
 export function launchLookingBackwards(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 

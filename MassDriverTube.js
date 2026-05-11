@@ -31,7 +31,8 @@ export class massDriverTubeModel {
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { map: this.tubeTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6, shininess: 0.5} )
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, color: 0x101015, transparent: true, opacity: 0.95, shininess: 0.5} )
 
-    this.liftFanRoughSpacing = this.radius * 4 // This is the distance between lift fans along the elevated evacuated.
+    this.liftFanRoughSpacing = this.radius * 4 // This is the distance between lift fans along the elevated evacuated tube.
+    console.log('liftFanRoughSpacing = ' + this.liftFanRoughSpacing)
 
     this.liftFanHubGeometry = new THREE.SphereGeometry(this.radius * 0.1, 16, 16)
     this.liftFanHubGeometry.scale(1, 1, 3)

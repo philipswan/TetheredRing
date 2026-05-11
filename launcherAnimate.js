@@ -315,7 +315,16 @@ export function defineAnimate () {
         virtualObjectList.forEach(object => {
           if (object.model) {
             object.model.visible = false
-            object.constructor.unallocatedModels.push(object.model)
+            if (object.constructor.modelsAreRecyleable) {
+              object.constructor.unallocatedModels.push(object.model)
+            }
+            else {
+              // Non-recycleable models are unique per position, so dispose and remove them
+              this.scene.remove(object.model)
+              object.model.traverse(child => {
+                if (child.isMesh) child.geometry.dispose()
+              })
+            }
             object.model = null
           }
         })
@@ -368,12 +377,14 @@ export function defineAnimate () {
                 }
               }
               else {
-                // Create a new model
-                // object.model = objectClass.createModel(refFrame, object)
-                // object.model.name = virtualObjectClassName
-                // object.model.visible = object.isVisible
-                // this.scene.add(object.model)
-                // count++
+                // Recreate model for non-recycleable object using its existing model object's createModel
+                const modelObject = objectClass.addObjectsParameters[1]
+                if (modelObject && modelObject.createModel) {
+                  object.model = modelObject.createModel(refFrame.curve, object.index)
+                  object.model.name = virtualObjectClassName
+                  object.model.visible = object.isVisible
+                  this.scene.add(object.model)
+                }
               }
             }
           })

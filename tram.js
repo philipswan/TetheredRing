@@ -1620,8 +1620,8 @@ export function getPlanetSpec(planet) {
           a: 3396200.0, // Semi-major axis in meters
           f: 1 / 169.89444722361179, // Flattening
         },
-        airDensityAtAltitude: function(a) {
-          // Input in meters
+        airTemperatureInKelvinAtAltitude: function(a) {
+          // Input in meters, Output in Kelvin
           let T
           if (a<=7000) {
             T = -31 - 0.000998 * a
@@ -1629,8 +1629,13 @@ export function getPlanetSpec(planet) {
           else {
             T = -23.4 - 0.00222 * a
           }
-          const p = .699 * exp(-0.00009 * a)
-          const airDensityAtAltitude =  p / [.1921 * (T + 273.1)]
+          return T + 273.1
+        },
+        airDensityAtAltitude: function(a) {
+          // Input in meters
+          const T = this.airTemperatureInKelvinAtAltitude(a)
+          const ρ = .699 * exp(-0.00009 * a)
+          const airDensityAtAltitude =  ρ / (.1921 * (T + 273.1))
           return airDensityAtAltitude  // In kg/m^3
         },
         airPressureAtAltitude: function(a) {
@@ -1657,6 +1662,7 @@ export function getPlanetSpec(planet) {
         },
         airDensityAtAltitude: function(a) {return 0},
         airPressureAtAltitude: function(a) {return 0},
+        airTemperatureInKelvinAtAltitude: function(a) {return 250},
         texturePath: "moon/",
         textureColorFormat: "png",
         textureDisplacementFormat: "png",
@@ -1675,6 +1681,7 @@ export function getPlanetSpec(planet) {
         gravitationalParameter: 2.203209E13,     // m^3/kg/s^2
         airDensityAtAltitude: function(a) {return 0},
         airPressureAtAltitude: function(a) {return 0},
+        airTemperatureInKelvinAtAltitude: function(a) {return 250},
       }
       break
     case 'venus':
@@ -2322,3 +2329,14 @@ export function myFormat(value, fractionDigits = 0) {
   })
 }
 
+export function calculateQConv(vehicleAirSpeed, airDensity, launchVehicleNoseConeTipRadius) {
+  const kConv = 1.83e-4  //W·s3·m-2·kg1/2
+  const qConv = kConv * vehicleAirSpeed**3 * (airDensity/launchVehicleNoseConeTipRadius)**0.5
+  return qConv
+}
+
+export function calculateQRad(vehicleAirSpeed, airDensity) {
+  const kRad = 2e-7 //W·s4·m-6·kg-1
+  const qRad = kRad * vehicleAirSpeed**4 * airDensity
+  return qRad
+}
