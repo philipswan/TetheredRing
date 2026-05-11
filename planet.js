@@ -73,7 +73,7 @@ export class planet {
 
 
     // opacity will now work with or without shaders, so warning is not needed.
-    const useShaders = false;
+    const useShaders = true;
 
     //tetheredRingRefCoordSys.rotation.y = Math.PI/4  // This is done so that the eccentricity adjustment is where we need it to be
     // The above line puts the reference coordinate system's y-axis at lat/lon {0, 0} when RingCenterLat==0 and RingCenterLon==0
@@ -275,8 +275,8 @@ export class planet {
           displacementMap = new THREE.TextureLoader().load( './textures/EARTH_DISPLACE_42K_16BITS_preview.jpg' )
         }
         else if (planetSpec.name == "Moon") {
-          //texture = new THREE.TextureLoader().load( './textures/lroc_color_poles.png' )
-          //displacementMap = new THREE.TextureLoader().load( './textures/ldem_64.png' )
+          // texture = new THREE.TextureLoader().load( './textures/lroc_color_poles.png' )
+          // displacementMap = new THREE.TextureLoader().load( './textures/ldem_64.png' )
           texture = new THREE.TextureLoader().load( './textures/moon.jpg' )
           texture.colorSpace = THREE.SRGBColorSpace
           displacementMap = null
