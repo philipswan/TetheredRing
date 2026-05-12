@@ -1882,7 +1882,6 @@ const mouse = {
 }
 let intersectionPoint = new THREE.Vector3
 let targetPoint = new THREE.Vector3
-let cameraCoordinates = new THREE.Vector3
 let animateRingRaising = false
 let animateRingLowering = false
 let animateRingMovingOut = false
@@ -2916,7 +2915,6 @@ function onKeyDown( event ) {
         objectTracker.findNearestObject(dParamWithUnits, scene, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
         if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
           targetPoint = objectTracker.trackingPoint.clone()
-          cameraCoordinates = objectTracker.cameraPosition.clone()
           setupTweeningOperation()
           orbitControls.rotationSpeed = 0.01
         }
@@ -3653,9 +3651,8 @@ function setupTweeningOperation() {
 
   tweeningActive = true
 
-  const newCameraLocation = (cameraCoordinates!==null) ? cameraCoordinates.clone() : orbitControls.target.clone()
   new TWEEN.Tween(orbitControls.target)
-    .to(newCameraLocation, tweeningTime)
+    .to(orbitControlsTargetPoint, tweeningTime)
     .easing(TWEEN.Easing.Linear.None)
     .start(timeSinceStart*1000)
     .onComplete(() => {tweeningActive = false})
