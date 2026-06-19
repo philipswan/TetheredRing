@@ -711,19 +711,19 @@ export function define_genLauncherSpecs() {
     console.print("maxHoopStress, ", myFormat(maxHoopStress/1e6), "MPa")
 
     // Note - this does not yet consider the additional stress due to the mass of the screw flights or extra speed at the ends of the flights.
-    const screwShaftMaxRateOfRotation = Math.sqrt(σ_y/f/ρ/(ro**2-ri**2))  // Units are radians per second
-    specs['screwShaftMaxRateOfRotation'] = {value: screwShaftMaxRateOfRotation, units: "rad/s"}
-    console.print("screwShaftMaxRateOfRotation, ", myFormat(screwShaftMaxRateOfRotation, 2), "rad/s")
+    const screwShaftMaxAngularVelocity = Math.sqrt(σ_y/f/ρ/(ro**2-ri**2))  // Units are radians per second
+    specs['screwShaftMaxAngularVelocity'] = {value: screwShaftMaxAngularVelocity, units: "rad/s"}
+    console.print("screwShaftMaxAngularVelocity, ", myFormat(screwShaftMaxAngularVelocity, 2), "rad/s")
 
-    const screwMaxRateOfRotation = launcherMassDriverScrewAngularVelocity   // rad/s
-    specs['screwMaxRateOfRotation'] = {value: screwMaxRateOfRotation, units: "rad/s"}
-    console.print("screwMaxRateOfRotation, ", myFormat(screwMaxRateOfRotation, 2), "rad/s")
+    const screwAngularVelocity = launcherMassDriverScrewAngularVelocity   // rad/s
+    specs['screwAngularVelocity'] = {value: screwAngularVelocity, units: "rad/s"}
+    console.print("screwAngularVelocity, ", myFormat(screwAngularVelocity, 2), "rad/s")
 
-    const screwMaxRateOfRotationRPM = screwMaxRateOfRotation * 60 / (2 * Math.PI) // Convert to RPM
+    const screwMaxRateOfRotationRPM = screwAngularVelocity * 60 / (2 * Math.PI) // Convert to RPM
     specs['screwMaxRateOfRotationRPM'] = {value: screwMaxRateOfRotationRPM, units: "RPM"}
     console.print("screwMaxRateOfRotationRPM, ", myFormat(screwMaxRateOfRotationRPM), "RPM")
-    
-    const screwShaftMaxRimSpeed = screwMaxRateOfRotation * ro
+        
+    const screwShaftMaxRimSpeed = screwAngularVelocity * ro
     specs['screwShaftMaxRimSpeed'] = {value: screwShaftMaxRimSpeed, units: "m/s"}
     console.print("screwShaftMaxRimSpeed, ", myFormat(screwShaftMaxRimSpeed, 2), "m/s")
 
@@ -731,7 +731,7 @@ export function define_genLauncherSpecs() {
     specs['midPadRadius'] = {value: midPadRadius, units: "m"}
     console.print("midPadRadius, ", myFormat(midPadRadius, 2), "m")
 
-    const screwThreadFaceSpeed = screwMaxRateOfRotation * midPadRadius
+    const screwThreadFaceSpeed = screwAngularVelocity * midPadRadius
     specs['screwThreadFaceSpeed'] = {value: screwThreadFaceSpeed, units: "m/s"}
     console.print("screwThreadFaceSpeed, ", myFormat(screwThreadFaceSpeed, 2), "m/s")
 
@@ -864,7 +864,7 @@ export function define_genLauncherSpecs() {
     const flywheelDensity = dParamWithUnits['launcherMassDriverFlywheelMaterialDensity'].value
     const flywheelYieldStrength = dParamWithUnits['launcherMassDriverFlywheelMaterialYieldStrength'].value
     const flywheelEngineeringFactor = dParamWithUnits['launcherMassDriverFlywheelEngineeringFactor'].value
-    const flywheelFinalRateOfRotation = screwMaxRateOfRotation
+    const flywheelFinalAngualarVelocity = screwAngularVelocity
     const flywheelLength = launcherMassDriverScrewRoughLength * flywheelLengthFactor
 
     const flywheelVolume = Math.PI * flywheelLength * (flywheelOuterRadius**2 - flywheelInnerRadius**2)
@@ -879,7 +879,7 @@ export function define_genLauncherSpecs() {
     specs['flywheelMomentOfInertia'] = {value: flywheelMomentOfInertia, units: 'kg*m^2'}
     console.print('flywheelMomentOfInertia', myFormat(flywheelMomentOfInertia, 2), "kg*m^2")
     
-    const flywheelFinalKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelFinalRateOfRotation**2
+    const flywheelFinalKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelFinalAngualarVelocity**2
     specs['flywheelFinalKineticEnergy'] = {value: flywheelFinalKineticEnergy, units: 'J'}
     console.print('flywheelFinalKineticEnergy', myFormat(flywheelFinalKineticEnergy/1e6, 3), "MJ")
 
@@ -887,21 +887,21 @@ export function define_genLauncherSpecs() {
     specs['kineticEnergyTransferedByOneScrewSegment'] = {value: kineticEnergyTransferedByOneScrewSegment, units: 'J'}
     console.print('kineticEnergyTransferedByOneScrewSegment', myFormat(kineticEnergyTransferedByOneScrewSegment/1e6, 3), "MJ")
 
-    const changeInFlywheelRotationRate = kineticEnergyTransferedByOneScrewSegment / flywheelMomentOfInertia / screwMaxRateOfRotation
+    const changeInFlywheelRotationRate = kineticEnergyTransferedByOneScrewSegment / flywheelMomentOfInertia / screwAngularVelocity
     specs['changeInFlywheelRotationRate'] = {value: changeInFlywheelRotationRate, units: 'rad/s'}
     console.print('changeInFlywheelRotationRate', myFormat(changeInFlywheelRotationRate, 1), "rad/s (", myFormat(changeInFlywheelRotationRate/(2*Math.PI), 1), "RPS)")
 
-    const flywheelInitialRateOfRotation = flywheelFinalRateOfRotation + changeInFlywheelRotationRate
-    specs['flywheelInitialRateOfRotation'] = {value: flywheelInitialRateOfRotation, units: 'rad/s'}
-    console.print('flywheelInitialRateOfRotation', myFormat(flywheelInitialRateOfRotation), "rad/s")
-    console.print('flywheelFinalRateOfRotation', myFormat(flywheelFinalRateOfRotation), "rad/s")
+    const flywheelInitialAngularVelocity = flywheelFinalAngualarVelocity + changeInFlywheelRotationRate
+    specs['flywheelInitialAngularVelocity'] = {value: flywheelInitialAngularVelocity, units: 'rad/s'}
+    console.print('flywheelInitialAngularVelocity', myFormat(flywheelInitialAngularVelocity), "rad/s")
+    console.print('flywheelFinalAngualarVelocity', myFormat(flywheelFinalAngualarVelocity), "rad/s")
 
     // Check the flywheels maximum rate of rotation based on hoop stress (assume same material as screws)
-    const flywheelMaxRateOfRotation = Math.sqrt(flywheelYieldStrength/flywheelEngineeringFactor/flywheelDensity/(flywheelOuterRadius**2 - flywheelInnerRadius**2))
-    specs['flywheelMaxRateOfRotation'] = {value: flywheelMaxRateOfRotation, units: 'rad/s'}
-    console.print('flywheelMaxRateOfRotation', myFormat(flywheelMaxRateOfRotation), "rad/s")
+    const flywheelMaxAngularVelocity = Math.sqrt(flywheelYieldStrength/flywheelEngineeringFactor/flywheelDensity/(flywheelOuterRadius**2 - flywheelInnerRadius**2))
+    specs['flywheelMaxAngularVelocity'] = {value: flywheelMaxAngularVelocity, units: 'rad/s'}
+    console.print('flywheelMaxAngularVelocity', myFormat(flywheelMaxAngularVelocity), "rad/s")
 
-    const flywheelInitialKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelInitialRateOfRotation**2
+    const flywheelInitialKineticEnergy = 0.5 * flywheelMomentOfInertia * flywheelInitialAngularVelocity**2
     specs['flywheelInitialKineticEnergy'] = {value: flywheelInitialKineticEnergy, units: 'J'}
     console.print('flywheelInitialKineticEnergy', myFormat(flywheelInitialKineticEnergy/1e6, 3), "MJ")
         

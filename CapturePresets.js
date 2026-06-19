@@ -109,7 +109,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     case 22:
       elevatedEvacuatedTubeDeployment(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
-    case 23:
+    case 23: 
       olympusMonsLauncher(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
     case 24:

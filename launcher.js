@@ -100,11 +100,6 @@ export class launcher {
         this.bracketModelObject = new massDriverBracketModel(dParamWithUnits)
         this.humanFigureModelObject = new humanFigureModel()
 
-        // Create rail materials
-        this.massDriverRailMaterials = []
-        this.massDriverRailMaterials[0] = new THREE.MeshPhongMaterial( { color: 0x31313E } )
-        this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x79111E } )
-
         // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
         // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
         // const rf1 = new referenceFrame(launchCurve, numZones, this.cameraRange, 0, 0, 0, 'staticLaunchSledReferenceFrame')
@@ -331,7 +326,7 @@ export class launcher {
         addVirtualObjectToReferenceFrame(this.refFrames, 2, virtualMassDriverRail)
         virtualMassDriverRail.updateParameters = [dParamWithUnits, this.versionNumber]
         virtualMassDriverRail.tearDownParameters = [dParamWithUnits]
-        virtualMassDriverRail.addObjectsParameters = [this.scene, this.railModelObject, this.massDriverRailMaterials]
+        virtualMassDriverRail.addObjectsParameters = [this.scene, this.railModelObject]
         addVirtualObjectToReferenceFrame(this.refFrames, 3, virtualMassDriverTube)
         virtualMassDriverTube.updateParameters = [dParamWithUnits, this.versionNumber]
         virtualMassDriverTube.tearDownParameters = [dParamWithUnits]
@@ -419,6 +414,7 @@ export class launcher {
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     this.showMarkers = dParamWithUnits['showMarkers'].value
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
+    this.massDriverRailSegments = dParamWithUnits['numVirtualMassDriverRails'].value
 
     switch (dParamWithUnits['launchTrajectorySelector'].value) {
       default:

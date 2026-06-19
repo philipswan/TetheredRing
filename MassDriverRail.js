@@ -9,42 +9,55 @@ export class massDriverRailModel {
   // However, we can still hide and models, and also not update them, when they are too far from the camera to be visible.
   constructor(dParamWithUnits) {
     this.update(dParamWithUnits)
+    // Create rail materials
+    this.massDriverRailMaterials = []
+    this.massDriverRailMaterials[0] = new THREE.MeshPhongMaterial( { color: 0x31313E } )
+    this.massDriverRailMaterials[1] = new THREE.MeshPhongMaterial( { color: 0x79111E } )
   }
 
   update(dParamWithUnits) {
     this.shape = this.createShape(dParamWithUnits)
+    this.massDriverRailSegments = dParamWithUnits['numVirtualMassDriverRails'].value
   }
 
-  createModel(curve, index, count, massDriverRailMaterials) {
+  createModel(curve, segmentIndex) {
 
     const modelLengthSegments = 32    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-    const tubePoints = []
+    const railPoints = []
 
     // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelCenterPosition = (index + 0.5) / count
-    const refPoint = curve.getPointAt(modelCenterPosition)
+    const modelsCurvePosition = (segmentIndex + 0.5) / this.massDriverRailSegments
+    const refPoint = curve.getPointAt(modelsCurvePosition)
+    
     const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
     const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = curve.getQuaternionAt(modelCenterPosition, modelForward, modelUpward).invert()
+    const orientation = curve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
 
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
+    // We need to define a curve for this segment of the mass driver, and then use that curve to create a rail geometry for this model
     for (let i = 0; i<=modelLengthSegments; i++) {
-      const modelPointPosition = (index*modelLengthSegments + i) / (modelLengthSegments*count)
-      tubePoints.push(curve.getPointAt(modelPointPosition).sub(refPoint).applyQuaternion(orientation))
+      const modelsCurvePosition = (segmentIndex + i/modelLengthSegments) / this.massDriverRailSegments
+      railPoints.push(curve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
     }
-    const massDriverSegmentCurve = new CatmullRomSuperCurve3(tubePoints)
+    const massDriverSegmentCurve = new CatmullRomSuperCurve3(railPoints)
     const extrudeSettings = {
       steps: modelLengthSegments,
       depth: 1,
       extrudePath: massDriverSegmentCurve
     }
-    const massDriverRailGeometry = new THREE.ExtrudeGeometry(this.shape, extrudeSettings)
+    let massDriverRailGeometry
+    try {
+      massDriverRailGeometry = new THREE.ExtrudeGeometry(this.shape, extrudeSettings)
+    }
+    catch (error) {
+      debugger
+      massDriverRailGeometry = new THREE.ExtrudeGeometry(this.shape, extrudeSettings)
+    }
     massDriverRailGeometry.name = "massDriverRailGeometry"
     // ToDo: We are creating multiple identical materials here.  We should create one material and reuse it.
     // Hack for Hawaii clip
-    //const massDriverRailMaterial = massDriverRailMaterials[(index % 16 == 0) ? 1 : 0] // This makes every 16th rail segment a different color
+    //const massDriverRailMaterial = this.massDriverRailMaterials[(index % 16 == 0) ? 1 : 0] // This makes every 16th rail segment a different color
     const onRamp = (curve.name=="launchRampCurve")
-    const massDriverRailMaterial = massDriverRailMaterials[(onRamp) ? 1 : 0]
+    const massDriverRailMaterial = this.massDriverRailMaterials[(onRamp) ? 1 : 0]
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
     return massDriverRailMesh
   }
@@ -99,12 +112,12 @@ export class virtualMassDriverRail {
     static modelsAreRecyleable = false
 
     static isTeardownRequired(dParamWithUnits) {
-      const newNumObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRailsPerZone'].value : 0
+      const newNumObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRails'].value : 0
       return newNumObjects!==virtualMassDriverRail.numObjects
     }
 
     static update(dParamWithUnits, versionNumber) {
-      virtualMassDriverRail.numObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRailsPerZone'].value : 0
+      virtualMassDriverRail.numObjects = dParamWithUnits['showMassDriverRail'].value ? dParamWithUnits['numVirtualMassDriverRails'].value : 0
       virtualMassDriverRail.isVisible = dParamWithUnits['showMassDriverRail'].value
       virtualMassDriverRail.upwardsOffset = dParamWithUnits['launchRailUpwardsOffset'].value //- dParamWithUnits['launchSledHeight'].value/2 - dParamWithUnits['launcherMassDriverRailHeight'].value/2
       virtualMassDriverRail.isDynamic =  false
@@ -112,37 +125,55 @@ export class virtualMassDriverRail {
       virtualMassDriverRail.versionNumber = versionNumber
     }
   
-    static addNewVirtualObjects(refFrames, scene, railModelObject, massDriverRailMaterials) {
+    static addNewVirtualObjects(refFrames, scene, railModelObject) {
       virtualMassDriverRail.hasChanged = true
 
-      const nrpz = virtualMassDriverRail.numObjects   // Number of rails per zone
+      const n = virtualMassDriverRail.numObjects   // Number of rails per zone
       // Add new mass driver rails to the launch system
       console.assert(refFrames.length==1)
       refFrames.forEach(refFrame => {
-        const totalCurveLength = refFrame.curve.getLength()
-        refFrame.curve.superCurves.forEach((subCurve, subCurveIndex) => {
-          const lengthOfSubCurve = subCurve.getLength()
-          const lengthOffsetToSubcurve = (subCurveIndex==0) ? 0 : refFrame.curve.cacheLengths[subCurveIndex-1]
-          const nscz = refFrame.curve.numZones[subCurveIndex]  // Number of subCurve zones
-          const zoneIndexOffset = refFrame.curve.startZone[subCurveIndex]
-          for (let i = 0; i < nscz ; i++) {
-            const zoneIndex = zoneIndexOffset + i
-            for (let j = 0; j < nrpz ; j++) {
-              const d = (lengthOffsetToSubcurve + (i*nrpz+j+0.5)/(nscz*nrpz) * lengthOfSubCurve) / totalCurveLength
-              const vmdr = new virtualMassDriverRail(d)
-              vmdr.model = railModelObject.createModel(subCurve, i*nrpz+j, nscz*nrpz, massDriverRailMaterials)
-              vmdr.model.name = 'MassDriverRail'
-              if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
-                refFrame.wedges[zoneIndex][virtualMassDriverRail.className].push(vmdr)
-                scene.add(vmdr.model)
-              }
-              else {
-                console.log('Error')
-              }
-              //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
-            }
+        for (let i = 0; i < n; i++) {
+          const d = (i+0.5)/n
+          const vmdr = new virtualMassDriverRail(d)
+          vmdr.index = i
+          vmdr.model = railModelObject.createModel(refFrame.curve, i)
+          //vmdr.model = railModelObject.createModel( subCurve, i*n+j, nscz*n)
+          vmdr.model.name = 'massDriverRail'
+          const zoneIndex = refFrame.curve.getZoneIndexAt(d)
+          if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+            refFrame.wedges[zoneIndex][virtualMassDriverRail.className].push(vmdr)
+            scene.add(vmdr.model)
+            //count++
           }
-        })
+          else {
+            console.log('Error')
+          }
+        }
+
+        // const totalCurveLength = refFrame.curve.getLength()
+        // refFrame.curve.superCurves.forEach((subCurve, subCurveIndex) => {
+        //   const lengthOfSubCurve = subCurve.getLength()
+        //   const lengthOffsetToSubcurve = (subCurveIndex==0) ? 0 : refFrame.curve.cacheLengths[subCurveIndex-1]
+        //   const nscz = 1 //refFrame.curve.numZones[subCurveIndex]  // Number of subCurve zones
+        //   const zoneIndexOffset = refFrame.curve.startZone[subCurveIndex]
+        //   for (let i = 0; i < nscz ; i++) {
+        //     const zoneIndex = zoneIndexOffset + i
+        //     for (let j = 0; j < n ; j++) {
+        //       const d = (lengthOffsetToSubcurve + (i*n+j+0.5)/(nscz*n) * lengthOfSubCurve) / totalCurveLength
+        //       const vmdr = new virtualMassDriverRail(d)
+        //       vmdr.model = railModelObject.createModel(subCurve, i*n+j, nscz*n, massDriverRailMaterials)
+        //       vmdr.model.name = 'MassDriverRail'
+        //       if ((zoneIndex>=0) && (zoneIndex<refFrame.numZones)) {
+        //         refFrame.wedges[zoneIndex][virtualMassDriverRail.className].push(vmdr)
+        //         scene.add(vmdr.model)
+        //       }
+        //       else {
+        //         console.log('Error')
+        //       }
+        //       //vmdr.model.scale.set(100,1,1) // This is a hack to make the rail larger and more visible
+        //     }
+        //   }
+        // })
         refFrame.prevStartWedgeIndex = -1
       })
     }

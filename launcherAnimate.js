@@ -380,7 +380,13 @@ export function defineAnimate () {
                 // Recreate model for non-recycleable object using its existing model object's createModel
                 const modelObject = objectClass.addObjectsParameters[1]
                 if (modelObject && modelObject.createModel) {
-                  object.model = modelObject.createModel(refFrame.curve, object.index)
+                  try {
+                    object.model = modelObject.createModel(refFrame.curve, object.index)
+                  }
+                  catch (error) {
+                    debugger
+                    object.model = modelObject.createModel(refFrame.curve, object.index)
+                  }
                   object.model.name = virtualObjectClassName
                   object.model.visible = object.isVisible
                   this.scene.add(object.model)

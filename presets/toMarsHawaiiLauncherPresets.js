@@ -177,16 +177,16 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showStars'].value = true
   //guidParamWithUnits['showLaunchTrajectory'].value = true
   guidParamWithUnits['launcherCoastTime'].value = 100*20
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
-  guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
+  guidParamWithUnits['orbitControlsRotateSpeed'].value = -.01
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
+  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 300.0
   guidParamWithUnits['logZoomRate'].value = -3
   guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showMarkers'].value = false
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 100
+  nonGUIParams['nearClip'] = 10
   nonGUIParams['farClip'] = 100000000
 
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
@@ -199,10 +199,15 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
     
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-696258.734928957, 114001.08046871657, 371135.95967124123)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-815556.0828945136, -93118.84250173089, 204892.60024699476)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-36.21158583671786, 1.79342060117051, 11.38001290615648)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(6.8633874780498445, -21.86256320727989, -18.231402538716793)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
+
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-696258.734928957, 114001.08046871657, 371135.95967124123)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-815556.0828945136, -93118.84250173089, 204892.60024699476)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.26753503210096263, 0.33375625798848, -0.9038980953914353)
 
   
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
@@ -223,6 +228,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Hack to speed up the simulation
   //guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
   //guidParamWithUnits['showMassDriverBrackets'].value = false
+  guidParamWithUnits['showMassDriverTube'].value = false
 
   // Start rotating and zooming out the camera same time that the launch starts
   // nonGUIParams['startTimerActions'] = (startTimerParams) => {

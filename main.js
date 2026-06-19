@@ -146,7 +146,7 @@ const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perf
 const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfEarth + 32000)) * 180 / Math.PI
 
 const defaultShows = true // Set to false to reduce loading time
-const massDriverShows = true
+const massDriverShows = false
 
 // Constants controlled by sliders
 const guidParamWithUnits = {
@@ -416,7 +416,7 @@ const guidParamWithUnits = {
   launcherMassDriverRailMaterialDensity: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailMaterialCost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   launchRailUpwardsOffset: {value: -2.0, units: 'm', autoMap: true, min: -200, max: 200, updateFunction: updateLauncher, folder: folderLauncher},
-  numVirtualMassDriverRailsPerZone: {value: 1, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  numVirtualMassDriverRails: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketWidth: {value: 2.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketHeight: {  value: 0.3, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverBracketRibWidth: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
