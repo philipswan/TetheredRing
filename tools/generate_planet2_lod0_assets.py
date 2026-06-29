@@ -173,10 +173,18 @@ def bilinear_sample_grid(image: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> n
     return cx0 * (1.0 - ty) + cx1 * ty
 
 
-def _tile_uv_grids(lod: int, tile_x: int, tile_y: int, face_size: int) -> tuple[np.ndarray, np.ndarray]:
-    """Build the (u, v) cube-coordinate grids (pixel centers) for a tile."""
+def _tile_uv_grids(lod: int, tile_x: int, tile_y: int, face_size: int, align: str = 'center') -> tuple[np.ndarray, np.ndarray]:
+    """Build the (u, v) cube-coordinate grids for a tile.
+
+    align='center' samples pixel centers (good for color). align='edge' samples
+    edge-inclusive [0..1] so adjacent tiles share identical boundary columns/rows,
+    which the renderer's edge-inclusive height lookup requires to avoid seam cracks.
+    """
     tile_count = 1 << lod
-    s = (np.arange(face_size, dtype=np.float64) + 0.5) / face_size
+    if align == 'edge':
+        s = np.arange(face_size, dtype=np.float64) / (face_size - 1)
+    else:
+        s = (np.arange(face_size, dtype=np.float64) + 0.5) / face_size
     u_axis = -1.0 + 2.0 * ((tile_x + s) / tile_count)
     v_axis = -1.0 + 2.0 * ((tile_y + s) / tile_count)
     u, v = np.meshgrid(u_axis, v_axis)  # u[py, px]=u_axis[px], v[py, px]=v_axis[py]
@@ -227,7 +235,7 @@ def generate_tile_color(face: str, src_rgb: np.ndarray, lod: int, tile_x: int, t
 
 
 def generate_tile_height(face: str, src_hmap: np.ndarray, lod: int, tile_x: int, tile_y: int, face_size: int, height_min_m: float = -200.0, height_max_m: float = 8500.0) -> np.ndarray:
-    u, v = _tile_uv_grids(lod, tile_x, tile_y, face_size)
+    u, v = _tile_uv_grids(lod, tile_x, tile_y, face_size, align='edge')
     dx, dy, dz = cube_to_direction_grid(face, u, v)
     sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_hmap.shape[1], src_hmap.shape[0])
     sampled = bilinear_sample_grid(src_hmap, sx, sy)

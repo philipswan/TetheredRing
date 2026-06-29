@@ -364,7 +364,7 @@ class CubedSpherePlanetRenderer {
     this.meanRadius = (2 * this.a + this.b) / 3;
     // Skirts must out-reach inter-LOD height mismatches, which scale with the
     // (possibly exaggerated) displacement multiplier, to hide cracks/z-fighting.
-    this.skirtDepthMeters = Math.max(this.a * 0.00005, 1000 * this.displacementScaleMultiplier);
+    this.skirtDepthMeters = Math.max(this.a * 0.0002, 5000 * this.displacementScaleMultiplier);
 
     // Caches and scheduling.
     this.indexBufferCache = new IndexBufferCache();
@@ -404,7 +404,7 @@ class CubedSpherePlanetRenderer {
       color: 0x8aa7c2,
       roughness: 1,
       metalness: 0,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide,
     });
 
     this.manifest = null;
@@ -739,7 +739,7 @@ class CubedSpherePlanetRenderer {
     const u0 = -1 + tile.x * tileSpan;
     const v0 = -1 + tile.y * tileSpan;
 
-    const includeSkirts = true;
+    const includeSkirts = false;
     const baseCount = (seg + 1) * (seg + 1);
     const skirtCount = includeSkirts ? (seg + 1) * 4 : 0;
     const total = baseCount + skirtCount;
