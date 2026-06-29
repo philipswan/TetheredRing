@@ -345,8 +345,8 @@ class CubedSpherePlanetRenderer {
     this.hysteresisCollapse = 0.75;
 
     // Throttle high-LOD refinement while the camera moves quickly.
-    this.fastCameraSpeed = options.fastCameraSpeed ?? 2500;
-    this.maxLodWhileFast = options.maxLodWhileFast ?? 3;
+    this.fastCameraSpeed = options.fastCameraSpeed ?? Infinity;
+    this.maxLodWhileFast = options.maxLodWhileFast ?? Infinity;
 
     this.requireKtx2 = options.requireKtx2 === true;
     this.displacementScaleMultiplier = Math.max(0, options.displacementScaleMultiplier ?? 1);
@@ -1220,8 +1220,8 @@ export class planet2 {
       requireKtx2: nonGUIParams.planet2RequireKtx2 === true,
       locationInterests: nonGUIParams.locationInterests,
       displacementScaleMultiplier: nonGUIParams.planet2DisplacementScaleMultiplier ?? 1,
-      fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? 2500,
-      maxLodWhileFast: nonGUIParams.planet2MaxLodWhileFast ?? 3,
+      fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? Infinity,
+      maxLodWhileFast: nonGUIParams.planet2MaxLodWhileFast ?? Infinity,
     });
     this.lodRenderer = lodRenderer;
 
