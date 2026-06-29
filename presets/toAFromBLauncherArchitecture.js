@@ -205,7 +205,7 @@ export function toAFromBLauncherArchitecture(
   setVehicleMasses(guidParamWithUnits)
 
   guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = departureBody.name === 'Earth' ? 160 : 120
+  guidParamWithUnits['launcherRampUpwardAcceleration'].value = departureBody.name === 'Earth' ? 240 : 120
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000

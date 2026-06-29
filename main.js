@@ -31,6 +31,7 @@ import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFa
 // import Stats from 'three/examples/jsm/libs/stats.module.js'
 
 import { planet } from './planet.js'
+import { planet2 } from './planet2.js'
 import { transitSystem } from './transitsystems.js'
 import { TetherGeometry } from './tethers.js'
 import { stars } from './stars.js'
@@ -361,6 +362,7 @@ const guidParamWithUnits = {
   launchVehicleVacuumRocketExhaustVelocity: {value: 4436, units: 'm/s', autoMap: true, min: 0, max: 20000, updateFunction: updateLauncher, folder: folderLauncher},
   launchSledMass: {value: 2000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherAdaptiveNutMass: {value: 9000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherNutMass: {value: 5000, units: 'kg', autoMap: true, min: 0, max: 10000, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleDesiredOrbitalAltitude: {value: 200000, units: 'm', autoMap: true, min: 0, max: 10000000, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNoseConeTipRadius: {value: 0.001, units: 'm', autoMap: true, min: 0, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1318,6 +1320,13 @@ if (enableVR) {
 
 // Configure renderer settings
 renderer.autoClear = false;
+nonGUIParams['maxTextureAnisotropy'] = renderer.capabilities.getMaxAnisotropy()
+nonGUIParams['maxTextureSize'] = renderer.capabilities.maxTextureSize
+nonGUIParams['renderer'] = renderer
+console.log('Renderer texture caps', {
+  maxTextureAnisotropy: nonGUIParams['maxTextureAnisotropy'],
+  maxTextureSize: nonGUIParams['maxTextureSize']
+})
 
 // Append the renderer to the DOM
 //document.body.appendChild(renderer.domElement);
@@ -1361,12 +1370,24 @@ planetCoordSys.add(fakeCamera)
 
 
 let planetMeshes, atmosphereMesh, backgroundPatchMesh
+let updatePlanetLod = null
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value || dParamWithUnits['showBackgroundPatch'].value) {
-  [planetMeshes, atmosphereMesh, backgroundPatchMesh] = new planet(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
+  const usePlanet2 = nonGUIParams['usePlanet2'] === true
+  const planetFactory = usePlanet2 ? planet2 : planet
+  const planetResult = new planetFactory(dParamWithUnits, planetSpec, enableVR, nonGUIParams)
+  ;[planetMeshes, atmosphereMesh, backgroundPatchMesh] = planetResult
+
+  if (usePlanet2 && (typeof planetResult.updatePlanetLod === 'function')) {
+    updatePlanetLod = planetResult.updatePlanetLod
+    if (typeof planetResult.setPlanetDebugMode === 'function' && nonGUIParams['planet2DebugMode']) {
+      planetResult.setPlanetDebugMode(nonGUIParams['planet2DebugMode'])
+    }
+  }
+
   if (dParamWithUnits['showEarthsSurface'].value) planetCoordSys.add(planetMeshes)
   if (dParamWithUnits['showEarthsAtmosphere'].value) planetCoordSys.add(atmosphereMesh)
-  if (dParamWithUnits['showBackgroundPatch'].value) planetCoordSys.add(backgroundPatchMesh)
+  if (dParamWithUnits['showBackgroundPatch'].value && backgroundPatchMesh) planetCoordSys.add(backgroundPatchMesh)
 }
 
 let backgroundPatchActive = false
@@ -1996,6 +2017,10 @@ function renderFrame() {
   
   const clockDelta = clock.getDelta()
   timeSinceStart += clockDelta
+
+  if (updatePlanetLod) {
+    updatePlanetLod(camera)
+  }
 
   // Cause the logo to disappear after a few seconds
   if ((timeSinceStart>20) && (guidParam['showLogo']===true)) {

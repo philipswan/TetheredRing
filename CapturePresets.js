@@ -12,6 +12,7 @@ import { launchLookingBackwards } from './presets/launchLookingBackwards.js'
 import { multipleRings } from './presets/multipleRings.js'
 import { multipleUSRings } from './presets/multipleUSRings.js'
 import { toOrbitFromMoonLauncherPresets } from './presets/toOrbitFromMoonLauncherPresets.js'
+import { variableSpeedScrew } from './presets/variableSpeedScrew.js'
 
 export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -32,6 +33,13 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   }
   nonGUIParams['startTimerActions'] = (startTimerParams) => {}
   nonGUIParams['getCapturePresetRegions'] = (i, j) => { return (false) }
+  nonGUIParams['useXHREarthTexture'] = false
+  nonGUIParams['getCapturePresetRegionsXHRTexture'] = (i, j) => { return (false) }
+  nonGUIParams['getXHREarthTextureFilename'] = (i, j, w, h, colorFormat) => { return (null) }
+  nonGUIParams['useXHREarthDisplacement'] = false
+  nonGUIParams['getCapturePresetRegionsXHRDisplacement'] = (i, j) => { return (false) }
+  nonGUIParams['getXHREarthDisplacementFilename'] = (i, j, w, h, displacementFormat) => { return (null) }
+  nonGUIParams['getCapturePresetXHRDisplacementGeometryMultiplier'] = (i, j) => { return (1) }
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
 
@@ -123,6 +131,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       break
     case 27:
       toOrbitFromMoonLauncherPresets(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 28:
+      variableSpeedScrew(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
   }
 
@@ -1380,10 +1391,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     guidParamWithUnits['launchVehicleVacuumRocketExhaustVelocity'].value = 4436  // m/s  (Based on RS-25 Vacuum)
     //guidParamWithUnits['launchVehicleRocketExhaustVelocity'].value = 3210  // m/s  (Based on Raptor Sea Level)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2476152.695003177, 2163687.090317844, -5516496.147743987)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2353919.4598949375, 1882125.1810429322, -5788929.236748725)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2476152.695003177, 2163687.090317844, -5516496.147743987)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2353919.4598949375, 1882125.1810429322, -5788929.236748725)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39104480167972105, 0.33343715687290343, -0.8578482531868805)
 
     // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2141299.931502703, 2114722.5368433706, -5619536.116728196)
     // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3351207342153644, 0.33338091138840403, -0.8812214599184579)
@@ -1395,14 +1406,62 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
     // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2138568.504086628, 2119994.796780028, -5622621.973677439)
     // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33530391088807443, 0.33238797984899815, -0.8815268108203315)
 
-    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
-    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
-    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
-    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2150000.7446935046, 2120376.2679333487, -5618092.758162816)
+    // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
+    // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2150159.2265106635, 2120350.627335476, -5618051.057699365)
+    // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.33708569178937653, 0.33244104816902326, -0.8808269897563077)
 
-    nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
-      ((i==1) && (j==4)) // Hawaii??
-    )} 
+    nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2491106.305939982, 2120656.272177813, -5447757.554648286)
+    nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3901202681575166, 0.3354310762809081, -0.8574917897203093)
+    nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2470937.952519685, 2048799.9499429713, -5527483.037906753)
+    nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3901202681575166, 0.3354310762809081, -0.8574917897203093)
+
+    const useNewPlanetCode = false
+    if (!useNewPlanetCode) {
+      // Use original Planet code
+      nonGUIParams['getCapturePresetRegions'] = (i, j) => { return ( 
+        ((i==1) && (j==4)) // Hawaii??
+      )}
+      nonGUIParams['useXHREarthDisplacement'] = false
+      nonGUIParams['getCapturePresetRegionsXHRDisplacement'] = (i, j) => { return (
+        ((i==1) && (j==4))
+      )}
+      nonGUIParams['getXHREarthDisplacementFilename'] = (i, j, w, h, displacementFormat) => {
+        if ((i==1) && (j==4)) {
+          return './textures/DisplacementMaps/XHREarthDisplacement/earth_XHR_24x12_1x4.png'
+        }
+        return null
+      }
+    } else {
+      // New Planet2 code
+      nonGUIParams['usePlanet2'] = true
+
+      // Disable legacy per-patch XHR toggles when Planet2 quadtree tiling is active.
+      nonGUIParams['useXHREarthTexture'] = false
+      nonGUIParams['useXHREarthDisplacement'] = false
+
+      // Planet2 local asset roots generated by tools/generate_planet2_lod0_assets.py
+      nonGUIParams['planet2ManifestUrl'] = '/assets/earth/manifest.json'
+      nonGUIParams['planet2ColorBasePath'] = '/assets/earth/color'
+      nonGUIParams['planet2HeightBasePath'] = '/assets/earth/height'
+
+      // Keep base LOD responsive while still allowing detail refinement.
+      nonGUIParams['tileSegments'] = 24
+      nonGUIParams['maxConcurrentTileLoads'] = 8
+      nonGUIParams['maxCachedTiles'] = 320
+      nonGUIParams['maxTileGpuBytes'] = 700 * 1024 * 1024
+      nonGUIParams['tileSseThreshold'] = 3.5
+      nonGUIParams['maxAvailableTileLod'] = 11
+
+      // Prioritize Hawaii launch region and immediate surroundings.
+      nonGUIParams['locationInterests'] = [
+        { name: 'Mauna Kea', lat: 19.8207, lon: -155.4681, radiusKm: 80, lodBoost: 2 },
+        { name: 'Hawaii Launch Corridor', lat: 19.6, lon: -156.0, radiusKm: 140, lodBoost: 1.5 }
+      ]
+
+      // Optional: set to 'none', 'tileBorders', 'lodLevel', 'tilePriority', 'terrainRoughness', 'landWaterFraction', or 'loadingState'.
+      nonGUIParams['planet2DebugMode'] = 'none'
+    }
 
     nonGUIParams['overrideClipPlanes'] = true
     nonGUIParams['nearClip'] = 1

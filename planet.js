@@ -21,8 +21,6 @@ export class planet {
       TextureMode24x12 = true
     }
 
-
-
     // Parameters for a perfect sphere (flattening f = 0)
     const radius = 5;
     const flattening = 0; // No flattening, perfect sphere
@@ -83,6 +81,7 @@ export class planet {
     const planetMeshes = new THREE.Group()
     planetMeshes.name = 'planetMeshes'
     const generateMipmaps = true // Set to true for higher quality, false for faster load time
+    const textureLoader = new THREE.TextureLoader()
     let textureFilename
     let displacementMap
 
@@ -106,22 +105,47 @@ export class planet {
             // ToDo: The thresholds in the statement below should be calculated from the equivalent latitude of the ring
             //const farFromRing = (localPoint.y < 0.45 * roughPlanetRadius) || (localPoint.y > 0.7 * roughPlanetRadius)
             const useHiRes = nonGUIParams['getCapturePresetRegions'](i, j)
+            const useXHRTexture = (planetSpec.name == "Earth") &&
+              nonGUIParams['useXHREarthTexture'] &&
+              nonGUIParams['getCapturePresetRegionsXHRTexture'](i, j)
+            const useXHRDisplacement = (planetSpec.name == "Earth") &&
+              nonGUIParams['useXHREarthDisplacement'] &&
+              nonGUIParams['getCapturePresetRegionsXHRDisplacement'](i, j)
+            const xhrDisplacementGeometryMultiplier = useXHRDisplacement
+              ? nonGUIParams['getCapturePresetXHRDisplacementGeometryMultiplier'](i, j)
+              : 1
             const hiLo = (useHiRes) ? 'HR' : 'LR'
-            textureFilename = `./textures/${planetSpec.texturePath}${colorPath}/${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${colorFormat}`
-            const texture = new THREE.TextureLoader().load(textureFilename)
+            const defaultTextureFilename = `./textures/${planetSpec.texturePath}${colorPath}/${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${colorFormat}`
+            const xhrTextureFilename = useXHRTexture
+              ? nonGUIParams['getXHREarthTextureFilename'](i, j, w, h, colorFormat)
+              : null
+            textureFilename = xhrTextureFilename || defaultTextureFilename
+            const texture = textureLoader.load(textureFilename)
             texture.colorSpace = THREE.SRGBColorSpace
             texture.generateMipmaps = generateMipmaps
+            texture.minFilter = THREE.LinearMipmapLinearFilter
+            texture.magFilter = THREE.LinearFilter
+            texture.anisotropy = Math.max(1, nonGUIParams['maxTextureAnisotropy'] || 1)
 
             if (planetSpec.name=="Earth" && !useHiRes) {
               displacementMap = null
             }
             else {
-              const displacementFilename = `./textures/${planetSpec.texturePath}${displacementPath}${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${displacementFormat}`
-              displacementMap = new THREE.TextureLoader().load(displacementFilename)
+              const defaultDisplacementFilename = `./textures/${planetSpec.texturePath}${displacementPath}${w}x${h}/${hiLo}/earth_${hiLo}_${w}x${h}_${i}x${j}.${displacementFormat}`
+              const xhrDisplacementFilename = useXHRDisplacement
+                ? nonGUIParams['getXHREarthDisplacementFilename'](i, j, w, h, displacementFormat)
+                : null
+              const displacementFilename = xhrDisplacementFilename || defaultDisplacementFilename
+              displacementMap = textureLoader.load(displacementFilename)
+              displacementMap.generateMipmaps = generateMipmaps
+              displacementMap.minFilter = THREE.LinearMipmapLinearFilter
+              displacementMap.magFilter = THREE.LinearFilter
+              displacementMap.anisotropy = Math.max(1, nonGUIParams['maxTextureAnisotropy'] || 1)
             }
 
-            planetWidthSegments = (!useHiRes) ? 768 : 768*16
-            planetHeightSegments = (!useHiRes) ? 192 : 192*16
+            const hiResGeometryMultiplier = Math.max(1, xhrDisplacementGeometryMultiplier)
+            planetWidthSegments = (!useHiRes) ? 768 : 768*16*hiResGeometryMultiplier
+            planetHeightSegments = (!useHiRes) ? 192 : 192*16*hiResGeometryMultiplier
             const planetGeometry = new EllipsoidGeometry(planetSpec.ellipsoid, planetWidthSegments/w, planetHeightSegments/h, i*Math.PI*2/w, Math.PI*2/w, j*Math.PI/h, Math.PI/h)
             const planetMesh = new THREE.Mesh(
               planetGeometry,
