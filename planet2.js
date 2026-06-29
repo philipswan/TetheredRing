@@ -303,6 +303,12 @@ class Tile {
 
     this.meta = null;
 
+    // Per-edge coarse-neighbor step [T,B,L,R]. 1 = same/finer (no morph); 2^d = the
+    // neighbor is d LODs coarser, so collapse all but every (2^d)th boundary vertex.
+    this.edgeSteps = [1, 1, 1, 1];
+    // Packed key of edgeSteps used for cheap change detection / rebuild trigger.
+    this.edgeMask = 0;
+
     // Cached geometric bounds (local planet space).
     this.center = new THREE.Vector3();
     this.centerNormal = new THREE.Vector3(0, 1, 0);
@@ -543,6 +549,7 @@ class CubedSpherePlanetRenderer {
     }
 
     this._applyVisibility();
+    this._updateEdgeMorph();
     this._processQueue();
     this._evictLRU();
 
@@ -782,6 +789,35 @@ class CubedSpherePlanetRenderer {
       }
     }
 
+    // CDLOD edge morph: where an edge faces a coarser neighbor, collapse the in-between
+    // boundary vertices onto the segment between the coarse tile's shared vertices so the
+    // fine edge matches the coarse vertex spacing (removes T-junction cracks). Handles
+    // multi-level differences via a per-edge step of 2^(levelDiff).
+    const steps = tile.edgeSteps || [1, 1, 1, 1];
+    if (steps[0] > 1 || steps[1] > 1 || steps[2] > 1 || steps[3] > 1) {
+      const idx = (x, y) => y * (seg + 1) + x;
+      const lerp = (i, a, b, t) => {
+        const i3 = i * 3, a3 = a * 3, b3 = b * 3;
+        positions[i3] = positions[a3] + (positions[b3] - positions[a3]) * t;
+        positions[i3 + 1] = positions[a3 + 1] + (positions[b3 + 1] - positions[a3 + 1]) * t;
+        positions[i3 + 2] = positions[a3 + 2] + (positions[b3 + 2] - positions[a3 + 2]) * t;
+      };
+      const morphEdge = (step, vert, get) => {
+        let s = Math.min(step, seg);
+        while (s > 1 && seg % s !== 0) s >>= 1; // clamp to a divisor of seg
+        if (s <= 1) return;
+        for (let i = 0; i < seg; i++) {
+          if (i % s === 0) continue;
+          const lo = Math.floor(i / s) * s, hi = lo + s;
+          lerp(get(i), get(lo), get(hi), (i - lo) / s);
+        }
+      };
+      morphEdge(steps[0], true, (x) => idx(x, 0));     // T
+      morphEdge(steps[1], true, (x) => idx(x, seg));   // B
+      morphEdge(steps[2], true, (y) => idx(0, y));     // L
+      morphEdge(steps[3], true, (y) => idx(seg, y));   // R
+    }
+
     // Skirts: duplicate edge vertices pushed inward along the normal.
     if (includeSkirts) {
       let cursor = baseCount;
@@ -886,6 +922,45 @@ class CubedSpherePlanetRenderer {
       }
     }
     if (this.debugMode !== 'none') this._applyDebugColors();
+  }
+
+  // Computes each visible tile's coarser-neighbor edge mask and rebuilds geometry
+  // when it changes, so edges morph to match coarser same-face neighbors. Cross-
+  // face edges are left untouched (no T-junction within a single face there).
+  _updateEdgeMorph() {
+    const count = 1 << this.rootLod;
+    for (const id of this.visibleTiles) {
+      const tile = this.tiles.get(id);
+      if (!tile || !tile.ready) continue;
+      const tc = 1 << tile.lod;
+      // For each edge, find how many LOD levels coarser the visible neighbor is by
+      // walking up ancestors. step = 2^d where d is that difference (1 = same/finer).
+      const nstep = (nx, ny) => {
+        if (nx < 0 || ny < 0 || nx >= tc || ny >= tc) return 1; // cross-face: skip
+        for (let d = 1; tile.lod - d >= this.rootLod; d++) {
+          if (this.visibleTiles.has(tileKey(tile.face, tile.lod - d, nx >> d, ny >> d))) return 1 << d;
+        }
+        return 1;
+      };
+      const steps = [
+        nstep(tile.x, tile.y - 1), // T
+        nstep(tile.x, tile.y + 1), // B
+        nstep(tile.x - 1, tile.y), // L
+        nstep(tile.x + 1, tile.y), // R
+      ];
+      const mask = steps[0] | (steps[1] << 5) | (steps[2] << 10) | (steps[3] << 15);
+      if (mask !== tile.edgeMask) {
+        tile.edgeMask = mask;
+        tile.edgeSteps = steps;
+        if (tile.mesh) {
+          const newGeom = this._buildTileGeometry(tile);
+          const old = tile.mesh.geometry;
+          tile.mesh.geometry = newGeom;
+          tile.geometry = newGeom;
+          if (old && old !== newGeom) old.dispose();
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
