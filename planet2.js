@@ -23,6 +23,9 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 // =============================================================================
 
 const FACE_NAMES = ['+X', '-X', '+Y', '-Y', '+Z', '-Z'];
+// WGS84 first-eccentricity squared, used to convert geocentric<->geodetic latitude
+// so terrain maps (geodetic) align with the cubed-sphere geometry.
+const WGS84_E2 = 2 / 298.257223563 - 1 / (298.257223563 * 298.257223563);
 
 // Whole-planet yaw used to align the baked longitude frame (lon = atan2(z, x))
 // with the surrounding application's longitude system. This is a global rigid
@@ -88,13 +91,13 @@ function ellipsoidNormal(point, a, b, out) {
   return out.normalize();
 }
 
-// Converts a geographic lat/lon (radians) into the local ellipsoid-frame unit
-// direction using the same longitude convention as the baked assets
-// (lon = atan2(-z, x), lat = asin(y)). The negative z keeps the rendered Earth
-// right-handed (East x North = Up); a +z convention mirrors geography.
+// Converts a geographic (geodetic) lat/lon (radians) into the local ellipsoid-frame
+// unit direction. Source maps are indexed by geodetic latitude, so convert geodetic
+// -> geocentric before building the direction (tan(geocentric) = (1-e2)*tan(geodetic)).
 function latLonToDirection(lat, lon, out) {
-  const cl = Math.cos(lat);
-  return out.set(cl * Math.cos(lon), Math.sin(lat), -cl * Math.sin(lon)).normalize();
+  const geoc = Math.atan2((1 - WGS84_E2) * Math.sin(lat), Math.cos(lat));
+  const cl = Math.cos(geoc);
+  return out.set(cl * Math.cos(lon), Math.sin(geoc), -cl * Math.sin(lon)).normalize();
 }
 
 // Decodes a Uint16 sample into meters using tile min/max height bounds.
