@@ -415,6 +415,10 @@ class CubedSpherePlanetRenderer {
 
     this.manifest = null;
     this.manifestTileMap = new Map();
+    // Global height decode range (meters). All height tiles share one range, so it
+    // lives at the top of the manifest rather than being repeated per tile.
+    this.heightMinMeters = -200;
+    this.heightMaxMeters = 8500;
 
     this.ktx2Loader = CubedSpherePlanetRenderer._getSharedKTX2Loader(this.renderer);
 
@@ -444,6 +448,8 @@ class CubedSpherePlanetRenderer {
       if (!response.ok) throw new Error(`manifest fetch ${response.status}`);
       this.manifest = await response.json();
       this.maxAvailableLod = this.manifest.maxAvailableLod ?? this.maxAvailableLod;
+      this.heightMinMeters = this.manifest.minHeight ?? this.heightMinMeters;
+      this.heightMaxMeters = this.manifest.maxHeight ?? this.heightMaxMeters;
       if (this.manifest.tiles) {
         for (const [k, v] of Object.entries(this.manifest.tiles)) {
           this.manifestTileMap.set(k, v);
@@ -509,15 +515,10 @@ class CubedSpherePlanetRenderer {
     const meta = this.manifestTileMap.get(tileKey(tile.face, tile.lod, ax, ay));
     if (meta) return meta;
     return {
-      maxAvailableLod: this.maxAvailableLod,
-      minHeight: -200,
-      maxHeight: 8500,
       roughness: 0.15,
       landFraction: 0.5,
-      waterFraction: 0.5,
       width: 64,
       height: 64,
-      encoding: 'u16',
     };
   }
 
@@ -668,9 +669,10 @@ class CubedSpherePlanetRenderer {
   // Multiplicative priority/refinement boost from terrain + locations of interest.
   _priorityBoost(tile, meta) {
     let boost = 1;
+    const land = clamp01(meta.landFraction ?? 0.5);
     boost += 2.5 * clamp01((meta.roughness ?? 0.1) * 6);        // rough/mountainous
-    boost += 1.2 * clamp01(meta.landFraction ?? 0.5);            // land over ocean
-    boost -= 0.6 * clamp01(meta.waterFraction ?? 0.5);          // de-prioritize ocean
+    boost += 1.2 * land;                                         // land over ocean
+    boost -= 0.6 * (1 - land);                                   // de-prioritize ocean
     for (const loc of this.locationInterests) {
       if (this._tileWithinLocation(tile, loc)) boost += 2 * loc.lodBoost;
     }
@@ -1065,8 +1067,8 @@ class CubedSpherePlanetRenderer {
     const meta = tile.meta || this._getTileMeta(tile);
     const width = meta.width ?? 64;
     const height = meta.height ?? 64;
-    const minHeightMeters = meta.minHeight ?? 0;
-    const maxHeightMeters = meta.maxHeight ?? 0;
+    const minHeightMeters = this.heightMinMeters;
+    const maxHeightMeters = this.heightMaxMeters;
 
     const { ax, ay } = this._assetCoords(tile.face, tile.lod, tile.x, tile.y);
     const url = `${this.heightBasePath}/${tile.face}/${tile.lod}/${ax}/${ay}.bin`;

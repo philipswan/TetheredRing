@@ -348,17 +348,10 @@ def build_tile_assets(face: str, lod: int, tile_x: int, tile_y: int, color_size:
 
     tile_id = f'{face}/{lod}/{tile_x}/{tile_y}'
     entry = {
-        'maxAvailableLod': lod,
-        'minHeight': float(height_min_m),
-        'maxHeight': float(height_max_m),
         'roughness': roughness,
         'landFraction': 0.3,
-        'waterFraction': 0.7,
-        'estimatedColorBytes': int(color_file.stat().st_size),
-        'estimatedHeightBytes': int(bin_path.stat().st_size),
         'width': int(height_size),
         'height': int(height_size),
-        'encoding': 'u16',
     }
     return tile_id, entry, encoded_ktx2
 
@@ -480,6 +473,8 @@ def main() -> None:
                         help='Geographic bounds of the regional tiles in degrees.')
     parser.add_argument('--jobs', type=int, default=max(1, min((os.cpu_count() or 1), 8)),
                         help='Number of worker processes for tile generation (1 = serial).')
+    parser.add_argument('--reset-manifest', action='store_true', default=False,
+                        help='Start a fresh manifest instead of merging into the existing one.')
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
@@ -500,13 +495,21 @@ def main() -> None:
     color_np, hmap_np = load_sources(color_src_path, height_src_path, use_flat_height)
 
     manifest_path = out_root / 'manifest.json'
-    if args.lod1_only and manifest_path.exists():
+    # Refinement runs are additive: merge into the existing manifest so previously
+    # baked tiles/cones survive. A fresh full bake can clear with --reset-manifest.
+    incremental = args.lod1_only or (args.refine_lat is not None and not args.reset_manifest)
+    if incremental and manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     else:
         manifest = {
             'maxAvailableLod': 0,
             'tiles': {},
         }
+
+    # Height decode range is uniform across every tile, so it lives once at the top
+    # of the manifest rather than being repeated in each tile entry.
+    manifest['minHeight'] = float(args.height_min_m)
+    manifest['maxHeight'] = float(args.height_max_m)
 
     can_try_ktx2 = args.prefer_ktx2 and not args.no_ktx2
     encoded_any_ktx2 = False
@@ -545,8 +548,6 @@ def main() -> None:
         lod1_color_size = int(args.lod1_color_size or args.face_size)
         lod1_height_size = int(args.lod1_height_size or args.height_size)
         manifest['maxAvailableLod'] = max(manifest.get('maxAvailableLod', 0), 1)
-        if f'{lod1_face}/0/0/0' in manifest['tiles']:
-            manifest['tiles'][f'{lod1_face}/0/0/0']['maxAvailableLod'] = 1
 
         lod1_tasks = [
             (lod1_face, 1, tile_x, tile_y, lod1_color_size, lod1_height_size, out_color_root, out_height_root,
@@ -571,18 +572,11 @@ def main() -> None:
 
         manifest['maxAvailableLod'] = max(manifest.get('maxAvailableLod', 0), int(args.refine_max_lod))
 
-        root_face = refine_face_override or refine_path[0][0]
-        root_id = f'{root_face}/0/0/0'
-        if root_id in manifest['tiles']:
-            manifest['tiles'][root_id]['maxAvailableLod'] = int(args.refine_max_lod)
-
         refine_tasks = []
-        path_ids = []
         parent_x = 0
         parent_y = 0
         for path_face, lod, target_x, target_y in refine_path:
             face = refine_face_override or path_face
-            path_ids.append(f'{face}/{lod}/{target_x}/{target_y}')
 
             if lod < refine_min_lod:
                 parent_x = target_x
@@ -604,11 +598,6 @@ def main() -> None:
         for tile_id, entry, encoded in run_tile_tasks(refine_tasks, jobs, color_src_path, height_src_path, use_flat_height, color_np, hmap_np):
             manifest['tiles'][tile_id] = entry
             encoded_any_ktx2 = encoded_any_ktx2 or encoded
-
-        # Mark path tiles' deepest reach (cosmetic; the renderer refines by asset existence).
-        for path_id in path_ids:
-            if path_id in manifest['tiles']:
-                manifest['tiles'][path_id]['maxAvailableLod'] = int(args.refine_max_lod)
 
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
         print(f'Wrote refinement pyramid for lat={args.refine_lat}, lon={args.refine_lon} to LOD {args.refine_max_lod}')
