@@ -415,6 +415,9 @@ class CubedSpherePlanetRenderer {
 
     this.manifest = null;
     this.manifestTileMap = new Map();
+    // Loads are gated until the manifest resolves so every tile reads its real
+    // dimensions/meta (roots are built synchronously before the async fetch).
+    this.manifestReady = false;
     // Global height decode range (meters). All height tiles share one range, so it
     // lives at the top of the manifest rather than being repeated per tile.
     this.heightMinMeters = -200;
@@ -455,8 +458,18 @@ class CubedSpherePlanetRenderer {
           this.manifestTileMap.set(k, v);
         }
       }
+      // Tiles created before the manifest arrived (the six roots, built
+      // synchronously in the constructor) cached the default meta. Refresh them
+      // now so their real width/height (e.g. 128) is used for size validation.
+      for (const tile of this.tiles.values()) {
+        tile.meta = this._getTileMeta(tile);
+      }
     } catch (error) {
       console.warn('[planet2] manifest load failed, using defaults', error);
+    } finally {
+      // Allow tile loads to proceed. On failure we run with default meta rather
+      // than stalling the globe forever.
+      this.manifestReady = true;
     }
   }
 
@@ -495,8 +508,10 @@ class CubedSpherePlanetRenderer {
     return { su: u01, sv: v01 };
   }
 
-  // True if the manifest contains at least one child tile asset, so refinement is
-  // driven by what was actually generated rather than spawning 404 children.
+  // True only if the manifest contains ALL four child tile assets. Requiring the
+  // full quad keeps the tree gap-free and prevents 404 storms at ragged region
+  // boundaries (where a rectangular baked region only partially covers a parent's
+  // four children). Such boundary parents simply stay one LOD coarser.
   _hasChildAssets(tile) {
     const l = tile.lod + 1;
     const x2 = tile.x * 2;
@@ -504,9 +519,9 @@ class CubedSpherePlanetRenderer {
     const childXY = [[x2, y2], [x2 + 1, y2], [x2, y2 + 1], [x2 + 1, y2 + 1]];
     for (const [cx, cy] of childXY) {
       const { ax, ay } = this._assetCoords(tile.face, l, cx, cy);
-      if (this.manifestTileMap.has(tileKey(tile.face, l, ax, ay))) return true;
+      if (!this.manifestTileMap.has(tileKey(tile.face, l, ax, ay))) return false;
     }
-    return false;
+    return true;
   }
 
   // Per-tile metadata from the manifest (looked up at the baked asset coords).
@@ -977,6 +992,8 @@ class CubedSpherePlanetRenderer {
   }
 
   _processQueue() {
+    // Wait for the manifest so tiles load with correct dimensions/meta.
+    if (!this.manifestReady) return;
     while (this.inflightLoads < this.maxConcurrentLoads && this.priorityQueue.size > 0) {
       const tile = this.priorityQueue.pop();
       if (!tile) break;

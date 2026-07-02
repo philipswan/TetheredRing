@@ -1448,8 +1448,10 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       // Keep base LOD responsive while still allowing detail refinement.
       nonGUIParams['tileSegments'] = 24
       nonGUIParams['maxConcurrentTileLoads'] = 8
-      nonGUIParams['maxCachedTiles'] = 320
-      nonGUIParams['maxTileGpuBytes'] = 700 * 1024 * 1024
+      // The full-island high-res bake keeps ~450-550 tiles resident when the whole
+      // Big Island is in view
+      nonGUIParams['maxCachedTiles'] = 1500
+      nonGUIParams['maxTileGpuBytes'] = 1536 * 1024 * 1024
       nonGUIParams['tileSseThreshold'] = 3.5
       nonGUIParams['maxAvailableTileLod'] = 11
 

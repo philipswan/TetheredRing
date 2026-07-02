@@ -192,33 +192,94 @@ def _tile_uv_grids(lod: int, tile_x: int, tile_y: int, face_size: int, align: st
 
 
 # Optional regional high-res equirect override (loaded by set_regional_source).
-# Color is uint8 HxWx3; height is float meters HxW; bbox is (lon_min,lon_max,lat_min,lat_max) deg.
+# Color is uint8 HxWx3; height is float meters HxW; each array keeps its OWN exact
+# geographic bbox (lon_min,lon_max,lat_min,lat_max) deg, because cropping the color
+# and height sources (which differ in resolution) yields slightly different extents.
 _REGIONAL_RGB: np.ndarray | None = None
 _REGIONAL_HM: np.ndarray | None = None
 _REGIONAL_BBOX: tuple[float, float, float, float] | None = None
+_REGIONAL_RGB_BBOX: tuple[float, float, float, float] | None = None
+_REGIONAL_HM_BBOX: tuple[float, float, float, float] | None = None
+# Optional sub-rectangle (lon_min, lon_max, lat_min, lat_max) within which the
+# regional HEIGHT source actually carries data. A regional displacement tile can
+# span a wide bbox yet only contain relief for part of it (e.g. the XHR Hawaii
+# source has Big-Island terrain but reads flat sea-level elsewhere); restricting
+# the override to this rectangle lets the base globe's relief fill the rest instead
+# of being flattened. None => the whole regional bbox is treated as valid data.
+_REGIONAL_HM_DATA_BBOX: tuple[float, float, float, float] | None = None
 
 
-def _regional_pixel_coords(dx, dy, dz, width, height):
+def _regional_pixel_coords(dx, dy, dz, width, height, bbox):
     """For a direction grid, return (mask_in_bbox, sample_x, sample_y) for the regional tile."""
     lon = np.degrees(np.arctan2(-dz, dx))  # matches direction_to_equirect_xy_grid convention
     # Geodetic latitude, matching direction_to_equirect_xy_grid so the regional crop aligns.
     lat = np.degrees(np.arctan2(dy, (1.0 - WGS84_E2) * np.sqrt(dx * dx + dz * dz)))
-    lon_min, lon_max, lat_min, lat_max = _REGIONAL_BBOX
+    lon_min, lon_max, lat_min, lat_max = bbox
     mask = (lon >= lon_min) & (lon <= lon_max) & (lat >= lat_min) & (lat <= lat_max)
     rx = (lon - lon_min) / (lon_max - lon_min) * (width - 1)
     ry = (lat_max - lat) / (lat_max - lat_min) * (height - 1)
     return mask, rx, ry
 
 
-def set_regional_source(color_path: Path | None, height_path: Path, bbox: tuple[float, float, float, float]) -> None:
+def _crop_regional(arr: np.ndarray, full_bbox, crop_bbox):
+    """Crop an equirect regional array to crop_bbox and return (sub_array, exact_bbox).
+
+    Uses the same pixel-center mapping as _regional_pixel_coords, so the returned
+    sub-array paired with its exact_bbox samples identically to the full array over
+    the retained region. The crop is expanded outward to whole pixels so nothing
+    inside crop_bbox is lost. Discards the full array's hold on memory by returning
+    a contiguous copy of just the needed window.
+    """
+    lon_min, lon_max, lat_min, lat_max = full_bbox
+    h, w = int(arr.shape[0]), int(arr.shape[1])
+    clon_min, clon_max, clat_min, clat_max = crop_bbox
+    # Clamp the requested window to what the source actually covers.
+    clon_min = max(clon_min, lon_min); clon_max = min(clon_max, lon_max)
+    clat_min = max(clat_min, lat_min); clat_max = min(clat_max, lat_max)
+    x_of = lambda lon: (lon - lon_min) / (lon_max - lon_min) * (w - 1)
+    y_of = lambda lat: (lat_max - lat) / (lat_max - lat_min) * (h - 1)
+    x0 = max(0, min(w - 1, int(math.floor(x_of(clon_min)))))
+    x1 = max(0, min(w - 1, int(math.ceil(x_of(clon_max)))))
+    y0 = max(0, min(h - 1, int(math.floor(y_of(clat_max)))))  # lat_max -> smallest y
+    y1 = max(0, min(h - 1, int(math.ceil(y_of(clat_min)))))
+    sub = np.ascontiguousarray(arr[y0:y1 + 1, x0:x1 + 1])
+    lon_at = lambda x: lon_min + x / (w - 1) * (lon_max - lon_min)
+    lat_at = lambda y: lat_max - y / (h - 1) * (lat_max - lat_min)
+    exact = (lon_at(x0), lon_at(x1), lat_at(y1), lat_at(y0))
+    return sub, exact
+
+
+def set_regional_source(color_path: Path | None, height_path: Path, bbox: tuple[float, float, float, float], crop_bbox: tuple[float, float, float, float] | None = None, height_data_bbox: tuple[float, float, float, float] | None = None) -> None:
+    """Load the regional color/height overrides.
+
+    When crop_bbox is provided, each full source is loaded, cropped to that window,
+    and the full-resolution array is released immediately -- so a worker only keeps
+    the tiny island window in memory instead of the entire 15-degree regional cell.
+
+    height_data_bbox optionally limits the HEIGHT override to a sub-rectangle where
+    the source actually carries relief (see _REGIONAL_HM_DATA_BBOX); the color
+    override is unaffected.
+    """
     global _REGIONAL_RGB, _REGIONAL_HM, _REGIONAL_BBOX
+    global _REGIONAL_RGB_BBOX, _REGIONAL_HM_BBOX, _REGIONAL_HM_DATA_BBOX
     _REGIONAL_BBOX = bbox
+    _REGIONAL_HM_DATA_BBOX = tuple(height_data_bbox) if height_data_bbox is not None else None
     if color_path is not None:
-        _REGIONAL_RGB = np.asarray(Image.open(color_path).convert('RGB'), dtype=np.uint8)
+        rgb = np.asarray(Image.open(color_path).convert('RGB'), dtype=np.uint8)
+        if crop_bbox is not None:
+            rgb, _REGIONAL_RGB_BBOX = _crop_regional(rgb, bbox, crop_bbox)
+        else:
+            _REGIONAL_RGB_BBOX = bbox
+        _REGIONAL_RGB = rgb
     h_img = Image.open(height_path)
     code = np.asarray(h_img, dtype=np.float32)
     # XHR displacement encoding: code ~= 9000 + 10 * elevation_m.
-    _REGIONAL_HM = (code - 9000.0) / 10.0
+    hm = (code - 9000.0) / 10.0
+    if crop_bbox is not None:
+        hm, _REGIONAL_HM_BBOX = _crop_regional(hm, bbox, crop_bbox)
+    else:
+        _REGIONAL_HM_BBOX = bbox
+    _REGIONAL_HM = hm
 
 
 def generate_tile_color(face: str, src_rgb: np.ndarray, lod: int, tile_x: int, tile_y: int, face_size: int) -> np.ndarray:
@@ -227,7 +288,7 @@ def generate_tile_color(face: str, src_rgb: np.ndarray, lod: int, tile_x: int, t
     sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_rgb.shape[1], src_rgb.shape[0])
     sampled = bilinear_sample_grid(src_rgb, sx, sy)
     if _REGIONAL_RGB is not None:
-        mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_RGB.shape[1], _REGIONAL_RGB.shape[0])
+        mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_RGB.shape[1], _REGIONAL_RGB.shape[0], _REGIONAL_RGB_BBOX)
         if mask.any():
             rs = bilinear_sample_grid(_REGIONAL_RGB, rx, ry)
             sampled[mask] = rs[mask]
@@ -240,7 +301,14 @@ def generate_tile_height(face: str, src_hmap: np.ndarray, lod: int, tile_x: int,
     sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_hmap.shape[1], src_hmap.shape[0])
     sampled = bilinear_sample_grid(src_hmap, sx, sy)
     if _REGIONAL_HM is not None:
-        mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_HM.shape[1], _REGIONAL_HM.shape[0])
+        mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_HM.shape[1], _REGIONAL_HM.shape[0], _REGIONAL_HM_BBOX)
+        if _REGIONAL_HM_DATA_BBOX is not None:
+            # Restrict the override to the sub-rectangle that actually carries relief
+            # so the base globe fills the rest (see _REGIONAL_HM_DATA_BBOX).
+            lon = np.degrees(np.arctan2(-dz, dx))
+            lat = np.degrees(np.arctan2(dy, (1.0 - WGS84_E2) * np.sqrt(dx * dx + dz * dz)))
+            d_lon_min, d_lon_max, d_lat_min, d_lat_max = _REGIONAL_HM_DATA_BBOX
+            mask = mask & (lon >= d_lon_min) & (lon <= d_lon_max) & (lat >= d_lat_min) & (lat <= d_lat_max)
         if mask.any():
             meters = bilinear_sample_grid(_REGIONAL_HM, rx, ry)
             encoded = (meters - height_min_m) / (height_max_m - height_min_m) * 65535.0

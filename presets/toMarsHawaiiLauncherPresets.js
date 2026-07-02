@@ -210,8 +210,13 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     // Keep base LOD responsive while still allowing detail refinement.
     nonGUIParams['tileSegments'] = 24
     nonGUIParams['maxConcurrentTileLoads'] = 8
-    nonGUIParams['maxCachedTiles'] = 320
-    nonGUIParams['maxTileGpuBytes'] = 700 * 1024 * 1024
+    // The full-island high-res bake keeps ~450-550 tiles resident when the whole
+    // Big Island is in view (300 at LOD10 + 85 at LOD9 + ancestors + other faces).
+    // A 320-tile budget forced the LRU to evict island tiles that were needed again
+    // the next frame, so the island appeared to keep erasing and regenerating.
+    // Tiles are small (LOD10 = 256px ~= 0.35 MB), so ~1500 resident is modest VRAM.
+    nonGUIParams['maxCachedTiles'] = 1500
+    nonGUIParams['maxTileGpuBytes'] = 1536 * 1024 * 1024
     nonGUIParams['tileSseThreshold'] = 3.5
     nonGUIParams['maxAvailableTileLod'] = 11
 
