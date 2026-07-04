@@ -74,6 +74,26 @@ function cubeToDirection(face, u, v, out) {
   return out.normalize();
 }
 
+// Inverse of cubeToDirection: maps a world direction to its owning cube face and
+// the (u,v) in [-1,1] on that face. The owning face is the dominant |component|;
+// the per-face (u,v) formulas exactly invert cubeToDirection. Writes into `out`
+// ({face,u,v}) to avoid allocation and returns it.
+function directionToFaceUV(dir, out) {
+  const x = dir.x, y = dir.y, z = dir.z;
+  const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+  if (ax >= ay && ax >= az) {
+    if (x > 0) { out.face = '+X'; out.u = -z / x; out.v = y / x; }
+    else       { out.face = '-X'; out.u = -z / x; out.v = -y / x; }
+  } else if (ay >= ax && ay >= az) {
+    if (y > 0) { out.face = '+Y'; out.u = x / y; out.v = -z / y; }
+    else       { out.face = '-Y'; out.u = -x / y; out.v = -z / y; }
+  } else {
+    if (z > 0) { out.face = '+Z'; out.u = x / z; out.v = y / z; }
+    else       { out.face = '-Z'; out.u = x / z; out.v = -y / z; }
+  }
+  return out;
+}
+
 // Intersects a ray from the ellipsoid center along `direction` with an oblate
 // ellipsoid aligned to the Y (polar) axis. Reduces cleanly to a sphere when a==b.
 function rayEllipsoidIntersection(direction, a, b, out) {
@@ -194,13 +214,13 @@ class IndexBufferCache {
     this.cache = new Map();
   }
 
-  getIndexAttribute(segments, includeSkirts, reversed) {
-    const array = this._getArray(segments, includeSkirts, reversed);
+  getIndexAttribute(segments, reversed) {
+    const array = this._getArray(segments, reversed);
     return new THREE.BufferAttribute(array, 1);
   }
 
-  _getArray(segments, includeSkirts, reversed) {
-    const key = `${segments}:${includeSkirts ? 1 : 0}:${reversed ? 'rev' : 'fwd'}`;
+  _getArray(segments, reversed) {
+    const key = `${segments}:${reversed ? 'rev' : 'fwd'}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
 
@@ -222,43 +242,7 @@ class IndexBufferCache {
       }
     }
 
-    // Skirts: four strips (top, bottom, left, right) of duplicated edge vertices
-    // pushed inward along the normal to hide cracks between adjacent LOD levels.
-    if (includeSkirts) {
-      const topStart = vertexCount;
-      const bottomStart = topStart + (segments + 1);
-      const leftStart = bottomStart + (segments + 1);
-      const rightStart = leftStart + (segments + 1);
-
-      for (let i = 0; i < segments; i++) {
-        // Top edge (y == 0).
-        const tA = i;
-        const tB = i + 1;
-        push(tA, tB, topStart + i);
-        push(tB, topStart + i + 1, topStart + i);
-
-        // Bottom edge (y == segments).
-        const bA = segments * (segments + 1) + i;
-        const bB = bA + 1;
-        push(bA, bottomStart + i, bB);
-        push(bB, bottomStart + i, bottomStart + i + 1);
-
-        // Left edge (x == 0).
-        const lA = i * (segments + 1);
-        const lB = (i + 1) * (segments + 1);
-        push(lA, leftStart + i, lB);
-        push(lB, leftStart + i, leftStart + i + 1);
-
-        // Right edge (x == segments).
-        const rA = i * (segments + 1) + segments;
-        const rB = (i + 1) * (segments + 1) + segments;
-        push(rA, rB, rightStart + i);
-        push(rB, rightStart + i + 1, rightStart + i);
-      }
-    }
-
-    const totalVerts = vertexCount + (includeSkirts ? (segments + 1) * 4 : 0);
-    const array = totalVerts > 65535 ? new Uint32Array(tri) : new Uint16Array(tri);
+    const array = vertexCount > 65535 ? new Uint32Array(tri) : new Uint16Array(tri);
     this.cache.set(key, array);
     return array;
   }
@@ -289,7 +273,12 @@ class Tile {
 
     this.loadGeneration = 0;
     this.abortController = null;
-
+    // Bounded retry bookkeeping: a transient color/height failure leaves the tile
+    // un-ready so it is re-enqueued (after a backoff delay) up to maxLoadAttempts,
+    // instead of permanently showing the flat light-blue fallback material.
+    this.loadAttempts = 0;
+    this.retryScheduled = false;
+    this.retryTimer = null;
     this.texture = null;
     this.heightSamples = null;
     this.heightWidth = 0;
@@ -337,8 +326,26 @@ class CubedSpherePlanetRenderer {
     this.colorBasePath = options.colorBasePath;
     this.heightBasePath = options.heightBasePath;
 
+    // Optional overlay asset layers (e.g. a high-res Hawaii cone) loaded on top of
+    // the base after its manifest resolves. Each overlay tile overrides the base
+    // tile at the same key and streams from the overlay's own color/height folders.
+    // Shape: [{ name, manifestUrl, colorBasePath, heightBasePath }].
+    this.overlays = Array.isArray(options.overlays) ? options.overlays : [];
+
     this.segments = Math.max(2, options.segments ?? 24);
     this.maxConcurrentLoads = Math.max(1, options.maxConcurrentLoads ?? 8);
+    // How many times a tile whose color/height stream errors out is retried
+    // before we give up and accept the flat fallback (avoids infinite spin on a
+    // genuinely missing/broken tile while surviving transient failures such as
+    // net::ERR_NETWORK_CHANGED, which can knock out every in-flight request for a
+    // second or two). Retries use exponential backoff so we don't hammer the
+    // network during an outage and burn every attempt within a few frames.
+    this.maxLoadAttempts = Math.max(1, options.maxLoadAttempts ?? 6);
+    this.retryBaseDelayMs = Math.max(1, options.retryBaseDelayMs ?? 200);
+    this.retryMaxDelayMs = Math.max(this.retryBaseDelayMs, options.retryMaxDelayMs ?? 4000);
+    // How many times a tile whose color/height stream errors out is retried
+    // before we give up and accept the flat fallback (avoids infinite spin on a
+    // genuinely missing/broken tile while surviving transient failures).
     this.maxTileCount = options.maxTileCount ?? 320;
     this.maxGpuBytes = options.maxGpuBytes ?? 700 * 1024 * 1024;
     this.rootLod = 0;
@@ -368,9 +375,6 @@ class CubedSpherePlanetRenderer {
     this.a = this.planetSpec.ellipsoid.a;
     this.b = this.a * (1 - (this.planetSpec.ellipsoid.f || 0));
     this.meanRadius = (2 * this.a + this.b) / 3;
-    // Skirts must out-reach inter-LOD height mismatches, which scale with the
-    // (possibly exaggerated) displacement multiplier, to hide cracks/z-fighting.
-    this.skirtDepthMeters = Math.max(this.a * 0.0002, 5000 * this.displacementScaleMultiplier);
 
     // Caches and scheduling.
     this.indexBufferCache = new IndexBufferCache();
@@ -391,7 +395,7 @@ class CubedSpherePlanetRenderer {
     this.debugMode = 'none';
     this.debugStats = {
       queue: 0, inflight: 0, loadedTiles: 0, visibleTiles: 0,
-      gpuBytes: 0, evictedTiles: 0, droppedLoads: 0,
+      gpuBytes: 0, evictedTiles: 0, evictedWhileLoading: 0, droppedLoads: 0,
     };
 
     // Reusable temporaries (avoid per-frame allocation).
@@ -404,6 +408,8 @@ class CubedSpherePlanetRenderer {
     this._tmpB = new THREE.Vector3();
     this._tmpCamDir = new THREE.Vector3();
     this._tmpTileDir = new THREE.Vector3();
+    this._tmpMorphDir = new THREE.Vector3();
+    this._tmpFaceUV = { face: '+X', u: 0, v: 0 };
 
     // Shared base material; per-tile clones receive the streamed color map.
     this.baseMaterial = new THREE.MeshStandardMaterial({
@@ -415,6 +421,11 @@ class CubedSpherePlanetRenderer {
 
     this.manifest = null;
     this.manifestTileMap = new Map();
+    // Maps a tile key to the asset layer that owns it (color/height base paths).
+    // Only overlay-provided tiles are stored; base tiles fall back to
+    // this.colorBasePath / this.heightBasePath, so this stays empty when no
+    // overlays are active.
+    this.tileSourceMap = new Map();
     // Loads are gated until the manifest resolves so every tile reads its real
     // dimensions/meta (roots are built synchronously before the async fetch).
     this.manifestReady = false;
@@ -458,6 +469,9 @@ class CubedSpherePlanetRenderer {
           this.manifestTileMap.set(k, v);
         }
       }
+      // Merge any overlay layers on top of the base. Overlay tiles override the
+      // base tile at the same key and remember which folder to stream from.
+      await this._loadOverlays();
       // Tiles created before the manifest arrived (the six roots, built
       // synchronously in the constructor) cached the default meta. Refresh them
       // now so their real width/height (e.g. 128) is used for size validation.
@@ -470,6 +484,54 @@ class CubedSpherePlanetRenderer {
       // Allow tile loads to proceed. On failure we run with default meta rather
       // than stalling the globe forever.
       this.manifestReady = true;
+    }
+  }
+
+  // Fetch each overlay manifest and merge its tiles over the base. An overlay
+  // entry wins over a same-key base entry, extends maxAvailableLod, and records
+  // its color/height folders in tileSourceMap so _loadColor/_loadHeight stream
+  // the overriding tiles from the overlay instead of the base asset root.
+  async _loadOverlays() {
+    for (const overlay of this.overlays) {
+      if (!overlay || !overlay.manifestUrl) continue;
+      try {
+        const response = await fetch(overlay.manifestUrl, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`overlay manifest fetch ${response.status}`);
+        const data = await response.json();
+
+        // Overlays must share the base height decode range: all height tiles are
+        // sampled into one global [minHeight, maxHeight] u16 space, so a mismatch
+        // would misdecode the overlay's displacement. Warn rather than silently
+        // corrupt the terrain.
+        const oMin = data.minHeight;
+        const oMax = data.maxHeight;
+        if ((oMin != null && oMin !== this.heightMinMeters) ||
+            (oMax != null && oMax !== this.heightMaxMeters)) {
+          console.warn(`[planet2] overlay "${overlay.name}" height range ` +
+            `[${oMin}, ${oMax}] differs from base [${this.heightMinMeters}, ` +
+            `${this.heightMaxMeters}]; terrain may not match at the seam.`);
+        }
+
+        if (data.maxAvailableLod != null) {
+          this.maxAvailableLod = Math.max(this.maxAvailableLod, data.maxAvailableLod);
+        }
+
+        const source = {
+          colorBasePath: overlay.colorBasePath,
+          heightBasePath: overlay.heightBasePath,
+        };
+        let count = 0;
+        if (data.tiles) {
+          for (const [k, v] of Object.entries(data.tiles)) {
+            this.manifestTileMap.set(k, v);
+            this.tileSourceMap.set(k, source);
+            count += 1;
+          }
+        }
+        console.log(`[planet2] overlay "${overlay.name}" merged ${count} tiles`);
+      } catch (error) {
+        console.warn(`[planet2] overlay "${overlay.name}" load failed, skipping`, error);
+      }
     }
   }
 
@@ -754,7 +816,7 @@ class CubedSpherePlanetRenderer {
     tile.material = material;
   }
 
-  // Builds an indexed, skirted tile mesh on the ellipsoid with baked displacement.
+  // Builds an indexed, watertight tile mesh on the ellipsoid with baked displacement.
   // UV == (u01, v01) and height sampling == (u01, v01): a direct, self-consistent
   // mapping that matches the offline asset generator at every LOD.
   _buildTileGeometry(tile) {
@@ -763,10 +825,7 @@ class CubedSpherePlanetRenderer {
     const u0 = -1 + tile.x * tileSpan;
     const v0 = -1 + tile.y * tileSpan;
 
-    const includeSkirts = false;
-    const baseCount = (seg + 1) * (seg + 1);
-    const skirtCount = includeSkirts ? (seg + 1) * 4 : 0;
-    const total = baseCount + skirtCount;
+    const total = (seg + 1) * (seg + 1);
 
     const positions = new Float32Array(total * 3);
     const normals = new Float32Array(total * 3);
@@ -835,23 +894,6 @@ class CubedSpherePlanetRenderer {
       morphEdge(steps[3], true, (y) => idx(seg, y));   // R
     }
 
-    // Skirts: duplicate edge vertices pushed inward along the normal.
-    if (includeSkirts) {
-      let cursor = baseCount;
-      const addSkirt = (srcIndex) => {
-        const s3 = srcIndex * 3;
-        const s2 = srcIndex * 2;
-        pos.set(positions[s3], positions[s3 + 1], positions[s3 + 2]);
-        nor.set(normals[s3], normals[s3 + 1], normals[s3 + 2]);
-        pos.addScaledVector(nor, -this.skirtDepthMeters);
-        write(cursor++, pos, nor, uvs[s2], uvs[s2 + 1]);
-      };
-      for (let x = 0; x <= seg; x++) addSkirt(x);                          // top
-      for (let x = 0; x <= seg; x++) addSkirt(seg * (seg + 1) + x);        // bottom
-      for (let y = 0; y <= seg; y++) addSkirt(y * (seg + 1));             // left
-      for (let y = 0; y <= seg; y++) addSkirt(y * (seg + 1) + seg);       // right
-    }
-
     // Choose the winding that makes front faces point outward for this face's
     // (u,v) handedness, so FrontSide culling never opens holes.
     const reversed = this._needsReversedWinding(positions, normals, seg);
@@ -860,7 +902,7 @@ class CubedSpherePlanetRenderer {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geometry.setIndex(this.indexBufferCache.getIndexAttribute(seg, includeSkirts, reversed));
+    geometry.setIndex(this.indexBufferCache.getIndexAttribute(seg, reversed));
     geometry.computeBoundingSphere();
     return geometry;
   }
@@ -911,17 +953,21 @@ class CubedSpherePlanetRenderer {
   }
 
   _ensureChildren(tile) {
-    if (tile.children) return;
     const l = tile.lod + 1;
     const x2 = tile.x * 2;
     const y2 = tile.y * 2;
-    tile.children = [
-      this._getOrCreateTile(tile.face, l, x2, y2, tile),
-      this._getOrCreateTile(tile.face, l, x2 + 1, y2, tile),
-      this._getOrCreateTile(tile.face, l, x2, y2 + 1, tile),
-      this._getOrCreateTile(tile.face, l, x2 + 1, y2 + 1, tile),
-    ];
-    for (const child of tile.children) this._ensureTileMesh(child);
+    const coords = [[x2, y2], [x2 + 1, y2], [x2, y2 + 1], [x2 + 1, y2 + 1]];
+    // Keep a stable 4-slot array. Eviction may null out individual slots (see
+    // _disposeTile) while siblings stay live, so refill only the vacated slots
+    // rather than rebuilding the whole quad -- rebuilding used to drop references
+    // to the still-alive siblings and corrupt the tree linkage.
+    if (!tile.children) tile.children = [null, null, null, null];
+    for (let i = 0; i < 4; i++) {
+      if (tile.children[i]) continue;
+      const child = this._getOrCreateTile(tile.face, l, coords[i][0], coords[i][1], tile);
+      this._ensureTileMesh(child);
+      tile.children[i] = child;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -952,18 +998,35 @@ class CubedSpherePlanetRenderer {
       const tc = 1 << tile.lod;
       // For each edge, find how many LOD levels coarser the visible neighbor is by
       // walking up ancestors. step = 2^d where d is that difference (1 = same/finer).
-      const nstep = (nx, ny) => {
-        if (nx < 0 || ny < 0 || nx >= tc || ny >= tc) return 1; // cross-face: skip
+      // Resolve the neighbor across an edge, then find how many LOD levels coarser
+      // the visible neighbor is (step = 2^d; 1 == same/finer, no morph needed).
+      // Within the face this is plain (x,y) arithmetic; across a cube seam we
+      // evaluate the shared parametrization just past the edge and invert it to the
+      // owning face + cell -- the same principle as within-face, no adjacency table.
+      const nstep = (dx, dy) => {
+        let nface = tile.face;
+        let nx = tile.x + dx;
+        let ny = tile.y + dy;
+        if (nx < 0 || ny < 0 || nx >= tc || ny >= tc) {
+          const span = 2 / tc;
+          const u = -1 + (nx + 0.5) * span; // cell-center cube coords (may exceed +/-1)
+          const v = -1 + (ny + 0.5) * span;
+          cubeToDirection(tile.face, u, v, this._tmpMorphDir);
+          directionToFaceUV(this._tmpMorphDir, this._tmpFaceUV);
+          nface = this._tmpFaceUV.face;
+          nx = Math.min(tc - 1, Math.max(0, Math.floor((this._tmpFaceUV.u + 1) * 0.5 * tc)));
+          ny = Math.min(tc - 1, Math.max(0, Math.floor((this._tmpFaceUV.v + 1) * 0.5 * tc)));
+        }
         for (let d = 1; tile.lod - d >= this.rootLod; d++) {
-          if (this.visibleTiles.has(tileKey(tile.face, tile.lod - d, nx >> d, ny >> d))) return 1 << d;
+          if (this.visibleTiles.has(tileKey(nface, tile.lod - d, nx >> d, ny >> d))) return 1 << d;
         }
         return 1;
       };
       const steps = [
-        nstep(tile.x, tile.y - 1), // T
-        nstep(tile.x, tile.y + 1), // B
-        nstep(tile.x - 1, tile.y), // L
-        nstep(tile.x + 1, tile.y), // R
+        nstep(0, -1), // T
+        nstep(0, 1),  // B
+        nstep(-1, 0), // L
+        nstep(1, 0),  // R
       ];
       const mask = steps[0] | (steps[1] << 5) | (steps[2] << 10) | (steps[3] << 15);
       if (mask !== tile.edgeMask) {
@@ -985,7 +1048,7 @@ class CubedSpherePlanetRenderer {
   // ---------------------------------------------------------------------------
 
   _enqueueLoad(tile, priority) {
-    if (tile.loading || tile.ready) return;
+    if (tile.loading || tile.ready || tile.retryScheduled) return;
     if (this.queuedSet.has(tile.id)) return;
     this.queuedSet.add(tile.id);
     this.priorityQueue.push(tile, priority);
@@ -998,6 +1061,7 @@ class CubedSpherePlanetRenderer {
       const tile = this.priorityQueue.pop();
       if (!tile) break;
       this.queuedSet.delete(tile.id);
+      if (this.tiles.get(tile.id) !== tile) continue;
       if (tile.ready || tile.loading) continue;
       this._loadTile(tile);
     }
@@ -1043,6 +1107,33 @@ class CubedSpherePlanetRenderer {
       this._applyTileData(tile);
     } catch (error) {
       if (!signal.aborted) {
+        tile.loadAttempts += 1;
+        if (tile.loadAttempts < this.maxLoadAttempts) {
+          // Transient failure (e.g. net::ERR_NETWORK_CHANGED). Leave the tile
+          // un-ready and re-enqueue after an exponential backoff so a brief
+          // network blip has time to clear before the next attempt. Gated by
+          // `retryScheduled` so per-frame selection doesn't re-enqueue it early.
+          const delay = Math.min(
+            this.retryMaxDelayMs,
+            this.retryBaseDelayMs * 2 ** (tile.loadAttempts - 1),
+          );
+          tile.retryScheduled = true;
+          if (tile.retryTimer) clearTimeout(tile.retryTimer);
+          tile.retryTimer = setTimeout(() => {
+            tile.retryTimer = null;
+            tile.retryScheduled = false;
+            // Only retry if this exact tile is still live and still wanted.
+            if (this.tiles.get(tile.id) === tile && !tile.ready && !tile.loading) {
+              this._enqueueLoad(tile, tile.priority);
+            }
+          }, delay);
+          return;
+        }
+        console.warn(
+          `[planet2] tile load gave up ${tile.id} ` +
+          `after ${tile.loadAttempts} attempts, using flat fallback:`,
+          error?.message || error,
+        );
         this.debugStats.droppedLoads += 1;
         // Mark height ready with flat data so selection can still progress.
         if (!tile.heightReady) {
@@ -1065,7 +1156,9 @@ class CubedSpherePlanetRenderer {
 
   async _loadColor(tile, signal) {
     const { ax, ay } = this._assetCoords(tile.face, tile.lod, tile.x, tile.y);
-    const url = `${this.colorBasePath}/${tile.face}/${tile.lod}/${ax}/${ay}.ktx2`;
+    const src = this.tileSourceMap.get(tileKey(tile.face, tile.lod, ax, ay));
+    const colorBase = src ? src.colorBasePath : this.colorBasePath;
+    const url = `${colorBase}/${tile.face}/${tile.lod}/${ax}/${ay}.ktx2`;
     try {
       const texture = await this.ktx2Loader.loadAsync(url);
       if (signal.aborted) { texture.dispose(); return null; }
@@ -1088,7 +1181,9 @@ class CubedSpherePlanetRenderer {
     const maxHeightMeters = this.heightMaxMeters;
 
     const { ax, ay } = this._assetCoords(tile.face, tile.lod, tile.x, tile.y);
-    const url = `${this.heightBasePath}/${tile.face}/${tile.lod}/${ax}/${ay}.bin`;
+    const src = this.tileSourceMap.get(tileKey(tile.face, tile.lod, ax, ay));
+    const heightBase = src ? src.heightBasePath : this.heightBasePath;
+    const url = `${heightBase}/${tile.face}/${tile.lod}/${ax}/${ay}.bin`;
     const response = await fetch(url, { signal, cache: 'no-cache' });
 
     if (!response.ok) {
@@ -1100,10 +1195,22 @@ class CubedSpherePlanetRenderer {
 
     const buffer = await response.arrayBuffer();
     const samples = new Uint16Array(buffer);
+    let outWidth = width;
+    let outHeight = height;
     if (samples.length !== width * height) {
-      console.warn(`[planet2] height size mismatch ${tile.id}: got ${samples.length}, expected ${width * height}`);
+      // Height tiles are always square, so the .bin is self-describing. Trust its
+      // actual size over the manifest metadata when they disagree (e.g. after a
+      // partial/mixed re-bake or manual file copy) so decoding stays correct
+      // instead of reading past the buffer or misindexing the grid.
+      const side = Math.round(Math.sqrt(samples.length));
+      if (side > 0 && side * side === samples.length) {
+        outWidth = side;
+        outHeight = side;
+      } else {
+        console.warn(`[planet2] height size mismatch ${tile.id}: got ${samples.length}, expected ${width * height}`);
+      }
     }
-    return { width, height, minHeightMeters, maxHeightMeters, samples };
+    return { width: outWidth, height: outHeight, minHeightMeters, maxHeightMeters, samples };
   }
 
   _estimateTextureBytes(texture) {
@@ -1147,6 +1254,10 @@ class CubedSpherePlanetRenderer {
       if (tile.lod === this.rootLod) continue;
       if (this.visibleTiles.has(tile.id)) continue;
       if (this._isAncestorOfVisible(tile)) continue;
+      if (tile.loading || tile.retryScheduled || this.queuedSet.has(tile.id)) {
+        this.debugStats.evictedWhileLoading += 1;
+        continue;
+      }
       candidates.push(tile);
     }
     candidates.sort((a, b) => a.lastUsedFrame - b.lastUsedFrame);
@@ -1178,15 +1289,24 @@ class CubedSpherePlanetRenderer {
       tile.abortController.abort();
       tile.abortController = null;
     }
+    if (tile.retryTimer) {
+      clearTimeout(tile.retryTimer);
+      tile.retryTimer = null;
+      tile.retryScheduled = false;
+    }
     if (tile.mesh && tile.mesh.parent) tile.mesh.parent.remove(tile.mesh);
     if (tile.texture) { tile.texture.dispose(); tile.texture = null; }
     if (tile.mesh?.geometry) tile.mesh.geometry.dispose();
     if (tile.material && tile.material !== this.baseMaterial) tile.material.dispose();
 
-    // Detach from parent's child list so it can be re-created later if needed.
+    // Detach ONLY this tile from its parent's child list, leaving live siblings
+    // in place. Nulling the whole array here would orphan the siblings and make
+    // _isAncestorOfVisible() wrongly report the parent has no visible descendants,
+    // so the LRU would then evict ancestors of on-screen tiles (visible shards).
     const parent = tile.parent;
     if (parent && parent.children) {
-      parent.children = null;
+      const idx = parent.children.indexOf(tile);
+      if (idx !== -1) parent.children[idx] = null;
     }
 
     this.queuedSet.delete(tile.id);
@@ -1298,13 +1418,38 @@ export class planet2 {
     planetMeshes.name = 'planetMeshes';
     planetMeshes.rotation.y = PLANET_YAW; // global alignment only
 
+    // Allow swapping the tile asset folder at runtime (e.g. a LOD visualization
+    // bake) via ?planet2Assets=earth_lodviz, without touching the real assets.
+    const assetRoot = (typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('planet2Assets')) || 'earth';
+
+    // Optional overlay asset layers streamed on top of the base (e.g. a high-res
+    // Hawaii cone that overrides some Earth tiles). Enabled via
+    // ?planet2Overlays=hawaii (comma-separated) or nonGUIParams.planet2Overlays;
+    // off by default so the base globe is unchanged unless requested.
+    const overlayParam = (typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('planet2Overlays')) || '';
+    const overlayNames = [
+      ...overlayParam.split(','),
+      ...(Array.isArray(nonGUIParams.planet2Overlays) ? nonGUIParams.planet2Overlays : []),
+    ]
+      .map((s) => String(s).trim())
+      .filter((s) => s.length > 0);
+    const overlays = [...new Set(overlayNames)].map((name) => ({
+      name,
+      manifestUrl: `/assets/${name}/manifest.json`,
+      colorBasePath: `/assets/${name}/color`,
+      heightBasePath: `/assets/${name}/height`,
+    }));
+
     const lodRenderer = new CubedSpherePlanetRenderer({
       group: planetMeshes,
       renderer,
       planetSpec,
-      manifestUrl: '/assets/earth/manifest.json',
-      colorBasePath: '/assets/earth/color',
-      heightBasePath: '/assets/earth/height',
+      manifestUrl: `/assets/${assetRoot}/manifest.json`,
+      colorBasePath: `/assets/${assetRoot}/color`,
+      heightBasePath: `/assets/${assetRoot}/height`,
+      overlays,
       segments: nonGUIParams.tileSegments ?? 24,
       maxConcurrentLoads: nonGUIParams.maxConcurrentTileLoads ?? 8,
       maxTileCount: nonGUIParams.maxCachedTiles ?? 320,

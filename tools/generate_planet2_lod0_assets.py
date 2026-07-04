@@ -7,6 +7,7 @@ import math
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import numpy as np
@@ -158,15 +159,20 @@ def bilinear_sample_grid(image: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> n
     tx = xs - x0
     ty = ys - y0
 
-    img = image.astype(np.float64)
-    if img.ndim == 3:
+    if image.ndim == 3:
         tx = tx[..., None]
         ty = ty[..., None]
 
-    c00 = img[y0, x0]
-    c10 = img[y0, x1]
-    c01 = img[y1, x0]
-    c11 = img[y1, x1]
+    # Gather the four corner texels FIRST (in the source's native dtype), then
+    # promote only those small per-tile arrays to float. Converting the whole
+    # `image` up front (image.astype(float64)) would materialize the entire source
+    # as float64 -- e.g. an 86400x43200x3 uint8 mmap (~11 GB) becomes ~89 GB per
+    # call and thrashes to the pagefile. Indexing the native array keeps the work
+    # proportional to the tile size.
+    c00 = image[y0, x0].astype(np.float64)
+    c10 = image[y0, x1].astype(np.float64)
+    c01 = image[y1, x0].astype(np.float64)
+    c11 = image[y1, x1].astype(np.float64)
 
     cx0 = c00 * (1.0 - tx) + c10 * tx
     cx1 = c01 * (1.0 - tx) + c11 * tx
@@ -207,6 +213,13 @@ _REGIONAL_HM_BBOX: tuple[float, float, float, float] | None = None
 # the override to this rectangle lets the base globe's relief fill the rest instead
 # of being flattened. None => the whole regional bbox is treated as valid data.
 _REGIONAL_HM_DATA_BBOX: tuple[float, float, float, float] | None = None
+# When True, the regional height override is only applied where it carries land relief
+# (sample above sea level). The legacy XHR displacement reads a flat ~0 m over water,
+# so overriding the ocean with it would erase the base globe's real bathymetry; a real
+# meters DEM (e.g. ETOPO/NCEI) carries genuine negative depths and sets this False so
+# its bathymetry is kept.
+_REGIONAL_HM_LAND_ONLY: bool = False
+_REGIONAL_HM_SEA_LEVEL_M: float = 0.5
 
 
 def _regional_pixel_coords(dx, dy, dz, width, height, bbox):
@@ -261,7 +274,7 @@ def set_regional_source(color_path: Path | None, height_path: Path, bbox: tuple[
     override is unaffected.
     """
     global _REGIONAL_RGB, _REGIONAL_HM, _REGIONAL_BBOX
-    global _REGIONAL_RGB_BBOX, _REGIONAL_HM_BBOX, _REGIONAL_HM_DATA_BBOX
+    global _REGIONAL_RGB_BBOX, _REGIONAL_HM_BBOX, _REGIONAL_HM_DATA_BBOX, _REGIONAL_HM_LAND_ONLY
     _REGIONAL_BBOX = bbox
     _REGIONAL_HM_DATA_BBOX = tuple(height_data_bbox) if height_data_bbox is not None else None
     if color_path is not None:
@@ -272,9 +285,18 @@ def set_regional_source(color_path: Path | None, height_path: Path, bbox: tuple[
             _REGIONAL_RGB_BBOX = bbox
         _REGIONAL_RGB = rgb
     h_img = Image.open(height_path)
-    code = np.asarray(h_img, dtype=np.float32)
-    # XHR displacement encoding: code ~= 9000 + 10 * elevation_m.
-    hm = (code - 9000.0) / 10.0
+    if height_path.suffix.lower() in ('.tif', '.tiff') or h_img.mode == 'F':
+        # GeoTIFF/float DEM (e.g. NCEI Hawaii multibeam): values are real meters
+        # (sea level = 0, ocean negative) and are used directly, including bathymetry.
+        hm = np.asarray(h_img, dtype=np.float32)
+        _REGIONAL_HM_LAND_ONLY = False
+    else:
+        # XHR displacement encoding: code ~= 9000 + 10 * elevation_m. It is flat over
+        # water, so it may only override where it carries land (see _REGIONAL_HM_LAND_ONLY),
+        # leaving the base globe's bathymetry intact under the ocean.
+        code = np.asarray(h_img, dtype=np.float32)
+        hm = (code - 9000.0) / 10.0
+        _REGIONAL_HM_LAND_ONLY = True
     if crop_bbox is not None:
         hm, _REGIONAL_HM_BBOX = _crop_regional(hm, bbox, crop_bbox)
     else:
@@ -311,8 +333,13 @@ def generate_tile_height(face: str, src_hmap: np.ndarray, lod: int, tile_x: int,
             mask = mask & (lon >= d_lon_min) & (lon <= d_lon_max) & (lat >= d_lat_min) & (lat <= d_lat_max)
         if mask.any():
             meters = bilinear_sample_grid(_REGIONAL_HM, rx, ry)
-            encoded = (meters - height_min_m) / (height_max_m - height_min_m) * 65535.0
-            sampled[mask] = encoded[mask]
+            if _REGIONAL_HM_LAND_ONLY:
+                # Only let a flat-ocean displacement source override where it is real
+                # land, so the base globe's bathymetry survives under the water.
+                mask = mask & (meters > _REGIONAL_HM_SEA_LEVEL_M)
+            if mask.any():
+                encoded = (meters - height_min_m) / (height_max_m - height_min_m) * 65535.0
+                sampled[mask] = encoded[mask]
     return np.clip(np.round(sampled), 0, 65535).astype(np.uint16)
 
 
@@ -366,15 +393,61 @@ def lat_lon_to_tile_path(lat_deg: float, lon_deg: float, max_lod: int) -> list[t
     return path
 
 
-def load_sources(color_src_path: Path, height_src_path: Path, use_flat_height: bool) -> tuple[np.ndarray, np.ndarray]:
+def _encode_meters_to_u16(hmap_m: np.ndarray, height_min_m: float, height_max_m: float) -> np.ndarray:
+    """Encode a float meters height array into the manifest's u16 code space in place.
+
+    code = (m - min) / (max - min) * 65535, clamped to [0, 65535]. Done in float32
+    (mantissa is exact over 0..65535) to avoid a float64 temporary the size of the
+    entire ETOPO grid. The input array is consumed and freed by the caller.
+    """
+    scale = np.float32(65535.0 / (height_max_m - height_min_m))
+    hmap_m -= np.float32(height_min_m)
+    hmap_m *= scale
+    np.clip(hmap_m, 0.0, 65535.0, out=hmap_m)
+    return np.round(hmap_m).astype(np.uint16)
+
+
+def load_sources(color_src_path: Path, height_src_path: Path, use_flat_height: bool,
+                 height_min_m: float = -200.0, height_max_m: float = 8500.0) -> tuple[np.ndarray, np.ndarray]:
     color_img = Image.open(color_src_path).convert('RGB')
     color_np = np.asarray(color_img, dtype=np.uint8)
 
     if use_flat_height:
-        hmap_np = np.zeros((512, 1024), dtype=np.uint16)
+        # Fill with the code for sea level (0 m) so "flat" means the ocean surface,
+        # not the bottom of the decode range.
+        code0 = int(round(np.clip((0.0 - height_min_m) / (height_max_m - height_min_m) * 65535.0, 0, 65535)))
+        hmap_np = np.full((512, 1024), code0, dtype=np.uint16)
     else:
         h_img = Image.open(height_src_path)
-        if h_img.mode in ('I;16', 'I'):
+        is_meters = height_src_path.suffix.lower() in ('.tif', '.tiff') or h_img.mode == 'F'
+        if is_meters:
+            # ETOPO/GeoTIFF elevation is real meters (sea level = 0, ocean negative).
+            # Encode into the manifest's u16 code space. The full 21600x10800 grid is
+            # slow to decode and ~0.5 GB per worker, and the bake re-inits a pool for
+            # every phase/cone, so the encoded result is cached as a .npy that every
+            # worker memory-maps (shared via the OS page cache) instead of re-decoding.
+            cache = height_src_path.with_name(
+                f'{height_src_path.stem}.u16_{int(round(height_min_m))}_{int(round(height_max_m))}.npy')
+            if cache.exists():
+                hmap_np = np.load(cache, mmap_mode='r')
+            else:
+                hmap_m = np.asarray(h_img, dtype=np.float32).copy()
+                hmap_np = _encode_meters_to_u16(hmap_m, height_min_m, height_max_m)
+                del hmap_m
+                # Write via a per-process temp + atomic replace so concurrent first-run
+                # workers can't read a half-written cache (os.replace is atomic on the
+                # same filesystem; a worker that built its own array just uses it). The
+                # temp keeps the .npy suffix so np.save doesn't append another one.
+                tmp = cache.with_name(f'{cache.stem}.tmp{os.getpid()}.npy')
+                try:
+                    np.save(tmp, hmap_np)
+                    os.replace(tmp, cache)
+                except OSError:
+                    try:
+                        tmp.unlink()
+                    except OSError:
+                        pass
+        elif h_img.mode in ('I;16', 'I'):
             hmap_np = np.asarray(h_img, dtype=np.uint16)
         else:
             # Many existing source files are 8-bit preview images even though their
@@ -430,9 +503,11 @@ _WORKER_SRC_RGB: np.ndarray | None = None
 _WORKER_SRC_HMAP: np.ndarray | None = None
 
 
-def _pool_init(color_src_path: Path, height_src_path: Path, use_flat_height: bool) -> None:
+def _pool_init(color_src_path: Path, height_src_path: Path, use_flat_height: bool,
+               height_min_m: float = -200.0, height_max_m: float = 8500.0) -> None:
     global _WORKER_SRC_RGB, _WORKER_SRC_HMAP
-    _WORKER_SRC_RGB, _WORKER_SRC_HMAP = load_sources(color_src_path, height_src_path, use_flat_height)
+    _WORKER_SRC_RGB, _WORKER_SRC_HMAP = load_sources(
+        color_src_path, height_src_path, use_flat_height, height_min_m, height_max_m)
 
 
 def _pool_run_task(task: tuple) -> tuple[str, dict, bool]:
@@ -448,11 +523,14 @@ def run_tile_tasks(tasks: list, jobs: int, color_src_path: Path, height_src_path
     """Generate a batch of tiles, in parallel across processes when worthwhile."""
     if not tasks:
         return []
+    # The height decode range is uniform across a bake; take it from the first task
+    # so workers encode a meters source (ETOPO) into the same u16 space main() uses.
+    hmin, hmax = tasks[0][8], tasks[0][9]
     if jobs > 1 and len(tasks) > 1:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=jobs,
             initializer=_pool_init,
-            initargs=(color_src_path, height_src_path, use_flat_height),
+            initargs=(color_src_path, height_src_path, use_flat_height, hmin, hmax),
         ) as executor:
             return list(executor.map(_pool_run_task, tasks))
     return [
@@ -500,24 +578,39 @@ def try_encode_ktx2(src_png: Path, dst_ktx2: Path) -> bool:
         str(src_png),
     ]
 
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-    except Exception as ex:
-        print(f'[lod0] KTX2 encode failed for {src_png.name}: {ex}')
-        return False
+    # toktx occasionally fails with a transient error (exit 2) when another process
+    # briefly holds the source .png or destination .ktx2 -- on Windows this is common
+    # under antivirus or cloud-sync (OneDrive/NextCloud) scanning during a parallel
+    # bake. Retry a few times with a short backoff so a momentary lock does not
+    # permanently drop the tile to a PNG the renderer (requireKtx2) will reject.
+    attempts = 4
+    last_stderr = ''
+    for attempt in range(attempts):
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError as ex:
+            last_stderr = (ex.stderr or b'').decode('utf-8', 'replace').strip()
+        except Exception as ex:  # toktx missing/not executable, etc. -- not retryable
+            print(f'[lod0] KTX2 encode error for {src_png.name}: {ex}')
+            return False
+        if attempt < attempts - 1:
+            time.sleep(0.25 * (attempt + 1))
 
-    return True
+    print(f'[lod0] KTX2 encode failed for {src_png.name} after {attempts} attempts: '
+          f'{last_stderr or "exit status 2"}')
+    return False
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Generate LOD0 cubed-sphere assets for planet2 renderer.')
     parser.add_argument('--color-source', type=str, default='textures/bluemarble_4096.jpg')
-    parser.add_argument('--height-source', type=str, default='textures/EARTH_DISPLACE_42K_16BITS_preview.jpg')
+    parser.add_argument('--height-source', type=str, default='textures/DEM/ETOPO_2022_v1_60s_surface.tif')
     parser.add_argument('--face-size', type=int, default=512)
     parser.add_argument('--height-size', type=int, default=128)
     parser.add_argument('--flat-height', action='store_true', default=False)
-    parser.add_argument('--height-min-m', type=float, default=-200.0)
-    parser.add_argument('--height-max-m', type=float, default=8500.0)
+    parser.add_argument('--height-min-m', type=float, default=-11000.0)
+    parser.add_argument('--height-max-m', type=float, default=9000.0)
     parser.add_argument('--out-root', type=str, default='assets/earth')
     parser.add_argument('--prefer-ktx2', action='store_true', default=True)
     parser.add_argument('--no-ktx2', action='store_true', default=False)
@@ -560,7 +653,9 @@ def main() -> None:
         raise FileNotFoundError(f'Color source not found: {color_src_path}')
 
     use_flat_height = args.flat_height or (not height_src_path.exists())
-    color_np, hmap_np = load_sources(color_src_path, height_src_path, use_flat_height)
+    color_np, hmap_np = load_sources(
+        color_src_path, height_src_path, use_flat_height,
+        float(args.height_min_m), float(args.height_max_m))
 
     manifest_path = out_root / 'manifest.json'
     # Refinement runs are additive: merge into the existing manifest so previously

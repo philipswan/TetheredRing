@@ -156,7 +156,12 @@ def _load_land_mask(bbox, step_deg, disp_path):
     """
     lon_min, lon_max, lat_min, lat_max = bbox
     Image.MAX_IMAGE_PIXELS = None
-    img = Image.open(disp_path).convert('L')
+    # ETOPO/GeoTIFF sources carry real meters (sea level = 0); a legacy 8-bit preview
+    # uses the fake-ocean plateau, so it is thresholded in u8 code space instead.
+    is_meters = str(disp_path).lower().endswith(('.tif', '.tiff'))
+    img = Image.open(disp_path)
+    if not is_meters:
+        img = img.convert('L')
     src_w, src_h = img.size  # global equirect: lon -180..180, lat 90..-90
     px0 = int(np.floor((lon_min + 180.0) / 360.0 * src_w))
     px1 = int(np.ceil((lon_max + 180.0) / 360.0 * src_w))
@@ -166,8 +171,12 @@ def _load_land_mask(bbox, step_deg, disp_path):
     n_lon = max(2, int(round((lon_max - lon_min) / step_deg)) + 1)
     n_lat = max(2, int(round((lat_max - lat_min) / step_deg)) + 1)
     crop = crop.resize((n_lon, n_lat), Image.BILINEAR)
-    arr = np.asarray(crop, dtype=np.uint8)  # row 0 = north
-    mask = arr > LAND_THRESHOLD_U8
+    if is_meters:
+        arr = np.asarray(crop, dtype=np.float32)  # row 0 = north; values in meters
+        mask = arr > 0.0
+    else:
+        arr = np.asarray(crop, dtype=np.uint8)  # row 0 = north
+        mask = arr > LAND_THRESHOLD_U8
     lon_axis = np.linspace(lon_min, lon_max, n_lon)
     lat_axis = np.linspace(lat_max, lat_min, n_lat)
     return mask, lon_axis, lat_axis
@@ -211,13 +220,13 @@ def collect_graded_tiles(bbox, min_lod, step_deg, disp_path):
     return tiles, mask
 
 
-def _worker_init(color_src, height_src, use_flat, reg_color, reg_height, reg_bbox, crop_bbox, height_data_bbox):
+def _worker_init(color_src, height_src, use_flat, reg_color, reg_height, reg_bbox, crop_bbox, height_data_bbox, height_min_m, height_max_m):
     # Each worker process loads the sources and the regional overlay once; the
     # overlay lives in generator module globals that are process-local. The overlay
     # is cropped to crop_bbox on load so each worker only holds the tiny island
     # window instead of the full 15-degree regional cell (which otherwise costs ~1 GB
     # of RAM per worker and forces the machine to page).
-    g._pool_init(Path(color_src), Path(height_src), use_flat)
+    g._pool_init(Path(color_src), Path(height_src), use_flat, height_min_m, height_max_m)
     g.set_regional_source(
         Path(reg_color) if reg_color else None,
         Path(reg_height),
@@ -237,8 +246,8 @@ def main() -> None:
                         help='Color tile size at/below the LOD knee (scales down for higher LODs).')
     parser.add_argument('--height-size', type=int, default=256,
                         help='Height tile size at/below the LOD knee (scales down for higher LODs).')
-    parser.add_argument('--height-min-m', type=float, default=-200.0)
-    parser.add_argument('--height-max-m', type=float, default=8500.0)
+    parser.add_argument('--height-min-m', type=float, default=-11000.0)
+    parser.add_argument('--height-max-m', type=float, default=9000.0)
     parser.add_argument('--grid-step-deg', type=float, default=0.01,
                         help='Sampling grid spacing; must be < one max-LOD tile width.')
     parser.add_argument('--wide-lod', type=int, default=WIDE_LOD,
@@ -262,7 +271,7 @@ def main() -> None:
     args = parser.parse_args()
 
     color_src_path = _REPO_ROOT / 'textures/bluemarble_4096.jpg'
-    height_src_path = _REPO_ROOT / 'textures/EARTH_DISPLACE_42K_16BITS_preview.jpg'
+    height_src_path = _REPO_ROOT / 'textures/DEM/ETOPO_2022_v1_60s_surface.tif'
     reg_color = _REPO_ROOT / REGION_COLOR
     reg_height = _REPO_ROOT / REGION_HEIGHT
 
@@ -392,13 +401,15 @@ def main() -> None:
             max_workers=jobs,
             initializer=_worker_init,
             initargs=(str(color_src_path), str(height_src_path), False,
-                      str(reg_color), str(reg_height), REGION_BBOX, crop_bbox, height_data_bbox),
+                      str(reg_color), str(reg_height), REGION_BBOX, crop_bbox, height_data_bbox,
+                      float(args.height_min_m), float(args.height_max_m)),
         ) as executor:
             for result in executor.map(g._pool_run_task, tasks, chunksize=8):
                 _record(result)
     else:
         # Serial: set the overlay once in this process, then bake in-line.
-        color_np, hmap_np = g.load_sources(color_src_path, height_src_path, False)
+        color_np, hmap_np = g.load_sources(color_src_path, height_src_path, False,
+                                           float(args.height_min_m), float(args.height_max_m))
         g.set_regional_source(reg_color, reg_height, REGION_BBOX, crop_bbox, height_data_bbox)
         for (face, lod, tx, ty, color_size, height_size,
              ocr, ohr, hmin, hmax, try_ktx2) in tasks:
