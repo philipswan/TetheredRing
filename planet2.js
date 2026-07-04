@@ -346,6 +346,7 @@ class CubedSpherePlanetRenderer {
     // How many times a tile whose color/height stream errors out is retried
     // before we give up and accept the flat fallback (avoids infinite spin on a
     // genuinely missing/broken tile while surviving transient failures).
+    this.maxLoadAttempts = Math.max(1, options.maxLoadAttempts ?? 4);
     this.maxTileCount = options.maxTileCount ?? 320;
     this.maxGpuBytes = options.maxGpuBytes ?? 700 * 1024 * 1024;
     this.rootLod = 0;
@@ -395,7 +396,7 @@ class CubedSpherePlanetRenderer {
     this.debugMode = 'none';
     this.debugStats = {
       queue: 0, inflight: 0, loadedTiles: 0, visibleTiles: 0,
-      gpuBytes: 0, evictedTiles: 0, evictedWhileLoading: 0, droppedLoads: 0,
+      gpuBytes: 0, evictedTiles: 0, droppedLoads: 0,
     };
 
     // Reusable temporaries (avoid per-frame allocation).
@@ -788,11 +789,23 @@ class CubedSpherePlanetRenderer {
     rayEllipsoidIntersection(this._tmpDir, this.a, this.b, tile.center);
     ellipsoidNormal(tile.center, this.a, this.b, tile.centerNormal);
 
-    // Bounding radius from center to a tile corner (plus a height allowance).
-    cubeToDirection(tile.face, cu - tileSpan * 0.5, cv - tileSpan * 0.5, this._tmpDir);
-    rayEllipsoidIntersection(this._tmpDir, this.a, this.b, this._tmpA);
+    // Bounding radius from center to the farthest tile corner (plus a height
+    // allowance). Using only one corner can underestimate the tile's true
+    // footprint and make edge tiles blink out near the frustum boundary.
+    let maxCornerDist = 0;
+    const corners = [
+      [cu - tileSpan * 0.5, cv - tileSpan * 0.5],
+      [cu + tileSpan * 0.5, cv - tileSpan * 0.5],
+      [cu - tileSpan * 0.5, cv + tileSpan * 0.5],
+      [cu + tileSpan * 0.5, cv + tileSpan * 0.5],
+    ];
+    for (const [u, v] of corners) {
+      cubeToDirection(tile.face, u, v, this._tmpDir);
+      rayEllipsoidIntersection(this._tmpDir, this.a, this.b, this._tmpA);
+      maxCornerDist = Math.max(maxCornerDist, tile.center.distanceTo(this._tmpA));
+    }
     const heightAllowance = 10000 * Math.max(1, this.displacementScaleMultiplier);
-    tile.boundingRadius = tile.center.distanceTo(this._tmpA) + heightAllowance;
+    tile.boundingRadius = maxCornerDist + heightAllowance;
     tile.boundsValid = true;
   }
 
@@ -1061,7 +1074,6 @@ class CubedSpherePlanetRenderer {
       const tile = this.priorityQueue.pop();
       if (!tile) break;
       this.queuedSet.delete(tile.id);
-      if (this.tiles.get(tile.id) !== tile) continue;
       if (tile.ready || tile.loading) continue;
       this._loadTile(tile);
     }
@@ -1254,10 +1266,6 @@ class CubedSpherePlanetRenderer {
       if (tile.lod === this.rootLod) continue;
       if (this.visibleTiles.has(tile.id)) continue;
       if (this._isAncestorOfVisible(tile)) continue;
-      if (tile.loading || tile.retryScheduled || this.queuedSet.has(tile.id)) {
-        this.debugStats.evictedWhileLoading += 1;
-        continue;
-      }
       candidates.push(tile);
     }
     candidates.sort((a, b) => a.lastUsedFrame - b.lastUsedFrame);
