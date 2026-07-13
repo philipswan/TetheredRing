@@ -5,7 +5,7 @@ while flat/ocean areas stay LOD 3-5, avoiding a wasteful uniform-LOD6 bake
 (6*64*64 = 24,576 tiles).
 
 Steps (each writes a colored visualization bake you can load in the globe via
-?planet2Assets=earth_lodviz):
+?planet2Assets=earth_lodvis):
   step1 - classify every LOD-6 tile as mountainous via elevation std-dev over its
           ETOPO footprint (top percentile of LAND tiles; ocean excluded).
   step2 - dilate: any LOD-6 tile with dx^2+dy^2 <= 16 of a mountainous tile
@@ -19,7 +19,7 @@ height + manifest) but FABRICATES pixels (solid fill + per-cell borders) so the
 exact same code path that ships real tiles is exercised. It is written to a
 separate asset folder so existing work in assets/earth is preserved.
 
-Classification state is cached in assets/earth_lodviz/state/*.npz so later steps
+Classification state is cached in assets/earth_lodvis/state/*.npz so later steps
 (and re-runs) don't recompute the variance pass.
 """
 
@@ -39,7 +39,7 @@ from PIL import Image
 import tools.generate_planet2_lod0_assets as g
 
 ROOT = Path(__file__).resolve().parents[1]
-VIZ_ROOT = ROOT / 'assets' / 'earth_lodviz'
+VIZ_ROOT = ROOT / 'assets' / 'earth_lodvis'
 STATE_DIR = VIZ_ROOT / 'state'
 
 # ETOPO decode range used by the base bake / cache; std/land only need meters.
@@ -390,24 +390,19 @@ def step3() -> dict:
     """Turn the step-2 hi-res seed set (MOUNTAIN + DILATED) into a sibling-closed
     varied-LOD leaf map via bottom-up quad completion."""
     labels = _load_step2()
-    faces: dict[str, dict] = {}
+    faces = _build_adaptive_faces(labels)
+    tasks, _ = _iter_adaptive_tile_specs(faces)
     counts = {3: 0, 4: 0, 5: 0, 6: 0}
-    internal = 0
     for face in g.FACES:
-        seed6 = (labels[face] == MOUNTAIN) | (labels[face] == DILATED)
-        q = _quadtree_face(seed6)
-        q['label'] = labels[face]
-        faces[face] = q
+        q = faces[face]
         counts[3] += int(q['leaf3'].sum())
         counts[4] += int(q['leaf4'].sum())
         counts[5] += int(q['leaf5'].sum())
         counts[6] += int(q['leaf6'].sum())
-        # internal (subdivided) nodes to bake: LOD0..2 always + split LOD3/4/5.
-        internal += 21 + int(q['subdiv3'].sum()) + int(q['subdiv4'].sum()) \
-            + int(q['subdiv5'].sum())
 
     total_leaves = sum(counts.values())
-    total_tiles = total_leaves + internal
+    total_tiles = len(tasks)
+    internal = total_tiles - total_leaves
     uniform6_leaves = TILES_PER_FACE_AXIS * TILES_PER_FACE_AXIS * len(g.FACES)
     uniform6_tiles = ((1 << (2 * (LOD6 + 1))) - 1) // 3 * len(g.FACES)
     print(f'[step3] leaves: LOD3={counts[3]}  LOD4={counts[4]}  '
@@ -423,6 +418,38 @@ def step3() -> dict:
     np.savez(STATE_DIR / 'step3.npz',
              **{f: faces[f]['assigned'] for f in g.FACES})
     return faces
+
+
+def _build_adaptive_faces(labels: dict) -> dict:
+    """Build the adaptive quadtree faces from the step-2 labels."""
+    faces: dict[str, dict] = {}
+    for face in g.FACES:
+        seed6 = (labels[face] == MOUNTAIN) | (labels[face] == DILATED)
+        q = _quadtree_face(seed6)
+        q['label'] = labels[face]
+        faces[face] = q
+    return faces
+
+
+def _iter_adaptive_tile_specs(faces: dict) -> tuple[list[tuple[str, int, int, int]], list[int]]:
+    """Return the exact adaptive tile plan shared by viz and real bakes."""
+    tasks: list[tuple[str, int, int, int]] = []
+    per_lod: list[int] = []
+    for lod in range(0, LOD6 + 1):
+        n_lod = 0
+        for face in g.FACES:
+            present = _present_mask(faces[face], lod)
+            ys, xs = np.nonzero(present)
+            n_lod += len(ys)
+            for ty, tx in zip(ys.tolist(), xs.tolist()):
+                tasks.append((face, lod, int(tx), int(ty)))
+        per_lod.append(n_lod)
+    return tasks, per_lod
+
+
+def _cleanup_state_dir() -> None:
+    """Remove step1/2/3 state after a successful bake."""
+    shutil.rmtree(STATE_DIR, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -466,16 +493,19 @@ def _solid_tile(rgb: tuple) -> np.ndarray:
     return img
 
 
-def _write_viz_tile(face: str, lod: int, tx: int, ty: int, color_rgb: np.ndarray) -> tuple:
-    out_color = VIZ_ROOT / 'color' / face / str(lod) / str(tx)
-    out_height = VIZ_ROOT / 'height' / face / str(lod) / str(tx)
+def _write_viz_tile(root: Path, face: str, lod: int, tx: int, ty: int,
+                    color_rgb: np.ndarray) -> tuple:
+    out_color = root / 'color' / face / str(lod) / str(tx)
+    out_height = root / 'height' / face / str(lod) / str(tx)
     out_color.mkdir(parents=True, exist_ok=True)
     out_height.mkdir(parents=True, exist_ok=True)
 
     png_path = out_color / f'{ty}.png'
     Image.fromarray(color_rgb, mode='RGB').save(png_path)
     ktx2_path = out_color / f'{ty}.ktx2'
+    encoded_ktx2 = False
     if g.try_encode_ktx2(png_path, ktx2_path):
+        encoded_ktx2 = True
         png_path.unlink(missing_ok=True)
 
     height = np.full(VIZ_HEIGHT_SIZE * VIZ_HEIGHT_SIZE, _SEA_LEVEL_CODE, dtype='<u2')
@@ -484,7 +514,7 @@ def _write_viz_tile(face: str, lod: int, tx: int, ty: int, color_rgb: np.ndarray
     tile_id = f'{face}/{lod}/{tx}/{ty}'
     entry = {'roughness': 0.0, 'landFraction': 0.3,
              'width': VIZ_HEIGHT_SIZE, 'height': VIZ_HEIGHT_SIZE}
-    return tile_id, entry
+    return tile_id, entry, encoded_ktx2
 
 
 def _write_manifest(tiles: dict, max_lod: int) -> None:
@@ -507,7 +537,7 @@ def bake_cell_viz(labels: dict, palette: dict, display_lod: int = 3) -> None:
             for ty in range(n):
                 for tx in range(n):
                     img = _paint_cell_tile(face, lod, tx, ty, labels[face], palette)
-                    tile_id, entry = _write_viz_tile(face, lod, tx, ty, img)
+                    tile_id, entry = _write_viz_tile(VIZ_ROOT, face, lod, tx, ty, img)
                     tiles[tile_id] = entry
                     count += 1
         print(f'  baked LOD{lod}: {6 * n * n} tiles ({count} total)')
@@ -555,27 +585,25 @@ def bake_lod_map_viz(faces: dict, display_lod: int = 3) -> None:
     classification (ocean/land/near-mountain/mountain) with the final leaf-tile
     boundaries drawn on top. This just shows which tiles will be baked; planet2
     renders it as flat tiles with no LOD refinement."""
+    _ = display_lod
     # Wipe prior viz tiles so stale deep-LOD bakes don't linger on disk.
     for sub in ('color', 'height'):
         d = VIZ_ROOT / sub
         if d.exists():
             shutil.rmtree(d, ignore_errors=True)
 
+    tasks, per_lod = _iter_adaptive_tile_specs(faces)
     tiles: dict[str, dict] = {}
     count = 0
-    for lod in range(0, display_lod + 1):
-        n = 1 << lod
-        for face in g.FACES:
-            label = faces[face]['label']
-            assigned = faces[face]['assigned']
-            for ty in range(n):
-                for tx in range(n):
-                    img = _paint_lod_map_tile(face, lod, tx, ty, label, assigned)
-                    tile_id, entry = _write_viz_tile(face, lod, tx, ty, img)
-                    tiles[tile_id] = entry
-                    count += 1
-        print(f'  baked LOD{lod}: {6 * n * n} tiles ({count} total)')
-    _write_manifest(tiles, display_lod)
+    for face, lod, tx, ty in tasks:
+        img = _paint_lod_map_tile(face, lod, tx, ty, faces[face]['label'], faces[face]['assigned'])
+        tile_id, entry = _write_viz_tile(VIZ_ROOT, face, lod, tx, ty, img)
+        tiles[tile_id] = entry
+        count += 1
+    for lod, n_lod in enumerate(per_lod):
+        print(f'  baked LOD{lod}: {n_lod} tiles')
+    _write_manifest(tiles, LOD6)
+    _cleanup_state_dir()
     print(f'[viz] wrote {count} tiles + manifest to {VIZ_ROOT}')
 
 
@@ -648,24 +676,26 @@ def _bake_pool_task(task: tuple) -> tuple:
                                ocr, ohr, hmin, hmax, ktx)
 
 
-def step4_bake(color_source: str, height_source: str, out_root: str,
+def step4_bake(color_source: str, height_source: str, out_root: str | None,
                color_size: int, height_size: int, height_min_m: float,
-               height_max_m: float, jobs: int, can_try_ktx2: bool) -> None:
+               height_max_m: float, jobs: int, can_try_ktx2: bool,
+               lodvis: bool = False, faces: dict | None = None) -> None:
     """Bake the real color+height tiles for exactly the adaptive tile set defined
     by step 3 (every present node LOD0..leaf), from the imagery sources, and write
-    a manifest so planet2 refines exactly to the leaf LODs."""
-    labels = _load_step2()
-    faces = {f: _quadtree_face((labels[f] == MOUNTAIN) | (labels[f] == DILATED))
-             for f in g.FACES}
+    a manifest so planet2 refines exactly to the leaf LODs.
+
+    When lodvis is true, the same tile plan is used but the per-tile renderer
+    fabricates solid visualization tiles instead of reading source imagery.
+    """
+    if faces is None:
+        labels = _load_step2()
+        faces = _build_adaptive_faces(labels)
+
+    if out_root is None:
+        out_root = 'assets/earth_lodvis' if lodvis else 'assets/earth'
 
     color_src = ROOT / color_source
     height_src = ROOT / height_source
-    if not color_src.exists():
-        raise SystemExit(f'Color source not found: {color_src}')
-    if not height_src.exists():
-        raise SystemExit(f'Height source not found: {height_src}')
-    color_cache = _ensure_color_cache(color_src)
-    height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
 
     out = ROOT / out_root
     out_color = out / 'color'
@@ -676,27 +706,36 @@ def step4_bake(color_source: str, height_source: str, out_root: str,
     out_color.mkdir(parents=True, exist_ok=True)
     out_height.mkdir(parents=True, exist_ok=True)
 
-    tasks: list[tuple] = []
-    per_lod = []
-    for lod in range(0, LOD6 + 1):
-        n_lod = 0
-        for face in g.FACES:
-            present = _present_mask(faces[face], lod)
-            ys, xs = np.nonzero(present)
-            n_lod += len(ys)
-            for ty, tx in zip(ys.tolist(), xs.tolist()):
-                tasks.append((face, lod, int(tx), int(ty), color_size, height_size,
-                              out_color, out_height, height_min_m, height_max_m,
-                              can_try_ktx2))
-        per_lod.append(n_lod)
+    tile_specs, per_lod = _iter_adaptive_tile_specs(faces)
+    tasks = [(face, lod, tx, ty, color_size, height_size, out_color, out_height,
+              height_min_m, height_max_m, can_try_ktx2)
+             for (face, lod, tx, ty) in tile_specs]
     print(f'[step4] {len(tasks)} tiles to bake -> {out}  (per LOD: {per_lod})')
-    print(f'[step4] color={color_src.name} height={height_src.name} '
-          f'tile={color_size}px/{height_size}px jobs={jobs}')
+    if lodvis:
+        print(f'[step4] lodvis=true tile={color_size}px/{height_size}px')
+    else:
+        if not color_src.exists():
+            raise SystemExit(f'Color source not found: {color_src}')
+        if not height_src.exists():
+            raise SystemExit(f'Height source not found: {height_src}')
+        color_cache = _ensure_color_cache(color_src)
+        height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
+        print(f'[step4] color={color_src.name} height={height_src.name} '
+              f'tile={color_size}px/{height_size}px jobs={jobs}')
 
     tiles: dict[str, dict] = {}
     encoded_any = False
     total = len(tasks)
-    if jobs > 1:
+    if lodvis:
+        for i, (face, lod, tx, ty) in enumerate(tile_specs, 1):
+            img = _paint_lod_map_tile(face, lod, tx, ty, faces[face]['label'],
+                                      faces[face]['assigned'])
+            tid, entry, enc = _write_viz_tile(out, face, lod, tx, ty, img)
+            tiles[tid] = entry
+            encoded_any = encoded_any or enc
+            if i % 1000 == 0:
+                print(f'  {i}/{total} tiles')
+    elif jobs > 1:
         with concurrent.futures.ProcessPoolExecutor(
                 max_workers=jobs, initializer=_bake_pool_init,
                 initargs=(color_cache, height_cache)) as ex:
@@ -728,8 +767,8 @@ def step4_bake(color_source: str, height_source: str, out_root: str,
     if can_try_ktx2 and not encoded_any:
         print('[step4] WARNING: no tiles were KTX2-encoded (toktx missing?); '
               'planet2 may reject PNG-only color tiles.')
+    _cleanup_state_dir()
     print(f'[step4] wrote {len(tiles)} tiles + manifest to {out}')
-
 
 # ---------------------------------------------------------------------------
 # Hawaii overlay: a self-contained high-res cone streamed on top of the base
@@ -769,13 +808,22 @@ def _cone_closure(cone: set) -> set:
 def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
                          height_size: int, height_min_m: float, height_max_m: float,
                          jobs: int, can_try_ktx2: bool,
-                         cone_min_lod: int = CONE_MIN_LOD) -> None:
+                         cone_min_lod: int = CONE_MIN_LOD,
+                         lodvis: bool = False,
+                         base_root: str | None = None,
+                         out_root: str | None = None,
+                         faces: dict | None = None) -> None:
     """Build assets/hawaii: extract the existing LOD>=cone_min_lod XHR cone from
     assets/earth verbatim, then bake the LOD0..cone_min_lod-1 bridge/ancestor tiles
     fresh from the SAME sources+sizes the base bake (step4) uses so they are
     sampling-identical to the regenerated Earth and integrate without a seam. Writes
     a self-contained manifest planet2 merges over the base via ?planet2Overlays=hawaii."""
-    earth = ROOT / EARTH_ROOT
+    if base_root is None:
+        base_root = 'assets/earth_lodvis' if lodvis else EARTH_ROOT
+    if out_root is None:
+        out_root = 'assets/hawaii_lodvis' if lodvis else HAWAII_ROOT
+
+    earth = ROOT / base_root
     earth_manifest_path = earth / 'manifest.json'
     if not earth_manifest_path.exists():
         raise SystemExit(f'{earth_manifest_path} not found; run before step4 overwrites it.')
@@ -832,20 +880,36 @@ def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
     # 2) Bake the bridge fresh with the base bake's exact sources/sizes (seamless).
     color_src = ROOT / color_source
     height_src = ROOT / height_source
-    if not color_src.exists():
-        raise SystemExit(f'Color source not found: {color_src}')
-    if not height_src.exists():
-        raise SystemExit(f'Height source not found: {height_src}')
-    color_cache = _ensure_color_cache(color_src)
-    height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
-    print(f'[hawaii] baking bridge: color={color_src.name} height={height_src.name} '
-          f'tile={color_size}px/{height_size}px jobs={jobs}')
+    if lodvis:
+        print(f'[hawaii] baking bridge lodvis=true tile={color_size}px/{height_size}px '
+              f'jobs={jobs}')
+    else:
+        if not color_src.exists():
+            raise SystemExit(f'Color source not found: {color_src}')
+        if not height_src.exists():
+            raise SystemExit(f'Height source not found: {height_src}')
+        color_cache = _ensure_color_cache(color_src)
+        height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
+        print(f'[hawaii] baking bridge: color={color_src.name} height={height_src.name} '
+              f'tile={color_size}px/{height_size}px jobs={jobs}')
 
     tasks = [(face, lod, x, y, color_size, height_size, out_color, out_height,
               height_min_m, height_max_m, can_try_ktx2)
              for (face, lod, x, y) in bridge]
     encoded_any = False
-    if jobs > 1:
+    if lodvis:
+        if faces is None:
+            labels = _load_step2()
+            faces = _build_adaptive_faces(labels)
+        for i, (face, lod, tx, ty, *_rest) in enumerate(tasks, 1):
+            img = _paint_lod_map_tile(face, lod, tx, ty, faces[face]['label'],
+                                      faces[face]['assigned'])
+            tid, entry, enc = _write_viz_tile(out, face, lod, tx, ty, img)
+            tiles[tid] = entry
+            encoded_any = encoded_any or enc
+            if i % 1000 == 0:
+                print(f'  {i}/{len(tasks)} tiles')
+    elif jobs > 1:
         with concurrent.futures.ProcessPoolExecutor(
                 max_workers=jobs, initializer=_bake_pool_init,
                 initargs=(color_cache, height_cache)) as ex:
@@ -881,85 +945,54 @@ def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest='step', required=True)
-
-    p1 = sub.add_parser('step1', help='variance classification + viz')
-    p1.add_argument('--percentile', type=float, default=75.0,
-                    help='Land-tile std percentile above which a tile is mountainous.')
-    p1.add_argument('--land-frac', type=float, default=0.5,
-                    help='Min above-sea-level sample fraction for a tile to count as land.')
-    p1.add_argument('--samples-per-tile', type=int, default=32,
-                    help='ETOPO samples per LOD-6 tile edge for the std estimate.')
-    p1.add_argument('--display-lod', type=int, default=3,
-                    help='Deepest LOD baked for the classification viz.')
-
-    p2 = sub.add_parser('step2', help='cross-face dilation + viz')
-    p2.add_argument('--radius', type=int, default=2,
-                    help='Dilation radius in tiles; kernel is dx^2+dy^2 <= radius^2.')
-    p2.add_argument('--display-lod', type=int, default=3,
-                    help='Deepest LOD baked for the dilation viz.')
-
-    p3 = sub.add_parser('step3', help='bottom-up quad completion + adaptive leaf viz')
-    p3.add_argument('--dry-run', action='store_true',
-                    help='Compute + save the leaf map and print stats; skip the viz bake.')
-    p3.add_argument('--display-lod', type=int, default=3,
-                    help='Deepest LOD baked for the flat leaf-map overlay.')
-
-    p4 = sub.add_parser('step4', help='bake REAL adaptive tiles from imagery per the step3 map')
-    p4.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png')
-    p4.add_argument('--height-source', type=str, default=HEIGHT_SOURCE)
-    p4.add_argument('--out-root', type=str, default='assets/earth')
-    p4.add_argument('--color-size', type=int, default=256,
-                    help='Color tile edge in px.')
-    p4.add_argument('--height-size', type=int, default=64,
-                    help='Height tile edge in px.')
-    p4.add_argument('--height-min-m', type=float, default=HEIGHT_MIN_M)
-    p4.add_argument('--height-max-m', type=float, default=HEIGHT_MAX_M)
-    p4.add_argument('--jobs', type=int, default=1,
-                    help='Worker processes (mmap-shared sources). 1 = serial (lowest RAM).')
-    p4.add_argument('--no-ktx2', action='store_true', default=False,
-                    help='Skip KTX2 encoding (leaves PNG color tiles).')
-
-    ph = sub.add_parser('hawaii',
-                        help='build assets/hawaii overlay (extract cone + bake matching bridge)')
-    ph.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png',
-                    help='Base color source for the bridge; MUST match step4 to avoid a seam.')
-    ph.add_argument('--height-source', type=str, default=HEIGHT_SOURCE,
-                    help='Base displacement source for the bridge; MUST match step4.')
-    ph.add_argument('--color-size', type=int, default=256,
-                    help='Bridge color tile edge in px; match step4 (--color-size).')
-    ph.add_argument('--height-size', type=int, default=64,
-                    help='Bridge height tile edge in px; match step4 (--height-size).')
-    ph.add_argument('--height-min-m', type=float, default=HEIGHT_MIN_M)
-    ph.add_argument('--height-max-m', type=float, default=HEIGHT_MAX_M)
-    ph.add_argument('--cone-min-lod', type=int, default=CONE_MIN_LOD,
-                    help='LOD at/above which assets/earth tiles are the XHR cone (extracted).')
-    ph.add_argument('--jobs', type=int, default=1,
-                    help='Worker processes for the bridge bake (mmap-shared sources).')
-    ph.add_argument('--no-ktx2', action='store_true', default=False,
-                    help='Skip KTX2 encoding for the bridge tiles.')
+    parser.add_argument('asset', nargs='?', default='earth',
+                        help='Asset root to build (currently: earth, hawaii).')
+    parser.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png')
+    parser.add_argument('--height-source', type=str, default=HEIGHT_SOURCE)
+    parser.add_argument('--color-size', type=int, default=256,
+                        help='Color tile edge in px.')
+    parser.add_argument('--height-size', type=int, default=64,
+                        help='Height tile edge in px.')
+    parser.add_argument('--height-min-m', type=float, default=HEIGHT_MIN_M)
+    parser.add_argument('--height-max-m', type=float, default=HEIGHT_MAX_M)
+    parser.add_argument('--jobs', type=int, default=1,
+                        help='Worker processes (mmap-shared sources). 1 = serial (lowest RAM).')
+    parser.add_argument('--no-ktx2', action='store_true', default=False,
+                        help='Skip KTX2 encoding (leaves PNG color tiles).')
+    parser.add_argument('--lodvis', action='store_true', default=False,
+                        help='Bake visualization tiles instead of imagery tiles.')
+    parser.add_argument('--cone-min-lod', type=int, default=CONE_MIN_LOD,
+                        help='LOD at/above which assets/earth tiles are the XHR cone (extracted).')
 
     args = parser.parse_args()
 
-    if args.step == 'step1':
-        labels = step1(args.percentile, args.land_frac, args.samples_per_tile)
-        bake_cell_viz(labels, PALETTE, display_lod=args.display_lod)
-    elif args.step == 'step2':
-        labels = step2(args.radius)
-        bake_cell_viz(labels, PALETTE, display_lod=args.display_lod)
-    elif args.step == 'step3':
-        faces = step3()
-        if not args.dry_run:
-            bake_lod_map_viz(faces, display_lod=args.display_lod)
-    elif args.step == 'step4':
-        step4_bake(args.color_source, args.height_source, args.out_root,
+    labels = step1(75.0, 0.5, 32)
+    labels = step2(2)
+    faces = step3()
+
+    if args.asset == 'earth':
+        step4_bake(args.color_source, args.height_source, None,
                    args.color_size, args.height_size, args.height_min_m,
-                   args.height_max_m, args.jobs, not args.no_ktx2)
-    elif args.step == 'hawaii':
+                   args.height_max_m, args.jobs, not args.no_ktx2,
+                   lodvis=args.lodvis, faces=faces)
+    elif args.asset == 'hawaii':
+        step4_bake(args.color_source, args.height_source, 'assets/earth_lodvis' if args.lodvis else 'assets/earth',
+                   args.color_size, args.height_size, args.height_min_m,
+                   args.height_max_m, args.jobs, not args.no_ktx2,
+                   lodvis=args.lodvis, faces=faces)
         build_hawaii_overlay(args.color_source, args.height_source,
                              args.color_size, args.height_size, args.height_min_m,
                              args.height_max_m, args.jobs, not args.no_ktx2,
-                             cone_min_lod=args.cone_min_lod)
+                             cone_min_lod=args.cone_min_lod,
+                             lodvis=args.lodvis,
+                             base_root='assets/earth_lodvis' if args.lodvis else EARTH_ROOT,
+                             out_root='assets/hawaii_lodvis' if args.lodvis else HAWAII_ROOT,
+                             faces=faces)
+    else:
+        raise SystemExit(
+            f"Unsupported asset '{args.asset}'. Supported assets are: earth, hawaii. "
+            "Add a new branch in tools/adaptive_lod.py if you want to build another asset."
+        )
 
 
 if __name__ == '__main__':

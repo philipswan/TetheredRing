@@ -147,7 +147,7 @@ const targetRadius = 32800000 / Math.PI / 2   // 32800 km is the max size a perf
 const equivalentLatitudePreset = Math.acos(targetRadius/(radiusOfEarth + 32000)) * 180 / Math.PI
 
 const defaultShows = true // Set to false to reduce loading time
-const massDriverShows = false
+const massDriverShows = true
 
 // Constants controlled by sliders
 const guidParamWithUnits = {
@@ -1383,6 +1383,11 @@ if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtm
     if (typeof planetResult.setPlanetDebugMode === 'function' && nonGUIParams['planet2DebugMode']) {
       planetResult.setPlanetDebugMode(nonGUIParams['planet2DebugMode'])
     }
+    if (typeof planetResult.getPlanetDebugStats === 'function') {
+      window.getPlanet2DebugStats = () => planetResult.getPlanetDebugStats()
+    }
+  } else {
+    window.getPlanet2DebugStats = undefined
   }
 
   if (dParamWithUnits['showEarthsSurface'].value) planetCoordSys.add(planetMeshes)
@@ -2820,12 +2825,7 @@ function onKeyDown( event ) {
       break;
     case 80: /*P*/
       raycaster.setFromCamera(mouse, camera)
-      let planetIntersects = []
-      planetMeshes.traverse(child => {
-        if (child.type==='Mesh') {
-          planetIntersects.push.apply(planetIntersects, raycaster.intersectObject(child))
-        }
-      })
+      const planetIntersects = raycaster.intersectObject(planetMeshes, true)
       let objectIntersects = []
       planetCoordSys.traverse(child => {
         if (child.type==='Mesh') {
@@ -2897,7 +2897,7 @@ function onKeyDown( event ) {
         extraDistanceForCamera = 100
         orbitControls.rotateSpeed = 0.9
       }
-      else if (planetIntersects.length>0) { // Note: would probably be advisable to assert here that there is only one intersection point.
+      else if (planetIntersects.length>0) {
         intersectionPoint = planetIntersects[0].point
         // Because we want to orbit around a point at the altitude of the ring...
         targetPoint = intersectionPoint.multiplyScalar((roughPlanetRadius + (dParamWithUnits['pKeyAltitudeFactor'].value * crv.currentMainRingAltitude))/roughPlanetRadius)

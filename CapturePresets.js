@@ -44,7 +44,7 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
 
 
-  switch (0) {
+  switch (21) {
     case 0:
       defaultBehaviour()
       break

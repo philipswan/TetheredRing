@@ -136,6 +136,60 @@ colorBasePath:  '/assets/earth/color',
 heightBasePath: '/assets/earth/height',
 ```
 
+## Overlay asset layers (`assets/hawaii/`)
+
+An **overlay** is a second, self-contained asset folder (same
+`manifest.json` + `color/` + `height/` layout as the base) that is loaded **on
+top of** the base at runtime and merged into it. Overlays keep the base bake
+generic and cheap while letting a region carry its own high-resolution enhancement
+without re-baking the whole globe.
+
+Enable overlays with the `?planet2Overlays=` URL parameter (comma-separated) or the
+`nonGUIParams.planet2Overlays` array. They are **off by default**, so the base
+globe is unchanged unless requested:
+
+```
+http://localhost:5173/?planet2Overlays=hawaii
+```
+
+How the merge works (`planet2.js` `_loadOverlays()`):
+
+- The base manifest loads first, then each overlay manifest is fetched and its
+  tiles are merged into the same tile map. **An overlay tile overrides the base
+  tile at the same `face/lod/x/y` key.**
+- Each overlay-provided tile remembers its own `color/height` folders, so
+  `_loadColor()` / `_loadHeight()` stream the overriding tiles from
+  `/assets/<overlay>/…` while every other tile still comes from the base.
+- `maxAvailableLod` becomes the maximum across the base and all overlays, so the
+  renderer can refine into the overlay's deeper levels. Overlays must share the
+  base's `minHeight`/`maxHeight` decode range (a mismatch is logged as a warning).
+- The merge is a union, so refinement everywhere *outside* the overlay's region is
+  unaffected — the overlay only replaces the specific keys it contains.
+
+**Seam-free integration.** Because the mesh displaces per vertex from the height
+texture, an overlay tile and the adjacent base tile must sample **identical**
+elevation along their shared edge — this requires the same displacement source
+*and* the same tile resolution. The Hawaii overlay is therefore built as a hybrid
+by [`tools/adaptive_lod.py`](../tools/adaptive_lod.py) (`hawaii` subcommand):
+
+- The high-resolution XHR cone (the deep levels, `LOD ≥ 7`) is **extracted
+  verbatim** from `assets/earth`. Its neighbors are interior overlay tiles, and its
+  boundary with the coarser bridge is reconciled by the renderer's CDLOD edge
+  morph — exactly as it already renders inside the base.
+- The `LOD 0–6` **bridge/ancestor tiles are re-baked** from the *same* sources and
+  tile sizes the base bake (`step4`) uses, so they are sampling-identical to the
+  regenerated base and meet it without a crack.
+
+The bridge is a full self-contained subtree down to `LOD 0` with sibling
+completion (every parent owns all four children), so the merged tree is reachable
+from the base floor into the cone with no ragged parents. Build it **before**
+regenerating `assets/earth` (or restore the base from a backup first):
+
+```
+python -m tools.adaptive_lod hawaii   # -> assets/hawaii  (extract cone + bake bridge)
+python -m tools.adaptive_lod step4    # regenerate the adaptive assets/earth base
+```
+
 ## Where the raw data comes from
 
 Tiles are generated from **equirectangular** (lat/lon) source images:

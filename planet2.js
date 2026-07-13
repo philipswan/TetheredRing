@@ -273,6 +273,9 @@ class Tile {
 
     this.loadGeneration = 0;
     this.abortController = null;
+    this.queuedAtMs = 0;
+    this.loadStartedAtMs = 0;
+    this.debugSourceKey = 'base';
     // Bounded retry bookkeeping: a transient color/height failure leaves the tile
     // un-ready so it is re-enqueued (after a backoff delay) up to maxLoadAttempts,
     // instead of permanently showing the flat light-blue fallback material.
@@ -322,15 +325,27 @@ class CubedSpherePlanetRenderer {
     this.renderer = options.renderer || null;
     this.planetSpec = options.planetSpec;
 
-    this.manifestUrl = options.manifestUrl;
-    this.colorBasePath = options.colorBasePath;
-    this.heightBasePath = options.heightBasePath;
+    this.assets = Array.isArray(options.assets) && options.assets.length > 0
+      ? options.assets
+      : [{
+          name: 'earth',
+          manifestUrl: options.manifestUrl,
+          colorBasePath: options.colorBasePath,
+          heightBasePath: options.heightBasePath,
+        }];
+    const baseAsset = this.assets[0] || {
+      name: 'earth',
+      manifestUrl: options.manifestUrl,
+      colorBasePath: options.colorBasePath,
+      heightBasePath: options.heightBasePath,
+    };
+    this.manifestUrl = baseAsset.manifestUrl;
+    this.colorBasePath = baseAsset.colorBasePath;
+    this.heightBasePath = baseAsset.heightBasePath;
 
-    // Optional overlay asset layers (e.g. a high-res Hawaii cone) loaded on top of
-    // the base after its manifest resolves. Each overlay tile overrides the base
-    // tile at the same key and streams from the overlay's own color/height folders.
-    // Shape: [{ name, manifestUrl, colorBasePath, heightBasePath }].
-    this.overlays = Array.isArray(options.overlays) ? options.overlays : [];
+    // Assets after the first one are overlaid in order, each using its own
+    // manifest and tile folders.
+    this.overlays = this.assets.slice(1);
 
     this.segments = Math.max(2, options.segments ?? 24);
     this.maxConcurrentLoads = Math.max(1, options.maxConcurrentLoads ?? 8);
@@ -364,6 +379,7 @@ class CubedSpherePlanetRenderer {
 
     this.requireKtx2 = options.requireKtx2 === true;
     this.displacementScaleMultiplier = Math.max(0, options.displacementScaleMultiplier ?? 1);
+    this.enableStartupChart = options.enableStartupChart === true;
 
     this.locationInterests = (options.locationInterests || [
       { name: 'Mauna Kea', lat: 19.8207, lon: -155.4681, radiusKm: 80, lodBoost: 2 },
@@ -397,6 +413,33 @@ class CubedSpherePlanetRenderer {
     this.debugStats = {
       queue: 0, inflight: 0, loadedTiles: 0, visibleTiles: 0,
       gpuBytes: 0, evictedTiles: 0, droppedLoads: 0,
+      loadStarted: 0, loadFinished: 0, loadSucceeded: 0, loadSuperseded: 0, loadFailed: 0, loadRetries: 0,
+      colorFetchMs: 0, colorDecodeUploadMs: 0, heightFetchMs: 0, heightPostFetchMs: 0,
+      colorTransferBytes: 0, heightTransferBytes: 0,
+      maxColorFetchMs: 0, maxColorDecodeUploadMs: 0, maxHeightFetchMs: 0, maxHeightPostFetchMs: 0,
+      maxQueue: 0, maxInflight: 0, maxLoadedTiles: 0, maxVisibleTiles: 0,
+      overlayManifests: 0, overlayTilesMerged: 0, overlayTilesSkipped: 0,
+      overlayManifestMs: 0, overlayMergeMs: 0,
+      startupTrace: {
+        t0Ms: performance.now(),
+        firstUpdateMs: null,
+        firstEnqueueMs: null,
+        firstLoadStartedMs: null,
+        firstLoadFinishedMs: null,
+        firstVisibleReadyMs: null,
+        manifestReadyMs: null,
+        firstUpdateTileCount: null,
+        firstEnqueueTileId: null,
+        firstLoadTileId: null,
+        firstFinishedTileId: null,
+        firstVisibleReadyTileId: null,
+        lastEventMs: null,
+        chartPrinted: false,
+        idleFrames: 0,
+        manifestFetchStartMs: null,
+        manifestFetchEndMs: null,
+      },
+      sourceStats: {},
     };
 
     // Reusable temporaries (avoid per-frame allocation).
@@ -434,11 +477,180 @@ class CubedSpherePlanetRenderer {
     // lives at the top of the manifest rather than being repeated per tile.
     this.heightMinMeters = -200;
     this.heightMaxMeters = 8500;
+    this.startupTimeline = new Map();
+    this.startupManifestEvents = [];
 
     this.ktx2Loader = CubedSpherePlanetRenderer._getSharedKTX2Loader(this.renderer);
 
     this._initRoots();
     this._loadManifest();
+  }
+
+  _markStartupTrace(key, value = null) {
+    const trace = this.debugStats.startupTrace;
+    if (!trace || trace[key] != null) return;
+    const elapsedMs = value != null ? value : performance.now() - trace.t0Ms;
+    trace[key] = elapsedMs;
+    console.log(`[planet2][startup] ${key} +${elapsedMs.toFixed(1)}ms`);
+  }
+
+  _recordStartupTileEvent(tile, kind, elapsedMs = null) {
+    if (!tile || tile.lod == null || tile.lod > 1) return;
+    const trace = this.debugStats.startupTrace;
+    const ts = elapsedMs != null ? elapsedMs : (performance.now() - trace.t0Ms);
+
+    const key = tile.id;
+    let entry = this.startupTimeline.get(key);
+    if (!entry) {
+      entry = {
+        tile,
+        events: [],
+        seen: new Set(),
+      };
+      this.startupTimeline.set(key, entry);
+    }
+    if (entry.seen.has(kind)) return;
+    entry.seen.add(kind);
+    entry.events.push({ kind, ms: ts });
+    trace.lastEventMs = ts;
+  }
+
+  _recordStartupManifestEvent(kind, elapsedMs = null) {
+    const trace = this.debugStats.startupTrace;
+    const ts = elapsedMs != null ? elapsedMs : (performance.now() - trace.t0Ms);
+    this.startupManifestEvents.push({ kind, ms: ts });
+    trace.lastEventMs = ts;
+  }
+
+  _renderStartupChart() {
+    const rows = [];
+    for (const entry of this.startupTimeline.values()) {
+      if (!entry.tile || entry.tile.lod == null || entry.tile.lod > 1 || entry.events.length === 0) continue;
+      rows.push(entry);
+    }
+    rows.sort((a, b) => {
+      const ta = a.tile;
+      const tb = b.tile;
+      if (!ta && !tb) return 0;
+      if (!ta) return -1;
+      if (!tb) return 1;
+      if (ta.lod !== tb.lod) return ta.lod - tb.lod;
+      const faceA = FACE_NAMES.indexOf(ta.face);
+      const faceB = FACE_NAMES.indexOf(tb.face);
+      if (faceA !== faceB) return faceA - faceB;
+      if (ta.x !== tb.x) return ta.x - tb.x;
+      return ta.y - tb.y;
+    });
+
+    const trace = this.debugStats.startupTrace;
+    const maxMs = Math.max(
+      trace.lastEventMs ?? 0,
+      trace.firstVisibleReadyMs ?? 0,
+      trace.firstLoadFinishedMs ?? 0,
+      trace.firstLoadStartedMs ?? 0,
+      trace.firstEnqueueMs ?? 0,
+      trace.manifestReadyMs ?? 0,
+      trace.firstUpdateMs ?? 0,
+    );
+    const focusMs = Math.max(
+      15000,
+      (trace.firstVisibleReadyMs ?? 0) + 5000,
+      (trace.firstLoadFinishedMs ?? 0) + 2000,
+    );
+    const chartMs = Math.min(maxMs, focusMs);
+    const width = 168;
+    const labelWidth = 15;
+    const scaleMsPerCol = chartMs > 0 ? chartMs / (width - 1) : 1;
+    const scale = chartMs > 0 ? (width - 1) / chartMs : 1;
+    const tickEveryMs = chartMs > 0 ? 1000 : 1;
+    const chartPrefix = `${''.padEnd(labelWidth-7)} `;
+
+    const tickLine = new Array(width).fill('.');
+    const labelLine = new Array(width).fill(' ');
+    for (let ms = 0; ms <= chartMs; ms += tickEveryMs) {
+      const col = Math.min(width - 1, Math.round(ms * scale));
+      tickLine[col] = '|';
+      const label = String(Math.round(ms / 1000));
+      for (let i = 0; i < label.length && col + i < width; i += 1) {
+        labelLine[col + i] = label[i];
+      }
+    }
+
+    const eventChar = {
+      enqueue: 'q',
+      start: 's',
+      colorFetch: 'c',
+      colorDone: 'C',
+      heightFetch: 'h',
+      heightDone: 'H',
+      apply: 'a',
+      visible: 'v',
+      manifestFetch: 'm',
+      manifestReady: 'M',
+      overlayFetch: 'o',
+      overlayReady: 'O',
+    };
+    const eventCounts = {
+      enqueue: 0, start: 0, colorFetch: 0, colorDone: 0, heightFetch: 0, heightDone: 0,
+      apply: 0, visible: 0, manifestFetch: 0, manifestReady: 0, overlayFetch: 0, overlayReady: 0,
+    };
+    for (const entry of rows) {
+      for (const ev of entry.events) {
+        if (eventCounts[ev.kind] != null) eventCounts[ev.kind] += 1;
+      }
+    }
+
+    const renderRows = [];
+    if (this.startupManifestEvents.length > 0) {
+      renderRows.push({
+        label: `${'MANIFEST'.padEnd(labelWidth - 1)}M`,
+        events: this.startupManifestEvents,
+      });
+    }
+    for (const entry of rows) {
+      const tile = entry.tile;
+      const colorRowKinds = new Set(['enqueue', 'start', 'colorFetch', 'colorDone', 'apply', 'visible']);
+      const heightRowKinds = new Set(['enqueue', 'start', 'heightFetch', 'heightDone', 'apply', 'visible']);
+      renderRows.push({
+        label: `${`LOD${tile.lod} ${tile.id}`.padEnd(labelWidth - 1)}C`,
+        events: entry.events.filter((ev) => colorRowKinds.has(ev.kind)),
+      });
+      renderRows.push({
+        label: `${`LOD${tile.lod} ${tile.id}`.padEnd(labelWidth - 1)}H`,
+        events: entry.events.filter((ev) => heightRowKinds.has(ev.kind)),
+      });
+    }
+
+    const lines = [];
+    lines.push('legend: m=manifest-fetch  M=manifest-ready  o=overlay-fetch  O=overlay-ready  q=enqueue  s=start  c=color-fetch  C=color-done  h=height-fetch  H=height-done  a=apply  v=visible');
+    lines.push(`max t = ${maxMs.toFixed(1)} ms`);
+    lines.push(`chart t = ${chartMs.toFixed(1)} ms`);
+    lines.push(`events: m=${eventCounts.manifestFetch} M=${eventCounts.manifestReady} o=${eventCounts.overlayFetch} O=${eventCounts.overlayReady} q=${eventCounts.enqueue} s=${eventCounts.start} c=${eventCounts.colorFetch} C=${eventCounts.colorDone} h=${eventCounts.heightFetch} H=${eventCounts.heightDone} a=${eventCounts.apply} v=${eventCounts.visible}`);
+    lines.push(`${chartPrefix}t(ms)  ${labelLine.join('')}`);
+    lines.push(`${chartPrefix}       ${tickLine.join('')}`);
+    for (const entry of renderRows) {
+      const row = new Array(width).fill('.');
+      for (const ev of entry.events) {
+        const col = Math.min(width - 1, Math.round(ev.ms * scale));
+        const existing = row[col];
+        row[col] = existing === '.' ? eventChar[ev.kind] || '?' : '*';
+      }
+      lines.push(`${entry.label} ${row.join('')}`);
+    }
+    return lines.join('\n');
+  }
+
+  _flushStartupChartIfReady() {
+    if (!this.enableStartupChart) return;
+    const trace = this.debugStats.startupTrace;
+    if (trace.chartPrinted) return;
+    if (trace.firstVisibleReadyMs == null) return;
+    const nowMs = performance.now() - trace.t0Ms;
+    const quietMs = trace.lastEventMs != null ? nowMs - trace.lastEventMs : 0;
+    if (quietMs < 2000) return;
+    trace.chartPrinted = true;
+    const chart = this._renderStartupChart();
+    console.log(chart);
   }
 
   // Creates / returns a single shared KTX2 loader and runs detectSupport once.
@@ -459,6 +671,8 @@ class CubedSpherePlanetRenderer {
 
   async _loadManifest() {
     try {
+      this.debugStats.startupTrace.manifestFetchStartMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+      this._recordStartupManifestEvent('manifestFetch', this.debugStats.startupTrace.manifestFetchStartMs);
       const response = await fetch(this.manifestUrl, { cache: 'no-cache' });
       if (!response.ok) throw new Error(`manifest fetch ${response.status}`);
       this.manifest = await response.json();
@@ -484,7 +698,10 @@ class CubedSpherePlanetRenderer {
     } finally {
       // Allow tile loads to proceed. On failure we run with default meta rather
       // than stalling the globe forever.
+      this.debugStats.startupTrace.manifestFetchEndMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+      this._recordStartupManifestEvent('manifestReady', this.debugStats.startupTrace.manifestFetchEndMs);
       this.manifestReady = true;
+      this._markStartupTrace('manifestReadyMs');
     }
   }
 
@@ -495,10 +712,18 @@ class CubedSpherePlanetRenderer {
   async _loadOverlays() {
     for (const overlay of this.overlays) {
       if (!overlay || !overlay.manifestUrl) continue;
+      const sourceStats = this._getSourceStats(overlay.name);
       try {
-        const response = await fetch(overlay.manifestUrl, { cache: 'no-cache' });
-        if (!response.ok) throw new Error(`overlay manifest fetch ${response.status}`);
+        const manifestUrl = overlay.manifestUrl;
+        const overlayFetchStartMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+        this._recordStartupManifestEvent('overlayFetch', overlayFetchStartMs);
+        const response = await fetch(manifestUrl, { cache: 'no-cache' });
+        if (!response.ok) {
+          throw new Error(`overlay manifest fetch ${response.status} for "${overlay.name}"`);
+        }
+        const manifestStart = performance.now();
         const data = await response.json();
+        const manifestMs = performance.now() - manifestStart;
 
         // Overlays must share the base height decode range: all height tiles are
         // sampled into one global [minHeight, maxHeight] u16 space, so a mismatch
@@ -518,22 +743,230 @@ class CubedSpherePlanetRenderer {
         }
 
         const source = {
+          name: overlay.name,
           colorBasePath: overlay.colorBasePath,
           heightBasePath: overlay.heightBasePath,
         };
         let count = 0;
+        let skipped = 0;
+        const mergeStart = performance.now();
         if (data.tiles) {
           for (const [k, v] of Object.entries(data.tiles)) {
+            const lod = Number(k.split('/')[1]);
+            if (lod > overlayMaxLod) {
+              skipped += 1;
+              continue;
+            }
             this.manifestTileMap.set(k, v);
             this.tileSourceMap.set(k, source);
             count += 1;
           }
         }
-        console.log(`[planet2] overlay "${overlay.name}" merged ${count} tiles`);
+        const mergeMs = performance.now() - mergeStart;
+        this._recordStartupManifestEvent('overlayReady', performance.now() - this.debugStats.startupTrace.t0Ms);
+        this.debugStats.overlayManifests += 1;
+        this.debugStats.overlayTilesMerged += count;
+        this.debugStats.overlayTilesSkipped += skipped;
+        this.debugStats.overlayManifestMs += manifestMs;
+        this.debugStats.overlayMergeMs += mergeMs;
+        sourceStats.manifestTilesMerged += count;
+        sourceStats.manifestTilesSkipped += skipped;
+        sourceStats.manifestFetchMs += manifestMs;
+        sourceStats.manifestMergeMs += mergeMs;
+        console.log(`[planet2] overlay "${overlay.name}" merged ${count} tiles in ` +
+          `${manifestMs.toFixed(1)}ms fetch + ${mergeMs.toFixed(1)}ms merge`);
       } catch (error) {
         console.warn(`[planet2] overlay "${overlay.name}" load failed, skipping`, error);
       }
     }
+  }
+
+  _getSourceStats(sourceKey = 'base') {
+    const key = sourceKey || 'base';
+    let stats = this.debugStats.sourceStats[key];
+    if (!stats) {
+      stats = {
+        loadStarted: 0,
+        loadSucceeded: 0,
+        loadSuperseded: 0,
+        loadFailed: 0,
+        loadRetries: 0,
+        loadFinished: 0,
+        queueWaitMs: 0,
+        colorLoadMs: 0,
+        heightLoadMs: 0,
+        loadMs: 0,
+        colorFetchMs: 0,
+        colorDecodeUploadMs: 0,
+        heightFetchMs: 0,
+        heightPostFetchMs: 0,
+        colorTransferBytes: 0,
+        heightTransferBytes: 0,
+        maxQueueWaitMs: 0,
+        maxColorLoadMs: 0,
+        maxHeightLoadMs: 0,
+        maxLoadMs: 0,
+        maxColorFetchMs: 0,
+        maxColorDecodeUploadMs: 0,
+        maxHeightFetchMs: 0,
+        maxHeightPostFetchMs: 0,
+        manifestTilesMerged: 0,
+        manifestTilesSkipped: 0,
+        manifestFetchMs: 0,
+        manifestMergeMs: 0,
+        evictedTiles: 0,
+        byLod: {},
+      };
+      this.debugStats.sourceStats[key] = stats;
+    }
+    return stats;
+  }
+
+  _getLodStats(sourceStats, lod) {
+    const key = String(lod);
+    let stats = sourceStats.byLod[key];
+    if (!stats) {
+      stats = {
+        loadStarted: 0,
+        loadSucceeded: 0,
+        loadSuperseded: 0,
+        loadFailed: 0,
+        loadRetries: 0,
+        loadFinished: 0,
+        queueWaitMs: 0,
+        colorLoadMs: 0,
+        heightLoadMs: 0,
+        loadMs: 0,
+        colorFetchMs: 0,
+        colorDecodeUploadMs: 0,
+        heightFetchMs: 0,
+        heightPostFetchMs: 0,
+        colorTransferBytes: 0,
+        heightTransferBytes: 0,
+        maxQueueWaitMs: 0,
+        maxColorLoadMs: 0,
+        maxHeightLoadMs: 0,
+        maxLoadMs: 0,
+        maxColorFetchMs: 0,
+        maxColorDecodeUploadMs: 0,
+        maxHeightFetchMs: 0,
+        maxHeightPostFetchMs: 0,
+      };
+      sourceStats.byLod[key] = stats;
+    }
+    return stats;
+  }
+
+  _getTileSourceKey(tile) {
+    return this.tileSourceMap.get(tile.id)?.name || 'base';
+  }
+
+  _recordLoadMetrics(sourceStats, lodStats, {
+    queueWaitMs = 0,
+    colorMs = 0,
+    heightMs = 0,
+    loadMs = 0,
+    colorFetchMs = 0,
+    heightFetchMs = 0,
+    colorTransferBytes = 0,
+    heightTransferBytes = 0,
+    outcome = 'success',
+  } = {}) {
+    this.debugStats.loadFinished += 1;
+    sourceStats.loadFinished += 1;
+    lodStats.loadFinished += 1;
+
+    sourceStats.queueWaitMs += queueWaitMs;
+    sourceStats.colorLoadMs += colorMs;
+    sourceStats.heightLoadMs += heightMs;
+    sourceStats.loadMs += loadMs;
+    sourceStats.colorFetchMs += colorFetchMs;
+    sourceStats.heightFetchMs += heightFetchMs;
+    sourceStats.colorDecodeUploadMs += Math.max(0, colorMs - colorFetchMs);
+    sourceStats.heightPostFetchMs += Math.max(0, heightMs - heightFetchMs);
+    sourceStats.colorTransferBytes += colorTransferBytes;
+    sourceStats.heightTransferBytes += heightTransferBytes;
+    sourceStats.maxQueueWaitMs = Math.max(sourceStats.maxQueueWaitMs, queueWaitMs);
+    sourceStats.maxColorLoadMs = Math.max(sourceStats.maxColorLoadMs, colorMs);
+    sourceStats.maxHeightLoadMs = Math.max(sourceStats.maxHeightLoadMs, heightMs);
+    sourceStats.maxLoadMs = Math.max(sourceStats.maxLoadMs, loadMs);
+    sourceStats.maxColorFetchMs = Math.max(sourceStats.maxColorFetchMs, colorFetchMs);
+    sourceStats.maxColorDecodeUploadMs = Math.max(sourceStats.maxColorDecodeUploadMs, Math.max(0, colorMs - colorFetchMs));
+    sourceStats.maxHeightFetchMs = Math.max(sourceStats.maxHeightFetchMs, heightFetchMs);
+    sourceStats.maxHeightPostFetchMs = Math.max(sourceStats.maxHeightPostFetchMs, Math.max(0, heightMs - heightFetchMs));
+
+    lodStats.queueWaitMs += queueWaitMs;
+    lodStats.colorLoadMs += colorMs;
+    lodStats.heightLoadMs += heightMs;
+    lodStats.loadMs += loadMs;
+    lodStats.colorFetchMs += colorFetchMs;
+    lodStats.heightFetchMs += heightFetchMs;
+    lodStats.colorDecodeUploadMs += Math.max(0, colorMs - colorFetchMs);
+    lodStats.heightPostFetchMs += Math.max(0, heightMs - heightFetchMs);
+    lodStats.colorTransferBytes += colorTransferBytes;
+    lodStats.heightTransferBytes += heightTransferBytes;
+    lodStats.maxQueueWaitMs = Math.max(lodStats.maxQueueWaitMs, queueWaitMs);
+    lodStats.maxColorLoadMs = Math.max(lodStats.maxColorLoadMs, colorMs);
+    lodStats.maxHeightLoadMs = Math.max(lodStats.maxHeightLoadMs, heightMs);
+    lodStats.maxLoadMs = Math.max(lodStats.maxLoadMs, loadMs);
+    lodStats.maxColorFetchMs = Math.max(lodStats.maxColorFetchMs, colorFetchMs);
+    lodStats.maxColorDecodeUploadMs = Math.max(lodStats.maxColorDecodeUploadMs, Math.max(0, colorMs - colorFetchMs));
+    lodStats.maxHeightFetchMs = Math.max(lodStats.maxHeightFetchMs, heightFetchMs);
+    lodStats.maxHeightPostFetchMs = Math.max(lodStats.maxHeightPostFetchMs, Math.max(0, heightMs - heightFetchMs));
+
+    switch (outcome) {
+      case 'success':
+        this.debugStats.loadSucceeded += 1;
+        sourceStats.loadSucceeded += 1;
+        lodStats.loadSucceeded += 1;
+        break;
+      case 'superseded':
+        this.debugStats.loadSuperseded += 1;
+        sourceStats.loadSuperseded += 1;
+        lodStats.loadSuperseded += 1;
+        break;
+      case 'retry':
+        this.debugStats.loadRetries += 1;
+        sourceStats.loadRetries += 1;
+        lodStats.loadRetries += 1;
+        break;
+      case 'failed':
+        this.debugStats.loadFailed += 1;
+        sourceStats.loadFailed += 1;
+        lodStats.loadFailed += 1;
+        break;
+      default:
+        break;
+    }
+
+    this.debugStats.queue = this.priorityQueue.size;
+    this.debugStats.inflight = this.inflightLoads;
+    this.debugStats.loadedTiles = this.tiles.size;
+    this.debugStats.visibleTiles = this.visibleTiles.size;
+    this.debugStats.colorFetchMs += colorFetchMs;
+    this.debugStats.heightFetchMs += heightFetchMs;
+    this.debugStats.colorDecodeUploadMs += Math.max(0, colorMs - colorFetchMs);
+    this.debugStats.heightPostFetchMs += Math.max(0, heightMs - heightFetchMs);
+    this.debugStats.colorTransferBytes += colorTransferBytes;
+    this.debugStats.heightTransferBytes += heightTransferBytes;
+    this.debugStats.maxColorFetchMs = Math.max(this.debugStats.maxColorFetchMs, colorFetchMs);
+    this.debugStats.maxColorDecodeUploadMs = Math.max(this.debugStats.maxColorDecodeUploadMs, Math.max(0, colorMs - colorFetchMs));
+    this.debugStats.maxHeightFetchMs = Math.max(this.debugStats.maxHeightFetchMs, heightFetchMs);
+    this.debugStats.maxHeightPostFetchMs = Math.max(this.debugStats.maxHeightPostFetchMs, Math.max(0, heightMs - heightFetchMs));
+  }
+
+  _getLatestResourceTiming(url, sinceMs = 0) {
+    if (typeof performance === 'undefined' || typeof performance.getEntriesByType !== 'function') {
+      return null;
+    }
+    const target = new URL(url, window.location.href).href;
+    let best = null;
+    for (const entry of performance.getEntriesByType('resource')) {
+      if (entry.name !== target) continue;
+      if (entry.startTime + entry.duration < sinceMs - 1) continue;
+      if (!best || entry.startTime > best.startTime) best = entry;
+    }
+    return best;
   }
 
   // Six root tiles so a low-resolution globe is visible immediately.
@@ -548,7 +981,10 @@ class CubedSpherePlanetRenderer {
   _getOrCreateTile(face, lod, x, y, parent) {
     const id = tileKey(face, lod, x, y);
     let tile = this.tiles.get(id);
-    if (tile) return tile;
+    if (tile) {
+      if (!tile.parent && parent) tile.parent = parent;
+      return tile;
+    }
     tile = new Tile(face, lod, x, y, parent);
     tile.meta = this._getTileMeta(tile);
     this.tiles.set(id, tile);
@@ -607,6 +1043,13 @@ class CubedSpherePlanetRenderer {
   update(camera) {
     if (!camera) return;
 
+    if (this.debugStats.startupTrace.firstUpdateMs == null) {
+      const elapsedMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+      this.debugStats.startupTrace.firstUpdateMs = elapsedMs;
+      this.debugStats.startupTrace.firstUpdateTileCount = this.tiles.size;
+      console.log(`[planet2][startup] firstUpdateMs +${elapsedMs.toFixed(1)}ms tiles=${this.tiles.size}`);
+    }
+
     this.frame += 1;
     this._updateCameraSpeed(camera);
     if (typeof window !== 'undefined') this.viewportHeight = window.innerHeight;
@@ -636,6 +1079,11 @@ class CubedSpherePlanetRenderer {
     this.debugStats.inflight = this.inflightLoads;
     this.debugStats.loadedTiles = this.tiles.size;
     this.debugStats.visibleTiles = this.visibleTiles.size;
+    this.debugStats.maxQueue = Math.max(this.debugStats.maxQueue, this.priorityQueue.size);
+    this.debugStats.maxInflight = Math.max(this.debugStats.maxInflight, this.inflightLoads);
+    this.debugStats.maxLoadedTiles = Math.max(this.debugStats.maxLoadedTiles, this.tiles.size);
+    this.debugStats.maxVisibleTiles = Math.max(this.debugStats.maxVisibleTiles, this.visibleTiles.size);
+    this._flushStartupChartIfReady();
   }
 
   _updateCameraSpeed(camera) {
@@ -714,6 +1162,10 @@ class CubedSpherePlanetRenderer {
     if (tile.lod >= this.maxAvailableLod) return false;
     if (!this._hasChildAssets(tile)) return false;
 
+    // Enhancement overlays should refine all the way through their own manifest
+    // so the whole overlay region fills in, not just the camera-facing slice.
+    if (this.tileSourceMap.has(tile.id)) return true;
+
     if (this.cameraSpeedMps > this.fastCameraSpeed && tile.lod >= this.maxLodWhileFast) {
       return false;
     }
@@ -748,6 +1200,15 @@ class CubedSpherePlanetRenderer {
   _priorityBoost(tile, meta) {
     let boost = 1;
     const land = clamp01(meta.landFraction ?? 0.5);
+    // Make the coarse globe establish itself quickly before we spend budget on
+    // deeper refinements. This helps avoid back-face / far-side starvation when
+    // the queue is busy with near-camera tiles.
+    boost += Math.max(0, 3 - tile.lod) * 2.5;
+    if (tile.lod === 0) boost *= 12;
+    else if (tile.lod === 1) boost *= 5;
+    // Overlay tiles should win against the base globe so the enhancement layer
+    // becomes complete instead of being partially starved by base tile traffic.
+    if (this.tileSourceMap.has(tile.id)) boost += 8;
     boost += 2.5 * clamp01((meta.roughness ?? 0.1) * 6);        // rough/mountainous
     boost += 1.2 * land;                                         // land over ocean
     boost -= 0.6 * (1 - land);                                   // de-prioritize ocean
@@ -765,12 +1226,14 @@ class CubedSpherePlanetRenderer {
     let priority = 1e6 / distance;
     priority += tile.lod * 50;
     priority *= this._priorityBoost(tile, meta);
+    if (this.tileSourceMap.has(tile.id)) priority *= 20;
 
     // Strongly prefer camera-facing tiles.
     this._tmpCamDir.copy(camera.position).sub(this.planetWorldCenter).normalize();
     const facing = this._tmpTileDir.copy(tile.centerNormal)
       .transformDirection(this.group.matrixWorld).dot(this._tmpCamDir);
-    priority *= 0.5 + 0.5 * clamp01(facing);
+    const facingWeight = tile.lod <= 1 ? 1 : 0.5 + 0.5 * clamp01(facing);
+    priority *= facingWeight;
 
     return priority;
   }
@@ -993,6 +1456,13 @@ class CubedSpherePlanetRenderer {
       const visible = this.visibleTiles.has(tile.id);
       tile.visible = visible;
       tile.mesh.visible = visible;
+      if (visible && tile.ready && this.debugStats.startupTrace.firstVisibleReadyMs == null) {
+        const elapsedMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+        this.debugStats.startupTrace.firstVisibleReadyMs = elapsedMs;
+        this.debugStats.startupTrace.firstVisibleReadyTileId = tile.id;
+        console.log(`[planet2][startup] firstVisibleReadyMs +${elapsedMs.toFixed(1)}ms tile=${tile.id}`);
+      }
+      if (visible && tile.ready) this._recordStartupTileEvent(tile, 'visible');
       if (visible && tile.mesh.parent !== this.group) {
         this.group.add(tile.mesh);
       }
@@ -1064,7 +1534,16 @@ class CubedSpherePlanetRenderer {
     if (tile.loading || tile.ready || tile.retryScheduled) return;
     if (this.queuedSet.has(tile.id)) return;
     this.queuedSet.add(tile.id);
+    tile.queuedAtMs = performance.now();
     this.priorityQueue.push(tile, priority);
+    if (this.debugStats.startupTrace.firstEnqueueMs == null) {
+      const elapsedMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+      this.debugStats.startupTrace.firstEnqueueMs = elapsedMs;
+      this.debugStats.startupTrace.firstEnqueueTileId = tile.id;
+      console.log(`[planet2][startup] firstEnqueueMs +${elapsedMs.toFixed(1)}ms tile=${tile.id}`);
+    }
+    this._recordStartupTileEvent(tile, 'enqueue');
+    this.debugStats.maxQueue = Math.max(this.debugStats.maxQueue, this.priorityQueue.size);
   }
 
   _processQueue() {
@@ -1085,15 +1564,67 @@ class CubedSpherePlanetRenderer {
     const generation = tile.loadGeneration;
     tile.abortController = new AbortController();
     const signal = tile.abortController.signal;
+    tile.debugColorFetchMs = 0;
+    tile.debugColorTransferBytes = 0;
+    tile.debugHeightFetchMs = 0;
+    tile.debugHeightTransferBytes = 0;
+    const sourceKey = this._getTileSourceKey(tile);
+    const sourceStats = this._getSourceStats(sourceKey);
+    const lodStats = this._getLodStats(sourceStats, tile.lod);
+    const loadStartedAt = performance.now();
+    const queueWaitMs = tile.queuedAtMs > 0 ? Math.max(0, loadStartedAt - tile.queuedAtMs) : 0;
+    tile.queuedAtMs = 0;
+    tile.loadStartedAtMs = loadStartedAt;
+    tile.debugSourceKey = sourceKey;
+    if (this.debugStats.startupTrace.firstLoadStartedMs == null) {
+      const elapsedMs = loadStartedAt - this.debugStats.startupTrace.t0Ms;
+      this.debugStats.startupTrace.firstLoadStartedMs = elapsedMs;
+      this.debugStats.startupTrace.firstLoadTileId = tile.id;
+      console.log(`[planet2][startup] firstLoadStartedMs +${elapsedMs.toFixed(1)}ms tile=${tile.id}`);
+    }
+    this._recordStartupTileEvent(tile, 'start');
+    this.debugStats.loadStarted += 1;
+    sourceStats.loadStarted += 1;
+    lodStats.loadStarted += 1;
+    sourceStats.queueWaitMs += queueWaitMs;
+    lodStats.queueWaitMs += queueWaitMs;
+    sourceStats.maxQueueWaitMs = Math.max(sourceStats.maxQueueWaitMs, queueWaitMs);
+    lodStats.maxQueueWaitMs = Math.max(lodStats.maxQueueWaitMs, queueWaitMs);
     this.inflightLoads += 1;
+    this.debugStats.maxInflight = Math.max(this.debugStats.maxInflight, this.inflightLoads);
 
+    let colorMs = 0;
+    let heightMs = 0;
+    let colorPromise = null;
+    let heightPromise = null;
     try {
-      const [texture, height] = await Promise.all([
-        this._loadColor(tile, signal),
-        this._loadHeight(tile, signal),
-      ]);
+      const colorStartedAt = performance.now();
+      const heightStartedAt = performance.now();
+      colorPromise = this._loadColor(tile, signal).finally(() => {
+        colorMs = performance.now() - colorStartedAt;
+      });
+      heightPromise = this._loadHeight(tile, signal).finally(() => {
+        heightMs = performance.now() - heightStartedAt;
+      });
+      const [texture, height] = await Promise.all([colorPromise, heightPromise]);
+      const colorFetchMs = tile.debugColorFetchMs || 0;
+      const heightFetchMs = tile.debugHeightFetchMs || 0;
+      const colorTransferBytes = tile.debugColorTransferBytes || 0;
+      const heightTransferBytes = tile.debugHeightTransferBytes || 0;
 
       if (tile.loadGeneration !== generation) {
+        const totalMs = performance.now() - loadStartedAt;
+        this._recordLoadMetrics(sourceStats, lodStats, {
+          queueWaitMs,
+          colorMs,
+          heightMs,
+          loadMs: totalMs,
+          colorFetchMs,
+          heightFetchMs,
+          colorTransferBytes,
+          heightTransferBytes,
+          outcome: 'superseded',
+        });
         if (texture) texture.dispose();
         return; // superseded by a newer load / disposed
       }
@@ -1115,12 +1646,48 @@ class CubedSpherePlanetRenderer {
       tile.estimatedBytes = (height.samples.byteLength || 0) +
         (texture ? this._estimateTextureBytes(texture) : 0);
       this.debugStats.gpuBytes += tile.estimatedBytes;
+      const totalMs = performance.now() - loadStartedAt;
+      this._recordLoadMetrics(sourceStats, lodStats, {
+        queueWaitMs,
+        colorMs,
+        heightMs,
+        loadMs: totalMs,
+        colorFetchMs,
+        heightFetchMs,
+        colorTransferBytes,
+        heightTransferBytes,
+        outcome: 'success',
+      });
+      if (this.debugStats.startupTrace.firstLoadFinishedMs == null) {
+        const elapsedMs = performance.now() - this.debugStats.startupTrace.t0Ms;
+        this.debugStats.startupTrace.firstLoadFinishedMs = elapsedMs;
+        this.debugStats.startupTrace.firstFinishedTileId = tile.id;
+        console.log(`[planet2][startup] firstLoadFinishedMs +${elapsedMs.toFixed(1)}ms tile=${tile.id}`);
+      }
+      this._recordStartupTileEvent(tile, 'colorDone');
+      this._recordStartupTileEvent(tile, 'heightDone');
 
       this._applyTileData(tile);
+      this._recordStartupTileEvent(tile, 'apply');
     } catch (error) {
+      if (colorPromise && heightPromise) {
+        await Promise.allSettled([colorPromise, heightPromise]);
+      }
       if (!signal.aborted) {
         tile.loadAttempts += 1;
+        const totalMs = performance.now() - loadStartedAt;
         if (tile.loadAttempts < this.maxLoadAttempts) {
+          this._recordLoadMetrics(sourceStats, lodStats, {
+            queueWaitMs,
+            colorMs,
+            heightMs,
+            loadMs: totalMs,
+            colorFetchMs: tile.debugColorFetchMs || 0,
+            heightFetchMs: tile.debugHeightFetchMs || 0,
+            colorTransferBytes: tile.debugColorTransferBytes || 0,
+            heightTransferBytes: tile.debugHeightTransferBytes || 0,
+            outcome: 'retry',
+          });
           // Transient failure (e.g. net::ERR_NETWORK_CHANGED). Leave the tile
           // un-ready and re-enqueue after an exponential backoff so a brief
           // network blip has time to clear before the next attempt. Gated by
@@ -1141,6 +1708,17 @@ class CubedSpherePlanetRenderer {
           }, delay);
           return;
         }
+        this._recordLoadMetrics(sourceStats, lodStats, {
+          queueWaitMs,
+          colorMs,
+          heightMs,
+          loadMs: totalMs,
+          colorFetchMs: tile.debugColorFetchMs || 0,
+          heightFetchMs: tile.debugHeightFetchMs || 0,
+          colorTransferBytes: tile.debugColorTransferBytes || 0,
+          heightTransferBytes: tile.debugHeightTransferBytes || 0,
+          outcome: 'failed',
+        });
         console.warn(
           `[planet2] tile load gave up ${tile.id} ` +
           `after ${tile.loadAttempts} attempts, using flat fallback:`,
@@ -1171,15 +1749,28 @@ class CubedSpherePlanetRenderer {
     const src = this.tileSourceMap.get(tileKey(tile.face, tile.lod, ax, ay));
     const colorBase = src ? src.colorBasePath : this.colorBasePath;
     const url = `${colorBase}/${tile.face}/${tile.lod}/${ax}/${ay}.ktx2`;
+    const startedAt = performance.now();
+    const trace = this.debugStats.startupTrace;
     try {
       const texture = await this.ktx2Loader.loadAsync(url);
+      const timing = this._getLatestResourceTiming(url, startedAt);
+      tile.debugColorFetchMs = timing ? Math.max(0, timing.responseEnd - timing.startTime) : 0;
+      tile.debugColorTransferBytes = timing?.transferSize || 0;
+      const fetchEndMs = timing ? Math.max(0, timing.responseEnd - trace.t0Ms) : (performance.now() - trace.t0Ms);
+      tile.debugColorFetchEndMs = fetchEndMs;
+      this._recordStartupTileEvent(tile, 'colorFetch', fetchEndMs);
       if (signal.aborted) { texture.dispose(); return null; }
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.flipY = false; // GPU-compressed; matches the generator's row order
       texture.anisotropy = 4;
       texture.needsUpdate = true;
+      const doneMs = performance.now() - trace.t0Ms;
+      tile.debugColorDoneMs = doneMs;
+      this._recordStartupTileEvent(tile, 'colorDone', doneMs);
       return texture;
     } catch (error) {
+      tile.debugColorFetchMs = 0;
+      tile.debugColorTransferBytes = 0;
       if (this.requireKtx2) return null;
       throw error;
     }
@@ -1196,9 +1787,18 @@ class CubedSpherePlanetRenderer {
     const src = this.tileSourceMap.get(tileKey(tile.face, tile.lod, ax, ay));
     const heightBase = src ? src.heightBasePath : this.heightBasePath;
     const url = `${heightBase}/${tile.face}/${tile.lod}/${ax}/${ay}.bin`;
+    const startedAt = performance.now();
+    const trace = this.debugStats.startupTrace;
     const response = await fetch(url, { signal, cache: 'no-cache' });
 
     if (!response.ok) {
+      tile.debugHeightFetchMs = 0;
+      tile.debugHeightTransferBytes = 0;
+      const fetchEndMs = performance.now() - trace.t0Ms;
+      tile.debugHeightFetchEndMs = fetchEndMs;
+      this._recordStartupTileEvent(tile, 'heightFetch', fetchEndMs);
+      tile.debugHeightDoneMs = fetchEndMs;
+      this._recordStartupTileEvent(tile, 'heightDone', fetchEndMs);
       if (response.status === 404) {
         return { width, height, minHeightMeters, maxHeightMeters, samples: new Uint16Array(width * height) };
       }
@@ -1206,6 +1806,12 @@ class CubedSpherePlanetRenderer {
     }
 
     const buffer = await response.arrayBuffer();
+    const timing = this._getLatestResourceTiming(url, startedAt);
+    tile.debugHeightFetchMs = timing ? Math.max(0, timing.responseEnd - timing.startTime) : 0;
+    tile.debugHeightTransferBytes = timing?.transferSize || 0;
+    const fetchEndMs = timing ? Math.max(0, timing.responseEnd - trace.t0Ms) : (performance.now() - trace.t0Ms);
+    tile.debugHeightFetchEndMs = fetchEndMs;
+    this._recordStartupTileEvent(tile, 'heightFetch', fetchEndMs);
     const samples = new Uint16Array(buffer);
     let outWidth = width;
     let outHeight = height;
@@ -1222,6 +1828,9 @@ class CubedSpherePlanetRenderer {
         console.warn(`[planet2] height size mismatch ${tile.id}: got ${samples.length}, expected ${width * height}`);
       }
     }
+    const doneMs = performance.now() - trace.t0Ms;
+    tile.debugHeightDoneMs = doneMs;
+    this._recordStartupTileEvent(tile, 'heightDone', doneMs);
     return { width: outWidth, height: outHeight, minHeightMeters, maxHeightMeters, samples };
   }
 
@@ -1273,6 +1882,7 @@ class CubedSpherePlanetRenderer {
     for (const tile of candidates) {
       if (tileCount <= this.maxTileCount && gpuBytes <= this.maxGpuBytes) break;
       gpuBytes = Math.max(0, gpuBytes - tile.estimatedBytes);
+      this._getSourceStats(this._getTileSourceKey(tile)).evictedTiles += 1;
       this._disposeTile(tile);
       tileCount -= 1;
       this.debugStats.evictedTiles += 1;
@@ -1387,8 +1997,44 @@ class CubedSpherePlanetRenderer {
   }
 
   getDebugStats() {
+    const sourceStats = {};
+    for (const [name, stats] of Object.entries(this.debugStats.sourceStats)) {
+      const byLod = {};
+      for (const [lod, lodStats] of Object.entries(stats.byLod || {})) {
+        const finished = lodStats.loadFinished || 0;
+        byLod[lod] = {
+          ...lodStats,
+          avgQueueWaitMs: finished ? lodStats.queueWaitMs / finished : 0,
+          avgColorLoadMs: finished ? lodStats.colorLoadMs / finished : 0,
+          avgHeightLoadMs: finished ? lodStats.heightLoadMs / finished : 0,
+          avgLoadMs: finished ? lodStats.loadMs / finished : 0,
+          avgColorFetchMs: finished ? lodStats.colorFetchMs / finished : 0,
+          avgColorDecodeUploadMs: finished ? lodStats.colorDecodeUploadMs / finished : 0,
+          avgHeightFetchMs: finished ? lodStats.heightFetchMs / finished : 0,
+          avgHeightPostFetchMs: finished ? lodStats.heightPostFetchMs / finished : 0,
+          avgColorTransferBytes: finished ? lodStats.colorTransferBytes / finished : 0,
+          avgHeightTransferBytes: finished ? lodStats.heightTransferBytes / finished : 0,
+        };
+      }
+      const finished = stats.loadFinished || 0;
+      sourceStats[name] = {
+        ...stats,
+        avgQueueWaitMs: finished ? stats.queueWaitMs / finished : 0,
+        avgColorLoadMs: finished ? stats.colorLoadMs / finished : 0,
+        avgHeightLoadMs: finished ? stats.heightLoadMs / finished : 0,
+        avgLoadMs: finished ? stats.loadMs / finished : 0,
+        avgColorFetchMs: finished ? stats.colorFetchMs / finished : 0,
+        avgColorDecodeUploadMs: finished ? stats.colorDecodeUploadMs / finished : 0,
+        avgHeightFetchMs: finished ? stats.heightFetchMs / finished : 0,
+        avgHeightPostFetchMs: finished ? stats.heightPostFetchMs / finished : 0,
+        avgColorTransferBytes: finished ? stats.colorTransferBytes / finished : 0,
+        avgHeightTransferBytes: finished ? stats.heightTransferBytes / finished : 0,
+        byLod,
+      };
+    }
     return {
       ...this.debugStats,
+      sourceStats,
       queue: this.priorityQueue.size,
       inflight: this.inflightLoads,
       loadedTiles: this.tiles.size,
@@ -1426,38 +2072,97 @@ export class planet2 {
     planetMeshes.name = 'planetMeshes';
     planetMeshes.rotation.y = PLANET_YAW; // global alignment only
 
-    // Allow swapping the tile asset folder at runtime (e.g. a LOD visualization
-    // bake) via ?planet2Assets=earth_lodviz, without touching the real assets.
-    const assetRoot = (typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('planet2Assets')) || 'earth';
+    const queryParams = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : null;
 
-    // Optional overlay asset layers streamed on top of the base (e.g. a high-res
-    // Hawaii cone that overrides some Earth tiles). Enabled via
-    // ?planet2Overlays=hawaii (comma-separated) or nonGUIParams.planet2Overlays;
-    // off by default so the base globe is unchanged unless requested.
-    const overlayParam = (typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('planet2Overlays')) || '';
-    const overlayNames = [
-      ...overlayParam.split(','),
-      ...(Array.isArray(nonGUIParams.planet2Overlays) ? nonGUIParams.planet2Overlays : []),
-    ]
-      .map((s) => String(s).trim())
-      .filter((s) => s.length > 0);
-    const overlays = [...new Set(overlayNames)].map((name) => ({
-      name,
-      manifestUrl: `/assets/${name}/manifest.json`,
-      colorBasePath: `/assets/${name}/color`,
-      heightBasePath: `/assets/${name}/height`,
-    }));
+    const assetNames = [];
+    let assets;
+    const baseHref = (typeof window !== 'undefined' && window.location?.href)
+      ? window.location.href
+      : 'http://localhost/';
+    const pushNames = (value) => {
+      const list = Array.isArray(value)
+        ? value
+        : typeof value === 'string'
+          ? value.split(',')
+          : [];
+      for (const name of list) {
+        const trimmed = String(name).trim();
+        if (trimmed.length > 0) assetNames.push(trimmed);
+      }
+    };
+
+    // New ordered asset stack: the first asset is the base globe, later assets
+    // overlay in the same order they are listed.
+    pushNames(queryParams?.get('planet2Assets') || '');
+    pushNames(nonGUIParams.planet2Assets);
+
+    // Legacy fallback: preserve old base + overlay wiring for callers that have
+    // not moved to the new ordered asset stack yet.
+    if (assetNames.length === 0) {
+      const legacyManifestUrl = nonGUIParams.planet2ManifestUrl ||
+        queryParams?.get('planet2ManifestUrl') ||
+        '/assets/earth/manifest.json';
+      const legacyColorBasePath = nonGUIParams.planet2ColorBasePath ||
+        queryParams?.get('planet2ColorBasePath') ||
+        '/assets/earth/color';
+      const legacyHeightBasePath = nonGUIParams.planet2HeightBasePath ||
+        queryParams?.get('planet2HeightBasePath') ||
+        '/assets/earth/height';
+      const legacyBase = (() => {
+        try {
+          const pathname = new URL(legacyManifestUrl, baseHref).pathname;
+          const parts = pathname.split('/').filter(Boolean);
+          if (parts.length >= 2) return parts[parts.length - 2];
+        } catch {
+          // Fall through to the default Earth root.
+        }
+        try {
+          const pathname = new URL(legacyColorBasePath, baseHref).pathname;
+          const parts = pathname.split('/').filter(Boolean);
+          if (parts.length >= 2) return parts[parts.length - 2];
+        } catch {
+          // Fall through to the default Earth root.
+        }
+        return 'earth';
+      })();
+      const legacyOverlayParam = (queryParams?.get('planet2Overlays')) || '';
+      const legacyOverlayNames = [
+        ...legacyOverlayParam.split(','),
+        ...(Array.isArray(nonGUIParams.planet2Overlays) ? nonGUIParams.planet2Overlays : []),
+      ]
+        .map((s) => String(s).trim())
+        .filter((s) => s.length > 0);
+      assetNames.push(legacyBase, ...legacyOverlayNames);
+      assets = [{
+        name: legacyBase,
+        manifestUrl: legacyManifestUrl,
+        colorBasePath: legacyColorBasePath,
+        heightBasePath: legacyHeightBasePath,
+      }, ...legacyOverlayNames.map((name) => ({
+        name,
+        manifestUrl: `/assets/${name}/manifest.json`,
+        colorBasePath: `/assets/${name}/color`,
+        heightBasePath: `/assets/${name}/height`,
+      }))];
+    }
+
+    const uniqueAssetNames = [...new Set(assetNames)];
+    if (typeof assets === 'undefined') {
+      assets = uniqueAssetNames.map((name) => ({
+        name,
+        manifestUrl: `/assets/${name}/manifest.json`,
+        colorBasePath: `/assets/${name}/color`,
+        heightBasePath: `/assets/${name}/height`,
+      }));
+    }
 
     const lodRenderer = new CubedSpherePlanetRenderer({
       group: planetMeshes,
       renderer,
       planetSpec,
-      manifestUrl: `/assets/${assetRoot}/manifest.json`,
-      colorBasePath: `/assets/${assetRoot}/color`,
-      heightBasePath: `/assets/${assetRoot}/height`,
-      overlays,
+      assets,
       segments: nonGUIParams.tileSegments ?? 24,
       maxConcurrentLoads: nonGUIParams.maxConcurrentTileLoads ?? 8,
       maxTileCount: nonGUIParams.maxCachedTiles ?? 320,
@@ -1465,6 +2170,7 @@ export class planet2 {
       sseThreshold: nonGUIParams.tileSseThreshold ?? 3.5,
       maxAvailableLod: nonGUIParams.maxAvailableTileLod ?? 6,
       requireKtx2: nonGUIParams.planet2RequireKtx2 === true,
+      enableStartupChart: nonGUIParams.planet2StartupChart === true,
       locationInterests: nonGUIParams.locationInterests,
       displacementScaleMultiplier: nonGUIParams.planet2DisplacementScaleMultiplier ?? 1,
       fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? Infinity,
