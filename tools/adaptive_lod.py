@@ -37,6 +37,7 @@ import numpy as np
 from PIL import Image
 
 import tools.generate_planet2_lod0_assets as g
+import tools.bake_hawaii_bigisland_hires as hawaii
 
 ROOT = Path(__file__).resolve().parents[1]
 VIZ_ROOT = ROOT / 'assets' / 'earth_lodvis'
@@ -48,6 +49,7 @@ HEIGHT_MAX_M = 9000.0
 
 LOD6 = 6
 TILES_PER_FACE_AXIS = 1 << LOD6  # 64
+BASE_FULL_COVERAGE_LOD = 3
 COLOR_SOURCE = 'textures/bluemarble_4096.jpg'   # only to satisfy load_sources()
 HEIGHT_SOURCE = 'textures/DEM/ETOPO_2022_v1_60s_surface.tif'
 
@@ -75,6 +77,50 @@ LOD_PALETTE = {
     5: (210, 170, 40),
     6: (206, 58, 40),
 }
+
+# LOD fill colors for regional enhancement tilesets. Coarse tiles are blue;
+# progressively finer tiles move through green/yellow/red to magenta.
+ENHANCEMENT_LOD_PALETTE = {
+    0: (35, 55, 120),
+    1: (35, 85, 155),
+    2: (30, 120, 175),
+    3: (35, 150, 145),
+    4: (70, 170, 100),
+    5: (145, 180, 55),
+    6: (205, 175, 40),
+    7: (230, 130, 35),
+    8: (225, 85, 35),
+    9: (205, 45, 40),
+    10: (160, 30, 75),
+}
+
+KTX_RELEASES_URL = 'https://github.com/KhronosGroup/KTX-Software/releases'
+
+
+def _toktx_available() -> bool:
+    if shutil.which('toktx'):
+        return True
+    ktx_tools_bin = os.environ.get('KTX_TOOLS_BIN')
+    if ktx_tools_bin:
+        executable = 'toktx.exe' if os.name == 'nt' else 'toktx'
+        if (Path(ktx_tools_bin) / executable).exists():
+            return True
+    if os.name == 'nt':
+        return any(path.exists() for path in (
+            Path('C:/Program Files/KTX-Software/bin/toktx.exe'),
+            Path('C:/Program Files (x86)/KTX-Software/bin/toktx.exe'),
+        ))
+    return False
+
+x
+def _print_toktx_install_instructions() -> None:
+    print('[ktx2] WARNING: toktx.exe was not found; PNG fallback tiles will be generated.')
+    print('[ktx2] To install it:')
+    print(f'  1. Open {KTX_RELEASES_URL}')
+    print('  2. Open the latest release and click "Show all" to display every download.')
+    print('  3. Choose the release for your operating system.')
+    print('  4. Run the installer and install only the command-line tools.')
+    print('  5. Ensure toktx is on PATH, or set KTX_TOOLS_BIN to its bin directory.')
 
 
 # ---------------------------------------------------------------------------
@@ -546,10 +592,23 @@ def bake_cell_viz(labels: dict, palette: dict, display_lod: int = 3) -> None:
 
 
 def _paint_lod_map_tile(face: str, lod: int, tx: int, ty: int,
-                        label_face: np.ndarray, assigned_face: np.ndarray) -> np.ndarray:
+                        label_face: np.ndarray, assigned_face: np.ndarray,
+                        lod_palette: dict | None = None) -> np.ndarray:
     """Paint one flat overlay tile: each LOD-6 cell coloured by its land class
     (PALETTE: ocean/land/near-mountain/mountain), with borders drawn only along
-    the leaf-tile boundaries so the varied-LOD quad structure is also visible."""
+    the leaf-tile boundaries so the varied-LOD quad structure is also visible.
+
+    Enhancement tilesets can supply an LOD palette to render each tile by its
+    refinement level while retaining the same visualization tile writer.
+    """
+    if lod_palette is not None:
+        if lod in lod_palette:
+            rgb = lod_palette[lod]
+        else:
+            nearest_lod = min(lod_palette, key=lambda level: abs(level - lod))
+            rgb = lod_palette[nearest_lod]
+        return _solid_tile(rgb)
+
     p = VIZ_COLOR_SIZE
     n = 1 << lod
     s = (np.arange(p, dtype=np.float64) + 0.5) / p
@@ -670,6 +729,16 @@ def _bake_pool_init(color_cache: Path, height_cache: Path) -> None:
     _BAKE_HMAP = np.load(height_cache, mmap_mode='r')
 
 
+def _overlay_pool_init(color_cache: Path, height_cache: Path,
+                       regional_color_source: str, regional_height_source: str,
+                       regional_bbox: tuple, regional_crop_bbox: tuple | None,
+                       regional_height_data_bbox: tuple | None) -> None:
+    _bake_pool_init(color_cache, height_cache)
+    g.set_regional_source(
+        Path(regional_color_source), Path(regional_height_source), regional_bbox,
+        regional_crop_bbox, regional_height_data_bbox)
+
+
 def _bake_pool_task(task: tuple) -> tuple:
     (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
     return g.build_tile_assets(face, lod, tx, ty, cs, hs, _BAKE_RGB, _BAKE_HMAP,
@@ -771,79 +840,60 @@ def step4_bake(color_source: str, height_source: str, out_root: str | None,
     print(f'[step4] wrote {len(tiles)} tiles + manifest to {out}')
 
 # ---------------------------------------------------------------------------
-# Hawaii overlay: a self-contained high-res cone streamed on top of the base
+# Enhancement overlay: a self-contained high-res cone streamed on top of the base
 # ---------------------------------------------------------------------------
 
-EARTH_ROOT = 'assets/earth'
 HAWAII_ROOT = 'assets/hawaii'
-# Tiles at/above this LOD in assets/earth are the XHR Hawaii enhancement cone and
-# are extracted verbatim; everything below is baked fresh so it samples identically
-# to the regenerated base (no seam).
-CONE_MIN_LOD = 7
+CHIMBORAZO_ROOT = 'assets/chimborazo'
+
+# Mount Chimborazo (1.469 S, 78.817 W) lies in XHR cell 6x6. Keep the enhancement
+# bounded around the mountain while stepping detail inward toward the summit.
+CHIMBORAZO_REGION_COLOR = 'textures/24x12/XHR/earth_XHR_24x12_6x6.jpg'
+CHIMBORAZO_REGION_HEIGHT = (
+    'textures/DisplacementMaps/XHREarthDisplacement/earth_XHR_24x12_6x6.png')
+CHIMBORAZO_REGION_BBOX = (-90.0, -75.0, -15.0, 0.0)
+CHIMBORAZO_WIDE_BBOX = (-80.317, -77.317, -2.669, -0.269)
+CHIMBORAZO_MID_BBOX = (-79.317, -78.317, -1.969, -0.969)
+CHIMBORAZO_CORE_BBOX = (-78.997, -78.637, -1.649, -1.289)
+CHIMBORAZO_MIN_LOD = 5
+CHIMBORAZO_MID_LOD = 7
+CHIMBORAZO_MAX_LOD = 10
 
 
-def _parse_tile_key(k: str) -> tuple:
-    face, lod, x, y = k.split('/')
-    return face, int(lod), int(x), int(y)
+def build_overlay(color_source: str, height_source: str, color_size: int,
+                  height_size: int, height_min_m: float, height_max_m: float,
+                  jobs: int, can_try_ktx2: bool,
+                  cone: set | None = None,
+                  lodvis: bool = False,
+                  out_root: str | None = None,
+                  faces: dict | None = None,
+                  overlay_name: str = 'overlay',
+                  lod_palette: dict | None = None,
+                  regional_color_source: str | None = None,
+                  regional_height_source: str | None = None,
+                  regional_bbox: tuple | None = None,
+                  regional_crop_bbox: tuple | None = None,
+                  regional_height_data_bbox: tuple | None = None,
+                  tile_size_for_lod=None) -> None:
+    """Bake a region-bounded enhancement tileset.
 
+    The caller supplies the enhancement tile plan and regional source data. The
+    same plan is used in both modes: normal mode samples the regional imagery and
+    height data, while lodvis mode substitutes visualization pixels only.
+    """
+    if not cone or out_root is None:
+        raise ValueError('cone and out_root are required')
 
-def _cone_closure(cone: set) -> set:
-    """Return the full self-contained subtree for the cone: every cone tile plus
-    all ancestors down to LOD0 with sibling completion (each parent owns all four
-    children), so planet2 can refine the merged tree from the base floor into the
-    cone with no ragged parents. Cone tiles are already sibling-closed, so only the
-    LOD<CONE_MIN_LOD bridge levels gain tiles here."""
-    required = set(cone)
-    max_lod = max(t[1] for t in required)
-    for lod in range(max_lod, 0, -1):
-        for (face, l, x, y) in [t for t in required if t[1] == lod]:
-            px, py = x >> 1, y >> 1
-            required.add((face, l - 1, px, py))
-            bx, by = px * 2, py * 2
-            for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1)):
-                required.add((face, l, bx + dx, by + dy))
-    return required
-
-
-def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
-                         height_size: int, height_min_m: float, height_max_m: float,
-                         jobs: int, can_try_ktx2: bool,
-                         cone_min_lod: int = CONE_MIN_LOD,
-                         lodvis: bool = False,
-                         base_root: str | None = None,
-                         out_root: str | None = None,
-                         faces: dict | None = None) -> None:
-    """Build assets/hawaii: extract the existing LOD>=cone_min_lod XHR cone from
-    assets/earth verbatim, then bake the LOD0..cone_min_lod-1 bridge/ancestor tiles
-    fresh from the SAME sources+sizes the base bake (step4) uses so they are
-    sampling-identical to the regenerated Earth and integrate without a seam. Writes
-    a self-contained manifest planet2 merges over the base via ?planet2Overlays=hawaii."""
-    if base_root is None:
-        base_root = 'assets/earth_lodvis' if lodvis else EARTH_ROOT
-    if out_root is None:
-        out_root = 'assets/hawaii_lodvis' if lodvis else HAWAII_ROOT
-
-    earth = ROOT / base_root
-    earth_manifest_path = earth / 'manifest.json'
-    if not earth_manifest_path.exists():
-        raise SystemExit(f'{earth_manifest_path} not found; run before step4 overwrites it.')
-    earth_manifest = json.loads(earth_manifest_path.read_text(encoding='utf-8'))
-    earth_tiles = earth_manifest['tiles']
-
-    cone = {(_parse_tile_key(k)) for k in earth_tiles
-            if _parse_tile_key(k)[1] >= cone_min_lod}
-    if not cone:
-        raise SystemExit(
-            f'No LOD>={cone_min_lod} tiles in {earth_manifest_path}; the Hawaii cone '
-            'is not present (already overwritten by step4?). Restore from backup first.')
-
-    required = _cone_closure(cone)
-    bridge = sorted(t for t in required if t[1] < cone_min_lod)
+    # Do not extend the overlay down to LOD0. Doing so requires sibling completion
+    # at every ancestor level and eventually paints the entire cube face. The base
+    # tileset supplies the coarser traversal nodes when this is used as an overlay;
+    # planet2 can also display this sparse tile forest directly for lodvis.
+    bridge = []
     cone_sorted = sorted(cone)
-    print(f'[hawaii] cone tiles (LOD>={cone_min_lod}) to extract: {len(cone_sorted)}')
-    print(f'[hawaii] bridge tiles (LOD0..{cone_min_lod - 1}) to bake: {len(bridge)}')
+    print(f'[{overlay_name}] enhancement tiles to bake: {len(cone_sorted)}')
+    print(f'[{overlay_name}] bridge tiles to bake: {len(bridge)}')
 
-    out = ROOT / HAWAII_ROOT
+    out = ROOT / out_root
     out_color = out / 'color'
     out_height = out / 'height'
     for d in (out_color, out_height):
@@ -853,89 +903,107 @@ def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
     out_height.mkdir(parents=True, exist_ok=True)
 
     tiles: dict[str, dict] = {}
-
-    # 1) Extract the cone verbatim (color + height files copied byte-for-byte).
-    missing = 0
-    for (face, lod, x, y) in cone_sorted:
-        key = f'{face}/{lod}/{x}/{y}'
-        entry = earth_tiles.get(key)
-        src_h = earth / 'height' / f'{face}/{lod}/{x}/{y}.bin'
-        src_c_ktx2 = earth / 'color' / f'{face}/{lod}/{x}/{y}.ktx2'
-        src_c_png = earth / 'color' / f'{face}/{lod}/{x}/{y}.png'
-        src_c = src_c_ktx2 if src_c_ktx2.exists() else src_c_png
-        if entry is None or not src_h.exists() or not src_c.exists():
-            missing += 1
-            continue
-        dst_c = out_color / f'{face}/{lod}/{x}/{y}{src_c.suffix}'
-        dst_h = out_height / f'{face}/{lod}/{x}/{y}.bin'
-        dst_c.parent.mkdir(parents=True, exist_ok=True)
-        dst_h.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_c, dst_c)
-        shutil.copy2(src_h, dst_h)
-        tiles[key] = entry
-    if missing:
-        print(f'[hawaii] WARNING: {missing} cone tiles had no color/height files on '
-              'disk and were skipped.')
-
-    # 2) Bake the bridge fresh with the base bake's exact sources/sizes (seamless).
-    color_src = ROOT / color_source
-    height_src = ROOT / height_source
-    if lodvis:
-        print(f'[hawaii] baking bridge lodvis=true tile={color_size}px/{height_size}px '
-              f'jobs={jobs}')
-    else:
-        if not color_src.exists():
-            raise SystemExit(f'Color source not found: {color_src}')
-        if not height_src.exists():
-            raise SystemExit(f'Height source not found: {height_src}')
-        color_cache = _ensure_color_cache(color_src)
-        height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
-        print(f'[hawaii] baking bridge: color={color_src.name} height={height_src.name} '
-              f'tile={color_size}px/{height_size}px jobs={jobs}')
-
-    tasks = [(face, lod, x, y, color_size, height_size, out_color, out_height,
-              height_min_m, height_max_m, can_try_ktx2)
-             for (face, lod, x, y) in bridge]
     encoded_any = False
+
     if lodvis:
-        if faces is None:
+        if faces is None and lod_palette is None:
             labels = _load_step2()
             faces = _build_adaptive_faces(labels)
-        for i, (face, lod, tx, ty, *_rest) in enumerate(tasks, 1):
-            img = _paint_lod_map_tile(face, lod, tx, ty, faces[face]['label'],
-                                      faces[face]['assigned'])
+        tile_specs = bridge + cone_sorted
+        for i, (face, lod, tx, ty) in enumerate(tile_specs, 1):
+            face_data = faces[face] if faces is not None else None
+            img = _paint_lod_map_tile(
+                face, lod, tx, ty,
+                face_data['label'] if face_data is not None else None,
+                face_data['assigned'] if face_data is not None else None,
+                                      lod_palette=lod_palette)
             tid, entry, enc = _write_viz_tile(out, face, lod, tx, ty, img)
             tiles[tid] = entry
             encoded_any = encoded_any or enc
             if i % 1000 == 0:
-                print(f'  {i}/{len(tasks)} tiles')
-    elif jobs > 1:
-        with concurrent.futures.ProcessPoolExecutor(
-                max_workers=jobs, initializer=_bake_pool_init,
-                initargs=(color_cache, height_cache)) as ex:
-            for tid, entry, enc in ex.map(_bake_pool_task, tasks, chunksize=8):
+                print(f'  {i}/{len(tile_specs)} tiles')
+    else:
+        required_regional_args = (
+            regional_color_source, regional_height_source, regional_bbox)
+        if any(value is None for value in required_regional_args):
+            raise ValueError(
+                'regional_color_source, regional_height_source, and regional_bbox '
+                'are required when lodvis is false')
+
+        color_src = ROOT / color_source
+        height_src = ROOT / height_source
+        regional_color_src = ROOT / regional_color_source
+        regional_height_src = ROOT / regional_height_source
+        for source_path in (
+                color_src, height_src, regional_color_src, regional_height_src):
+            if not source_path.exists():
+                raise SystemExit(f'Source not found: {source_path}')
+
+        color_cache = _ensure_color_cache(color_src)
+        height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
+        jobs = max(1, int(jobs))
+
+        def make_tasks(tile_specs):
+            tasks = []
+            for face, lod, x, y in tile_specs:
+                cs, hs = ((color_size, height_size) if tile_size_for_lod is None
+                          else tile_size_for_lod(lod, color_size, height_size))
+                tasks.append((face, lod, x, y, cs, hs, out_color, out_height,
+                              height_min_m, height_max_m, can_try_ktx2))
+            return tasks
+
+        def record(results):
+            nonlocal encoded_any
+            for tid, entry, enc in results:
                 tiles[tid] = entry
                 encoded_any = encoded_any or enc
-    else:
-        rgb = np.load(color_cache, mmap_mode='r')
-        hmap = np.load(height_cache, mmap_mode='r')
-        for task in tasks:
-            (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
-            tid, entry, enc = g.build_tile_assets(
-                face, lod, tx, ty, cs, hs, rgb, hmap, ocr, ohr, hmin, hmax, ktx)
-            tiles[tid] = entry
-            encoded_any = encoded_any or enc
+
+        bridge_tasks = make_tasks(bridge)
+        cone_tasks = make_tasks(cone_sorted)
+        if jobs > 1:
+            if bridge_tasks:
+                with concurrent.futures.ProcessPoolExecutor(
+                        max_workers=jobs, initializer=_bake_pool_init,
+                        initargs=(color_cache, height_cache)) as ex:
+                    record(ex.map(_bake_pool_task, bridge_tasks, chunksize=8))
+            with concurrent.futures.ProcessPoolExecutor(
+                    max_workers=jobs, initializer=_overlay_pool_init,
+                    initargs=(color_cache, height_cache,
+                              str(regional_color_src), str(regional_height_src),
+                              regional_bbox, regional_crop_bbox,
+                              regional_height_data_bbox)) as ex:
+                record(ex.map(_bake_pool_task, cone_tasks, chunksize=8))
+        else:
+            rgb = np.load(color_cache, mmap_mode='r')
+            hmap = np.load(height_cache, mmap_mode='r')
+            for task in bridge_tasks:
+                (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
+                record([g.build_tile_assets(
+                    face, lod, tx, ty, cs, hs, rgb, hmap,
+                    ocr, ohr, hmin, hmax, ktx)])
+            g.set_regional_source(
+                regional_color_src, regional_height_src, regional_bbox,
+                regional_crop_bbox, regional_height_data_bbox)
+            for task in cone_tasks:
+                (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
+                record([g.build_tile_assets(
+                    face, lod, tx, ty, cs, hs, rgb, hmap,
+                    ocr, ohr, hmin, hmax, ktx)])
+
+    if not tiles:
+        raise RuntimeError(f'No tiles were generated for overlay "{overlay_name}"')
 
     manifest = {
         'maxAvailableLod': max(t[1] for t in cone),
-        'minHeight': float(earth_manifest.get('minHeight', height_min_m)),
-        'maxHeight': float(earth_manifest.get('maxHeight', height_max_m)),
+        'minHeight': float(height_min_m),
+        'maxHeight': float(height_max_m),
         'tiles': tiles,
     }
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
-    if can_try_ktx2 and not encoded_any and bridge:
-        print('[hawaii] WARNING: bridge tiles were not KTX2-encoded (toktx missing?).')
-    print(f'[hawaii] wrote {len(tiles)} tiles + manifest to {out} '
+    if can_try_ktx2 and not encoded_any:
+        print(f'[{overlay_name}] WARNING: tiles were not KTX2-encoded '
+              '(toktx missing?).')
+    print(f'[{overlay_name}] wrote {len(tiles)} tiles + manifest to {out} '
           f'(maxAvailableLod={manifest["maxAvailableLod"]})')
 
 
@@ -946,7 +1014,7 @@ def build_hawaii_overlay(color_source: str, height_source: str, color_size: int,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('asset', nargs='?', default='earth',
-                        help='Asset root to build (currently: earth, hawaii).')
+                        help='Asset root to build (earth, hawaii, or chimborazo).')
     parser.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png')
     parser.add_argument('--height-source', type=str, default=HEIGHT_SOURCE)
     parser.add_argument('--color-size', type=int, default=256,
@@ -961,36 +1029,100 @@ def main() -> None:
                         help='Skip KTX2 encoding (leaves PNG color tiles).')
     parser.add_argument('--lodvis', action='store_true', default=False,
                         help='Bake visualization tiles instead of imagery tiles.')
-    parser.add_argument('--cone-min-lod', type=int, default=CONE_MIN_LOD,
-                        help='LOD at/above which assets/earth tiles are the XHR cone (extracted).')
-
     args = parser.parse_args()
 
-    labels = step1(75.0, 0.5, 32)
-    labels = step2(2)
-    faces = step3()
+    if not args.no_ktx2 and not _toktx_available():
+        _print_toktx_install_instructions()
 
     if args.asset == 'earth':
+        step1(75.0, 0.5, 32)
+        step2(2)
+        faces = step3()
         step4_bake(args.color_source, args.height_source, None,
                    args.color_size, args.height_size, args.height_min_m,
                    args.height_max_m, args.jobs, not args.no_ktx2,
                    lodvis=args.lodvis, faces=faces)
     elif args.asset == 'hawaii':
-        step4_bake(args.color_source, args.height_source, 'assets/earth_lodvis' if args.lodvis else 'assets/earth',
-                   args.color_size, args.height_size, args.height_min_m,
-                   args.height_max_m, args.jobs, not args.no_ktx2,
-                   lodvis=args.lodvis, faces=faces)
-        build_hawaii_overlay(args.color_source, args.height_source,
-                             args.color_size, args.height_size, args.height_min_m,
-                             args.height_max_m, args.jobs, not args.no_ktx2,
-                             cone_min_lod=args.cone_min_lod,
-                             lodvis=args.lodvis,
-                             base_root='assets/earth_lodvis' if args.lodvis else EARTH_ROOT,
-                             out_root='assets/hawaii_lodvis' if args.lodvis else HAWAII_ROOT,
-                             faces=faces)
+        overlay_min_lod = hawaii.WIDE_LOD
+        cone, _ = hawaii.collect_graded_tiles(
+            hawaii.CHAIN_BBOX, overlay_min_lod, 0.01,
+            ROOT / args.height_source)
+        # Sample the wide boundary finely enough to retain narrow cube-projection
+        # intersections such as the -X/5/24/26 edge tile.
+        wide_step = 0.05
+        cone |= hawaii.collect_island_tiles(
+            hawaii.WIDE_BBOX, overlay_min_lod, hawaii.WIDE_LOD, wide_step)
+        # Earth is complete through LOD3. Add only the LOD4 structural bridge
+        # needed for normal parent/child replacement, then rely on Earth's LOD3
+        # parents rather than extending the overlay across the cube face.
+        cone = hawaii.close_quadtree(cone, BASE_FULL_COVERAGE_LOD)
+        cone = {tile for tile in cone if tile[1] > BASE_FULL_COVERAGE_LOD}
+
+        overlay_bbox = (
+            min(hawaii.CHAIN_BBOX[0], hawaii.WIDE_BBOX[0]),
+            max(hawaii.CHAIN_BBOX[1], hawaii.WIDE_BBOX[1]),
+            min(hawaii.CHAIN_BBOX[2], hawaii.WIDE_BBOX[2]),
+            max(hawaii.CHAIN_BBOX[3], hawaii.WIDE_BBOX[3]),
+        )
+        crop_bbox = (
+            overlay_bbox[0] - 0.25, overlay_bbox[1] + 0.25,
+            overlay_bbox[2] - 0.25, overlay_bbox[3] + 0.25,
+        )
+
+        build_overlay(
+            args.color_source, args.height_source,
+            args.color_size, args.height_size, args.height_min_m,
+            args.height_max_m, args.jobs, not args.no_ktx2,
+            cone=cone,
+            lodvis=args.lodvis,
+            out_root='assets/hawaii_lodvis' if args.lodvis else HAWAII_ROOT,
+            overlay_name='hawaii',
+            lod_palette=ENHANCEMENT_LOD_PALETTE if args.lodvis else None,
+            regional_color_source=hawaii.REGION_COLOR,
+            regional_height_source=hawaii.REGION_HEIGHT,
+            regional_bbox=hawaii.REGION_BBOX,
+            regional_crop_bbox=crop_bbox,
+            regional_height_data_bbox=hawaii.BIG_ISLAND_HEIGHT_BBOX,
+            tile_size_for_lod=hawaii.sizes_for_lod,
+        )
+    elif args.asset == 'chimborazo':
+        cone = hawaii.collect_island_tiles(
+            CHIMBORAZO_WIDE_BBOX, CHIMBORAZO_MIN_LOD,
+            CHIMBORAZO_MIN_LOD, 0.05)
+        cone |= hawaii.collect_island_tiles(
+            CHIMBORAZO_MID_BBOX, CHIMBORAZO_MIN_LOD,
+            CHIMBORAZO_MID_LOD, 0.01)
+        cone |= hawaii.collect_island_tiles(
+            CHIMBORAZO_CORE_BBOX, CHIMBORAZO_MIN_LOD,
+            CHIMBORAZO_MAX_LOD, 0.005)
+        cone = hawaii.close_quadtree(cone, CHIMBORAZO_MIN_LOD)
+
+        crop_bbox = (
+            CHIMBORAZO_WIDE_BBOX[0] - 0.25,
+            CHIMBORAZO_WIDE_BBOX[1] + 0.25,
+            CHIMBORAZO_WIDE_BBOX[2] - 0.25,
+            CHIMBORAZO_WIDE_BBOX[3] + 0.25,
+        )
+        build_overlay(
+            args.color_source, args.height_source,
+            args.color_size, args.height_size, args.height_min_m,
+            args.height_max_m, args.jobs, not args.no_ktx2,
+            cone=cone,
+            lodvis=args.lodvis,
+            out_root=('assets/chimborazo_lodvis'
+                      if args.lodvis else CHIMBORAZO_ROOT),
+            overlay_name='chimborazo',
+            lod_palette=ENHANCEMENT_LOD_PALETTE if args.lodvis else None,
+            regional_color_source=CHIMBORAZO_REGION_COLOR,
+            regional_height_source=CHIMBORAZO_REGION_HEIGHT,
+            regional_bbox=CHIMBORAZO_REGION_BBOX,
+            regional_crop_bbox=crop_bbox,
+            tile_size_for_lod=hawaii.sizes_for_lod,
+        )
     else:
         raise SystemExit(
-            f"Unsupported asset '{args.asset}'. Supported assets are: earth, hawaii. "
+            f"Unsupported asset '{args.asset}'. Supported assets are: "
+            "earth, hawaii, chimborazo. "
             "Add a new branch in tools/adaptive_lod.py if you want to build another asset."
         )
 

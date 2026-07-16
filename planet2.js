@@ -292,6 +292,7 @@ class Tile {
     this.estimatedBytes = 0;
     this.priority = 0;
     this.lastUsedFrame = 0;
+    this.refinementActive = false;
 
     this.meta = null;
 
@@ -460,7 +461,7 @@ class CubedSpherePlanetRenderer {
       color: 0x8aa7c2,
       roughness: 1,
       metalness: 0,
-      side: THREE.DoubleSide,
+      side: options.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     });
 
     this.manifest = null;
@@ -479,6 +480,8 @@ class CubedSpherePlanetRenderer {
     this.heightMaxMeters = 8500;
     this.startupTimeline = new Map();
     this.startupManifestEvents = [];
+    this.selectionRoots = [];
+    this.selectionRootIds = new Set();
 
     this.ktx2Loader = CubedSpherePlanetRenderer._getSharedKTX2Loader(this.renderer);
 
@@ -687,6 +690,7 @@ class CubedSpherePlanetRenderer {
       // Merge any overlay layers on top of the base. Overlay tiles override the
       // base tile at the same key and remember which folder to stream from.
       await this._loadOverlays();
+      this._rebuildSelectionRoots();
       // Tiles created before the manifest arrived (the six roots, built
       // synchronously in the constructor) cached the default meta. Refresh them
       // now so their real width/height (e.g. 128) is used for size validation.
@@ -752,11 +756,6 @@ class CubedSpherePlanetRenderer {
         const mergeStart = performance.now();
         if (data.tiles) {
           for (const [k, v] of Object.entries(data.tiles)) {
-            const lod = Number(k.split('/')[1]);
-            if (lod > overlayMaxLod) {
-              skipped += 1;
-              continue;
-            }
             this.manifestTileMap.set(k, v);
             this.tileSourceMap.set(k, source);
             count += 1;
@@ -975,7 +974,37 @@ class CubedSpherePlanetRenderer {
       const tile = this._getOrCreateTile(face, this.rootLod, 0, 0, null);
       this._ensureTileMesh(tile);
       this.group.add(tile.mesh);
+      this.selectionRoots.push(tile);
+      this.selectionRootIds.add(tile.id);
     }
+  }
+
+  // A regional visualization can be the first/only asset and may intentionally
+  // omit LOD0 and every tile outside its footprint. Treat every manifest tile
+  // whose parent is absent as a root of a sparse quadtree forest.
+  _rebuildSelectionRoots() {
+    if (!this.manifest?.tiles) return;
+
+    const roots = [];
+    const rootIds = new Set();
+    for (const id of this.manifestTileMap.keys()) {
+      const [face, lodText, xText, yText] = id.split('/');
+      const lod = Number(lodText);
+      const x = Number(xText);
+      const y = Number(yText);
+      if (!FACE_NAMES.includes(face) || !Number.isInteger(lod) ||
+          !Number.isInteger(x) || !Number.isInteger(y)) continue;
+
+      const parentId = lod > 0 ? tileKey(face, lod - 1, x >> 1, y >> 1) : null;
+      if (parentId && this.manifestTileMap.has(parentId)) continue;
+
+      const tile = this._getOrCreateTile(face, lod, x, y, null);
+      this._ensureTileMesh(tile);
+      roots.push(tile);
+      rootIds.add(tile.id);
+    }
+    this.selectionRoots = roots;
+    this.selectionRootIds = rootIds;
   }
 
   _getOrCreateTile(face, lod, x, y, parent) {
@@ -1065,9 +1094,8 @@ class CubedSpherePlanetRenderer {
 
     this.visibleTiles.clear();
 
-    for (const face of FACE_NAMES) {
-      const root = this.tiles.get(tileKey(face, this.rootLod, 0, 0));
-      if (root) this._selectTilesRecursive(root, camera);
+    for (const root of this.selectionRoots) {
+      if (this.tiles.get(root.id) === root) this._selectTilesRecursive(root, camera);
     }
 
     this._applyVisibility();
@@ -1097,13 +1125,23 @@ class CubedSpherePlanetRenderer {
   // Recursively selects visible tiles, always keeping a parent visible until ALL
   // of its children are loaded and ready (so no holes appear during streaming).
   _selectTilesRecursive(tile, camera) {
+    // The first asset may itself be a sparse regional tileset (for example,
+    // planet2Assets=['hawaii_lodvis']). Do not display or enqueue cube-face roots
+    // and other tiles that its explicit manifest does not contain.
+    if (this.manifestReady && this.manifest?.tiles &&
+        !this.manifestTileMap.has(tile.id)) {
+      return;
+    }
+
     tile.lastUsedFrame = this.frame;
 
     if (!this._isTileVisible(tile, camera)) {
       return;
     }
 
-    if (this._shouldRefine(tile, camera)) {
+    const shouldRefine = this._shouldRefine(tile, camera);
+    tile.refinementActive = shouldRefine;
+    if (shouldRefine) {
       this._ensureChildren(tile);
 
       let allReady = true;
@@ -1177,8 +1215,10 @@ class CubedSpherePlanetRenderer {
     // Terrain-aware bias: rougher / mountainous / interesting tiles refine sooner;
     // open-ocean / flat tiles refine later.
     const boost = this._priorityBoost(tile, meta);
-    const expandThreshold = (this.sseThreshold * this.hysteresisExpand) / boost;
-    return sse > expandThreshold;
+    const threshold = tile.refinementActive
+      ? this.sseThreshold * this.hysteresisCollapse
+      : this.sseThreshold * this.hysteresisExpand;
+    return sse > threshold / boost;
   }
 
   // Approximate world-space geometric error: half a tile's surface span.
@@ -1553,6 +1593,13 @@ class CubedSpherePlanetRenderer {
       const tile = this.priorityQueue.pop();
       if (!tile) break;
       this.queuedSet.delete(tile.id);
+      // Eviction cannot cheaply remove an arbitrary item from the heap. Ignore
+      // stale entries rather than starting a load for a tile that is no longer
+      // part of the live quadtree.
+      if (this.tiles.get(tile.id) !== tile) continue;
+      // Loads can be queued before the manifest arrives. Discard any that the
+      // resolved sparse manifest says do not exist instead of issuing 404s.
+      if (this.manifest?.tiles && !this.manifestTileMap.has(tile.id)) continue;
       if (tile.ready || tile.loading) continue;
       this._loadTile(tile);
     }
@@ -1873,6 +1920,12 @@ class CubedSpherePlanetRenderer {
     const candidates = [];
     for (const tile of this.tiles.values()) {
       if (tile.lod === this.rootLod) continue;
+      if (this.selectionRootIds.has(tile.id)) continue;
+      // Selection touches every tile required to preserve the current view,
+      // including off-screen siblings needed for an atomic parent-to-children
+      // transition. Evicting one of those siblings makes the selector recreate
+      // and reload it next frame, producing an endless coarse/detail cycle.
+      if (tile.lastUsedFrame === this.frame) continue;
       if (this.visibleTiles.has(tile.id)) continue;
       if (this._isAncestorOfVisible(tile)) continue;
       candidates.push(tile);
@@ -1950,6 +2003,17 @@ class CubedSpherePlanetRenderer {
       }
     } else {
       this._applyDebugColors();
+    }
+  }
+
+  setDoubleSided(doubleSided) {
+    const side = doubleSided ? THREE.DoubleSide : THREE.FrontSide;
+    this.baseMaterial.side = side;
+    this.baseMaterial.needsUpdate = true;
+    for (const tile of this.tiles.values()) {
+      if (!tile.material) continue;
+      tile.material.side = side;
+      tile.material.needsUpdate = true;
     }
   }
 
@@ -2175,6 +2239,7 @@ export class planet2 {
       displacementScaleMultiplier: nonGUIParams.planet2DisplacementScaleMultiplier ?? 1,
       fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? Infinity,
       maxLodWhileFast: nonGUIParams.planet2MaxLodWhileFast ?? Infinity,
+      doubleSided: dParamWithUnits?.earthTextureDoubleSided?.value === true,
     });
     this.lodRenderer = lodRenderer;
 
@@ -2205,6 +2270,7 @@ export class planet2 {
     const result = [planetMeshes, atmosphereMesh, backgroundPatchMesh];
     result.updatePlanetLod = (camera) => lodRenderer.update(camera);
     result.setPlanetDebugMode = (mode) => lodRenderer.setDebugMode(mode);
+    result.setPlanetDoubleSided = (doubleSided) => lodRenderer.setDoubleSided(doubleSided);
     result.getPlanetDebugStats = () => lodRenderer.getDebugStats();
     result.disposePlanetLod = () => lodRenderer.dispose();
 

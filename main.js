@@ -657,6 +657,7 @@ const guidParamWithUnits = {
   showEarthsSurface: {value: defaultShows, units: '', autoMap: true, updateFunction: adjustEarthSurfaceVisibility, folder: folderRendering},
   showEarthsAtmosphere: {value: true, units: '', autoMap: true, updateFunction: adjustEarthAtmosphereVisibility, folder: folderRendering},
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustEarthTextureOpacity, folder: folderRendering},
+  earthTextureDoubleSided: {value: false, units: '', autoMap: true, updateFunction: adjustEarthTextureSidedness, folder: folderRendering},
   tetherMinOpacity: {value: 0.03, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
   tetherMaxOpacity: {value: 0.70, units: '', autoMap: true, min: 0, max: 1, updateFunction: adjustTetherOpacity, folder: folderRendering},
   tetherDistanceFactor: {value: -14.5, units: '', autoMap: true, min: -30, max: -10, updateFunction: adjustTetherDistanceFactor, folder: folderRendering},
@@ -980,6 +981,23 @@ function adjustEarthTextureOpacity() {
   })
 }
 
+function adjustEarthTextureSidedness() {
+  updatedParam()
+  const doubleSided = guidParamWithUnits['earthTextureDoubleSided'].value
+  if (setPlanetDoubleSided) {
+    setPlanetDoubleSided(doubleSided)
+  }
+  else if (planetMeshes) {
+    const side = doubleSided ? THREE.DoubleSide : THREE.FrontSide
+    planetMeshes.traverse(child => {
+      if (child.type === 'Mesh' && child.material) {
+        child.material.side = side
+        child.material.needsUpdate = true
+      }
+    })
+  }
+}
+
 function adjustTetherOpacity() {
   updatedParam()
   tetherMaterial.uniforms["tetherMinOpacity"].value = guidParamWithUnits['tetherMinOpacity'].value;
@@ -1172,8 +1190,8 @@ function createLogoSprite(texture) {
   texture.magFilter = THREE.LinearFilter; // For smooth scaling up
 
   const spriteMaterial = new THREE.SpriteMaterial( { map: texture } )
-  logoSpriteWidth = spriteMaterial.map.image.width / 8
-  logoSpriteHeight = spriteMaterial.map.image.height / 8
+  logoSpriteWidth = spriteMaterial.map.image.width
+  logoSpriteHeight = spriteMaterial.map.image.height
   logoSprite = new THREE.Sprite( spriteMaterial )
   logoSprite.center.set( 0.5, 0.5 )
   logoSprite.scale.set( logoSpriteWidth, logoSpriteHeight, 1 )
@@ -1371,6 +1389,7 @@ planetCoordSys.add(fakeCamera)
 
 let planetMeshes, atmosphereMesh, backgroundPatchMesh
 let updatePlanetLod = null
+let setPlanetDoubleSided = null
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value || dParamWithUnits['showBackgroundPatch'].value) {
   const usePlanet2 = nonGUIParams['usePlanet2'] === true
@@ -1380,6 +1399,7 @@ if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtm
 
   if (usePlanet2 && (typeof planetResult.updatePlanetLod === 'function')) {
     updatePlanetLod = planetResult.updatePlanetLod
+    setPlanetDoubleSided = planetResult.setPlanetDoubleSided ?? null
     if (typeof planetResult.setPlanetDebugMode === 'function' && nonGUIParams['planet2DebugMode']) {
       planetResult.setPlanetDebugMode(nonGUIParams['planet2DebugMode'])
     }
