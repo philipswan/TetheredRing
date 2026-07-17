@@ -205,6 +205,9 @@ Tiles are generated from **equirectangular** (lat/lon) source images:
   [`tools/build_xhr_displacement_tile.py`](../tools/build_xhr_displacement_tile.py).
   In that displacement image, elevation in meters is encoded as
   `code = 9000 + 10 × elevation_m`.
+  The Chimborazo overlay does not use a checked-in XHR tile: its build fetches
+  Esri World Imagery and the public Copernicus GLO-30 COGs directly, caching the
+  prepared equirectangular inputs under `.cache/adaptive_lod/chimborazo`.
 
 ## How the scripts turn raw data into tiles
 

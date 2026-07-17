@@ -1468,6 +1468,40 @@ class CubedSpherePlanetRenderer {
     return a + (b - a) * ty;
   }
 
+  sampleTerrainHeight(latDeg, lonDeg) {
+    if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) return null;
+
+    const direction = latLonToDirection(
+      THREE.MathUtils.degToRad(latDeg), THREE.MathUtils.degToRad(lonDeg),
+      new THREE.Vector3());
+    const faceUv = directionToFaceUV(direction, { face: '+X', u: 0, v: 0 });
+    const globalU = clamp01((faceUv.u + 1) * 0.5);
+    const globalV = clamp01((faceUv.v + 1) * 0.5);
+
+    // Prefer the deepest resident height tile, falling back through loaded
+    // ancestors. Tiles are streamed asynchronously, so absence is not an error.
+    for (let lod = this.maxAvailableLod; lod >= this.rootLod; lod--) {
+      const count = 1 << lod;
+      const x = Math.min(count - 1, Math.floor(globalU * count));
+      const y = Math.min(count - 1, Math.floor(globalV * count));
+      const tile = this.tiles.get(tileKey(faceUv.face, lod, x, y));
+      if (!tile?.heightSamples || !tile.heightWidth || !tile.heightHeight) continue;
+      const localU = globalU * count - x;
+      const localV = globalV * count - y;
+      return {
+        heightMeters: this._sampleHeight(tile, localU, localV),
+        face: faceUv.face,
+        lod,
+        x,
+        y,
+        u: localU,
+        v: localV,
+        tileId: tile.id,
+      };
+    }
+    return null;
+  }
+
   _ensureChildren(tile) {
     const l = tile.lod + 1;
     const x2 = tile.x * 2;
@@ -2272,6 +2306,7 @@ export class planet2 {
     result.setPlanetDebugMode = (mode) => lodRenderer.setDebugMode(mode);
     result.setPlanetDoubleSided = (doubleSided) => lodRenderer.setDoubleSided(doubleSided);
     result.getPlanetDebugStats = () => lodRenderer.getDebugStats();
+    result.sampleTerrainHeight = (lat, lon) => lodRenderer.sampleTerrainHeight(lat, lon);
     result.disposePlanetLod = () => lodRenderer.dispose();
 
     if (typeof nonGUIParams.registerPlanetLodUpdater === 'function') {

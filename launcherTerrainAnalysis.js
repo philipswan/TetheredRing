@@ -4,7 +4,7 @@ import * as THREE from 'three'
 // This hack plots the altitude of the ramp section of the launcher alongside the distance above sea level,
 // of the terrain above or below the ramp section's curve.
 
-export function analyzeLauncherTerrainDisplacement(launchSystemObject, planetMeshes, planetSpec, tram, scene) {
+export function analyzeLauncherTerrainDisplacement(launchSystemObject, planetMeshes, planetSpec, tram, scene, samplePlanetTerrainHeight = null) {
   // Build a cache of displacement map pixel data from planet mesh tiles
   const tileMeshes = []
   planetMeshes.traverse(child => {
@@ -40,6 +40,18 @@ export function analyzeLauncherTerrainDisplacement(launchSystemObject, planetMes
     let lon = geo.lon  // degrees
     if (lon < -180) lon += 360
     if (lon >= 180) lon -= 360
+    if (samplePlanetTerrainHeight) {
+      const result = samplePlanetTerrainHeight(geo.lat, lon)
+      if (!result) return null
+      return {
+        displacement: result.heightMeters,
+        face: result.face,
+        lod: result.lod,
+        tileId: result.tileId,
+        u: result.u,
+        v: result.v,
+      }
+    }
     const colat = 90 - geo.lat  // colatitude in degrees, 0 at north pole, 180 at south pole
     // Tile indices (24 columns by longitude, 12 rows by colatitude, each tile = 15°)
     const ti = Math.min(Math.max(Math.floor((lon + 180) / 15), 0), tileW - 1)

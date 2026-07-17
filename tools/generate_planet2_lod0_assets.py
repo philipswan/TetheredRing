@@ -304,11 +304,86 @@ def set_regional_source(color_path: Path | None, height_path: Path, bbox: tuple[
     _REGIONAL_HM = hm
 
 
+_BASE_TILE_ROOT: Path | None = None
+_BASE_TILE_CACHE: Path | None = None
+_BASE_COLOR_TILES: dict[Path, np.ndarray] = {}
+_BASE_HEIGHT_TILES: dict[Path, np.ndarray] = {}
+
+
+def set_base_tile_source(root: Path | None, cache: Path | None = None) -> None:
+    global _BASE_TILE_ROOT, _BASE_TILE_CACHE
+    _BASE_TILE_ROOT, _BASE_TILE_CACHE = root, cache
+    _BASE_COLOR_TILES.clear()
+    _BASE_HEIGHT_TILES.clear()
+
+
+def _base_ancestor(face: str, lod: int, x: int, y: int, kind: str, suffix: str):
+    for ancestor_lod in range(lod, -1, -1):
+        shift = lod - ancestor_lod
+        ax, ay = x >> shift, y >> shift
+        path = _BASE_TILE_ROOT / kind / face / str(ancestor_lod) / str(ax) / f'{ay}.{suffix}'
+        if path.exists():
+            return path, ancestor_lod, ax, ay
+    raise FileNotFoundError(f'No base {kind} ancestor for {face}/{lod}/{x}/{y}')
+
+
+def _ktx_executable() -> str:
+    executable = shutil.which('ktx')
+    candidate = Path('C:/Program Files/KTX-Software/bin/ktx.exe')
+    if not executable and candidate.exists():
+        executable = str(candidate)
+    if not executable:
+        raise RuntimeError('ktx extract is required to sample base Earth color tiles')
+    return executable
+
+
+def _load_base_color(path: Path) -> np.ndarray:
+    if path not in _BASE_COLOR_TILES:
+        relative = path.relative_to(_BASE_TILE_ROOT / 'color').with_suffix('.png')
+        png = _BASE_TILE_CACHE / 'color' / relative
+        if not png.exists():
+            png.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([_ktx_executable(), 'extract', '--transcode', 'rgb8',
+                            str(path), str(png)], check=True, capture_output=True)
+        _BASE_COLOR_TILES[path] = np.asarray(Image.open(png).convert('RGB'), dtype=np.uint8)
+    return _BASE_COLOR_TILES[path]
+
+
+def _load_base_height(path: Path) -> np.ndarray:
+    if path not in _BASE_HEIGHT_TILES:
+        raw = np.fromfile(path, dtype='<u2')
+        edge = math.isqrt(raw.size)
+        if edge * edge != raw.size:
+            raise ValueError(f'Base height tile is not square: {path}')
+        _BASE_HEIGHT_TILES[path] = raw.reshape(edge, edge)
+    return _BASE_HEIGHT_TILES[path]
+
+
+def _sample_base_tile(face: str, lod: int, x: int, y: int, size: int, kind: str) -> np.ndarray:
+    suffix = 'ktx2' if kind == 'color' else 'bin'
+    path, ancestor_lod, ax, ay = _base_ancestor(face, lod, x, y, kind, suffix)
+    source = _load_base_color(path) if kind == 'color' else _load_base_height(path)
+    scale = 1 << (lod - ancestor_lod)
+    rel_x, rel_y = x - ax * scale, y - ay * scale
+    if kind == 'height':
+        s = np.linspace(0.0, 1.0, size, dtype=np.float64)
+        sx = (rel_x + s) / scale * (source.shape[1] - 1)
+        sy = (rel_y + s) / scale * (source.shape[0] - 1)
+    else:
+        s = (np.arange(size, dtype=np.float64) + 0.5) / size
+        sx = (rel_x + s) / scale * source.shape[1] - 0.5
+        sy = (rel_y + s) / scale * source.shape[0] - 0.5
+    return bilinear_sample_grid(source, *np.meshgrid(sx, sy))
+
+
 def generate_tile_color(face: str, src_rgb: np.ndarray, lod: int, tile_x: int, tile_y: int, face_size: int) -> np.ndarray:
     u, v = _tile_uv_grids(lod, tile_x, tile_y, face_size)
     dx, dy, dz = cube_to_direction_grid(face, u, v)
-    sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_rgb.shape[1], src_rgb.shape[0])
-    sampled = bilinear_sample_grid(src_rgb, sx, sy)
+    if _BASE_TILE_ROOT is not None:
+        sampled = _sample_base_tile(face, lod, tile_x, tile_y, face_size, 'color')
+    else:
+        sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_rgb.shape[1], src_rgb.shape[0])
+        sampled = bilinear_sample_grid(src_rgb, sx, sy)
     if _REGIONAL_RGB is not None:
         mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_RGB.shape[1], _REGIONAL_RGB.shape[0], _REGIONAL_RGB_BBOX)
         if mask.any():
@@ -320,8 +395,11 @@ def generate_tile_color(face: str, src_rgb: np.ndarray, lod: int, tile_x: int, t
 def generate_tile_height(face: str, src_hmap: np.ndarray, lod: int, tile_x: int, tile_y: int, face_size: int, height_min_m: float = -200.0, height_max_m: float = 8500.0) -> np.ndarray:
     u, v = _tile_uv_grids(lod, tile_x, tile_y, face_size, align='edge')
     dx, dy, dz = cube_to_direction_grid(face, u, v)
-    sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_hmap.shape[1], src_hmap.shape[0])
-    sampled = bilinear_sample_grid(src_hmap, sx, sy)
+    if _BASE_TILE_ROOT is not None:
+        sampled = _sample_base_tile(face, lod, tile_x, tile_y, face_size, 'height')
+    else:
+        sx, sy = direction_to_equirect_xy_grid(dx, dy, dz, src_hmap.shape[1], src_hmap.shape[0])
+        sampled = bilinear_sample_grid(src_hmap, sx, sy)
     if _REGIONAL_HM is not None:
         mask, rx, ry = _regional_pixel_coords(dx, dy, dz, _REGIONAL_HM.shape[1], _REGIONAL_HM.shape[0], _REGIONAL_HM_BBOX)
         if _REGIONAL_HM_DATA_BBOX is not None:

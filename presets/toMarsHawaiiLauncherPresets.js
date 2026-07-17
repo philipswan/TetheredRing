@@ -13,16 +13,32 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
+  let launcherRampEndLatitude
+  let launcherRampEndLongitude
+  let massDriverAltitude
+  let rampExitAltitude
   // Location specific parameters that will affect the architecture
   const useEarth = true
   if (useEarth) {
     guidParamWithUnits['planetName'].value = "Earth"
-    // Mauna Kea (19.820667, -155.468056)
-    const launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
-    const launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ramp a little bit east 
-    const massDriverAltitude = -150 // m (below sea level) (at the moment we can't see it below the ocean so, for now, raising it above the ocean)
-    //const massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
-    const rampExitAltitude = 4000 // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
+    const Location = "Mount Chimborazo"  // "Hawaii" // 
+    switch (Location) {
+      case "Hawaii":
+        // Mauna Kea (19.820667, -155.468056)
+        launcherRampEndLatitude = 19.820667 // °N (Hawaii Big Island)
+        launcherRampEndLongitude = -155.468056 + .048056 // moving the end of the ranp a little bit east 
+        massDriverAltitude = -150 // m (below sea level) (at the moment we can't see it below the ocean so, for now, raising it above the ocean)
+        //massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
+        rampExitAltitude = 4000 // m  (Altitude of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
+        break
+      case "Mount Chimborazo":
+        launcherRampEndLatitude = -1.4693 // °N (Ecuador)
+        launcherRampEndLongitude = -78.8171 + .01 // moving the end of the ranp a little bit east
+        massDriverAltitude = -150 // m (Mount Chimborazo summit)
+        rampExitAltitude = 6263 - 200// m  (Altitute of Mount Chimborazo summit (6263) plus ~500 meters which is an engineered truss structure that can be stowed underground when not in use)
+        break
+    }
+
     toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
     //toVenusFromEarthLauncherArchitecture(guidParamWithUnits, launcherRampEndLatitude, launcherRampEndLongitude, massDriverAltitude, rampExitAltitude)
 
@@ -207,12 +223,32 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     // nonGUIParams['planet2Assets'] = ['hawaii_lodvis']
     // nonGUIParams['planet2Assets'] = ['earth_lodvis', 'hawaii_lodvis']
     // nonGUIParams['planet2Assets'] = ['hawaii']
-    nonGUIParams['planet2Assets'] = ['earth', 'hawaii']
+    // nonGUIParams['planet2Assets'] = ['earth', 'hawaii']
     // nonGUIParams['planet2Assets'] = ['chimborazo_lodvis']
     // nonGUIParams['planet2Assets'] = ['earth_lodvis', 'chimborazo_lodvis']
-    // nonGUIParams['planet2Assets'] = ['earth', 'chimborazo']
+    nonGUIParams['planet2Assets'] = ['earth', 'chimborazo']
     nonGUIParams['planet2RequireKtx2'] = false
     nonGUIParams['planet2StartupChart'] = true
+
+    // Bright reference marker centered 200 m above Chimborazo's 6,263 m summit.
+    nonGUIParams['debugGeodeticMarkers'] = [
+      {
+        name: 'Chimborazo peak',
+        lat: -1.4693,
+        lon: -78.8171,
+        altitude: 6263,
+        radius: 100,
+        color: 0xff00ff
+      },
+      {
+        name: 'Mauna Kea peak',
+        lat: 19.8207,
+        lon: -155.4680,
+        altitude: 10405,
+        radius: 5000,
+        color: 0x00ffff
+      }
+    ]
 
     // Keep base LOD responsive while still allowing detail refinement.
     nonGUIParams['tileSegments'] = 24
@@ -261,7 +297,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
+  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
   guidParamWithUnits['logZoomRate'].value = -3
   guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showMarkers'].value = false
@@ -308,6 +344,18 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0, 1, 0)
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(2886296.999958516, 924804.1598244542, -11713725.679125715)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(0, 1, 0)
+
+  // Chimborazo overview
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-4537098.947970579, -2268487.2480931855, 7006349.36586961)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.9804590838507269, -0.02196282714073594, 0.19549327128722163)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-5038313.011029218, -2279715.232329477, 7106286.207901675)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.9804590838507269, -0.02196282714073594, 0.19549327128722163)
+
+  // Chimborazo side view
+  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(103209.02514711395, 290.6711456302146, 776290.121407513)
+  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
+  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(83788.68047576305, -48616.103399024345, 754185.6072259224)
+  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
 
   // Hack to speed up the simulation
   guidParamWithUnits['showMassDriverAccelerationScrews'].value = false

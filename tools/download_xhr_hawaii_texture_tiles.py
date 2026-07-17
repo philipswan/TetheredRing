@@ -5,9 +5,10 @@ from io import BytesIO
 import math
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 import numpy as np
-import requests
 from PIL import Image
 
 
@@ -62,24 +63,22 @@ def fetch_export_image(bbox: tuple[float, float, float, float], desired_px: int 
             "transparent": "false",
             "f": "image",
         }
-        response = requests.get(USGS_EXPORT_URL, params=params, timeout=90)
-        response.raise_for_status()
-
-        ctype = response.headers.get("Content-Type", "").lower()
+        with urlopen(f"{USGS_EXPORT_URL}?{urlencode(params)}", timeout=90) as response:
+            ctype = response.headers.get("Content-Type", "").lower()
+            content = response.read()
         if "image" not in ctype:
             continue
 
-        image = Image.open(BytesIO(response.content)).convert("RGB")
+        image = Image.open(BytesIO(content)).convert("RGB")
         return image, size
 
     raise RuntimeError("Unable to download imagery from USGS export service at any tested size.")
 
 
-def download_xyz_tile(session: requests.Session, zoom: int, x: int, y: int) -> tuple[int, int, Image.Image]:
+def download_xyz_tile(zoom: int, x: int, y: int) -> tuple[int, int, Image.Image]:
     url = USGS_TILE_URL.format(z=zoom, y=y, x=x)
-    response = session.get(url, timeout=90)
-    response.raise_for_status()
-    image = Image.open(BytesIO(response.content)).convert("RGB")
+    with urlopen(url, timeout=20) as response:
+        image = Image.open(BytesIO(response.read())).convert("RGB")
     return x, y, image
 
 
@@ -146,16 +145,15 @@ def fetch_xyz_mosaic(
     ny = y1 - y0 + 1
     stitched = Image.new("RGB", (nx * 256, ny * 256))
 
-    with requests.Session() as session:
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = [
-                pool.submit(download_xyz_tile, session, zoom, x, y)
-                for y in range(y0, y1 + 1)
-                for x in range(x0, x1 + 1)
-            ]
-            for future in as_completed(futures):
-                x, y, tile = future.result()
-                stitched.paste(tile, ((x - x0) * 256, (y - y0) * 256))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [
+            pool.submit(download_xyz_tile, zoom, x, y)
+            for y in range(y0, y1 + 1)
+            for x in range(x0, x1 + 1)
+        ]
+        for future in as_completed(futures):
+            x, y, tile = future.result()
+            stitched.paste(tile, ((x - x0) * 256, (y - y0) * 256))
 
     stitched_w, stitched_h = stitched.size
 

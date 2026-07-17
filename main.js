@@ -1369,6 +1369,18 @@ const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
 
 scene.add(planetCoordSys)
+
+for (const marker of nonGUIParams['debugGeodeticMarkers'] || []) {
+  const ecef = tram.geodeticToECEF(
+    marker.lat, marker.lon, marker.altitude || 0, planetSpec.ellipsoid)
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(marker.radius || 100000, 16, 12),
+    new THREE.MeshBasicMaterial({ color: marker.color ?? 0xff00ff })
+  )
+  mesh.name = marker.name || 'debugGeodeticMarker'
+  mesh.position.set(ecef.x, ecef.y, ecef.z)
+  planetCoordSys.add(mesh)
+}
 if (enableVR) {
   planetCoordSys.rotation.y = Math.PI * -5.253 / 16
   planetCoordSys.rotation.x = Math.PI * -4 / 16
@@ -1390,6 +1402,7 @@ planetCoordSys.add(fakeCamera)
 let planetMeshes, atmosphereMesh, backgroundPatchMesh
 let updatePlanetLod = null
 let setPlanetDoubleSided = null
+let samplePlanetTerrainHeight = null
 // ToDo: Need to modify this code so that we can enable/disable these objects at anytime.
 if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtmosphere'].value || dParamWithUnits['showBackgroundPatch'].value) {
   const usePlanet2 = nonGUIParams['usePlanet2'] === true
@@ -1400,6 +1413,7 @@ if (dParamWithUnits['showEarthsSurface'].value || dParamWithUnits['showEarthsAtm
   if (usePlanet2 && (typeof planetResult.updatePlanetLod === 'function')) {
     updatePlanetLod = planetResult.updatePlanetLod
     setPlanetDoubleSided = planetResult.setPlanetDoubleSided ?? null
+    samplePlanetTerrainHeight = planetResult.sampleTerrainHeight ?? null
     if (typeof planetResult.setPlanetDebugMode === 'function' && nonGUIParams['planet2DebugMode']) {
       planetResult.setPlanetDebugMode(nonGUIParams['planet2DebugMode'])
     }
@@ -2984,7 +2998,9 @@ function onKeyDown( event ) {
     case 55: /*7*/
       // Analyze launcher ramp terrain displacement
       if (enableLaunchSystem && launchSystemObject) {
-        analyzeLauncherTerrainDisplacement(launchSystemObject, planetMeshes, planetSpec, tram, scene)
+        analyzeLauncherTerrainDisplacement(
+          launchSystemObject, planetMeshes, planetSpec, tram, planetCoordSys,
+          samplePlanetTerrainHeight)
       }
       else {
         console.log('Launch system not enabled or not initialized')

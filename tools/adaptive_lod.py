@@ -38,6 +38,7 @@ from PIL import Image
 
 import tools.generate_planet2_lod0_assets as g
 import tools.bake_hawaii_bigisland_hires as hawaii
+from tools.fetch_chimborazo_sources import prepare_sources as prepare_chimborazo_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 VIZ_ROOT = ROOT / 'assets' / 'earth_lodvis'
@@ -112,7 +113,6 @@ def _toktx_available() -> bool:
         ))
     return False
 
-x
 def _print_toktx_install_instructions() -> None:
     print('[ktx2] WARNING: toktx.exe was not found; PNG fallback tiles will be generated.')
     print('[ktx2] To install it:')
@@ -739,6 +739,17 @@ def _overlay_pool_init(color_cache: Path, height_cache: Path,
         regional_crop_bbox, regional_height_data_bbox)
 
 
+def _overlay_base_pool_init(base_root: Path, base_cache: Path,
+                            regional_color_source: str, regional_height_source: str,
+                            regional_bbox: tuple, regional_crop_bbox: tuple | None,
+                            regional_height_data_bbox: tuple | None) -> None:
+    global _BAKE_RGB, _BAKE_HMAP
+    _BAKE_RGB = _BAKE_HMAP = None
+    g.set_base_tile_source(base_root, base_cache)
+    g.set_regional_source(Path(regional_color_source), Path(regional_height_source),
+                          regional_bbox, regional_crop_bbox, regional_height_data_bbox)
+
+
 def _bake_pool_task(task: tuple) -> tuple:
     (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
     return g.build_tile_assets(face, lod, tx, ty, cs, hs, _BAKE_RGB, _BAKE_HMAP,
@@ -846,18 +857,23 @@ def step4_bake(color_source: str, height_source: str, out_root: str | None,
 HAWAII_ROOT = 'assets/hawaii'
 CHIMBORAZO_ROOT = 'assets/chimborazo'
 
-# Mount Chimborazo (1.469 S, 78.817 W) lies in XHR cell 6x6. Keep the enhancement
-# bounded around the mountain while stepping detail inward toward the summit.
-CHIMBORAZO_REGION_COLOR = 'textures/24x12/XHR/earth_XHR_24x12_6x6.jpg'
-CHIMBORAZO_REGION_HEIGHT = (
-    'textures/DisplacementMaps/XHREarthDisplacement/earth_XHR_24x12_6x6.png')
-CHIMBORAZO_REGION_BBOX = (-90.0, -75.0, -15.0, 0.0)
+# Mount Chimborazo (1.469 S, 78.817 W). The square source extent keeps the Esri
+# Web-Mercator reprojection square in equirectangular pixels and covers the blend.
+CHIMBORAZO_REGION_BBOX = (-80.567, -77.067, -3.219, 0.281)
+CHIMBORAZO_BASE_COLOR = COLOR_SOURCE
 CHIMBORAZO_WIDE_BBOX = (-80.317, -77.317, -2.669, -0.269)
 CHIMBORAZO_MID_BBOX = (-79.317, -78.317, -1.969, -0.969)
 CHIMBORAZO_CORE_BBOX = (-78.997, -78.637, -1.649, -1.289)
 CHIMBORAZO_MIN_LOD = 5
 CHIMBORAZO_MID_LOD = 7
-CHIMBORAZO_MAX_LOD = 10
+CHIMBORAZO_MAX_LOD = 11
+
+
+def chimborazo_sizes_for_lod(lod: int, face_size: int,
+                             base_height: int) -> tuple[int, int]:
+    """Retain more texels and terrain samples in the deep summit tiles."""
+    color, height = hawaii.sizes_for_lod(lod, face_size, base_height)
+    return max(512, color), max(256, height)
 
 
 def build_overlay(color_source: str, height_source: str, color_size: int,
@@ -874,7 +890,7 @@ def build_overlay(color_source: str, height_source: str, color_size: int,
                   regional_bbox: tuple | None = None,
                   regional_crop_bbox: tuple | None = None,
                   regional_height_data_bbox: tuple | None = None,
-                  tile_size_for_lod=None) -> None:
+                  tile_size_for_lod=None, base_tile_root: str | None = None) -> None:
     """Bake a region-bounded enhancement tileset.
 
     The caller supplies the enhancement tile plan and regional source data. The
@@ -939,8 +955,11 @@ def build_overlay(color_source: str, height_source: str, color_size: int,
             if not source_path.exists():
                 raise SystemExit(f'Source not found: {source_path}')
 
-        color_cache = _ensure_color_cache(color_src)
-        height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
+        if base_tile_root is None:
+            color_cache = _ensure_color_cache(color_src)
+            height_cache = _ensure_height_cache(height_src, height_min_m, height_max_m)
+        else:
+            color_cache = height_cache = None
         jobs = max(1, int(jobs))
 
         def make_tasks(tile_specs):
@@ -966,21 +985,27 @@ def build_overlay(color_source: str, height_source: str, color_size: int,
                         max_workers=jobs, initializer=_bake_pool_init,
                         initargs=(color_cache, height_cache)) as ex:
                     record(ex.map(_bake_pool_task, bridge_tasks, chunksize=8))
+            initializer = _overlay_base_pool_init if base_tile_root else _overlay_pool_init
+            initargs = ((ROOT / base_tile_root, ROOT / '.cache/adaptive_lod/base_tiles',
+                         str(regional_color_src), str(regional_height_src), regional_bbox,
+                         regional_crop_bbox, regional_height_data_bbox) if base_tile_root else
+                        (color_cache, height_cache, str(regional_color_src),
+                         str(regional_height_src), regional_bbox, regional_crop_bbox,
+                         regional_height_data_bbox))
             with concurrent.futures.ProcessPoolExecutor(
-                    max_workers=jobs, initializer=_overlay_pool_init,
-                    initargs=(color_cache, height_cache,
-                              str(regional_color_src), str(regional_height_src),
-                              regional_bbox, regional_crop_bbox,
-                              regional_height_data_bbox)) as ex:
+                    max_workers=jobs, initializer=initializer, initargs=initargs) as ex:
                 record(ex.map(_bake_pool_task, cone_tasks, chunksize=8))
         else:
-            rgb = np.load(color_cache, mmap_mode='r')
-            hmap = np.load(height_cache, mmap_mode='r')
+            rgb = np.load(color_cache, mmap_mode='r') if color_cache else None
+            hmap = np.load(height_cache, mmap_mode='r') if height_cache else None
             for task in bridge_tasks:
                 (face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx) = task
                 record([g.build_tile_assets(
                     face, lod, tx, ty, cs, hs, rgb, hmap,
                     ocr, ohr, hmin, hmax, ktx)])
+            if base_tile_root:
+                g.set_base_tile_source(ROOT / base_tile_root,
+                                       ROOT / '.cache/adaptive_lod/base_tiles')
             g.set_regional_source(
                 regional_color_src, regional_height_src, regional_bbox,
                 regional_crop_bbox, regional_height_data_bbox)
@@ -1103,8 +1128,12 @@ def main() -> None:
             CHIMBORAZO_WIDE_BBOX[2] - 0.25,
             CHIMBORAZO_WIDE_BBOX[3] + 0.25,
         )
+        regional_color = regional_height = None
+        if not args.lodvis:
+            regional_color, regional_height = prepare_chimborazo_sources(
+                ROOT, CHIMBORAZO_REGION_BBOX)
         build_overlay(
-            args.color_source, args.height_source,
+            CHIMBORAZO_BASE_COLOR, args.height_source,
             args.color_size, args.height_size, args.height_min_m,
             args.height_max_m, args.jobs, not args.no_ktx2,
             cone=cone,
@@ -1113,11 +1142,14 @@ def main() -> None:
                       if args.lodvis else CHIMBORAZO_ROOT),
             overlay_name='chimborazo',
             lod_palette=ENHANCEMENT_LOD_PALETTE if args.lodvis else None,
-            regional_color_source=CHIMBORAZO_REGION_COLOR,
-            regional_height_source=CHIMBORAZO_REGION_HEIGHT,
+            regional_color_source=(str(regional_color.relative_to(ROOT))
+                                   if regional_color else None),
+            regional_height_source=(str(regional_height.relative_to(ROOT))
+                                    if regional_height else None),
             regional_bbox=CHIMBORAZO_REGION_BBOX,
             regional_crop_bbox=crop_bbox,
-            tile_size_for_lod=hawaii.sizes_for_lod,
+            tile_size_for_lod=chimborazo_sizes_for_lod,
+            base_tile_root='assets/earth',
         )
     else:
         raise SystemExit(

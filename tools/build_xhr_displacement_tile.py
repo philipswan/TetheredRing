@@ -6,7 +6,6 @@ from typing import Iterable
 
 import numpy as np
 from PIL import Image
-import tifffile
 
 
 @dataclass(frozen=True)
@@ -39,7 +38,8 @@ def parse_copernicus_tile_bounds(filename: str) -> TileBounds:
 
 
 def read_dem(path: Path) -> np.ndarray:
-    arr = tifffile.imread(path)
+    with Image.open(path) as image:
+        arr = np.array(image, dtype=np.float32, copy=True)
     if arr.ndim > 2:
         arr = arr[0]
     arr = np.asarray(arr, dtype=np.float32)
@@ -89,10 +89,14 @@ def build_displacement_tile(
     tile_bounds: TileBounds,
     out_path: Path,
     out_size: int = 8192,
+    encode_xhr: bool = True,
 ) -> None:
     canvas = np.full((out_size, out_size), np.nan, dtype=np.float32)
 
-    for src_path in source_files:
+    source_files = list(source_files)
+    for source_index, src_path in enumerate(source_files, 1):
+        print(f"[dem] assembling {source_index}/{len(source_files)}: {src_path.name}",
+              flush=True)
         src_bounds = parse_copernicus_tile_bounds(src_path.name)
 
         # Skip sources outside target bounds.
@@ -119,12 +123,15 @@ def build_displacement_tile(
     # Fill missing cells with 0m so the shader bias/scale still behaves predictably.
     canvas = np.nan_to_num(canvas, nan=0.0)
 
-    # Match the existing project displacement encoding convention used in 24x12 HR tiles.
-    # Empirically these are approximately encoded as: code ~= 9000 + 10 * elevation_m.
-    encoded = np.clip(9000.0 + 10.0 * canvas, 0.0, 65535.0).astype(np.uint16)
-
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(encoded, mode="I;16").save(out_path)
+    if encode_xhr:
+        # Legacy XHR convention. This saturates above 5653.5 m and therefore must
+        # not be used for very high peaks such as Chimborazo.
+        encoded = np.clip(9000.0 + 10.0 * canvas, 0.0, 65535.0).astype(np.uint16)
+        Image.fromarray(encoded, mode="I;16").save(out_path)
+    else:
+        # Preserve real elevation meters without the legacy uint16 bias ceiling.
+        Image.fromarray(canvas.astype(np.float32), mode="F").save(out_path)
 
 
 if __name__ == "__main__":
