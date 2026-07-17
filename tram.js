@@ -1651,7 +1651,7 @@ export function getPlanetSpec(planet) {
       return {
         name: 'Moon',
         mass: 7.35E+22,                           // kg
-        radiusAtLatitude: function(lat) {return 1737100},                          // m
+        radiusAtLatitude: function(lat) {return 1737400},                          // m; matches ellipsoid and LOLA reference radius
         WGS84FlattenningFactor: 298.257223563,    // Used to specify the exact shape of earth, which is approximately an oblate spheroid
         lengthOfSiderealDay: 2360591.5,           // seconds
         upDirection: new THREE.Vector3(0, 1, 0),  // upDirection

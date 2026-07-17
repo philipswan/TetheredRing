@@ -190,7 +190,7 @@ export function toAFromBLauncherArchitecture(
   guidParamWithUnits['launchToPlanet'].value = destination
   guidParamWithUnits['launcherMassDriverAltitude'].value = massDriverAltitude
   guidParamWithUnits['launcherRampExitAltitude'].value = rampExitAltitude
-  guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = departureBody.name === 'Earth' ? 15000 : rampExitAltitude + 100
+  guidParamWithUnits['launcherEvacuatedTubeExitAltitude'].value = departureBody.name === 'Earth' ? 15000 : departureBody.name === 'Moon' ? rampExitAltitude : rampExitAltitude + 100
   guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = departureBody.name === 'Earth' ? 50 : 10
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = departureBody.name === 'Earth' ? 100 : 10
   guidParamWithUnits['launcherMassDriverExitVelocity'].value = launchVehicleAirspeed

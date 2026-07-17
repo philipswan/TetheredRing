@@ -39,6 +39,10 @@ from PIL import Image
 import tools.generate_planet2_lod0_assets as g
 import tools.bake_hawaii_bigisland_hires as hawaii
 from tools.fetch_chimborazo_sources import prepare_sources as prepare_chimborazo_sources
+from tools.fetch_moon_sources import (
+    prepare_sources as prepare_moon_sources,
+    prepare_korolev_sources,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 VIZ_ROOT = ROOT / 'assets' / 'earth_lodvis'
@@ -729,6 +733,12 @@ def _bake_pool_init(color_cache: Path, height_cache: Path) -> None:
     _BAKE_HMAP = np.load(height_cache, mmap_mode='r')
 
 
+def _body_bake_pool_init(color_cache: Path, height_cache: Path,
+                         eccentricity_squared: float) -> None:
+    g.set_planet_eccentricity_squared(eccentricity_squared)
+    _bake_pool_init(color_cache, height_cache)
+
+
 def _overlay_pool_init(color_cache: Path, height_cache: Path,
                        regional_color_source: str, regional_height_source: str,
                        regional_bbox: tuple, regional_crop_bbox: tuple | None,
@@ -850,6 +860,75 @@ def step4_bake(color_source: str, height_source: str, out_root: str | None,
     _cleanup_state_dir()
     print(f'[step4] wrote {len(tiles)} tiles + manifest to {out}')
 
+
+def build_uniform_body(color_source: Path, height_source: Path, out_root: str,
+                       max_lod: int, color_size: int, height_size: int,
+                       height_min_m: float, height_max_m: float, jobs: int,
+                       can_try_ktx2: bool, eccentricity_squared: float,
+                       attribution: str) -> None:
+    """Bake a complete cubed-sphere pyramid for a non-Earth base body."""
+    if max_lod < 0 or max_lod > 8:
+        raise SystemExit('--max-lod must be between 0 and 8')
+    out = ROOT / out_root
+    out_color, out_height = out / 'color', out / 'height'
+    for directory in (out_color, out_height):
+        if directory.exists():
+            shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True, exist_ok=True)
+
+    color_cache = _ensure_color_cache(color_source)
+    height_cache = _ensure_height_cache(height_source, height_min_m, height_max_m)
+    tile_specs = []
+    per_lod = {}
+    for lod in range(max_lod + 1):
+        n = 1 << lod
+        per_lod[lod] = 6 * n * n
+        tile_specs.extend((face, lod, tx, ty) for face in g.FACES
+                          for ty in range(n) for tx in range(n))
+    tasks = [(face, lod, tx, ty, color_size, height_size, out_color, out_height,
+              height_min_m, height_max_m, can_try_ktx2)
+             for face, lod, tx, ty in tile_specs]
+    print(f'[moon] {len(tasks)} tiles to bake -> {out} (per LOD: {per_lod})')
+
+    tiles, encoded_any = {}, False
+    if jobs > 1:
+        with concurrent.futures.ProcessPoolExecutor(
+                max_workers=jobs, initializer=_body_bake_pool_init,
+                initargs=(color_cache, height_cache, eccentricity_squared)) as ex:
+            results = ex.map(_bake_pool_task, tasks, chunksize=8)
+            for i, (tile_id, entry, encoded) in enumerate(results, 1):
+                tiles[tile_id] = entry
+                encoded_any = encoded_any or encoded
+                if i % 500 == 0:
+                    print(f'  {i}/{len(tasks)} tiles')
+    else:
+        g.set_planet_eccentricity_squared(eccentricity_squared)
+        rgb = np.load(color_cache, mmap_mode='r')
+        hmap = np.load(height_cache, mmap_mode='r')
+        for i, task in enumerate(tasks, 1):
+            face, lod, tx, ty, cs, hs, ocr, ohr, hmin, hmax, ktx = task
+            tile_id, entry, encoded = g.build_tile_assets(
+                face, lod, tx, ty, cs, hs, rgb, hmap, ocr, ohr,
+                hmin, hmax, ktx)
+            tiles[tile_id] = entry
+            encoded_any = encoded_any or encoded
+            if i % 500 == 0:
+                print(f'  {i}/{len(tasks)} tiles')
+
+    manifest = {
+        'maxAvailableLod': max_lod,
+        'minHeight': float(height_min_m),
+        'maxHeight': float(height_max_m),
+        'body': 'Moon',
+        'referenceRadiusMeters': 1737400.0,
+        'attribution': attribution,
+        'tiles': tiles,
+    }
+    (out / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+    if can_try_ktx2 and not encoded_any:
+        print('[moon] WARNING: tiles were not KTX2-encoded (toktx missing?).')
+    print(f'[moon] wrote {len(tiles)} tiles + manifest to {out}')
+
 # ---------------------------------------------------------------------------
 # Enhancement overlay: a self-contained high-res cone streamed on top of the base
 # ---------------------------------------------------------------------------
@@ -857,16 +936,37 @@ def step4_bake(color_source: str, height_source: str, out_root: str | None,
 HAWAII_ROOT = 'assets/hawaii'
 CHIMBORAZO_ROOT = 'assets/chimborazo'
 
-# Mount Chimborazo (1.469 S, 78.817 W). The square source extent keeps the Esri
-# Web-Mercator reprojection square in equirectangular pixels and covers the blend.
-CHIMBORAZO_REGION_BBOX = (-80.567, -77.067, -3.219, 0.281)
+# Mount Chimborazo (1.469 S, 78.817 W). The source extends beyond Ecuador's
+# Pacific coast so the westbound enhancement corridor reaches open ocean and
+# still has a 0.25-degree blending margin.
+CHIMBORAZO_PACIFIC_WEST_LON = -81.1
+CHIMBORAZO_REGION_BBOX = (-81.35, -77.067, -3.219, 0.281)
 CHIMBORAZO_BASE_COLOR = COLOR_SOURCE
-CHIMBORAZO_WIDE_BBOX = (-80.317, -77.317, -2.669, -0.269)
+CHIMBORAZO_WIDE_BBOX = (CHIMBORAZO_PACIFIC_WEST_LON, -77.317, -2.669, -0.269)
 CHIMBORAZO_MID_BBOX = (-79.317, -78.317, -1.969, -0.969)
-CHIMBORAZO_CORE_BBOX = (-78.997, -78.637, -1.649, -1.289)
+# The original summit core was 0.36 degrees wide (-78.997 to -78.637).
+# Extend it west by one full original-core width while retaining its east edge.
+CHIMBORAZO_CORE_BBOX = (-79.357, -78.637, -1.649, -1.289)
+# Repeat the graded mid/core cone to the west. Both bands now continue to the
+# Pacific rather than applying a percentage offset that can disappear inside
+# cube-tile quantization.
+CHIMBORAZO_WEST_CONE_OFFSET = 0.72
+CHIMBORAZO_WEST_MID_BBOX = (
+    CHIMBORAZO_PACIFIC_WEST_LON,
+    CHIMBORAZO_MID_BBOX[1] - CHIMBORAZO_WEST_CONE_OFFSET,
+    CHIMBORAZO_MID_BBOX[2], CHIMBORAZO_MID_BBOX[3])
+CHIMBORAZO_WEST_CORE_BBOX = (
+    CHIMBORAZO_PACIFIC_WEST_LON,
+    CHIMBORAZO_CORE_BBOX[1] - CHIMBORAZO_WEST_CONE_OFFSET,
+    CHIMBORAZO_CORE_BBOX[2], CHIMBORAZO_CORE_BBOX[3])
 CHIMBORAZO_MIN_LOD = 5
 CHIMBORAZO_MID_LOD = 7
 CHIMBORAZO_MAX_LOD = 11
+
+KOROLEV_REGION_BBOX = (-160.5, -156.0, -5.3, -0.8)
+KOROLEV_CORE_BBOX = (-159.25, -157.25, -4.1, -2.1)
+KOROLEV_MIN_LOD = 5
+KOROLEV_MAX_LOD = 6
 
 
 def chimborazo_sizes_for_lod(lod: int, face_size: int,
@@ -874,6 +974,11 @@ def chimborazo_sizes_for_lod(lod: int, face_size: int,
     """Retain more texels and terrain samples in the deep summit tiles."""
     color, height = hawaii.sizes_for_lod(lod, face_size, base_height)
     return max(512, color), max(256, height)
+
+
+def korolev_sizes_for_lod(lod: int, face_size: int,
+                          base_height: int) -> tuple[int, int]:
+    return max(256, face_size), max(128, base_height)
 
 
 def build_overlay(color_source: str, height_source: str, color_size: int,
@@ -1039,7 +1144,7 @@ def build_overlay(color_source: str, height_source: str, color_size: int,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('asset', nargs='?', default='earth',
-                        help='Asset root to build (earth, hawaii, or chimborazo).')
+                        help='Asset root to build (earth, moon, moon_korolev, hawaii, or chimborazo).')
     parser.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png')
     parser.add_argument('--height-source', type=str, default=HEIGHT_SOURCE)
     parser.add_argument('--color-size', type=int, default=256,
@@ -1054,12 +1159,15 @@ def main() -> None:
                         help='Skip KTX2 encoding (leaves PNG color tiles).')
     parser.add_argument('--lodvis', action='store_true', default=False,
                         help='Bake visualization tiles instead of imagery tiles.')
+    parser.add_argument('--max-lod', type=int, default=4,
+                        help='Deepest level for a uniform base layer (Moon default: 4).')
     args = parser.parse_args()
 
     if not args.no_ktx2 and not _toktx_available():
         _print_toktx_install_instructions()
 
     if args.asset == 'earth':
+        g.set_planet_eccentricity_squared(g.WGS84_E2)
         step1(75.0, 0.5, 32)
         step2(2)
         faces = step3()
@@ -1067,6 +1175,49 @@ def main() -> None:
                    args.color_size, args.height_size, args.height_min_m,
                    args.height_max_m, args.jobs, not args.no_ktx2,
                    lodvis=args.lodvis, faces=faces)
+    elif args.asset == 'moon':
+        if args.lodvis:
+            raise SystemExit('--lodvis is not yet supported by the uniform Moon builder')
+        moon_color, moon_height = prepare_moon_sources(ROOT)
+        build_uniform_body(
+            moon_color, moon_height, 'assets/moon', args.max_lod,
+            args.color_size, args.height_size, -10000.0, 11000.0,
+            args.jobs, not args.no_ktx2, 0.0,
+            'NASA Scientific Visualization Studio; LRO LROC/LOLA')
+    elif args.asset == 'moon_korolev':
+        cone = hawaii.collect_island_tiles(
+            KOROLEV_REGION_BBOX, KOROLEV_MIN_LOD, KOROLEV_MIN_LOD, 0.02)
+        cone |= hawaii.collect_island_tiles(
+            KOROLEV_CORE_BBOX, KOROLEV_MIN_LOD, KOROLEV_MAX_LOD, 0.01)
+        cone = hawaii.close_quadtree(cone, KOROLEV_MIN_LOD - 1)
+        cone = {tile for tile in cone if tile[1] >= KOROLEV_MIN_LOD}
+
+        regional_color = regional_height = None
+        regional_bbox = KOROLEV_REGION_BBOX
+        if not args.lodvis:
+            regional_color, regional_height, regional_bbox = prepare_korolev_sources(
+                ROOT, KOROLEV_REGION_BBOX)
+        g.set_planet_eccentricity_squared(0.0)
+        if args.jobs > 1:
+            print('[moon-korolev] forcing --jobs 1 so spawned workers retain lunar projection')
+        low_color, low_height = prepare_moon_sources(ROOT) if not args.lodvis else (None, None)
+        build_overlay(
+            (str(low_color.relative_to(ROOT)) if low_color else args.color_source),
+            (str(low_height.relative_to(ROOT)) if low_height else args.height_source),
+            args.color_size, args.height_size, -10000.0, 11000.0,
+            1, not args.no_ktx2, cone=cone, lodvis=args.lodvis,
+            out_root=('assets/moon_korolev_lodvis' if args.lodvis
+                      else 'assets/moon_korolev'),
+            overlay_name='moon-korolev',
+            lod_palette=ENHANCEMENT_LOD_PALETTE if args.lodvis else None,
+            regional_color_source=(str(regional_color.relative_to(ROOT))
+                                   if regional_color else None),
+            regional_height_source=(str(regional_height.relative_to(ROOT))
+                                    if regional_height else None),
+            regional_bbox=regional_bbox,
+            tile_size_for_lod=korolev_sizes_for_lod,
+            base_tile_root='assets/moon',
+        )
     elif args.asset == 'hawaii':
         overlay_min_lod = hawaii.WIDE_LOD
         cone, _ = hawaii.collect_graded_tiles(
@@ -1120,6 +1271,12 @@ def main() -> None:
         cone |= hawaii.collect_island_tiles(
             CHIMBORAZO_CORE_BBOX, CHIMBORAZO_MIN_LOD,
             CHIMBORAZO_MAX_LOD, 0.005)
+        cone |= hawaii.collect_island_tiles(
+            CHIMBORAZO_WEST_MID_BBOX, CHIMBORAZO_MIN_LOD,
+            CHIMBORAZO_MID_LOD, 0.01)
+        cone |= hawaii.collect_island_tiles(
+            CHIMBORAZO_WEST_CORE_BBOX, CHIMBORAZO_MIN_LOD,
+            CHIMBORAZO_MAX_LOD, 0.005)
         cone = hawaii.close_quadtree(cone, CHIMBORAZO_MIN_LOD)
 
         crop_bbox = (
@@ -1154,7 +1311,7 @@ def main() -> None:
     else:
         raise SystemExit(
             f"Unsupported asset '{args.asset}'. Supported assets are: "
-            "earth, hawaii, chimborazo. "
+            "earth, moon, moon_korolev, hawaii, chimborazo. "
             "Add a new branch in tools/adaptive_lod.py if you want to build another asset."
         )
 

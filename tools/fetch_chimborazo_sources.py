@@ -13,6 +13,10 @@ from tools.download_xhr_hawaii_texture_tiles import fetch_xyz_mosaic
 
 
 COPERNICUS_GLO30 = "https://copernicus-dem-30m.s3.amazonaws.com"
+EOX_CLOUDLESS_2024 = (
+    "https://tiles.maps.eox.at/wmts/1.0.0/"
+    "s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg"
+)
 
 
 def _hemisphere(value: int, positive: str, negative: str, width: int) -> str:
@@ -67,17 +71,23 @@ def prepare_sources(
     """Return locally prepared color/height images made from upstream datasets."""
     cache = root / ".cache" / "adaptive_lod" / "chimborazo"
     cache.mkdir(parents=True, exist_ok=True)
-    color = cache / f"esri_world_imagery_{pixels}.jpg"
-    height = cache / f"copernicus_glo30_{pixels}_meters.tif"
+    # Include the requested extent in derived filenames. Otherwise changing the
+    # overlay boundary silently reuses the old, narrower crop and makes a rebuild
+    # appear not to have moved at all.
+    bbox_tag = "_".join(str(round(value * 1000)) for value in bbox)
+    color = cache / f"eoxcloudless_2024_{pixels}_{bbox_tag}.jpg"
+    height = cache / f"copernicus_glo30_{pixels}_{bbox_tag}_meters.tif"
 
     if not color.exists():
-        print("[chimborazo] fetching Esri World Imagery source tiles")
+        print("[chimborazo] fetching EOxCloudless 2024 source tiles")
         # Zoom 12 supplies roughly 38 m source pixels at the equator, closely
         # matching a 12288px equirectangular output across this 3.5-degree box.
         lon_min, lon_max, lat_min, lat_max = bbox
         imagery_bbox = (lon_min, lat_min, lon_max, lat_max)
         image, _, _ = fetch_xyz_mosaic(
-            imagery_bbox, desired_px=pixels, zoom=12, max_workers=8)
+            imagery_bbox, desired_px=pixels, zoom=12, max_workers=4,
+            url_template=EOX_CLOUDLESS_2024,
+            cache_dir=cache / "eox_xyz_tiles")
         image.save(color, quality=95, optimize=True)
 
     if not height.exists():

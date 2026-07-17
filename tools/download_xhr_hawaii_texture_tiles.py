@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from io import BytesIO
 import math
 from pathlib import Path
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import numpy as np
 from PIL import Image
@@ -75,11 +76,38 @@ def fetch_export_image(bbox: tuple[float, float, float, float], desired_px: int 
     raise RuntimeError("Unable to download imagery from USGS export service at any tested size.")
 
 
-def download_xyz_tile(zoom: int, x: int, y: int) -> tuple[int, int, Image.Image]:
-    url = USGS_TILE_URL.format(z=zoom, y=y, x=x)
-    with urlopen(url, timeout=20) as response:
-        image = Image.open(BytesIO(response.read())).convert("RGB")
-    return x, y, image
+def download_xyz_tile(zoom: int, x: int, y: int,
+                      url_template: str = USGS_TILE_URL,
+                      cache_dir: Path | None = None,
+                      attempts: int = 5) -> tuple[int, int, Image.Image]:
+    url = url_template.format(z=zoom, y=y, x=x)
+    cache_path = cache_dir / str(zoom) / str(x) / f"{y}.img" if cache_dir else None
+    if cache_path and cache_path.exists():
+        try:
+            return x, y, Image.open(cache_path).convert("RGB")
+        except OSError:
+            cache_path.unlink(missing_ok=True)
+
+    for attempt in range(1, attempts + 1):
+        try:
+            request = Request(url, headers={"User-Agent": "TetheredRing terrain builder"})
+            with urlopen(request, timeout=45) as response:
+                content = response.read()
+            image = Image.open(BytesIO(content)).convert("RGB")
+            if cache_path:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = cache_path.with_suffix(".part")
+                temporary.write_bytes(content)
+                temporary.replace(cache_path)
+            return x, y, image
+        except (OSError, TimeoutError) as error:
+            if attempt == attempts:
+                raise RuntimeError(
+                    f"XYZ tile failed after {attempts} attempts: z={zoom} x={x} y={y}"
+                ) from error
+            time.sleep(min(8, 2 ** (attempt - 1)))
+
+    raise AssertionError("unreachable")
 
 
 def reproject_mercator_to_equirectangular(
@@ -130,6 +158,8 @@ def fetch_xyz_mosaic(
     desired_px: int,
     zoom: int = 10,
     max_workers: int = 24,
+    url_template: str = USGS_TILE_URL,
+    cache_dir: Path | None = None,
 ) -> tuple[Image.Image, int, int]:
     lon_min, lat_min, lon_max, lat_max = bbox
 
@@ -144,16 +174,20 @@ def fetch_xyz_mosaic(
     nx = x1 - x0 + 1
     ny = y1 - y0 + 1
     stitched = Image.new("RGB", (nx * 256, ny * 256))
+    tile_count = nx * ny
+    print(f"[imagery] assembling {tile_count} XYZ tiles with {max_workers} workers", flush=True)
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [
-            pool.submit(download_xyz_tile, zoom, x, y)
+            pool.submit(download_xyz_tile, zoom, x, y, url_template, cache_dir)
             for y in range(y0, y1 + 1)
             for x in range(x0, x1 + 1)
         ]
-        for future in as_completed(futures):
+        for completed, future in enumerate(as_completed(futures), 1):
             x, y, tile = future.result()
             stitched.paste(tile, ((x - x0) * 256, (y - y0) * 256))
+            if completed % 100 == 0 or completed == tile_count:
+                print(f"[imagery] {completed}/{tile_count} tiles ready", flush=True)
 
     stitched_w, stitched_h = stitched.size
 

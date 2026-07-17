@@ -20,6 +20,13 @@ FACES = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 # WGS84 first-eccentricity squared; converts geocentric<->geodetic latitude so the
 # equirect terrain maps (geodetic) align with the cubed-sphere geometry.
 WGS84_E2 = 2.0 / 298.257223563 - 1.0 / (298.257223563 * 298.257223563)
+PLANET_E2 = WGS84_E2
+
+
+def set_planet_eccentricity_squared(e2: float) -> None:
+    """Select the ellipsoid used to map geodetic source pixels onto the cube."""
+    global PLANET_E2
+    PLANET_E2 = float(e2)
 
 
 def cube_to_direction(face: str, u: float, v: float) -> tuple[float, float, float]:
@@ -98,7 +105,7 @@ def direction_to_equirect_xy(dx: float, dy: float, dz: float, width: int, height
     # +dz convention mirrors geography across every cube face.
     lon = math.atan2(-dz, dx)
     # Source maps are indexed by GEODETIC latitude; convert from geocentric.
-    lat = math.atan2(dy, (1.0 - WGS84_E2) * math.hypot(dx, dz))
+    lat = math.atan2(dy, (1.0 - PLANET_E2) * math.hypot(dx, dz))
 
     x = (lon + math.pi) / (2.0 * math.pi) * (width - 1)
     y = (math.pi * 0.5 - lat) / math.pi * (height - 1)
@@ -134,7 +141,7 @@ def direction_to_equirect_xy_grid(dx: np.ndarray, dy: np.ndarray, dz: np.ndarray
     # +dz convention mirrors geography across every cube face.
     lon = np.arctan2(-dz, dx)
     # Source maps are indexed by GEODETIC latitude; convert from geocentric.
-    lat = np.arctan2(dy, (1.0 - WGS84_E2) * np.sqrt(dx * dx + dz * dz))
+    lat = np.arctan2(dy, (1.0 - PLANET_E2) * np.sqrt(dx * dx + dz * dz))
     x = (lon + math.pi) / (2.0 * math.pi) * (width - 1)
     y = (math.pi * 0.5 - lat) / math.pi * (height - 1)
     return x, y
@@ -226,7 +233,7 @@ def _regional_pixel_coords(dx, dy, dz, width, height, bbox):
     """For a direction grid, return (mask_in_bbox, sample_x, sample_y) for the regional tile."""
     lon = np.degrees(np.arctan2(-dz, dx))  # matches direction_to_equirect_xy_grid convention
     # Geodetic latitude, matching direction_to_equirect_xy_grid so the regional crop aligns.
-    lat = np.degrees(np.arctan2(dy, (1.0 - WGS84_E2) * np.sqrt(dx * dx + dz * dz)))
+    lat = np.degrees(np.arctan2(dy, (1.0 - PLANET_E2) * np.sqrt(dx * dx + dz * dz)))
     lon_min, lon_max, lat_min, lat_max = bbox
     mask = (lon >= lon_min) & (lon <= lon_max) & (lat >= lat_min) & (lat <= lat_max)
     rx = (lon - lon_min) / (lon_max - lon_min) * (width - 1)
@@ -406,7 +413,7 @@ def generate_tile_height(face: str, src_hmap: np.ndarray, lod: int, tile_x: int,
             # Restrict the override to the sub-rectangle that actually carries relief
             # so the base globe fills the rest (see _REGIONAL_HM_DATA_BBOX).
             lon = np.degrees(np.arctan2(-dz, dx))
-            lat = np.degrees(np.arctan2(dy, (1.0 - WGS84_E2) * np.sqrt(dx * dx + dz * dz)))
+            lat = np.degrees(np.arctan2(dy, (1.0 - PLANET_E2) * np.sqrt(dx * dx + dz * dz)))
             d_lon_min, d_lon_max, d_lat_min, d_lat_max = _REGIONAL_HM_DATA_BBOX
             mask = mask & (lon >= d_lon_min) & (lon <= d_lon_max) & (lat >= d_lat_min) & (lat <= d_lat_max)
         if mask.any():
@@ -433,7 +440,7 @@ def lat_lon_to_tile_path(lat_deg: float, lon_deg: float, max_lod: int) -> list[t
     lat = math.radians(lat_deg)
     lon = math.radians(lon_deg)
     # Geodetic -> geocentric so the direction matches the cubed-sphere geometry.
-    geoc = math.atan2((1.0 - WGS84_E2) * math.sin(lat), math.cos(lat))
+    geoc = math.atan2((1.0 - PLANET_E2) * math.sin(lat), math.cos(lat))
     # Build the direction with the SAME convention used when baking content
     # (direction_to_equirect_xy uses lon = atan2(-dz, dx)), i.e. dx = cos*cos(lon),
     # dz = -cos*sin(lon). The negative z keeps geography right-handed and ensures

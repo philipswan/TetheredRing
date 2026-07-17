@@ -1353,15 +1353,22 @@ console.log('Renderer texture caps', {
 //simContainer.appendChild( stats.dom )
 
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1)
+const sunLight = new THREE.DirectionalLight(
+  0xffffff, nonGUIParams['sunLightIntensity'] ?? 1)
 sunLight.name = 'sunlight'
-sunLight.position.set(0, -6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
+if (nonGUIParams['sunLightPosition']) {
+  sunLight.position.copy(nonGUIParams['sunLightPosition'])
+}
+else {
+  sunLight.position.set(0, -6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
+}
 //sunLight.position.set(0, 6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
 sunLight.matrixValid = false
 if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
 scene.add(sunLight)
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 2)
+const ambientLight = new THREE.AmbientLight(
+  0xffffff, nonGUIParams['ambientLightIntensity'] ?? 2)
 ambientLight.name = 'ambientLight'
 scene.add(ambientLight)
 
@@ -1369,6 +1376,17 @@ const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
 
 scene.add(planetCoordSys)
+
+if (nonGUIParams['imageryAttribution']) {
+  const attribution = document.createElement('div')
+  attribution.textContent = nonGUIParams['imageryAttribution']
+  attribution.style.cssText = [
+    'position:fixed', 'right:8px', 'bottom:6px', 'z-index:1000',
+    'padding:3px 6px', 'font:11px sans-serif', 'color:#fff',
+    'background:rgba(0,0,0,0.55)', 'pointer-events:none'
+  ].join(';')
+  document.body.appendChild(attribution)
+}
 
 for (const marker of nonGUIParams['debugGeodeticMarkers'] || []) {
   const ecef = tram.geodeticToECEF(

@@ -21,7 +21,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   const useEarth = true
   if (useEarth) {
     guidParamWithUnits['planetName'].value = "Earth"
-    const Location = "Mount Chimborazo"  // "Hawaii" // 
+    //const Location = "Hawaii" 
+    const Location = "Mount Chimborazo" 
     switch (Location) {
       case "Hawaii":
         // Mauna Kea (19.820667, -155.468056)
@@ -30,12 +31,31 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
         massDriverAltitude = -150 // m (below sea level) (at the moment we can't see it below the ocean so, for now, raising it above the ocean)
         //massDriverAltitude = 100 // Hacked because I suspect that Google Earth is acting up when altitudes are negative
         rampExitAltitude = 4000 // m  (Altitude of Mauna Kea summit (4207) plus ~300 meters which is an engineered truss structure that can be stowed underground when not in use)
+
+        // Beside the launch train
+        nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-36.21158583671786, 1.79342060117051, 11.38001290615648)
+        nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
+        nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(6.8633874780498445, -21.86256320727989, -18.231402538716793)
+        nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
+
         break
       case "Mount Chimborazo":
         launcherRampEndLatitude = -1.4693 // °N (Ecuador)
         launcherRampEndLongitude = -78.8171 + .01 // moving the end of the ranp a little bit east
-        massDriverAltitude = -150 // m (Mount Chimborazo summit)
+        massDriverAltitude = 0 // m (Mount Chimborazo summit)
         rampExitAltitude = 6263 - 200// m  (Altitute of Mount Chimborazo summit (6263) plus ~500 meters which is an engineered truss structure that can be stowed underground when not in use)
+
+        // Chimborazo side view
+        // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(103209.02514711395, 290.6711456302146, 776290.121407513)
+        // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
+        // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(83788.68047576305, -48616.103399024345, 754185.6072259224)
+        // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
+
+        // Start of launcher
+        nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(2.199184328317642, -4.227140800678171, 9.701095274358522)
+        nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.99772503018104, -0.025220154969113173, 0.06251966037636848)
+        nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-101.57670010253787, -182.04474738315912, -255.43992544565117)
+        nonGUIParams['cameraUp'] = new THREE.Vector3(-0.99772503018104, -0.025220154969113173, 0.06251966037636848)
         break
     }
 
@@ -145,10 +165,10 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // Launch Trajectory Parameters
 
   // Hawaii Big Island
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2485252.833291091, 2139838.026337634, -5469810.453140184)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2004542.2348935166, 1914991.4645450646, -6064638.482857945)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-2485252.833291091, 2139838.026337634, -5469810.453140184)
+  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
+  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-2004542.2348935166, 1914991.4645450646, -6064638.482857945)
+  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3896218876085459, 0.33561868621277463, -0.8576449627679072)
 
   // Hawaii for tracking shot
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-1913174.8068502536, 2051872.8119204757, -5679238.61182404)
@@ -229,6 +249,9 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     nonGUIParams['planet2Assets'] = ['earth', 'chimborazo']
     nonGUIParams['planet2RequireKtx2'] = false
     nonGUIParams['planet2StartupChart'] = true
+    nonGUIParams['imageryAttribution'] =
+      'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH ' +
+      '(Contains modified Copernicus Sentinel data 2024)'
 
     // Bright reference marker centered 200 m above Chimborazo's 6,263 m summit.
     nonGUIParams['debugGeodeticMarkers'] = [
@@ -264,10 +287,17 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     nonGUIParams['tileSseThreshold'] = 3.5
     nonGUIParams['maxAvailableTileLod'] = 11
 
-    // Prioritize Hawaii launch region and immediate surroundings.
+    // Prioritize the selected launch region and its surrounding enhancement cone.
+    // This must follow launcherRampEndLatitude/Longitude: leaving the old Hawaii
+    // coordinates here starved Chimborazo's newly-added western LOD descendants.
     nonGUIParams['locationInterests'] = [
-      { name: 'Mauna Kea', lat: 19.8207, lon: -155.4681, radiusKm: 180, lodBoost: 2 },
-      { name: 'Hawaii Launch Corridor', lat: 19.6, lon: -156.0, radiusKm: 240, lodBoost: 1.5 }
+      {
+        name: 'Selected launch region',
+        lat: launcherRampEndLatitude,
+        lon: launcherRampEndLongitude,
+        radiusKm: 260,
+        lodBoost: 2
+      }
     ]
 
     nonGUIParams['planet2ForceHighResDebug'] = true
@@ -297,7 +327,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   guidParamWithUnits['orbitControlsRotateSpeed'].value = 1
   //guidParamWithUnits['launchVehicleScaleFactor'].value = 300
-  guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
+  //guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 100.0
   guidParamWithUnits['logZoomRate'].value = -3
   guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showMarkers'].value = false
@@ -316,12 +346,6 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
     
-  // Beside the launch train
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-36.21158583671786, 1.79342060117051, 11.38001290615648)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(6.8633874780498445, -21.86256320727989, -18.231402538716793)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
-
   // Above the Big Island  
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
@@ -351,11 +375,6 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-5038313.011029218, -2279715.232329477, 7106286.207901675)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.9804590838507269, -0.02196282714073594, 0.19549327128722163)
 
-  // Chimborazo side view
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(103209.02514711395, 290.6711456302146, 776290.121407513)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(83788.68047576305, -48616.103399024345, 754185.6072259224)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(-0.9807889882883158, -0.025024352203120895, 0.1934599241424334)
 
   // Hack to speed up the simulation
   guidParamWithUnits['showMassDriverAccelerationScrews'].value = false

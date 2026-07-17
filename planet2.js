@@ -114,8 +114,8 @@ function ellipsoidNormal(point, a, b, out) {
 // Converts a geographic (geodetic) lat/lon (radians) into the local ellipsoid-frame
 // unit direction. Source maps are indexed by geodetic latitude, so convert geodetic
 // -> geocentric before building the direction (tan(geocentric) = (1-e2)*tan(geodetic)).
-function latLonToDirection(lat, lon, out) {
-  const geoc = Math.atan2((1 - WGS84_E2) * Math.sin(lat), Math.cos(lat));
+function latLonToDirection(lat, lon, out, eccentricitySquared = WGS84_E2) {
+  const geoc = Math.atan2((1 - eccentricitySquared) * Math.sin(lat), Math.cos(lat));
   const cl = Math.cos(geoc);
   return out.set(cl * Math.cos(lon), Math.sin(geoc), -cl * Math.sin(lon)).normalize();
 }
@@ -325,6 +325,8 @@ class CubedSpherePlanetRenderer {
     this.group = options.group;
     this.renderer = options.renderer || null;
     this.planetSpec = options.planetSpec;
+    const flattening = this.planetSpec?.ellipsoid?.f || 0;
+    this.planetE2 = 2 * flattening - flattening * flattening;
 
     this.assets = Array.isArray(options.assets) && options.assets.length > 0
       ? options.assets
@@ -381,11 +383,19 @@ class CubedSpherePlanetRenderer {
     this.requireKtx2 = options.requireKtx2 === true;
     this.displacementScaleMultiplier = Math.max(0, options.displacementScaleMultiplier ?? 1);
     this.enableStartupChart = options.enableStartupChart === true;
+    this.surfaceDetail = options.surfaceDetail?.enabled ? {
+      nearMeters: options.surfaceDetail.nearMeters ?? 1500,
+      farMeters: options.surfaceDetail.farMeters ?? 90000,
+      normalStrength: options.surfaceDetail.normalStrength ?? 0.7,
+      albedoStrength: options.surfaceDetail.albedoStrength ?? 0.16,
+      roughnessStrength: options.surfaceDetail.roughnessStrength ?? 0.12,
+    } : null;
 
     this.locationInterests = (options.locationInterests || [
       { name: 'Mauna Kea', lat: 19.8207, lon: -155.4681, radiusKm: 80, lodBoost: 2 },
     ]).map((loc) => {
-      const dir = latLonToDirection(loc.lat * DEG2RAD, loc.lon * DEG2RAD, new THREE.Vector3());
+      const dir = latLonToDirection(
+        loc.lat * DEG2RAD, loc.lon * DEG2RAD, new THREE.Vector3(), this.planetE2);
       return { ...loc, dir, lodBoost: loc.lodBoost ?? 1, radiusKm: loc.radiusKm ?? 80 };
     });
 
@@ -463,6 +473,7 @@ class CubedSpherePlanetRenderer {
       metalness: 0,
       side: options.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     });
+    this._configureSurfaceDetail(this.baseMaterial);
 
     this.manifest = null;
     this.manifestTileMap = new Map();
@@ -714,7 +725,8 @@ class CubedSpherePlanetRenderer {
   // its color/height folders in tileSourceMap so _loadColor/_loadHeight stream
   // the overriding tiles from the overlay instead of the base asset root.
   async _loadOverlays() {
-    for (const overlay of this.overlays) {
+    for (let overlayIndex = 0; overlayIndex < this.overlays.length; overlayIndex++) {
+      const overlay = this.overlays[overlayIndex];
       if (!overlay || !overlay.manifestUrl) continue;
       const sourceStats = this._getSourceStats(overlay.name);
       try {
@@ -750,6 +762,7 @@ class CubedSpherePlanetRenderer {
           name: overlay.name,
           colorBasePath: overlay.colorBasePath,
           heightBasePath: overlay.heightBasePath,
+          layerIndex: overlayIndex + 1,
         };
         let count = 0;
         let skipped = 0;
@@ -1045,9 +1058,16 @@ class CubedSpherePlanetRenderer {
     const x2 = tile.x * 2;
     const y2 = tile.y * 2;
     const childXY = [[x2, y2], [x2 + 1, y2], [x2, y2 + 1], [x2 + 1, y2 + 1]];
+    const parentLayer = this.tileSourceMap.get(tile.id)?.layerIndex ?? 0;
     for (const [cx, cy] of childXY) {
       const { ax, ay } = this._assetCoords(tile.face, l, cx, cy);
-      if (!this.manifestTileMap.has(tileKey(tile.face, l, ax, ay))) return false;
+      const childKey = tileKey(tile.face, l, ax, ay);
+      if (!this.manifestTileMap.has(childKey)) return false;
+      // Once an overlay owns a parent, refinement must not replace it with
+      // descendants from a lower-priority layer (typically the base Earth).
+      // A same-layer or later overlay child is safe; a base child is not.
+      const childLayer = this.tileSourceMap.get(childKey)?.layerIndex ?? 0;
+      if (childLayer < parentLayer) return false;
     }
     return true;
   }
@@ -1320,6 +1340,7 @@ class CubedSpherePlanetRenderer {
     if (tile.mesh) return;
     const geometry = this._buildTileGeometry(tile);
     const material = this.baseMaterial.clone();
+    this._configureSurfaceDetail(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `tile:${tile.id}`;
     mesh.frustumCulled = false; // we do our own conservative culling
@@ -1330,6 +1351,115 @@ class CubedSpherePlanetRenderer {
     tile.mesh = mesh;
     tile.geometry = geometry;
     tile.material = material;
+  }
+
+  // Adds repeat-free synthetic regolith detail in planet-local meters. The real
+  // height mesh still controls silhouettes and terrain clearance; these bands
+  // affect only lighting/color and fade out before they can shimmer at distance.
+  _configureSurfaceDetail(material) {
+    if (!this.surfaceDetail) return;
+    const settings = this.surfaceDetail;
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.lunarDetailNear = { value: settings.nearMeters };
+      shader.uniforms.lunarDetailFar = { value: settings.farMeters };
+      shader.uniforms.lunarNormalStrength = { value: settings.normalStrength };
+      shader.uniforms.lunarAlbedoStrength = { value: settings.albedoStrength };
+      shader.uniforms.lunarRoughnessStrength = { value: settings.roughnessStrength };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+varying vec3 vPlanetDetailPosition;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+vPlanetDetailPosition = position;`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+varying vec3 vPlanetDetailPosition;
+uniform float lunarDetailNear;
+uniform float lunarDetailFar;
+uniform float lunarNormalStrength;
+uniform float lunarAlbedoStrength;
+uniform float lunarRoughnessStrength;
+
+float lunarHash(vec3 p) {
+  p = fract(p * 0.1031);
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+
+float lunarNoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = lunarHash(i);
+  float n100 = lunarHash(i + vec3(1.0, 0.0, 0.0));
+  float n010 = lunarHash(i + vec3(0.0, 1.0, 0.0));
+  float n110 = lunarHash(i + vec3(1.0, 1.0, 0.0));
+  float n001 = lunarHash(i + vec3(0.0, 0.0, 1.0));
+  float n101 = lunarHash(i + vec3(1.0, 0.0, 1.0));
+  float n011 = lunarHash(i + vec3(0.0, 1.0, 1.0));
+  float n111 = lunarHash(i + vec3(1.0, 1.0, 1.0));
+  return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+             mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
+
+float lunarFbm(vec3 p) {
+  return 0.57 * lunarNoise(p) + 0.28 * lunarNoise(p * 2.03 + 17.1) +
+         0.15 * lunarNoise(p * 4.11 + 41.7);
+}
+
+float lunarBandVisibility(float pixelFootprintMeters, float spatialScale) {
+  // spatialScale is cycles/metre. Remove a band before a screen pixel spans a
+  // significant fraction of its noise cell (procedural equivalent of a mipmap).
+  // The broad interval prevents visible concentric transition bands as the
+  // camera moves: detail starts softening near Nyquist and takes ~8x growth in
+  // pixel footprint to disappear completely.
+  return 1.0 - smoothstep(0.25, 2.0, pixelFootprintMeters * spatialScale);
+}
+
+vec3 lunarNoiseGradient(vec3 p, float scale) {
+  vec3 q = p * scale;
+  const float e = 0.35;
+  return vec3(
+    lunarNoise(q + vec3(e, 0.0, 0.0)) - lunarNoise(q - vec3(e, 0.0, 0.0)),
+    lunarNoise(q + vec3(0.0, e, 0.0)) - lunarNoise(q - vec3(0.0, e, 0.0)),
+    lunarNoise(q + vec3(0.0, 0.0, e)) - lunarNoise(q - vec3(0.0, 0.0, e))
+  );
+}`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+float lunarFade = 1.0 - smoothstep(lunarDetailNear, lunarDetailFar, length(vViewPosition));
+float lunarPixelFootprint = max(length(dFdx(vPlanetDetailPosition)),
+                                length(dFdy(vPlanetDetailPosition)));
+float lunarMacroVis = lunarBandVisibility(lunarPixelFootprint, 0.0012);
+float lunarRegolithVis = lunarBandVisibility(lunarPixelFootprint, 0.035);
+float lunarPitsVis = lunarBandVisibility(lunarPixelFootprint, 0.075);
+float lunarMacro = lunarFbm(vPlanetDetailPosition * 0.0012);
+float lunarRegolith = lunarFbm(vPlanetDetailPosition * 0.035);
+float lunarPits = smoothstep(0.78, 0.94, lunarNoise(vPlanetDetailPosition * 0.075));
+float lunarTone = (lunarMacro - 0.5) * 0.7 * lunarMacroVis +
+                  (lunarRegolith - 0.5) * 0.3 * lunarRegolithVis;
+diffuseColor.rgb *= 1.0 + lunarFade * lunarAlbedoStrength * lunarTone;
+diffuseColor.rgb *= 1.0 - lunarFade * lunarPits * lunarPitsVis * 0.08;`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+float lunarNormalLargeVis = lunarBandVisibility(lunarPixelFootprint, 0.012);
+float lunarNormalMediumVis = lunarBandVisibility(lunarPixelFootprint, 0.11);
+float lunarNormalFineVis = lunarBandVisibility(lunarPixelFootprint, 0.65);
+float lunarNormalDistantVis = lunarBandVisibility(lunarPixelFootprint, 0.0018);
+vec3 lunarGrad = lunarNoiseGradient(vPlanetDetailPosition, 0.0018) *
+                   (0.42 * lunarNormalDistantVis) +
+                 lunarNoiseGradient(vPlanetDetailPosition, 0.012) *
+                   (0.75 * lunarNormalLargeVis) +
+                 lunarNoiseGradient(vPlanetDetailPosition, 0.11) *
+                   (0.35 * lunarNormalMediumVis) +
+                 lunarNoiseGradient(vPlanetDetailPosition, 0.65) *
+                   (0.12 * lunarNormalFineVis);
+lunarGrad -= normal * dot(lunarGrad, normal);
+normal = normalize(normal - lunarFade * lunarNormalStrength * lunarGrad);`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = clamp(roughnessFactor + lunarFade * lunarRoughnessStrength *
+  (lunarRegolith - 0.35) * lunarRegolithVis, 0.55, 1.0);`);
+    };
+    material.customProgramCacheKey = () => 'planet2-lunar-regolith-v3-gradual';
+    material.roughness = 0.88;
+    material.needsUpdate = true;
   }
 
   // Builds an indexed, watertight tile mesh on the ellipsoid with baked displacement.
@@ -1419,6 +1549,10 @@ class CubedSpherePlanetRenderer {
     geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geometry.setIndex(this.indexBufferCache.getIndexAttribute(seg, reversed));
+    // The initial normals describe only the smooth ellipsoid. Recompute them from
+    // the displaced triangles so kilometer-scale LOLA relief participates in the
+    // same directional lighting as the synthetic fine regolith normals.
+    geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
     return geometry;
   }
@@ -1473,7 +1607,7 @@ class CubedSpherePlanetRenderer {
 
     const direction = latLonToDirection(
       THREE.MathUtils.degToRad(latDeg), THREE.MathUtils.degToRad(lonDeg),
-      new THREE.Vector3());
+      new THREE.Vector3(), this.planetE2);
     const faceUv = directionToFaceUV(direction, { face: '+X', u: 0, v: 0 });
     const globalU = clamp01((faceUv.u + 1) * 0.5);
     const globalV = clamp01((faceUv.v + 1) * 0.5);
@@ -2271,6 +2405,7 @@ export class planet2 {
       enableStartupChart: nonGUIParams.planet2StartupChart === true,
       locationInterests: nonGUIParams.locationInterests,
       displacementScaleMultiplier: nonGUIParams.planet2DisplacementScaleMultiplier ?? 1,
+      surfaceDetail: nonGUIParams.planet2SurfaceDetail,
       fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? Infinity,
       maxLodWhileFast: nonGUIParams.planet2MaxLodWhileFast ?? Infinity,
       doubleSided: dParamWithUnits?.earthTextureDoubleSided?.value === true,

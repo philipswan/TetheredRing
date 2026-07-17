@@ -206,8 +206,35 @@ Tiles are generated from **equirectangular** (lat/lon) source images:
   In that displacement image, elevation in meters is encoded as
   `code = 9000 + 10 × elevation_m`.
   The Chimborazo overlay does not use a checked-in XHR tile: its build fetches
-  Esri World Imagery and the public Copernicus GLO-30 COGs directly, caching the
+  EOxCloudless 2024 imagery and the public Copernicus GLO-30 COGs directly, caching the
   prepared equirectangular inputs under `.cache/adaptive_lod/chimborazo`.
+  EOxCloudless is used under CC BY-NC-SA 4.0 and requires visible attribution:
+  `EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains
+  modified Copernicus Sentinel data 2024)`.
+
+### Moon base layer
+
+Build a complete lunar base pyramid with:
+
+```pwsh
+.\.venv\Scripts\python.exe -m tools.adaptive_lod moon --jobs 1
+```
+
+This writes `assets/moon`. The default `--max-lod 4` produces 2,046 tiles;
+increase it deliberately (each additional uniform level adds four times as many
+tiles). Select it in Planet2 with `nonGUIParams['planet2Assets'] = ['moon']` or
+`?planet2Assets=moon`.
+
+The builder downloads and caches two global equirectangular products from the
+[NASA Scientific Visualization Studio CGI Moon Kit](https://svs.gsfc.nasa.gov/4720):
+
+- `lroc_color_poles_8k.tif`, an 8192 x 4096 LRO/WAC color mosaic.
+- `ldem_16.tif`, a 5760 x 2880 LOLA elevation model. Its kilometer values are
+  converted to meters before tiling, relative to the Moon Kit's 1,737.4 km
+  reference radius.
+
+Credit: NASA Scientific Visualization Studio; LRO LROC/LOLA. The downloaded
+sources and their derived caches live under `.cache/adaptive_lod/moon`.
 
 ## How the scripts turn raw data into tiles
 
