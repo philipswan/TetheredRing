@@ -118,7 +118,7 @@ export function toOrbitFromMoonLauncherPresets(guidParamWithUnits, guidParam, gu
   nonGUIParams['nearClip'] = 1
   nonGUIParams['farClip'] = 100000000
   nonGUIParams['initialTrackingHotkey'] = '0'
-  nonGUIParams['frameCaptureStartDelayInSeconds'] = 10
+  //nonGUIParams['frameCaptureStartDelayInSeconds'] = 10
   //nonGUIParams['frameCaptureDurationInSeconds'] = 20
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   guidParamWithUnits['launcherStartDelayInSeconds'].value = 10
