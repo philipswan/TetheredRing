@@ -16,6 +16,7 @@ export class launchVehicleModel {
     const shockwaveConeLength = dParamWithUnits['launchVehicleShockwaveConeLength'].value
     const objName = 'launchVehicle'
     const launchVehicleNumModels = dParamWithUnits['launchVehicleNumModels'].value
+    const isLunarLaunch = dParamWithUnits['launchFromPlanet']?.value === 'Moon'
 
     // Proceedurally generate the Launch Vehicle body, flame, and point light meshes
 
@@ -74,11 +75,42 @@ export class launchVehicleModel {
     const launchVehicleLeftFinGeometry = launchVehicleTopFinGeometry.clone()
     launchVehicleLeftFinGeometry.name = "leftFin"
     launchVehicleLeftFinGeometry.rotateY(-Math.PI*2/3)
-    // Merge the nosecone into the body
-    // Temporary model until the real one loads...
-    const launchVehicleGeometry = mergeGeometries([launchVehicleHullGeometry, launchVehicleTopFinGeometry, launchVehicleRightFinGeometry, launchVehicleLeftFinGeometry], false)
+    // Lunar mass-driver vehicles do not need an aerodynamic nose, fins, or an
+    // atmospheric rocket nozzle. Preserve the configured diameter, shorten the
+    // body-plus-nose length by 40%, and round both ends into a pressure hull.
+    let launchVehicleGeometry
+    let lunarTotalLength = totalLength
+    if (isLunarLaunch) {
+      lunarTotalLength = totalLength * 0.6
+      const cylindricalLength = Math.max(0, lunarTotalLength - 2 * radius)
+      launchVehicleGeometry = new THREE.CapsuleGeometry(
+        radius, cylindricalLength, 16, radialSegments)
+      // CapsuleGeometry is centered on the origin; the conventional vehicle
+      // geometry runs from y=0 at the tail toward positive y at the nose.
+      launchVehicleGeometry.translate(0, lunarTotalLength / 2, 0)
+      launchVehicleGeometry.name = 'lunarPillHullGeometry'
+    }
+    else {
+      // Merge the atmospheric nosecone, body, and fins.
+      launchVehicleGeometry = mergeGeometries([
+        launchVehicleHullGeometry,
+        launchVehicleTopFinGeometry,
+        launchVehicleRightFinGeometry,
+        launchVehicleLeftFinGeometry
+      ], false)
+    }
     //const launchVehicleTexture = new THREE.TextureLoader().load('textures/launchVehicleTexture.jpg', function(texture) {launchVehicleMaterial.needsUpdate = true})
-    const launchVehicleMaterial = new THREE.MeshPhongMaterial( {color: 0xcfd4d9})
+    const launchVehicleMaterial = isLunarLaunch
+      ? new THREE.MeshPhysicalMaterial({
+        color: 0xb8c0c7,
+        metalness: 0.92,
+        roughness: 0.34,
+        clearcoat: 0.12,
+        clearcoatRoughness: 0.5,
+        anisotropy: 0.65,
+        anisotropyRotation: Math.PI / 2
+      })
+      : new THREE.MeshPhongMaterial({color: 0xcfd4d9})
     // const launchVehicleMaterial = new THREE.MeshPhysicalMaterial( {
     //   clearcoat: 1.0,
     //   clearcoatRoughness: 0.1,
@@ -90,6 +122,10 @@ export class launchVehicleModel {
     // } );
     let launchVehicleBodyMesh = new THREE.Mesh(launchVehicleGeometry, launchVehicleMaterial)
     launchVehicleBodyMesh.name = 'body'
+    // Harmless when shadow maps are disabled; lunar close-up presets enable them
+    // so the tracked vehicle can cast a real projected shadow on Planet2 terrain.
+    launchVehicleBodyMesh.castShadow = true
+    if (isLunarLaunch) addLunarDecals(launchVehicleBodyMesh)
 
     const launchVehicleFlameMesh = makeFlame()
     const launchVehiclePointLightMesh = makePointLight()
@@ -106,12 +142,63 @@ export class launchVehicleModel {
     console.log("Created " + launchVehicleNumModels + " launch vehicle models")
 
     // Load the launch vehicle body mesh from a model, and replace the proceedurally generated body with the body from the model
+
+    function addLunarDecals(bodyMesh) {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1024
+      canvas.height = 256
+      const context = canvas.getContext('2d')
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      context.fillStyle = '#111820'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
+      context.font = '700 68px Arial, sans-serif'
+      context.fillText('First Frontier Corp', canvas.width / 2, 88)
+      context.font = '500 42px Arial, sans-serif'
+      context.fillText('Container# L5-621-0', canvas.width / 2, 170)
+
+      const texture = new THREE.CanvasTexture(canvas)
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.anisotropy = 8
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        alphaTest: 0.05,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        side: THREE.FrontSide
+      })
+      const decalLength = lunarTotalLength * 0.68
+      const decalHeight = Math.min(radius * 1.5, decalLength / 4)
+      const geometry = new THREE.PlaneGeometry(decalLength, decalHeight)
+      geometry.rotateZ(Math.PI / 2)
+
+      const sideOffset = radius + Math.max(0.002, radius * 0.003)
+      const firstSide = new THREE.Mesh(geometry, material)
+      firstSide.name = 'lunarContainerDecal'
+      firstSide.position.set(sideOffset, lunarTotalLength / 2, 0)
+      firstSide.rotation.y = Math.PI / 2
+      firstSide.renderOrder = 2
+      bodyMesh.add(firstSide)
+
+      const secondSide = new THREE.Mesh(geometry, material)
+      secondSide.name = 'lunarContainerDecal'
+      secondSide.position.set(-sideOffset, lunarTotalLength / 2, 0)
+      secondSide.rotation.y = -Math.PI / 2
+      secondSide.renderOrder = 2
+      bodyMesh.add(secondSide)
+    }
+
     function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, perfOptimizedThreeJS) {
 
       // This is the additional work we want to do later, after the loader gets around to loading our model...
       return function(object) {
         object.scale.set(scaleFactor, scaleFactor, scaleFactor)
         object.name = 'launchVehicle_bodyFromModel'
+        object.traverse(child => {
+          if (child.isMesh) child.castShadow = true
+        })
         //object.children[0].material.color.setHex(0xcfd4d9)
         //object.children[0].material.map = launchVehicleTexture
         object.children[0].material = launchVehicleMaterial
@@ -265,6 +352,7 @@ export class virtualLaunchVehicle {
     virtualLaunchVehicle.isVisible = dParamWithUnits['showLaunchVehicles'].value
     virtualLaunchVehicle.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
     virtualLaunchVehicle.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    virtualLaunchVehicle.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
     virtualLaunchVehicle.launchVehicleAdaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
     virtualLaunchVehicle.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
 
@@ -281,7 +369,9 @@ export class virtualLaunchVehicle {
     
     console.assert(refFrames.length==1)
     refFrames.forEach(refFrame => {
-      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+        this.slowDownPassageOfTime, refFrame.timeSinceStart,
+        virtualLaunchVehicle.launcherStartDelayInSeconds)
       // Going backwards in time since we want to add vehicles that were launched in the past.
       const durationOfLaunchTrajectory = refFrame.curve.getDuration()
       let count = 0
@@ -305,7 +395,9 @@ export class virtualLaunchVehicle {
 
   placeAndOrientModel(om, refFrame) {
 
-    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart)
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+      virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart,
+      virtualLaunchVehicle.launcherStartDelayInSeconds)
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     const res = refFrame.curve.findRelevantCurve(deltaT)
     const relevantCurve = res.relevantCurve
@@ -439,7 +531,10 @@ export class virtualLaunchVehicle {
 
   getFuturePosition(refFrame, timeDeltaInSeconds) {
 
-    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+      virtualLaunchVehicle.slowDownPassageOfTime,
+      refFrame.timeSinceStart + timeDeltaInSeconds,
+      virtualLaunchVehicle.launcherStartDelayInSeconds)
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)
@@ -469,7 +564,10 @@ export class virtualLaunchVehicle {
   
   getFutureFrame(refFrame, timeDeltaInSeconds) {
 
-    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchVehicle.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+    const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+      virtualLaunchVehicle.slowDownPassageOfTime,
+      refFrame.timeSinceStart + timeDeltaInSeconds,
+      virtualLaunchVehicle.launcherStartDelayInSeconds)
     const deltaT = adjustedTimeSinceStart - this.timeLaunched
     if (deltaT<=refFrame.curve.getDuration()) {
       const res = refFrame.curve.findRelevantCurve(deltaT)

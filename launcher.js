@@ -412,6 +412,7 @@ export class launcher {
     this.animateElevatedEvacuatedTubeDeployment = dParamWithUnits['animateElevatedEvacuatedTubeDeployment'].value
     this.lastElevatedEvacuatedTubeDeploymentAlpha = -1
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    this.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
     this.showMarkers = dParamWithUnits['showMarkers'].value
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
     this.massDriverRailSegments = dParamWithUnits['numVirtualMassDriverRails'].value

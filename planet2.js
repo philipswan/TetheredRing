@@ -381,6 +381,8 @@ class CubedSpherePlanetRenderer {
     this.maxLodWhileFast = options.maxLodWhileFast ?? Infinity;
 
     this.requireKtx2 = options.requireKtx2 === true;
+    this.receiveSurfaceShadows = options.receiveSurfaceShadows === true;
+    this.textureAnisotropy = Math.max(1, options.textureAnisotropy ?? 4);
     this.displacementScaleMultiplier = Math.max(0, options.displacementScaleMultiplier ?? 1);
     this.enableStartupChart = options.enableStartupChart === true;
     this.surfaceDetail = options.surfaceDetail?.enabled ? {
@@ -468,7 +470,7 @@ class CubedSpherePlanetRenderer {
 
     // Shared base material; per-tile clones receive the streamed color map.
     this.baseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8aa7c2,
+      color: options.surfaceColor ?? 0x8aa7c2,
       roughness: 1,
       metalness: 0,
       side: options.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
@@ -1344,6 +1346,7 @@ class CubedSpherePlanetRenderer {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `tile:${tile.id}`;
     mesh.frustumCulled = false; // we do our own conservative culling
+    mesh.receiveShadow = this.receiveSurfaceShadows;
     mesh.visible = false;
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
@@ -1977,7 +1980,7 @@ roughnessFactor = clamp(roughnessFactor + lunarFade * lunarRoughnessStrength *
       if (signal.aborted) { texture.dispose(); return null; }
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.flipY = false; // GPU-compressed; matches the generator's row order
-      texture.anisotropy = 4;
+      texture.anisotropy = this.textureAnisotropy;
       texture.needsUpdate = true;
       const doneMs = performance.now() - trace.t0Ms;
       tile.debugColorDoneMs = doneMs;
@@ -2402,10 +2405,13 @@ export class planet2 {
       sseThreshold: nonGUIParams.tileSseThreshold ?? 3.5,
       maxAvailableLod: nonGUIParams.maxAvailableTileLod ?? 6,
       requireKtx2: nonGUIParams.planet2RequireKtx2 === true,
+      receiveSurfaceShadows: nonGUIParams.enableSurfaceShadows === true,
+      textureAnisotropy: nonGUIParams.planet2TextureAnisotropy ?? 4,
       enableStartupChart: nonGUIParams.planet2StartupChart === true,
       locationInterests: nonGUIParams.locationInterests,
       displacementScaleMultiplier: nonGUIParams.planet2DisplacementScaleMultiplier ?? 1,
       surfaceDetail: nonGUIParams.planet2SurfaceDetail,
+      surfaceColor: nonGUIParams.planet2SurfaceColor,
       fastCameraSpeed: nonGUIParams.planet2FastCameraSpeed ?? Infinity,
       maxLodWhileFast: nonGUIParams.planet2MaxLodWhileFast ?? Infinity,
       doubleSided: dParamWithUnits?.earthTextureDoubleSided?.value === true,

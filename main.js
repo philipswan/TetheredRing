@@ -352,9 +352,9 @@ const guidParamWithUnits = {
   launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, updateFunction: updateLauncher, folder: folderLauncher},
   launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherAdaptiveNutRampAcceleration: {value: -1500, units: 'm*s-2', autoMap: true, min: -10000, max: 0, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -1000, max: 4000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: 0, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
-  launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: 0, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -10000, max: 4000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: -10000, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: -10000, max: 100000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriver1InitialVelocity: {value: 2, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriver2InitialVelocity: {value: 200, units: 'm/s', autoMap: true, min: 0, max: 1000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverExitVelocity: {value: 8000-360, units: 'm/s', autoMap: true, min: 1, max: 50000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -412,6 +412,7 @@ const guidParamWithUnits = {
   numVirtualHumanFigures: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
   launcherSlowDownPassageOfTime: {value: 1, units: '', autoMap: true, min: 0, max: 2, updateFunction: updateLauncher, folder: folderLauncher},
+  launcherStartDelayInSeconds: {value: 25, units: 's', autoMap: true, min: 0, max: 300, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, updateFunction: updateLauncher, folder: folderLauncher},
@@ -1355,6 +1356,9 @@ console.log('Renderer texture caps', {
 
 const sunLight = new THREE.DirectionalLight(
   0xffffff, nonGUIParams['sunLightIntensity'] ?? 1)
+let surfaceShadowTarget = null
+const surfaceShadowDirection = new THREE.Vector3()
+const surfaceShadowFocus = new THREE.Vector3()
 sunLight.name = 'sunlight'
 if (nonGUIParams['sunLightPosition']) {
   sunLight.position.copy(nonGUIParams['sunLightPosition'])
@@ -1364,7 +1368,37 @@ else {
 }
 //sunLight.position.set(0, 6 * roughPlanetRadius/8, -20 * roughPlanetRadius/8)
 sunLight.matrixValid = false
-if (guidParam['perfOptimizedThreeJS']) sunLight.freeze()
+if (nonGUIParams['enableSurfaceShadows'] === true) {
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = nonGUIParams['softSurfaceShadows'] === true
+    ? THREE.PCFSoftShadowMap
+    : THREE.BasicShadowMap
+  sunLight.castShadow = true
+  const extent = nonGUIParams['surfaceShadowExtent'] ?? 10000
+  sunLight.shadow.mapSize.set(
+    nonGUIParams['surfaceShadowMapSize'] ?? 4096,
+    nonGUIParams['surfaceShadowMapSize'] ?? 4096)
+  sunLight.shadow.camera.left = -extent
+  sunLight.shadow.camera.right = extent
+  sunLight.shadow.camera.top = extent
+  sunLight.shadow.camera.bottom = -extent
+  sunLight.shadow.camera.near = 1
+  sunLight.shadow.camera.far = nonGUIParams['surfaceShadowFar'] ?? 500000
+  sunLight.shadow.bias = -0.000001
+  sunLight.shadow.normalBias = 0.03
+  if (nonGUIParams['sunLightTarget']) {
+    surfaceShadowTarget = new THREE.Object3D()
+    surfaceShadowTarget.name = 'sunlightTarget'
+    surfaceShadowTarget.position.copy(nonGUIParams['sunLightTarget'])
+    scene.add(surfaceShadowTarget)
+    sunLight.target = surfaceShadowTarget
+    surfaceShadowDirection.copy(sunLight.position)
+      .sub(surfaceShadowTarget.position).normalize()
+  }
+  sunLight.shadow.camera.updateProjectionMatrix()
+}
+if (guidParam['perfOptimizedThreeJS'] &&
+    nonGUIParams['enableSurfaceShadows'] !== true) sunLight.freeze()
 scene.add(sunLight)
 
 const ambientLight = new THREE.AmbientLight(
@@ -1374,6 +1408,14 @@ scene.add(ambientLight)
 
 const planetCoordSys = new THREE.Group()
 planetCoordSys.name = 'planetCoordSys'
+
+if (nonGUIParams['enableSurfaceShadows'] === true) {
+  // Lunar launch geometry and Planet2 are transformed by planetCoordSys. Keep
+  // the localized directional light in that same frame or its shadow camera
+  // points at an unrotated location on the globe and sees no caster/receiver.
+  planetCoordSys.add(sunLight)
+  if (surfaceShadowTarget) planetCoordSys.add(surfaceShadowTarget)
+}
 
 scene.add(planetCoordSys)
 
@@ -1462,17 +1504,23 @@ function updateBackgroundPatch() {
   
 }
 
-const moonTexture = new THREE.TextureLoader().load("./textures/moon.jpg")
-moonTexture.name = 'moon'
+// This mesh represents the companion body: the Moon when the simulation is on
+// Earth, and Earth when the simulation is on the Moon.
+const isLunarSimulation = dParamWithUnits['planetName'].value === 'Moon'
+const moonTexture = new THREE.TextureLoader().load(
+  isLunarSimulation ? "./textures/earth_clouds_2048.jpg" : "./textures/moon.jpg")
+moonTexture.name = isLunarSimulation ? 'earth' : 'moon'
+moonTexture.colorSpace = THREE.SRGBColorSpace
+const companionBodyRadius = isLunarSimulation ? radiusOfEarth : radiusOfEarth * 0.27
 const moonMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(radiusOfEarth * 0.27, 64, 32),
+  new THREE.SphereGeometry(companionBodyRadius/10, 64, 32), // Dividing by 10 to solve far field clipping issue.
   new THREE.MeshLambertMaterial({
     map: moonTexture,
   })
 )
-moonMesh.name = 'moon'
+moonMesh.name = isLunarSimulation ? 'earth' : 'moon'
 const moonOrbitDistance = 384467000 // m
-moonMesh.position.set(moonOrbitDistance, 0, 0)
+moonMesh.position.set(moonOrbitDistance/10, 0, 0)  // Dividing by 10 to solve far field clipping issue.
 moonMesh.rotation.set(0, 0, 0)
 moonMesh.visible = dParamWithUnits['showMoon'].value
 planetCoordSys.add(moonMesh)
@@ -1688,6 +1736,10 @@ let savedRendererAlpha
 let printLater = false
 
 const objectTracker = new ObjectTracker()
+const initialTrackingHotkey = String(nonGUIParams['initialTrackingHotkey'] ?? '')
+let pendingInitialTrackingKeyCode = /^[0-5]$/.test(initialTrackingHotkey)
+  ? initialTrackingHotkey.charCodeAt(0)
+  : null
 
 const trackingMarkerSize = dParamWithUnits['trackingMarkerSize'].value
 let trackingPointMarkerMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), grayMaterial)
@@ -1716,10 +1768,68 @@ const transitSystemObject = new transitSystem(tetheredRingRefCoordSys, dParamWit
 
 // Launch Trajectory Line
 let launchSystemObject = null
+let launchTrackCameraFrame = null
 if (enableLaunchSystem) {
   const timeSinceStart = 0
   launchSystemObject = new Launcher.launcher(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, xyChart, clock, specs, genLauncherKMLFile, kmlFile)
   launchSystemObject.drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys)
+  const lightFrame = nonGUIParams['launchTrackLightDirection']
+  const trackCurve = launchSystemObject.massDriver2Curve ||
+    launchSystemObject.launchRampCurve?.[0]
+  if (trackCurve) {
+    const origin = launchSystemObject.feederRailEntrancePosition.clone()
+    const trackEnd = trackCurve.getPointAt(1)
+    const radialUp = origin.clone().normalize()
+    const forward = trackEnd.clone().sub(origin)
+    forward.addScaledVector(radialUp, -forward.dot(radialUp)).normalize()
+    const right = forward.clone().cross(radialUp).normalize()
+    const up = right.clone().cross(forward).normalize()
+    launchTrackCameraFrame = { origin, forward, right, up }
+
+    // Trial framing captured with the 8 key for the lunar launch scene.
+    if (isLunarSimulation) {
+      // moonMesh.position.set(38549277.12378993, -4917580.681677815, -2881670.165961572)
+      // moonMesh.rotation.set(-0.830209436313899, -1.3972757648839271, -2.367096569275605)
+      moonMesh.position.set(35889501.075995505, 1667170.5714336203, -13774821.218498856)
+      moonMesh.rotation.set(0.10930226635589775, -1.1569418935892486, -1.480664557200007)
+    }
+
+    const cameraFrame = nonGUIParams['launchTrackCamera']
+    if (cameraFrame) {
+      const fromTrackFrame = (components = {}) => origin.clone()
+        .addScaledVector(forward, components.forward ?? 0)
+        .addScaledVector(right, components.right ?? 0)
+        .addScaledVector(up, components.up ?? 0)
+      const directionFromTrackFrame = (components = {}) => new THREE.Vector3()
+        .addScaledVector(forward, components.forward ?? 0)
+        .addScaledVector(right, components.right ?? 0)
+        .addScaledVector(up, components.up ?? 1)
+        .normalize()
+
+      const cameraReferencePoint =
+        nonGUIParams['initialReferencePoint'] === 'feederRailEntrancePosition'
+          ? launchSystemObject.feederRailEntrancePosition
+          : new THREE.Vector3()
+      nonGUIParams['orbitControlsTarget'] = fromTrackFrame(cameraFrame.target)
+        .sub(cameraReferencePoint)
+      nonGUIParams['orbitControlsObjectPosition'] = fromTrackFrame(cameraFrame.position)
+        .sub(cameraReferencePoint)
+      nonGUIParams['orbitControlsUpDirection'] = directionFromTrackFrame(cameraFrame.cameraUp)
+      nonGUIParams['cameraUp'] = directionFromTrackFrame(cameraFrame.cameraUp)
+    }
+  }
+  if (surfaceShadowTarget && lightFrame && launchTrackCameraFrame) {
+    const trackPoint = trackCurve.getPointAt(1)
+    const { forward, right, up } = launchTrackCameraFrame
+    surfaceShadowDirection.set(0, 0, 0)
+      .addScaledVector(forward, lightFrame.forward ?? -1)
+      .addScaledVector(right, lightFrame.right ?? 0)
+      .addScaledVector(up, lightFrame.up ?? 0.22)
+      .normalize()
+    surfaceShadowTarget.position.copy(trackPoint)
+    sunLight.position.copy(trackPoint)
+      .addScaledVector(surfaceShadowDirection, 300000)
+  }
 }
 
 //calculateAdditionalSpecs()
@@ -1976,6 +2086,14 @@ let showTensileForceArrows = false
 let showGravityForceArrows = false
 let showInertialForceArrows = false
 let timeSinceStart = 0
+const automaticFrameCaptureStartTime = Number(
+  nonGUIParams['frameCaptureStartDelayInSeconds'])
+const automaticFrameCaptureDuration = Number(
+  nonGUIParams['frameCaptureDurationInSeconds'])
+let automaticFrameCapturePending =
+  Number.isFinite(automaticFrameCaptureStartTime) &&
+  automaticFrameCaptureStartTime >= 0
+let automaticFrameCaptureStopTime = null
 let prevWeAreFar1 = NaN
 let prevWeAreFar2 = NaN
 //let objectCount = {}
@@ -2075,6 +2193,22 @@ function renderFrame() {
   const clockDelta = clock.getDelta()
   timeSinceStart += clockDelta
 
+  if (automaticFrameCapturePending &&
+      timeSinceStart >= automaticFrameCaptureStartTime) {
+    startFrameCapture()
+    automaticFrameCapturePending = false
+    if (capturer && Number.isFinite(automaticFrameCaptureDuration) &&
+        automaticFrameCaptureDuration > 0) {
+      automaticFrameCaptureStopTime =
+        timeSinceStart + automaticFrameCaptureDuration
+    }
+  }
+  if (automaticFrameCaptureStopTime !== null &&
+      timeSinceStart >= automaticFrameCaptureStopTime) {
+    if (capturer) captureStop()
+    automaticFrameCaptureStopTime = null
+  }
+
   if (updatePlanetLod) {
     updatePlanetLod(camera)
   }
@@ -2093,6 +2227,11 @@ function renderFrame() {
     launchSystemObject.animate(timeSinceStart, camera.position.clone(), elevatedEvacuatedTubeDeploymentAlpha)
   }
   transitSystemObject.animate(timeSinceStart, tetheredRingRefCoordSys, camera.position.clone(), mainRingCurve, dParamWithUnits)
+
+  if (pendingInitialTrackingKeyCode !== null &&
+      selectTrackedObject(pendingInitialTrackingKeyCode, false)) {
+    pendingInitialTrackingKeyCode = null
+  }
 
   if (objectTracker.trackingPoint) {
     if (objectTracker.lastTrackingPoint) {
@@ -2567,6 +2706,20 @@ function renderFrame() {
     });
   }
   
+  if (surfaceShadowTarget) {
+    // The camera target follows the tracked vehicle. Recenter the small, dense
+    // shadow frustum there every frame while retaining a fixed solar direction.
+    // orbitControls.target is world-space; the light lives in planetCoordSys.
+    planetCoordSys.updateWorldMatrix(true, false)
+    surfaceShadowFocus.copy(orbitControls.target)
+    planetCoordSys.worldToLocal(surfaceShadowFocus)
+    surfaceShadowTarget.position.copy(surfaceShadowFocus)
+    sunLight.position.copy(surfaceShadowFocus)
+      .addScaledVector(surfaceShadowDirection, 300000)
+    surfaceShadowTarget.updateMatrixWorld()
+    sunLight.updateMatrixWorld()
+  }
+
   if (renderToBuffer) {
     renderer.render(scene, camera, bufferTexture)
   }
@@ -2833,6 +2986,31 @@ async function loadCameraControlData() {
   return await response.json()
 }
 
+function selectTrackedObject(keyCode, toggleExisting = true) {
+  const trackedObjectIndex = objectTracker.convertHotkeyToObjectIndex(keyCode)
+  if (trackedObjectIndex < 0) return false
+
+  if (toggleExisting && objectTracker.closestTrackedObject[trackedObjectIndex] !== null) {
+    objectTracker.closestTrackedObject[trackedObjectIndex] = null
+    stationaryCameraTrackingMode = false
+    objectTracker.targetPoint = null
+    return true
+  }
+
+  const trackedObjectType = objectTracker.convertHotkeyToObjectType(keyCode)
+  objectTracker.findNearestObject(
+    dParamWithUnits, scene, trackedObjectType, camera.position,
+    tetheredRingRefCoordSys, launchSystemObject, transitSystemObject,
+    trackingPointMarkerMesh, tweeningTime)
+  if (objectTracker.closestTrackedObject[trackedObjectIndex] !== null) {
+    targetPoint = objectTracker.trackingPoint.clone()
+    setupTweeningOperation()
+    orbitControls.rotationSpeed = 0.01
+    return true
+  }
+  return false
+}
+
 function onKeyDown( event ) {
   // Object.entries(guidParamWithUnits).forEach(([k, v]) => {
   //   v.value = guidParam[k]
@@ -2979,23 +3157,7 @@ function onKeyDown( event ) {
     case 51: /*3*/
     case 52: /*4*/
     case 53: /*5*/
-      const trackedObjectIndex = objectTracker.convertHotkeyToObjectIndex(event.keyCode)
-      if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
-        // Toggle off tracking of the selected object
-        objectTracker.closestTrackedObject[trackedObjectIndex] = null
-        stationaryCameraTrackingMode = false
-        objectTracker.targetPoint = null
-      }
-      else {
-        // Find and start tracking the selected object
-        const trackedObjectType = objectTracker.convertHotkeyToObjectType(event.keyCode)
-        objectTracker.findNearestObject(dParamWithUnits, scene, trackedObjectType, camera.position, tetheredRingRefCoordSys, launchSystemObject, transitSystemObject, trackingPointMarkerMesh, tweeningTime)
-        if (objectTracker.closestTrackedObject[trackedObjectIndex]!==null) {
-          targetPoint = objectTracker.trackingPoint.clone()
-          setupTweeningOperation()
-          orbitControls.rotationSpeed = 0.01
-        }
-      }
+      selectTrackedObject(event.keyCode)
       break
     case 54: /*6*/
       // Traverse the heirarchy and report how many objects there or of each type
@@ -3028,7 +3190,10 @@ function onKeyDown( event ) {
       // Put the moon into the camera's field of view
       moonMesh.position.copy(camera.position)
       moonMesh.rotation.copy(camera.rotation)
-      moonMesh.translateZ(-moonOrbitDistance/10)
+      moonMesh.translateZ(-moonOrbitDistance/10)  // Dividing by 10 to solve far field clipping issue.
+      console.log(
+        `moonMesh.position.set(${moonMesh.position.x}, ${moonMesh.position.y}, ${moonMesh.position.z})\n` +
+        `moonMesh.rotation.set(${moonMesh.rotation.x}, ${moonMesh.rotation.y}, ${moonMesh.rotation.z})`)
       break
 
     case 57: /*9*/
@@ -3229,6 +3394,46 @@ function onKeyDown( event ) {
       const reletiveCameraPosition = orbitControls.object.position.clone().sub(initialReferencePoint)
       console.log('\n\norbitControls.target.set(' + reletiveTarget.x + ', ' + reletiveTarget.y + ', ' + reletiveTarget.z + ')\norbitControls.upDirection.set(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\norbitControls.object.position.set(' + reletiveCameraPosition.x + ', ' + reletiveCameraPosition.y + ', ' + reletiveCameraPosition.z + ')\ncamera.up.set(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
       console.log('\n\nnonGUIParams[\'orbitControlsTarget\'] = new THREE.Vector3(' + reletiveTarget.x + ', ' + reletiveTarget.y + ', ' + reletiveTarget.z + ')\nnonGUIParams[\'orbitControlsUpDirection\'] = new THREE.Vector3(' + orbitControls.upDirection.x + ', ' + orbitControls.upDirection.y + ', ' + orbitControls.upDirection.z + ')\nnonGUIParams[\'orbitControlsObjectPosition\'] = new THREE.Vector3(' + reletiveCameraPosition.x + ', ' + reletiveCameraPosition.y + ', ' + reletiveCameraPosition.z + ')\nnonGUIParams[\'cameraUp\'] = new THREE.Vector3(' + camera.up.x + ', ' + camera.up.y + ', ' + camera.up.z + ')\n')
+
+      if (launchTrackCameraFrame) {
+        const { origin, forward, right, up } = launchTrackCameraFrame
+        const toTrackComponents = (vector, isDirection = false) => {
+          const relative = isDirection ? vector : vector.clone().sub(origin)
+          return {
+            forward: relative.dot(forward),
+            right: relative.dot(right),
+            up: relative.dot(up)
+          }
+        }
+        const trackTarget = toTrackComponents(orbitControls.target)
+        const trackCamera = toTrackComponents(orbitControls.object.position)
+        const trackCameraUp = toTrackComponents(camera.up, true)
+        const cameraDistance = orbitControls.object.position.distanceTo(orbitControls.target)
+        const viewDirection = orbitControls.target.clone()
+          .sub(orbitControls.object.position).normalize()
+        const trackView = toTrackComponents(viewDirection, true)
+        const yawDegrees = THREE.MathUtils.radToDeg(
+          Math.atan2(trackView.right, trackView.forward))
+        const pitchDegrees = THREE.MathUtils.radToDeg(
+          Math.asin(THREE.MathUtils.clamp(trackView.up, -1, 1)))
+        const compactNumber = value => {
+          const rounded = Math.abs(value) < 0.0000005 ? 0 : value
+          return Number(rounded.toFixed(6)).toString()
+        }
+        const compactComponents = components =>
+          `{forward: ${compactNumber(components.forward)}, ` +
+          `right: ${compactNumber(components.right)}, ` +
+          `up: ${compactNumber(components.up)}}`
+        console.log(
+          `\n// Distance: ${compactNumber(cameraDistance)}; ` +
+          `yaw: ${compactNumber(yawDegrees)} deg; ` +
+          `pitch: ${compactNumber(pitchDegrees)} deg\n` +
+          `nonGUIParams['launchTrackCamera'] = {\n` +
+          `  target: ${compactComponents(trackTarget)},\n` +
+          `  position: ${compactComponents(trackCamera)},\n` +
+          `  cameraUp: ${compactComponents(trackCameraUp)}\n` +
+          `}\n`)
+      }
 
       orbitControls.maxPolarAngle = Math.PI/2 + .1
       orbitControlsNewMaxPolarAngle = Math.PI/2 + Math.PI/2
@@ -3991,7 +4196,8 @@ var startCapturingTrackPointsButton = document.getElementById( 'start-capturing-
 var stopCapturingTrackPointsAndDownloadButton = document.getElementById( 'stop-capturing-track-points-button' )
 var progress = document.getElementById( 'progress' )
 
-startCapturingFramesButton.addEventListener( 'click', function( e ) {
+function startFrameCapture(e = null) {
+  if (capturer) return
 
   let framerate
 
@@ -4021,10 +4227,10 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
     } );
 
     capturer.start();
-    this.style.display = 'none';
+    startCapturingFramesButton.style.display = 'none';
     startCapturingTrackPointsButton.style.display = 'none';
     stopCapturingFramesAndDownloadButton.style.display = 'initial';
-    e.preventDefault();
+    if (e) e.preventDefault();
   // }
 
   // Hack - forces the CCapture resolution
@@ -4039,7 +4245,9 @@ startCapturingFramesButton.addEventListener( 'click', function( e ) {
   camera.aspect = width/height
   camera.updateProjectionMatrix()
 
-}, false );
+}
+
+startCapturingFramesButton.addEventListener('click', startFrameCapture, false)
 
 startCapturingTrackPointsButton.addEventListener( 'click', function( e ) {
   trackPointLoggerObject = new trackPointLogger(googleEarthProjectFile)
@@ -4072,11 +4280,14 @@ stopCapturingFramesAndDownloadButton.addEventListener( 'click', function( e ) {
 }, false )
 
 function captureStop() {
-  capturer.stop();
+  if (!capturer) return
+  const completedCapturer = capturer
+  capturer = null
+  completedCapturer.stop();
   stopCapturingFramesAndDownloadButton.style.display = 'none'
   //this.setAttribute( 'href',  );
   // console.log(capturer, 'Saving...')
-  capturer.save();
+  completedCapturer.save();
   startCapturingTrackPointsButton.style.display = 'initial'
   startCapturingFramesButton.style.display = 'initial'
   const width = simContainer.offsetWidth

@@ -1401,8 +1401,8 @@ export function interplanetaryDeltaV() {
   const deltaVAtMars = Math.sqrt(G * massOfTheSun / marsOrbitRadius) * (1 - Math.sqrt(2 * earthOrbitRadius / (earthOrbitRadius+marsOrbitRadius)))
 }
 
-export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart) {
-  const launcherStartDelayInSeconds = 25 //120
+export function adjustedTimeSinceStart(slowDownPassageOfTime, timeSinceStart,
+                                       launcherStartDelayInSeconds = 25) {
   return Math.max(0, timeSinceStart - launcherStartDelayInSeconds) * slowDownPassageOfTime
 }
 

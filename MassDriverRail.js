@@ -59,6 +59,7 @@ export class massDriverRailModel {
     const onRamp = (curve.name=="launchRampCurve")
     const massDriverRailMaterial = this.massDriverRailMaterials[(onRamp) ? 1 : 0]
     const massDriverRailMesh = new THREE.Mesh(massDriverRailGeometry, massDriverRailMaterial)
+    massDriverRailMesh.castShadow = true
     return massDriverRailMesh
   }
 
@@ -211,4 +212,3 @@ export class virtualMassDriverRail {
     }
   
   }
-  

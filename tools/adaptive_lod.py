@@ -42,6 +42,7 @@ from tools.fetch_chimborazo_sources import prepare_sources as prepare_chimborazo
 from tools.fetch_moon_sources import (
     prepare_sources as prepare_moon_sources,
     prepare_korolev_sources,
+    prepare_region_sources,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -968,6 +969,13 @@ KOROLEV_CORE_BBOX = (-159.25, -157.25, -4.1, -2.1)
 KOROLEV_MIN_LOD = 5
 KOROLEV_MAX_LOD = 6
 
+TRANQUILLITATIS_REGION_BBOX = (20.5, 26.5, -2.3, 3.7)
+TRANQUILLITATIS_CORE_BBOX = (22.0, 25.0, -0.8, 2.2)
+MOLTKE_CORE_BBOX = (23.90, 24.50, -0.90, -0.30)
+TRANQUILLITATIS_MIN_LOD = 5
+TRANQUILLITATIS_MAX_LOD = 6
+MOLTKE_MAX_LOD = 9
+
 
 def chimborazo_sizes_for_lod(lod: int, face_size: int,
                              base_height: int) -> tuple[int, int]:
@@ -979,6 +987,13 @@ def chimborazo_sizes_for_lod(lod: int, face_size: int,
 def korolev_sizes_for_lod(lod: int, face_size: int,
                           base_height: int) -> tuple[int, int]:
     return max(256, face_size), max(128, base_height)
+
+
+def tranquillitatis_sizes_for_lod(lod: int, face_size: int,
+                                  base_height: int) -> tuple[int, int]:
+    if lod >= 7:
+        return max(512, face_size), max(256, base_height)
+    return korolev_sizes_for_lod(lod, face_size, base_height)
 
 
 def build_overlay(color_source: str, height_source: str, color_size: int,
@@ -1144,7 +1159,7 @@ def build_overlay(color_source: str, height_source: str, color_size: int,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('asset', nargs='?', default='earth',
-                        help='Asset root to build (earth, moon, moon_korolev, hawaii, or chimborazo).')
+                        help='Asset root to build (earth, moon, moon_korolev, moon_tranquillitatis, hawaii, or chimborazo).')
     parser.add_argument('--color-source', type=str, default='textures/bluemarble_86400x43200.png')
     parser.add_argument('--height-source', type=str, default=HEIGHT_SOURCE)
     parser.add_argument('--color-size', type=int, default=256,
@@ -1216,6 +1231,45 @@ def main() -> None:
                                     if regional_height else None),
             regional_bbox=regional_bbox,
             tile_size_for_lod=korolev_sizes_for_lod,
+            base_tile_root='assets/moon',
+        )
+    elif args.asset == 'moon_tranquillitatis':
+        cone = hawaii.collect_island_tiles(
+            TRANQUILLITATIS_REGION_BBOX, TRANQUILLITATIS_MIN_LOD,
+            TRANQUILLITATIS_MIN_LOD, 0.02)
+        cone |= hawaii.collect_island_tiles(
+            TRANQUILLITATIS_CORE_BBOX, TRANQUILLITATIS_MIN_LOD,
+            TRANQUILLITATIS_MAX_LOD, 0.01)
+        cone |= hawaii.collect_island_tiles(
+            MOLTKE_CORE_BBOX, TRANQUILLITATIS_MIN_LOD,
+            MOLTKE_MAX_LOD, 0.0025)
+        cone = hawaii.close_quadtree(cone, TRANQUILLITATIS_MIN_LOD - 1)
+        cone = {tile for tile in cone if tile[1] >= TRANQUILLITATIS_MIN_LOD}
+
+        regional_color = regional_height = None
+        regional_bbox = TRANQUILLITATIS_REGION_BBOX
+        if not args.lodvis:
+            regional_color, regional_height, regional_bbox = prepare_region_sources(
+                ROOT, TRANQUILLITATIS_REGION_BBOX, 'tranquillitatis')
+        g.set_planet_eccentricity_squared(0.0)
+        if args.jobs > 1:
+            print('[moon-tranquillitatis] forcing --jobs 1 so spawned workers retain lunar projection')
+        low_color, low_height = prepare_moon_sources(ROOT) if not args.lodvis else (None, None)
+        build_overlay(
+            (str(low_color.relative_to(ROOT)) if low_color else args.color_source),
+            (str(low_height.relative_to(ROOT)) if low_height else args.height_source),
+            args.color_size, args.height_size, -10000.0, 11000.0,
+            1, not args.no_ktx2, cone=cone, lodvis=args.lodvis,
+            out_root=('assets/moon_tranquillitatis_lodvis' if args.lodvis
+                      else 'assets/moon_tranquillitatis'),
+            overlay_name='moon-tranquillitatis',
+            lod_palette=ENHANCEMENT_LOD_PALETTE if args.lodvis else None,
+            regional_color_source=(str(regional_color.relative_to(ROOT))
+                                   if regional_color else None),
+            regional_height_source=(str(regional_height.relative_to(ROOT))
+                                    if regional_height else None),
+            regional_bbox=regional_bbox,
+            tile_size_for_lod=tranquillitatis_sizes_for_lod,
             base_tile_root='assets/moon',
         )
     elif args.asset == 'hawaii':
@@ -1311,7 +1365,7 @@ def main() -> None:
     else:
         raise SystemExit(
             f"Unsupported asset '{args.asset}'. Supported assets are: "
-            "earth, moon, moon_korolev, hawaii, chimborazo. "
+            "earth, moon, moon_korolev, moon_tranquillitatis, hawaii, chimborazo. "
             "Add a new branch in tools/adaptive_lod.py if you want to build another asset."
         )
 

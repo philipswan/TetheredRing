@@ -122,6 +122,7 @@ export class virtualLaunchSled {
       virtualLaunchSled.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
       virtualLaunchSled.isVisible = dParamWithUnits['showLaunchSleds'].value
       virtualLaunchSled.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+      virtualLaunchSled.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
 
       virtualLaunchSled.isDynamic =  true
       virtualLaunchSled.hasChanged = true
@@ -136,7 +137,9 @@ export class virtualLaunchSled {
 
       console.assert(refFrames.length==1)
       refFrames.forEach(refFrame => {
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+          this.slowDownPassageOfTime, refFrame.timeSinceStart,
+          virtualLaunchSled.launcherStartDelayInSeconds)
         // Going backwards in time since we want to add vehicles that were launched in the past.
         const durationOfSledTrajectory = refFrame.curve.getDuration()
         for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
@@ -156,7 +159,9 @@ export class virtualLaunchSled {
 
     placeAndOrientModel(om, refFrame) {
       if (virtualLaunchSled.isVisible) {
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualLaunchSled.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+          virtualLaunchSled.slowDownPassageOfTime, refFrame.timeSinceStart,
+          virtualLaunchSled.launcherStartDelayInSeconds)
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
@@ -193,5 +198,4 @@ export class virtualLaunchSled {
       om.visible = virtualLaunchSled.isVisible
     }
   }
-  
-  
+

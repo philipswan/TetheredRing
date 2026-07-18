@@ -104,7 +104,9 @@ export function defineAnimate () {
 
     const debugString = ""
     this.refFrames.forEach(refFrame => {
-      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+        this.slowDownPassageOfTime, refFrame.timeSinceStart,
+        this.launcherStartDelayInSeconds)
       const curveDuration = refFrame.curve.getDuration()
       Object.entries(refFrame.placeholderEntries).forEach(([objectKey, objectValue]) => {
         if (movingObjects.includes(objectKey)) {

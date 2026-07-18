@@ -133,6 +133,7 @@ export class virtualMassDriverScrew {
     virtualMassDriverScrew.sidewaysOffset = dParamWithUnits['launcherMassDriverScrewSidewaysOffset'].value
     virtualMassDriverScrew.upwardsOffset = dParamWithUnits['launcherMassDriverScrewUpwardsOffset'].value
     virtualMassDriverScrew.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+    virtualMassDriverScrew.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
     virtualMassDriverScrew.versionNumber = versionNumber
   }
 
@@ -238,7 +239,9 @@ export class virtualMassDriverScrew {
           om.userData = this.index
         }
 
-        const deltaT = tram.adjustedTimeSinceStart(virtualMassDriverScrew.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const deltaT = tram.adjustedTimeSinceStart(
+          virtualMassDriverScrew.slowDownPassageOfTime, refFrame.timeSinceStart,
+          virtualMassDriverScrew.launcherStartDelayInSeconds)
 
         om.children.forEach(child => {
           const index = child.userData

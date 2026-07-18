@@ -86,20 +86,20 @@ def _crop_equirectangular(image: Image.Image, bbox: tuple[float, float, float, f
     return image.crop((left, top, right, bottom))
 
 
-def prepare_korolev_sources(
-    root: Path, bbox: tuple[float, float, float, float]
+def prepare_region_sources(
+    root: Path, bbox: tuple[float, float, float, float], region: str
 ) -> tuple[Path, Path, tuple[float, float, float, float]]:
-    """Prepare cropped 16K LROC color and LDEM64 elevation around Korolev."""
+    """Prepare cropped 16K LROC color and LDEM64 elevation for a region."""
     source_dir = root / '.cache' / 'adaptive_lod' / 'moon'
     color_global = source_dir / 'lroc_color_poles_16k.tif'
     height_global = source_dir / 'ldem_64_km.tif'
     tag = '_'.join(str(round(value * 1000)) for value in bbox)
-    color_crop = source_dir / f'korolev_color_16k_{tag}.tif'
-    height_crop = source_dir / f'korolev_ldem64_m_{tag}.tif'
+    color_crop = source_dir / f'{region}_color_16k_{tag}.tif'
+    height_crop = source_dir / f'{region}_ldem64_m_{tag}.tif'
 
-    print('[moon-korolev] fetching NASA 16K LRO color mosaic')
+    print(f'[moon-{region}] fetching NASA 16K LRO color mosaic')
     _download(HIGH_COLOR_URL, color_global)
-    print('[moon-korolev] fetching NASA LDEM64 elevation model')
+    print(f'[moon-{region}] fetching NASA LDEM64 elevation model')
     _download(HIGH_HEIGHT_URL, height_global)
 
     # Record the exact pixel-aligned bounds so the tile sampler maps the cropped
@@ -127,3 +127,9 @@ def prepare_korolev_sources(
             Image.fromarray(meters, mode='F').save(height_crop, compression='tiff_lzw')
 
     return color_crop, height_crop, exact_bbox
+
+
+def prepare_korolev_sources(
+    root: Path, bbox: tuple[float, float, float, float]
+) -> tuple[Path, Path, tuple[float, float, float, float]]:
+    return prepare_region_sources(root, bbox, 'korolev')

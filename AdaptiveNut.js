@@ -45,6 +45,9 @@ export class adaptiveNutModel {
         object.children[0].position.set(0, 0, 0) // reposition vertically after making the sled thicker
         object.scale.set(0.001, 0.001*1.62, 0.001)  // Correct for units - mm to m
         object.name = 'adaptiveNut_bodyFromModel'
+        object.traverse(child => {
+          if (child.isMesh) child.castShadow = true
+        })
         object.children[0].material.color.setHex(0x2f1f50)
         myScene.traverse(child=> {
           if (child.name=='adaptiveNut_body') {
@@ -239,9 +242,10 @@ export class adaptiveNutModel {
       object.visible = false
       object.name = objName
       object.traverse(child => {
-      if (child!==object) {
+        if (child.isMesh) child.castShadow = true
+        if (child!==object) {
           child.name = objName+'_'+child.name
-      }
+        }
       })
       object.updateMatrixWorld()
       if (perfOptimizedThreeJS) object.children.forEach(child => child.freeze())
@@ -295,6 +299,7 @@ export class virtualAdaptiveNut {
       virtualAdaptiveNut.rightwardScaleFactor = dParamWithUnits['launchSystemRightwardScaleFactor'].value
       virtualAdaptiveNut.isVisible = dParamWithUnits['showAdaptiveNuts'].value
       virtualAdaptiveNut.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
+      virtualAdaptiveNut.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
       virtualAdaptiveNut.adaptiveNutNumGrapplers = dParamWithUnits['adaptiveNutNumGrapplers'].value
       virtualAdaptiveNut.magnetThickness = dParamWithUnits['adaptiveNutGrapplerMagnetThickness'].value
       virtualAdaptiveNut.betweenGrapplerFactor = dParamWithUnits['adaptiveNutBetweenGrapplerFactor'].value
@@ -343,7 +348,9 @@ export class virtualAdaptiveNut {
       
       console.assert(refFrames.length==1)
       refFrames.forEach(refFrame => {
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(this.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+          this.slowDownPassageOfTime, refFrame.timeSinceStart,
+          virtualAdaptiveNut.launcherStartDelayInSeconds)
         // Going backwards in time since we want to add vehicles that were launched in the past.
         const durationOfSledTrajectory = refFrame.curve.getDuration()
         for (let t = tStart, i = 0; (t > -(tStart+durationOfSledTrajectory)) && (i<n1); t -= tInc, i++) {
@@ -363,7 +370,9 @@ export class virtualAdaptiveNut {
 
     placeAndOrientModel(om, refFrame) {
       if (virtualAdaptiveNut.isVisible) {
-        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualAdaptiveNut.slowDownPassageOfTime, refFrame.timeSinceStart)
+        const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+          virtualAdaptiveNut.slowDownPassageOfTime, refFrame.timeSinceStart,
+          virtualAdaptiveNut.launcherStartDelayInSeconds)
         const deltaT = adjustedTimeSinceStart - this.timeLaunched
         const res = refFrame.curve.findRelevantCurve(deltaT)
         const relevantCurve = res.relevantCurve
@@ -674,7 +683,10 @@ export class virtualAdaptiveNut {
 
     getFuturePosition(refFrame, timeDeltaInSeconds) {
 
-      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(virtualAdaptiveNut.slowDownPassageOfTime, refFrame.timeSinceStart + timeDeltaInSeconds)
+      const adjustedTimeSinceStart = tram.adjustedTimeSinceStart(
+        virtualAdaptiveNut.slowDownPassageOfTime,
+        refFrame.timeSinceStart + timeDeltaInSeconds,
+        virtualAdaptiveNut.launcherStartDelayInSeconds)
       const deltaT = adjustedTimeSinceStart - this.timeLaunched
       if (deltaT<=refFrame.curve.getDuration()) {
         const res = refFrame.curve.findRelevantCurve(deltaT)
@@ -693,5 +705,4 @@ export class virtualAdaptiveNut {
     }
   
   }
-  
   
