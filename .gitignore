@@ -1,6 +1,5 @@
 node_modules
 textures
-assets/*/
 googleEarthImages
 vite-project
 .DS_Store
