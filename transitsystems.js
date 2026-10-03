@@ -290,14 +290,20 @@ export class transitSystem {
     const nh = dParamWithUnits['numVirtualHabitats'].value
     const numTransitStops = nt + nh
 
-    const stationaryRingMesh = new stationaryRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
-    addStationaryRingSegments(stationaryRingMesh)
+    if (dParamWithUnits['showStationaryRings'].value) {
+      const stationaryRingMesh = new stationaryRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
+      addStationaryRingSegments(stationaryRingMesh)
+    }
 
-    const movingRingMesh = new movingRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
-    addMovingRingSegments(movingRingMesh)
+    if (dParamWithUnits['showMovingRings'].value) {
+      const movingRingMesh = new movingRingSegmentModel(dParamWithUnits, crv, mainRingCurve)
+      addMovingRingSegments(movingRingMesh)
+    }
 
-    const statorMagnetMesh = new statorMagnetSegmentModel(dParamWithUnits, crv, mainRingCurve)
-    addStatorMagnetSegments(statorMagnetMesh)
+    if (dParamWithUnits['showStatorMagnets'].value) {
+      const statorMagnetMesh = new statorMagnetSegmentModel(dParamWithUnits, crv, mainRingCurve)
+      addStatorMagnetSegments(statorMagnetMesh)
+    }
 
     // Manually create the transit tube 
     function getTransitTubeSegmentCurve() {
@@ -307,14 +313,16 @@ export class transitSystem {
       return tram.makeOffsetCurve(dParamWithUnits['transitTubeOutwardOffset'].value, dParamWithUnits['transitTubeUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
-    lengthSegments = 4
-    radius = dParamWithUnits['transitTubeTubeRadius'].value
-    radialSegments = 32
-    const transitTubeGeometry = new THREE.TubeGeometry(getTransitTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
-    //const transitTubeMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
-    const transitTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: dParamWithUnits['transitTubeOpacity'].value})
-    const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
-    addTransitTubes(transitTubeMesh)
+    if (dParamWithUnits['showTransitTube'].value) {
+      lengthSegments = 4
+      radius = dParamWithUnits['transitTubeTubeRadius'].value
+      radialSegments = 32
+      const transitTubeGeometry = new THREE.TubeGeometry(getTransitTubeSegmentCurve(), lengthSegments, radius, radialSegments, false)
+      //const transitTubeMaterial = new THREE.MeshPhongMaterial( {transparent: true, opacity: 0.25})
+      const transitTubeMaterial = new THREE.MeshPhongMaterial( {side: THREE.FrontSide, transparent: true, opacity: dParamWithUnits['transitTubeOpacity'].value})
+      const transitTubeMesh = new THREE.Mesh(transitTubeGeometry, transitTubeMaterial)
+      addTransitTubes(transitTubeMesh)
+    }
 
     // fbxloader.load('models/Elevator.fbx', addDynamicallyManagedObjects, progressFunction, errorFunction )
     
@@ -377,15 +385,17 @@ export class transitSystem {
       return tram.makeOffsetCurve(dParamWithUnits['solarArrayOutwardOffset'].value, dParamWithUnits['solarArrayUpwardOffset'].value, crv, lengthSegments, mainRingCurve, segmentNumber, totalSegments)
     }
 
-    lengthSegments = 4
-    const solarArrayWidth = dParamWithUnits['solarArrayWidth'].value
-    const solarArrayHeight = dParamWithUnits['solarArrayHeight'].value
-    radialSegments = 32
-    const solarArrayGeometry = new THREE.PlaneGeometry(solarArrayWidth, solarArrayHeight, 1, 1)
-    const solarArrayTexture = new THREE.TextureLoader().load( './textures/SolarPanelTexture.jpg' )
-    const solarArrayMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, map: solarArrayTexture})
-    const solarArrayMesh = new THREE.Mesh(solarArrayGeometry, solarArrayMaterial)
-    addSolarArrays(solarArrayMesh)
+    if (dParamWithUnits['showSolarArrays'].value) {
+      lengthSegments = 4
+      const solarArrayWidth = dParamWithUnits['solarArrayWidth'].value
+      const solarArrayHeight = dParamWithUnits['solarArrayHeight'].value
+      radialSegments = 32
+      const solarArrayGeometry = new THREE.PlaneGeometry(solarArrayWidth, solarArrayHeight, 1, 1)
+      const solarArrayTexture = new THREE.TextureLoader().load( './textures/SolarPanelTexture.jpg' )
+      const solarArrayMaterial = new THREE.MeshPhongMaterial( {side: THREE.DoubleSide, map: solarArrayTexture})
+      const solarArrayMesh = new THREE.Mesh(solarArrayGeometry, solarArrayMaterial)
+      addSolarArrays(solarArrayMesh)
+    }
 
     const pointSet = [new THREE.Vector3(0, -100, 0), new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 100, 0)]
     const elevatorCableMaterial = new THREE.LineBasicMaterial({

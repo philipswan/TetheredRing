@@ -25,11 +25,24 @@ export class XYChart extends THREE.Group {
 
     this.curveInfo = []
     this.font = null
+    this.fontLoadRequested = false
     this.textDescriptions = []
     this.labelTextHeight = 14
     this.labelTextSpacing = 24
     this.gridLabelsFontSize = 14
     this.yAxisLabelsWidth = 80
+
+  }
+
+  // Lazily load the font the first time any text needs to be rendered. This avoids
+  // downloading the ~320 kB typeface file at startup for shots that never show the chart.
+  ensureFont() {
+    if (this.font !== null) {
+      this.renderText()
+      return
+    }
+    if (this.fontLoadRequested) return
+    this.fontLoadRequested = true
 
     const loader = new FontLoader();
 
@@ -39,9 +52,8 @@ export class XYChart extends THREE.Group {
         chart.renderText()
       }
     }
-  
-    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this))
 
+    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this))
   }
 
   setWidth(width) {
@@ -219,9 +231,7 @@ export class XYChart extends THREE.Group {
     // y-axis label
     this.textDescriptions.push({text: yAxisText, name: 'y-axis', color: "gray", x: -this.yAxisLabelsWidth, y: this.height/2, rotation: Math.PI/2, anchor:'bottom'})
 
-    if (this.font!==null) {
-      this.renderText()
-    }
+    this.ensureFont()
   }
 
   setLegendPosition(x, y) {
@@ -236,9 +246,7 @@ export class XYChart extends THREE.Group {
        this.textDescriptions.push({text: curve.legendText, name: 'legend', x: this.legendX+4, y: this.legendY+legendTextSpacing*(n-i), fontSize: fontSize, rotation: 0, anchor:'bottom-left', color: curve.color})
     })
 
-    if (this.font!==null) {
-      this.renderText()
-    }
+    this.ensureFont()
   }
 
   clearCurves() {

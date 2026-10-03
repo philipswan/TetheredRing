@@ -21,8 +21,8 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   const useEarth = true
   if (useEarth) {
     guidParamWithUnits['planetName'].value = "Earth"
-    //const Location = "Hawaii" 
-    const Location = "Mount Chimborazo" 
+    const Location = "Hawaii" 
+    //const Location = "Mount Chimborazo" 
     switch (Location) {
       case "Hawaii":
         // Mauna Kea (19.820667, -155.468056)
@@ -37,6 +37,19 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
         nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
         nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(6.8633874780498445, -21.86256320727989, -18.231402538716793)
         nonGUIParams['cameraUp'] = new THREE.Vector3(-0.2675391853001986, 0.33375641834975495, -0.9038968069084266)
+
+        // Above the Big Island  
+        // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
+        // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
+        // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-887323.9041289391, 70376.78830169467, 91036.49722965527)
+        // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
+
+        // Big Island Hawaii overview
+        // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-780132.7900953067, 41764.54504580656, 290685.1760425009)
+        // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
+        // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-778426.6457124173, -61992.33274240047, 196607.0947371293)
+        // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
+
 
         break
       case "Mount Chimborazo":
@@ -242,11 +255,11 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
     // nonGUIParams['planet2Assets'] = ['earth']
     // nonGUIParams['planet2Assets'] = ['hawaii_lodvis']
     // nonGUIParams['planet2Assets'] = ['earth_lodvis', 'hawaii_lodvis']
-    // nonGUIParams['planet2Assets'] = ['hawaii']
+    nonGUIParams['planet2Assets'] = ['hawaii']
     // nonGUIParams['planet2Assets'] = ['earth', 'hawaii']
     // nonGUIParams['planet2Assets'] = ['chimborazo_lodvis']
     // nonGUIParams['planet2Assets'] = ['earth_lodvis', 'chimborazo_lodvis']
-    nonGUIParams['planet2Assets'] = ['earth', 'chimborazo']
+    //nonGUIParams['planet2Assets'] = ['earth', 'chimborazo']
     nonGUIParams['planet2RequireKtx2'] = false
     nonGUIParams['planet2StartupChart'] = true
     nonGUIParams['imageryAttribution'] =
@@ -333,7 +346,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   guidParamWithUnits['showMarkers'].value = false
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 10
+  nonGUIParams['nearClip'] = 1
   nonGUIParams['farClip'] = 100000000
 
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-20.596624654252082, -18.795628492254764, -28.63014849368483)
@@ -346,23 +359,11 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, guidParam, gui, 
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-12.609756035730243, -14.428051792550832, -4.398444567807019)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.269815220766585, 0.33386822226202806, -0.9031786959435393)
     
-  // Above the Big Island  
-  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-792047.7715618422, 23312.00666318601, 300221.2602548003)
-  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
-  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-887323.9041289391, 70376.78830169467, 91036.49722965527)
-  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.3909145665914432, 0.33716689860362425, -0.8564486465122338)
-
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-442225.995872651, 156923.79012277396, 184517.0484141186)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-485220.1577472219, -543684.1227839389, -219995.83733422682)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.267210746924624, 0.33373589058311254, -0.9040015332203154)  
   
-  // Big Island Hawaii overview
-  // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(-780132.7900953067, 41764.54504580656, 290685.1760425009)
-  // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
-  // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(-778426.6457124173, -61992.33274240047, 196607.0947371293)
-  // nonGUIParams['cameraUp'] = new THREE.Vector3(-0.39085758595486675, 0.3366053003813937, -0.8566955230749637)
-
   // Earth pacific ocean overview
   // nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(1716393.1139461414, -2128405.5583581836, 5759468.552290551)
   // nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0, 1, 0)

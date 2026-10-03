@@ -13,6 +13,7 @@ import { multipleRings } from './presets/multipleRings.js'
 import { multipleUSRings } from './presets/multipleUSRings.js'
 import { toOrbitFromMoonLauncherPresets } from './presets/toOrbitFromMoonLauncherPresets.js'
 import { variableSpeedScrew } from './presets/variableSpeedScrew.js'
+import { launcherSystemUnderwater } from './presets/launcherSystemUnderwater.js'
 
 export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIParams) {
 
@@ -134,6 +135,9 @@ export function applyCapturePreset(guidParamWithUnits, guidParam, gui, nonGUIPar
       break
     case 28:
       variableSpeedScrew(guidParamWithUnits, guidParam, gui, nonGUIParams)
+      break
+    case 29:
+      launcherSystemUnderwater(guidParamWithUnits, guidParam, gui, nonGUIParams)
       break
   }
 

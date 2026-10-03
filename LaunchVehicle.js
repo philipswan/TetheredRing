@@ -1,12 +1,12 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacesGeometry } from './FacesGeometry.js'
 import * as tram from './tram.js'
 
 export class launchVehicleModel {
-  constructor(dParamWithUnits, myScene, unallocatedModelsList, perfOptimizedThreeJS) {
+  constructor(dParamWithUnits, myScene, unallocatedModelsList, perfOptimizedThreeJS, gravityAtLauncherLocation) {
     const radius = dParamWithUnits['launchVehicleRadius'].value
     const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     const flameLength = dParamWithUnits['launchVehicleFlameLength'].value
@@ -111,6 +111,14 @@ export class launchVehicleModel {
         anisotropyRotation: Math.PI / 2
       })
       : new THREE.MeshPhongMaterial({color: 0xcfd4d9})
+    // Cutaway view: make the hull semi-transparent so an interior scale figure is visible.
+    const showCrew = dParamWithUnits['launchVehicleShowCrew']?.value ?? true
+    if (showCrew) {
+      launchVehicleMaterial.transparent = true
+      launchVehicleMaterial.opacity = 0.35
+      launchVehicleMaterial.side = THREE.DoubleSide
+      launchVehicleMaterial.depthWrite = false
+    }
     // const launchVehicleMaterial = new THREE.MeshPhysicalMaterial( {
     //   clearcoat: 1.0,
     //   clearcoatRoughness: 0.1,
@@ -140,6 +148,10 @@ export class launchVehicleModel {
 
     decorateAndSave(launchVehicleMesh, unallocatedModelsList, objName, scaleFactorVector, launchVehicleNumModels, perfOptimizedThreeJS)
     console.log("Created " + launchVehicleNumModels + " launch vehicle models")
+
+    if (showCrew) {
+      addHumanCrew(myScene, unallocatedModelsList, objName, isLunarLaunch ? lunarTotalLength : totalLength, radius, scaleFactorVector)
+    }
 
     // Load the launch vehicle body mesh from a model, and replace the proceedurally generated body with the body from the model
 
@@ -225,13 +237,97 @@ export class launchVehicleModel {
 
     }
 
-    //const loader = new FBXLoader();
     const loader = new OBJLoader();
 
     const modelScaleFactor = 0.001 // Because Alastair's launch vehicle model used mm instead of meters
     const addLaunchVehicles = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchVehicleNumModels, perfOptimizedThreeJS)
         
     //loader.loadAsync('models/LaunchVehicle.obj').then(addLaunchVehicles)
+
+    function addHumanCrew(scene, unallocatedModelsList, objName, axialLength, vehicleRadius, scaleFactorVector) {
+      // Place passenger scale figures inside every launch-vehicle body so the
+      // semi-transparent hull reveals them. Occupants alternate male/female.
+      const maleUrl = 'models/male_mannequin.glb'
+      const femaleUrl = 'models/female_mannequin.glb'
+
+      const containerRadius = dParamWithUnits['launchVehicleCrewCapsuleDiameter'].value / 2
+      const containerLength = dParamWithUnits['launchVehicleCrewCapsuleLength'].value
+      const figureCount = Math.round(dParamWithUnits['launchVehicleCrewCount'].value)
+      const forwardSpacing = dParamWithUnits['launchVehicleCrewForwardSpacing'].value
+
+      // Passenger orientation (shared by both sexes): lying on the side, head to the
+      // vehicle's left, chest tilted toward the resultant of forward acceleration and
+      // local gravity so both act along the body's Gx (eyeballs-in) axis.
+      const modelUp = new THREE.Vector3(0, 1, 0)             // head direction in model space
+      const modelFace = new THREE.Vector3(1, 0, 0)           // look direction in model space
+      const worldHead = new THREE.Vector3(-1, 0, 0)          // head to the vehicle's left
+      const worldFace = new THREE.Vector3(0, dParamWithUnits['launcherMassDriverForwardAcceleration'].value, gravityAtLauncherLocation).normalize()
+      const a1 = modelUp.clone().normalize()
+      const a2 = modelFace.clone().projectOnPlane(a1).normalize()
+      const a3 = new THREE.Vector3().crossVectors(a1, a2)
+      const b1 = worldHead.clone().normalize()
+      const b2 = worldFace.clone().projectOnPlane(b1).normalize()
+      const b3 = new THREE.Vector3().crossVectors(b1, b2)
+      const modelBasis = new THREE.Matrix4().makeBasis(a1, a2, a3)
+      const worldBasis = new THREE.Matrix4().makeBasis(b1, b2, b3)
+      const orientation = new THREE.Quaternion().setFromRotationMatrix(
+        worldBasis.multiply(modelBasis.transpose()))
+
+      const humanLoader = new GLTFLoader()
+      const loadFigure = (url) => new Promise((resolve, reject) => {
+        humanLoader.load(url, (gltf) => {
+          const model = gltf.scene
+          // Render at native size; only recentre so the figure pivots about its own centre when laid down.
+          const centre = new THREE.Vector3()
+          new THREE.Box3().setFromObject(model).getCenter(centre)
+          model.position.sub(centre)
+          model.traverse(child => { if (child.isMesh) child.castShadow = false })
+          const figure = new THREE.Group()
+          figure.name = 'Crew'
+          figure.quaternion.copy(orientation)
+          figure.add(model)
+          resolve(figure)
+        }, undefined, reject)
+      })
+
+      Promise.all([loadFigure(maleUrl), loadFigure(femaleUrl)])
+        .then(([maleFigure, femaleFigure]) => {
+          const figures = [maleFigure, femaleFigure]
+
+          // Containment capsule, axis aligned with the passenger's spine (the vehicle's cross axis).
+          const containerGeometry = new THREE.CylinderGeometry(containerRadius, containerRadius, containerLength, 24, 1, true)
+          containerGeometry.rotateZ(Math.PI / 2)
+          const containerMaterial = new THREE.MeshStandardMaterial({
+            color: 0x99bbdd, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false
+          })
+
+          const baseForward = Math.max(vehicleRadius, axialLength * 0.12) * 3
+          const figureAssembly = new THREE.Group()
+          figureAssembly.name = 'Crews'
+          // The vehicle model carries a non-uniform scale (scaleFactorVector); counter its
+          // anisotropy here so the passengers stay rigid and their tilt isn't sheared.
+          figureAssembly.scale.set(
+            scaleFactorVector.y / scaleFactorVector.x,
+            1,
+            scaleFactorVector.y / scaleFactorVector.z)
+          for (let i = 0; i < figureCount; i++) {
+            const pod = new THREE.Group()
+            pod.position.set(0, baseForward + (i - (figureCount - 1) / 2) * forwardSpacing, 0)
+            pod.add(figures[i % 2].clone())
+            pod.add(new THREE.Mesh(containerGeometry, containerMaterial))
+            figureAssembly.add(pod)
+          }
+
+          const attachTo = (root) => {
+            root.traverse(child => {
+              if (child.name === objName + '_body') child.add(figureAssembly.clone())
+            })
+          }
+          unallocatedModelsList.forEach(attachTo)
+          scene.traverse(child => { if (child.name === objName) attachTo(child) })
+        })
+        .catch(err => console.error('Error loading human scale figure:', err))
+    }
 
     function makeFlame() {
 

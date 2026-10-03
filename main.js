@@ -408,6 +408,11 @@ const guidParamWithUnits = {
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 60, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualLaunchVehicles: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
   launchVehicleNumModels: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleShowCrew: {value: true, units: '', autoMap: true, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleCrewCapsuleDiameter: {value: 0.5, units: 'm', autoMap: true, min: 0.1, max: 3, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleCrewCapsuleLength: {value: 2.2, units: 'm', autoMap: true, min: 0.5, max: 10, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleCrewCount: {value: 4, units: '', autoMap: true, min: 0, max: 50, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
+  launchVehicleCrewForwardSpacing: {value: 1.6, units: 'm', autoMap: true, min: 0.1, max: 20, updateFunction: updateLauncher, folder: folderLauncher},
   launcherEntranceAirlockAdditionalLength: {value: 250-50, units: 'm', autoMap: true, min: 0, max: 100, updateFunction: updateLauncher, folder: folderLauncher},
   numVirtualHumanFigures: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, updateFunction: updateLauncher, folder: folderLauncher},
 
@@ -650,7 +655,7 @@ const guidParamWithUnits = {
 
   // Rendering Parameters
   parameterPresetNumber: {value: 1, units: '', autoMap: true, updateFunction: adjustRingDesign, folder: folderRendering},
-  showLogo: {value: true, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
+  showLogo: {value: false, units: '', autoMap: true, updateFunction: updateLogoSprite, folder: folderRendering},
   showXYChart: {value: false, units: '', autoMap: true, updateFunction: updateXYChart, folder: folderRendering},
 
   // Hack
@@ -1182,7 +1187,10 @@ const height = simContainer.offsetHeight
 let cameraOrtho = new THREE.OrthographicCamera( - width / 2, width / 2, height / 2, - height / 2, 1, 10 );
 cameraOrtho.position.z = 10
 const spriteTextureLoader = new THREE.TextureLoader()
-const spriteMap = spriteTextureLoader.load( './textures/TransparentLogo.png', createLogoSprite)
+let spriteMap
+if (dParamWithUnits['showLogo'].value) {
+  spriteMap = spriteTextureLoader.load( './textures/TransparentLogo.png', createLogoSprite)
+}
 
 function createLogoSprite(texture) {
   texture.colorSpace = THREE.SRGBColorSpace
@@ -1507,10 +1515,13 @@ function updateBackgroundPatch() {
 // This mesh represents the companion body: the Moon when the simulation is on
 // Earth, and Earth when the simulation is on the Moon.
 const isLunarSimulation = dParamWithUnits['planetName'].value === 'Moon'
-const moonTexture = new THREE.TextureLoader().load(
-  isLunarSimulation ? "./textures/earth_clouds_2048.jpg" : "./textures/moon.jpg")
-moonTexture.name = isLunarSimulation ? 'earth' : 'moon'
-moonTexture.colorSpace = THREE.SRGBColorSpace
+let moonTexture = null
+if (dParamWithUnits['showMoon'].value) {
+  moonTexture = new THREE.TextureLoader().load(
+    isLunarSimulation ? "./textures/earth_clouds_2048.jpg" : "./textures/moon.jpg")
+  moonTexture.name = isLunarSimulation ? 'earth' : 'moon'
+  moonTexture.colorSpace = THREE.SRGBColorSpace
+}
 const companionBodyRadius = isLunarSimulation ? radiusOfEarth : radiusOfEarth * 0.27
 const moonMesh = new THREE.Mesh(
   new THREE.SphereGeometry(companionBodyRadius/10, 64, 32), // Dividing by 10 to solve far field clipping issue.

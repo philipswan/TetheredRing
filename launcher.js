@@ -42,6 +42,11 @@ export class launcher {
     this.const_g = 9.8  // Earth gravity, used for ISP and g-force calculations
     this.mu = planetSpec.gravitationalParameter
 
+    // Local gravitational acceleration at the launcher site (used to tilt the passenger pose).
+    const launcherLatitudeInRadians = dParamWithUnits['launcherRampEndLatitude'].value * Math.PI / 180
+    const launcherRadius = tram.radiusAtLatitude(launcherLatitudeInRadians, planetSpec.ellipsoid) + dParamWithUnits['launcherMassDriverAltitude'].value
+    this.gravityAtLauncherLocation = this.mu / (launcherRadius * launcherRadius)
+
     this.xyChart = xyChart
 
     this.scene = planetCoordSys
@@ -98,7 +103,7 @@ export class launcher {
         this.tubeModelObject = new massDriverTubeModel(dParamWithUnits)
         this.railModelObject = new massDriverRailModel(dParamWithUnits)
         this.bracketModelObject = new massDriverBracketModel(dParamWithUnits)
-        this.humanFigureModelObject = new humanFigureModel()
+        this.humanFigureModelObject = (dParamWithUnits['numVirtualHumanFigures'].value > 0) ? new humanFigureModel() : new THREE.Group()
 
         // Thinking that later we'll need a second reference frame for the rails and sleds so that they can split off from the launch vehicles
         // at the end of the upward ramp, decellerate, and loop back around to the start of the mass driver.
@@ -130,7 +135,7 @@ export class launcher {
           this.massDriverScrewTexture)
 
         // Create and add the launch vechicle models
-        new launchVehicleModel(dParamWithUnits, this.scene, virtualLaunchVehicle.unallocatedModels, this.perfOptimizedThreeJS)
+        new launchVehicleModel(dParamWithUnits, this.scene, virtualLaunchVehicle.unallocatedModels, this.perfOptimizedThreeJS, this.gravityAtLauncherLocation)
 
         // Create a placeholder screw model (these models need to be generated on the fly though)
         this.massDriverScrewMaterials = []
@@ -184,7 +189,7 @@ export class launcher {
         }
 
         // Create and add the launch vechicle models
-        new launchVehicleModel(dParamWithUnits, this.scene, virtualLaunchVehicle.unallocatedModels, this.perfOptimizedThreeJS)
+        new launchVehicleModel(dParamWithUnits, this.scene, virtualLaunchVehicle.unallocatedModels, this.perfOptimizedThreeJS, this.gravityAtLauncherLocation)
         this.update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile)
         break
     }
