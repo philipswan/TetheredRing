@@ -67,6 +67,43 @@ export default async function ({ page }) {
     const file = path.join(out, `${name}.png`)
     await page.screenshot({ path: file })
     const result = { name, gpu, ...timing }
+    // BENCH_COST=1: the march's work per pixel (Clouds.setCostView), its statistics and a heat map of the
+    // density samples (red), light march samples (green) and shadow samples (blue).
+    if (process.env.BENCH_COST) {
+      const cost = await page.evaluate(async () => {
+        const app = window.tetheredRing.app
+        const frame = () => new Promise(r => requestAnimationFrame(r))
+        app.clouds.setCostView(true)
+        for (let i = 0; i < 3; i++) await frame()
+        const { counts, width, height } = app.clouds.costReadback(app.renderer)
+        app.clouds.setCostView(false)
+        const names = ['columns', 'densities', 'lightSamples', 'fineCells', 'fibres', 'shadowSamples']
+        const stats = {}
+        names.forEach((n, k) => {
+          const v = []
+          for (let i = 0; i < width * height; i++) v.push(counts[i * 6 + k])
+          v.sort((a, b) => a - b)
+          stats[n] = { mean: +(v.reduce((s, x) => s + x, 0) / v.length).toFixed(1), p90: v[Math.floor(v.length * 0.9)], max: v[v.length - 1] }
+        })
+        const c = document.createElement('canvas'); c.width = width; c.height = height
+        const ctx = c.getContext('2d'), img = ctx.createImageData(width, height)
+        const scale = (k) => 255 / Math.max(1, stats[names[k]].p90 * 1.5)
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const i = (height - 1 - y) * width + x, o = (y * width + x) * 4
+            img.data[o] = Math.min(255, counts[i * 6 + 1] * scale(1))
+            img.data[o + 1] = Math.min(255, counts[i * 6 + 2] * scale(2))
+            img.data[o + 2] = Math.min(255, counts[i * 6 + 5] * scale(5))
+            img.data[o + 3] = 255
+          }
+        }
+        ctx.putImageData(img, 0, 0)
+        for (let i = 0; i < 3; i++) await frame()
+        return { stats, image: c.toDataURL('image/png') }
+      })
+      fs.writeFileSync(path.join(out, `${name}.cost.png`), Buffer.from(cost.image.split(',')[1], 'base64'))
+      result.cost = cost.stats
+    }
     const base = baseline && path.join(baseline, `${name}.png`)
     if (base && fs.existsSync(base)) {
       const toUrl = (f) => `data:image/png;base64,${fs.readFileSync(f).toString('base64')}`

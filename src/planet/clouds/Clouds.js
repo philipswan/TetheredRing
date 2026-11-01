@@ -221,6 +221,15 @@ const float EXTINCTION = ${EXTINCTION.toFixed(4)};
 
 float remap(float v, float a, float b, float c, float d) { return c + (v - a) / (b - a) * (d - c); }
 
+// The cost view (Clouds.setCostView): how much work each pixel took, counted instead of drawn.
+#ifdef CLOUD_COST
+vec4 cost = vec4(0.0);   // columns looked up, densities (full: with the detail), light march samples, fine cells
+vec2 cost2 = vec2(0.0);  // high cloud with fibres, shadow samples
+#define COST(field) field += 1.0;
+#else
+#define COST(field)
+#endif
+
 // The rain under the clouds that are raining (mm/h; weather.js showerRain), from the weather map.
 float showerRain(vec4 weather) {
   return weather.g / mix(${RAIN_AREA[0].toFixed(3)}, ${RAIN_AREA[1].toFixed(3)}, weather.b);
@@ -304,6 +313,7 @@ struct CloudColumn {
 };
 
 CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
+  COST(cost.x)
   vec4 a = texture2D(weatherA, uv);
   vec4 b = texture2D(weatherB, uv);
   // The sky's opacity seen from space: the real clouds' (less the imagery's floor of faint haze and noise
@@ -408,6 +418,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   // Too far for the noise's features (a few hundred metres up) to be seen: its expected value.
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   float density = 0.0;
+  if (full) COST(cost.y)
 
   // Low cloud.
   density += lowCloudDensity(col, local, h, full, lod, layer);
@@ -442,6 +453,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
         // (Averaging narrows the noise's spread: restored, so the cover stays about the same.)
         shape += weight * (SHAPE_MEAN + (smear / ${STREAK_TAPS.toFixed(1)} - SHAPE_MEAN) * ${STREAK_SPREAD.toFixed(2)});
         if (full) {
+          COST(cost2.x)
           vec3 qf = planetPoint - windAloft * age + driftShift[i];
           float f = 0.0;
           for (int k = 0; k < ${FIBRE_TAPS}; k++) {
@@ -511,6 +523,7 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
     vec3 q = p + sunDirS * lightAt;
     vec3 ql = local + worldToPlanet * (slSun * lightAt);
     od += lowCloudDensity(col, ql, length(q) - a, false, lod, unused) * lightStep;
+    COST(cost.z)
     lightStep *= 2.0;
   }
   return od * EXTINCTION;
@@ -541,6 +554,7 @@ float verticalDepth(CloudColumn col, vec3 local, float h, float dir, float footp
     float at = dir * stepLength * (float(k) + 0.5);
     if (h + at < 0.0) break;
     od += lowCloudDensity(col, local + up * at, h + at, false, lod, unused) * stepLength;
+    COST(cost.z)
     stepLength *= 2.0;
   }
   return od * EXTINCTION;
@@ -625,6 +639,7 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
       if (j >= steps) break;
       float t = ta + dt * (float(j) + 0.5);
       vec3 q = p + sunS * t;
+      COST(cost2.y)
       od += cloudDensity(mapUv(latLon(q)), q, local + worldToPlanet * (slSun * t), length(q) - a, false, max(footprint, 150.0), unused) * dt;
     }
   }
@@ -710,7 +725,14 @@ void main() {
   }
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
-  if (outer.y <= 0.0 || t1 <= t0) { outClouds = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  if (outer.y <= 0.0 || t1 <= t0) {
+    outClouds = vec4(0.0, 0.0, 0.0, 1.0);
+#ifdef CLOUD_COST
+    outClouds = cost;
+    outShade.ba = cost2;
+#endif
+    return;
+  }
   // The march. Everything it samples must be fixed to the planet, so that moving the camera cannot
   // change what is drawn, only where it is seen from: sampling at distances from the camera (in steps,
   // fine or jittered) sliced the clouds into terraces that slid over them as it moved (moire).
@@ -907,6 +929,7 @@ void main() {
         for (int j = 0; j < ${3 * COARSE + 3}; j++) {
           if (rf >= rc1) break;
           float r1 = min(rf + cellExit(rf, fine, D, safeD), rc1);
+          COST(cost.w)
           float rm = 0.5 * (rf + r1);
           float dt = (r1 - rf) * stretch;
           vec3 p = c + d * (rm * stretch);
@@ -1013,6 +1036,10 @@ void main() {
     }
   }
   outClouds = vec4(light, transmittance);
+#ifdef CLOUD_COST
+  outClouds = cost;
+  outShade.ba = cost2;
+#endif
 }
 `
 
@@ -1258,6 +1285,39 @@ export class Clouds {
     renderer.setRenderTarget(previousTarget)
     renderer.setClearColor(previousClear, previousAlpha)
     renderer.render(this.compositeScene, this.quadCamera)
+  }
+
+  // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
+  // costReadback.
+  setCostView(on) {
+    const material = this.marchScene.children[0].material
+    if (on === ('CLOUD_COST' in material.defines)) return
+    if (on) material.defines.CLOUD_COST = ''
+    else delete material.defines.CLOUD_COST
+    material.needsUpdate = true
+  }
+
+  // With the cost view on, after a frame: the cloud target's counts for each pixel (Float32Array, 6 per
+  // pixel: columns, densities, light samples, fine cells, high cloud with fibres, shadow samples) and its size.
+  costReadback(renderer) {
+    const gl = renderer.getContext(), { width, height } = this.cloudTarget
+    const previous = renderer.getRenderTarget()
+    renderer.setRenderTarget(this.cloudTarget)
+    const planes = [0, 1].map((i) => {
+      const data = new Float32Array(width * height * 4)
+      gl.readBuffer(gl.COLOR_ATTACHMENT0 + i)
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, data)
+      return data
+    })
+    gl.readBuffer(gl.COLOR_ATTACHMENT0)
+    renderer.setRenderTarget(previous)
+    const counts = new Float32Array(width * height * 6)
+    for (let i = 0; i < width * height; i++) {
+      for (let k = 0; k < 4; k++) counts[i * 6 + k] = planes[0][i * 4 + k]
+      counts[i * 6 + 4] = planes[1][i * 4 + 2]
+      counts[i * 6 + 5] = planes[1][i * 4 + 3]
+    }
+    return { counts, width, height }
   }
 
   dispose() {
