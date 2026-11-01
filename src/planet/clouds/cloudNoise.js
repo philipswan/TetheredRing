@@ -150,6 +150,48 @@ function occupancyTexture(shape) {
   return t
 }
 
+/**
+ * The statistics of the shape texture's channels weighted by `weights` (R Perlin-Worley, then the
+ * Worley octaves) averaged over `taps` points along a line
+ * `length` tiles long, in any direction (as the cirrus's fibres smear it along the wind): its mean and
+ * standard deviation, and the mean of smoothstep(edges[0], edges[1], z) of its standardised value z
+ * (the share of the sky the fibres fill). Deterministic: a fixed set of sample lines.
+ */
+export function smearStats(taps, length, weights, edges, samples = 4000) {
+  const n = SHAPE_SIZE, d = cloudNoiseTextures().shape.image.data
+  const at = (x, y, z) => {
+    const o = ((((z % n) + n) % n) * n * n + (((y % n) + n) % n) * n + (((x % n) + n) % n)) * 4
+    return (d[o] * weights[0] + d[o + 1] * weights[1] + d[o + 2] * weights[2] + d[o + 3] * weights[3]) / 255
+  }
+  const sample = (p) => {
+    const q = p.map(v => v - 0.5), f = q.map(Math.floor), t = q.map((v, i) => v - f[i])
+    let sum = 0
+    for (let k = 0; k < 8; k++) {
+      const dx = k & 1, dy = (k >> 1) & 1, dz = k >> 2
+      sum += (dx ? t[0] : 1 - t[0]) * (dy ? t[1] : 1 - t[1]) * (dz ? t[2] : 1 - t[2]) * at(f[0] + dx, f[1] + dy, f[2] + dz)
+    }
+    return sum
+  }
+  const values = []
+  for (let i = 0; i < samples; i++) {
+    const p = [hash(i, 0, 0, 7) * n, hash(i, 1, 0, 7) * n, hash(i, 2, 0, 7) * n]
+    let dir = [hash(i, 3, 0, 7) - 0.5, hash(i, 4, 0, 7) - 0.5, hash(i, 5, 0, 7) - 0.5]
+    const l = Math.hypot(...dir) || 1
+    dir = dir.map(v => v / l)
+    let s = 0
+    for (let k = 0; k < taps; k++) {
+      const o = (k / (taps - 1) - 0.5) * length * n
+      s += sample(p.map((v, j) => v + dir[j] * o))
+    }
+    values.push(s / taps)
+  }
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  const sd = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length)
+  const smoothstep = (x) => { const t = Math.min(1, Math.max(0, (x - edges[0]) / (edges[1] - edges[0]))); return t * t * (3 - 2 * t) }
+  const filled = values.reduce((a, v) => a + smoothstep((v - mean) / sd), 0) / values.length
+  return { mean, sd, filled }
+}
+
 let cached = null
 
 /** The clouds' noise textures ({ shape, detail, occupancy, shapeStats: the shape value's mean and quantiles }), made on first use. */

@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { standInScene } from '../../scene/precompile.js'
 import '../../scene/sunAndSkyLight.js' // registers <sun_and_sky_light> (and <atmosphere_common>)
 import { SunAndSkyLight } from '../../scene/sunAndSkyLight.js'
-import { cloudNoiseTextures } from './cloudNoise.js'
+import { cloudNoiseTextures, smearStats } from './cloudNoise.js'
 import { WeatherMap } from './weatherMap.js'
 import { RealClouds } from './realClouds.js'
 import { RAIN_AREA } from '../../physics/weather.js'
@@ -99,9 +99,18 @@ const HIGH_OPACITY = 0.25
 const HIGH_THICKNESS = 1500
 const HIGH_TILE = 30000
 const HIGH_DENSITY = 0.012
-// Its fibres: the detail noise on FIBRE_TILE (m), smeared along the wind.
-const FIBRE_TILE = 2500
-const FIBRE_LENGTH = 1500 // m: the fibres' smear along the wind
+// Its fibres (cirrus): the shape noise on FIBRE_TILE (m) (its channels by FIBRE_WEIGHTS, favouring the
+// finer octaves, for narrow streaks), averaged over FIBRE_TAPS points along FIBRE_LENGTH (m) of the
+// wind, so it is drawn out into hair-like streaks a few hundred metres across and kilometres long; the
+// cloud is where that rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser
+// there, so the streaks gather some of the cloud the layer would have spread evenly.
+// Where the high cover rises over VEIL_COVER it thickens into an even veil (cirrostratus).
+const FIBRE_TILE = 4000
+const FIBRE_LENGTH = 3000
+const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
+const FIBRE_TAPS = 12
+const FIBRE_EDGES = [0.3, 1.5]
+const VEIL_COVER = [0.5, 0.9]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
 // (which narrows its spread; STREAK_SPREAD restores it).
 const STREAK_TAPS = 3
@@ -156,7 +165,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats) => `
+const marchFragment = (stats, fibre = smearStats(FIBRE_TAPS, FIBRE_LENGTH / FIBRE_TILE, FIBRE_WEIGHTS, FIBRE_EDGES)) => `
 #include <common>
 #include <sun_and_sky_light>
 precision highp sampler3D;
@@ -393,20 +402,25 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
         if (full) {
           vec3 qf = planetPoint - windAloft * age + driftShift[i];
           float f = 0.0;
-          for (int k = 0; k < 2; k++) {
-            vec4 fn = texture(detailNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (float(k) - 0.5)) / ${FIBRE_TILE.toFixed(1)});
-            f += fn.r * 0.6 + fn.g * 0.4;
+          for (int k = 0; k < ${FIBRE_TAPS}; k++) {
+            f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (float(k) / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
           }
-          fibre += weight * (0.5 + (f / 2.0 - 0.5) * 1.35);
+          fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
         }
       }
       shape = SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
       d = thresholdDensity(shape, highCover) * profile;
-      // Fibres along the wind (ice crystals falling out of the streaks).
-      if (full && d > 0.0) d *= smoothstep(0.25, 0.75, fibre);
+      // Fibres along the wind (cirrus), filling in to an even veil as the cover rises (cirrostratus).
+      if (full && d > 0.0) {
+        fibre /= length(vec2(1.0 - drift.z, drift.z));
+        // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
+        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
+        d = min(d, 1.0) * mix(streaks, 1.0, smoothstep(${VEIL_COVER[0].toFixed(2)}, ${VEIL_COVER[1].toFixed(2)}, highCover));
+      }
     }
     float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5) * profile;
-    density += mix(clamp(d, 0.0, 1.0) * ${HIGH_DENSITY.toFixed(3)}, far, lod);
+    // (Not clamped to 1: the fibres gather the layer's cloud into the streaks.)
+    density += mix(max(d, 0.0) * ${HIGH_DENSITY.toFixed(3)}, far, lod);
   }
   return density;
 }
