@@ -11,7 +11,17 @@ export default async function ({ page }) {
   const out = process.env.BENCH_OUT, baseline = process.env.BENCH_BASELINE, frames = Number(process.env.BENCH_FRAMES)
   // Only the canvas in the screenshots.
   await page.addStyleTag({ content: 'body * { visibility: hidden !important } .bench-canvas { visibility: visible !important }' })
-  await page.evaluate(() => window.tetheredRing.app.renderer.domElement.classList.add('bench-canvas'))
+  // (And no logo: it is drawn in the scene, and turns by the wall clock.)
+  await page.evaluate(() => {
+    const app = window.tetheredRing.app
+    app.renderer.domElement.classList.add('bench-canvas')
+    app.store.set('showLogo', false)
+    app.applyAllParameters()
+  })
+  const gpu = await page.evaluate(() => {
+    const gl = window.tetheredRing.app.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
+    return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
+  })
   for (const { name, view } of views) {
     const timing = await page.evaluate(async (view, frames) => {
       const app = window.tetheredRing.app, gl = app.renderer.getContext()
@@ -22,7 +32,8 @@ export default async function ({ page }) {
       for (let i = 0; i < 1200; i++) {
         await frame()
         const s = app.planet.getDebugStats()
-        if (i > 60 && !s.queue && !s.inflight && (app.clouds?.realClouds?.ready ?? true)) break
+        const real = app.clouds?.realClouds
+        if (i > 60 && !s.queue && !s.inflight && (!real || (real.ready && !real.loading))) break
       }
       for (let i = 0; i < 20; i++) await frame()
       const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2')
@@ -55,7 +66,7 @@ export default async function ({ page }) {
     if (timing.error) throw new Error(timing.error)
     const file = path.join(out, `${name}.png`)
     await page.screenshot({ path: file })
-    const result = { name, ...timing }
+    const result = { name, gpu, ...timing }
     const base = baseline && path.join(baseline, `${name}.png`)
     if (base && fs.existsSync(base)) {
       const toUrl = (f) => `data:image/png;base64,${fs.readFileSync(f).toString('base64')}`

@@ -8,7 +8,10 @@
 //                           [--frames 60] [--width 1280 --height 720]
 //
 // Uses the GPU (like SMOKE_GPU=1). Timings vary with the GPU's clock: compare runs on the same machine,
-// and look at the cloud pass's median rather than one number.
+// and look at the cloud pass's median rather than one number. It prints the GPU it ran on: headless Chrome
+// on Linux takes the first GPU it finds, which on a machine with two may be the weaker one. There,
+// --render-node /dev/dri/renderD129 (see /dev/dri/by-path for which is which) runs it in bubblewrap
+// (bwrap) with only that GPU's render node visible.
 //
 // PowerShell:  npm run bench:clouds -- --out .scratch\bench\now --baseline .scratch\bench\base
 // (.scratch/ is ignored by Git.)
@@ -40,7 +43,10 @@ const env = {
   BENCH_BASELINE: baseline ? path.resolve(baseline) : '',
   BENCH_FRAMES: arg('frames', '60'),
 }
-const result = spawnSync(process.execPath, [path.join(here, 'smoke.mjs'), '--url-params', `preset=${[...presets][0]}`, '--wait', arg('wait', '20'),
+const renderNode = arg('render-node', null)
+const command = renderNode ? 'bwrap' : process.execPath
+const wrap = renderNode ? ['--dev-bind', '/', '/', '--tmpfs', '/dev/dri', '--dev-bind', renderNode, renderNode, process.execPath] : []
+const result = spawnSync(command, [...wrap, path.join(here, 'smoke.mjs'), '--url-params', `preset=${[...presets][0]}`, '--wait', arg('wait', '20'),
   '--out', path.join(out, '_last.png'), '--steps', path.join(here, 'bench', 'cloudBenchSteps.mjs'),
   '--width', arg('width', '1280'), '--height', arg('height', '720')], { encoding: 'utf8', env, maxBuffer: 1 << 26 })
 const text = result.stdout + result.stderr
@@ -50,6 +56,7 @@ if (!report.length) { console.log(text); process.exit(1) }
 fs.rmSync(path.join(out, '_last.png'), { force: true })
 fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify(report, null, 1) + '\n')
 const pad = (s, n) => String(s).padEnd(n)
+console.log(`GPU: ${report[0].gpu}`)
 console.log(pad('view', 22) + pad('clouds ms', 11) + pad('frame ms', 10) + (baseline ? 'diff: mean  >8/255  max' : ''))
 for (const r of report) {
   console.log(pad(r.name, 22) + pad(r.clouds.median.toFixed(2), 11) + pad(r.frame.median.toFixed(2), 10)

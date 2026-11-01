@@ -15,6 +15,7 @@ export class RealClouds {
     this.texture.needsUpdate = true
     this.ready = false
     this.date = null
+    this.loading = false // (a snapshot for a new date is on its way)
     this.manifest = fetch(`${baseUrl}/manifest.json`)
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null)
@@ -39,6 +40,7 @@ export class RealClouds {
       const date = manifest.dates.reduce((best, d) => (distance(d) < distance(best) ? d : best))
       if (date === this.date) return
       this.date = date
+      this.loading = true
       this.load(date)
     })
   }
@@ -64,6 +66,8 @@ export class RealClouds {
       this.onChange?.(texture)
     } catch (error) {
       console.warn('[clouds] could not load real clouds for', date, error)
+    } finally {
+      if (date === this.date) this.loading = false
     }
   }
 }
