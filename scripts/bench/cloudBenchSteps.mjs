@@ -128,6 +128,43 @@ export default async function ({ page }) {
       delete diff.image
       result.diff = diff
     }
+    // BENCH_MOTION=kind:amount:frames: a camera move from the view, with simulated time held, saved as
+    // frames (<out>/<name>.motion/frame-NNNN.png) for tools/motion_artifacts.py. With nothing else moving,
+    // everything that changes from frame to frame should be explained by the camera's motion; flicker,
+    // shimmer and sliding are not. kind: strafe (sideways, amount in metres), dolly (forwards, metres),
+    // pan (turning about the up direction, degrees), orbit (about the target, degrees).
+    if (process.env.BENCH_MOTION) {
+      const [kind, amount, count] = process.env.BENCH_MOTION.split(':')
+      const dir = path.join(out, `${name}.motion`)
+      fs.rmSync(dir, { recursive: true, force: true })
+      fs.mkdirSync(dir, { recursive: true })
+      for (let i = 0; i < Number(count); i++) {
+        await page.evaluate(async (view, kind, amount, f) => {
+          const app = window.tetheredRing.app
+          const frame = () => new Promise(r => requestAnimationFrame(r))
+          const { applyViewState } = await import('/src/ui/ViewStatus.js')
+          const THREE = await window.tetheredRing.THREE
+          const c = view.camera
+          const pos = new THREE.Vector3(...c.position), target = new THREE.Vector3(...c.target), up = new THREE.Vector3(...c.up).normalize()
+          const forward = target.clone().sub(pos).normalize(), right = forward.clone().cross(up).normalize()
+          if (kind === 'strafe' || kind === 'dolly') {
+            const shift = (kind === 'strafe' ? right : forward).multiplyScalar(amount * f)
+            pos.add(shift)
+            target.add(shift)
+          }
+          else if (kind === 'pan') target.sub(pos).applyAxisAngle(up, -THREE.MathUtils.degToRad(amount * f)).add(pos)
+          else if (kind === 'orbit') pos.sub(target).applyAxisAngle(up, THREE.MathUtils.degToRad(amount * f)).add(target)
+          applyViewState(app, { camera: { ...c, position: pos.toArray(), target: target.toArray() } })
+          for (let i = 0; i < 1200; i++) {
+            await frame()
+            const s = app.planet.getDebugStats()
+            if (i > 2 && !s.queue && !s.inflight) break
+          }
+          for (let i = 0; i < 3; i++) await frame()
+        }, view, kind, Number(amount), i / Math.max(1, Number(count) - 1))
+        await page.screenshot({ path: path.join(dir, `frame-${String(i).padStart(4, '0')}.png`) })
+      }
+    }
     console.log('BENCH ' + JSON.stringify(result))
   }
 }
