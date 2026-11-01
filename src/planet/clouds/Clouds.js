@@ -125,6 +125,7 @@ const FIBRE_TILE = 4000
 const FIBRE_LENGTH = 3000
 const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
 const FIBRE_TAPS = 12
+const FIBRE_GROUP = 4 // (taps read together: see noUnroll)
 const FIBRE_EDGES = [0.3, 1.5]
 const VEIL_OPACITY = [0.35, 0.45]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
@@ -209,6 +210,12 @@ uniform float realTexel;         // the real clouds' texel size (m)
 uniform vec3 drift;             // x, y: the two copies' drift times (s); z: the second copy's weight
 uniform vec2 exposure;          // x: the sky's exposure (Planet.js); y: the sun's intensity
 uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so their loops are not unrolled)
+// Always 1. A loop whose count is multiplied by it is not unrolled (the compiler cannot know the count):
+// unrolled, a long loop of texture reads has them all issued at once, which needs registers for all their
+// results, and the march spilled registers to memory (and on small GPUs the code outgrew the
+// instruction cache). Such loops are unrolled by hand in groups of a few reads, enough to keep the GPU's
+// memory busy.
+uniform int noUnroll;
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -468,8 +475,11 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
           float age = i == 0 ? drift.x : drift.y;
           vec3 qf = planetPoint - windAloft * age + driftShift[i];
           float f = 0.0;
-          for (int k = 0; k < ${FIBRE_TAPS}; k++) {
-            f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (float(k) / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
+          for (int k0 = 0; k0 < ${FIBRE_TAPS} * noUnroll; k0 += ${FIBRE_GROUP}) {
+            for (int j = 0; j < ${FIBRE_GROUP}; j++) {
+              float k = float(k0 + j);
+              f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (k / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
+            }
           }
           fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
         }
@@ -1145,6 +1155,7 @@ export class Clouds {
       drift: { value: new THREE.Vector3() },
       exposure: { value: new THREE.Vector2(1, Math.PI) },
       lightSteps: { value: [LIGHT_STEPS, VERTICAL_STEPS] },
+      noUnroll: { value: 1 },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
