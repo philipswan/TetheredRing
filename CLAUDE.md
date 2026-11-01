@@ -16,6 +16,7 @@ npm run build          # production build -> dist/ (runtime data folders are not
 npm run lint           # ESLint
 npm test               # node --test (tests/**/*.test.mjs)
 npm run smoke          # headless Chrome/Chromium: loads "/" and fails on console errors
+npm run bench:clouds   # cloud GPU timings + screenshots for tests/bench/cloudViews.json; --baseline <dir> diffs them
 ```
 
 - Single test file: `node --test tests/shots/shots.test.mjs`.

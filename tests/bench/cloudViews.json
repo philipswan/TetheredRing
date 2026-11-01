@@ -1,0 +1,362 @@
+[
+ {
+  "name": "sea-level-horizon",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2183285.384,
+     2271409.354,
+     -5542592.846
+    ],
+    "target": [
+     -2182970.714,
+     2273534.411,
+     -5541794.009
+    ],
+    "up": [
+     -0.342158,
+     0.358368,
+     -0.86862
+    ],
+    "orbitUp": [
+     -0.342158,
+     0.358368,
+     -0.86862
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   }
+  }
+ },
+ {
+  "name": "below-cumulus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 8,
+   "sunTimeOfDayUTC": 1.12,
+   "camera": {
+    "position": [
+     -1476015.892,
+     998774.304,
+     -6123747.798
+    ],
+    "target": [
+     -1476252.588,
+     999735.546,
+     -6123889.182
+    ],
+    "up": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "orbitUp": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 8,
+    "sunTimeOfDayUTC": 1.12
+   }
+  }
+ },
+ {
+  "name": "cirrus-from-ground",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 255,
+   "sunTimeOfDayUTC": 1.125,
+   "camera": {
+    "position": [
+     -1647537.291,
+     2073616.397,
+     -5799818.866
+    ],
+    "target": [
+     -1648372.215,
+     2074165.947,
+     -5799848.814
+    ],
+    "up": [
+     -0.258216,
+     0.327185,
+     -0.908996
+    ],
+    "orbitUp": [
+     -0.258216,
+     0.327185,
+     -0.908996
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 255,
+    "sunTimeOfDayUTC": 1.125
+   }
+  }
+ },
+ {
+  "name": "low-level-1500m",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 8,
+   "sunTimeOfDayUTC": 1.12,
+   "camera": {
+    "position": [
+     -1476316.701,
+     998979.224,
+     -6124995.805
+    ],
+    "target": [
+     -1490378.073,
+     1081718.045,
+     -6106458.556
+    ],
+    "up": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "orbitUp": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 8,
+    "sunTimeOfDayUTC": 1.12
+   }
+  }
+ },
+ {
+  "name": "cumulus-10km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 8,
+   "sunTimeOfDayUTC": 1.12,
+   "camera": {
+    "position": [
+     -1478422.364,
+     1000413.663,
+     -6133731.855
+    ],
+    "target": [
+     -1480800.094,
+     1026560.494,
+     -6117823.894
+    ],
+    "up": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "orbitUp": [
+     -0.231392,
+     0.157631,
+     -0.960005
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 8,
+    "sunTimeOfDayUTC": 1.12
+   }
+  }
+ },
+ {
+  "name": "cumulus-13km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 168,
+   "sunTimeOfDayUTC": 1.113,
+   "camera": {
+    "position": [
+     -1717627.626,
+     2122476.128,
+     -5776135.507
+    ],
+    "target": [
+     -1721020.848,
+     2135064.342,
+     -5755858.402
+    ],
+    "up": [
+     -0.268643,
+     0.334195,
+     -0.903407
+    ],
+    "orbitUp": [
+     -0.268643,
+     0.334195,
+     -0.903407
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 168,
+    "sunTimeOfDayUTC": 1.113
+   }
+  }
+ },
+ {
+  "name": "stratosphere-32km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 255,
+   "sunTimeOfDayUTC": 1.125,
+   "camera": {
+    "position": [
+     -1655712.407,
+     2083975.072,
+     -5828597.694
+    ],
+    "target": [
+     -1720838.139,
+     2115145.322,
+     -5764004.553
+    ],
+    "up": [
+     -0.258216,
+     0.327185,
+     -0.908996
+    ],
+    "orbitUp": [
+     -0.258216,
+     0.327185,
+     -0.908996
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 255,
+    "sunTimeOfDayUTC": 1.125
+   }
+  }
+ },
+ {
+  "name": "leo-165km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 302,
+   "sunTimeOfDayUTC": 2.92,
+   "camera": {
+    "position": [
+     422940.591,
+     -5080388.024,
+     -4081077.559
+    ],
+    "target": [
+     380658.051,
+     -4433478.779,
+     -4630829.894
+    ],
+    "up": [
+     0.064509,
+     -0.779981,
+     -0.62247
+    ],
+    "orbitUp": [
+     0.064509,
+     -0.779981,
+     -0.62247
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 302,
+    "sunTimeOfDayUTC": 2.92
+   }
+  }
+ },
+ {
+  "name": "leo-400km-down",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 302,
+   "sunTimeOfDayUTC": 2.92,
+   "camera": {
+    "position": [
+     438093.845,
+     -5263605.469,
+     -4227295.741
+    ],
+    "target": [
+     394205.718,
+     -4655390.251,
+     -4351361.613
+    ],
+    "up": [
+     0.064509,
+     -0.779981,
+     -0.62247
+    ],
+    "orbitUp": [
+     0.064509,
+     -0.779981,
+     -0.62247
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 302,
+    "sunTimeOfDayUTC": 2.92
+   }
+  }
+ },
+ {
+  "name": "whole-earth",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 302,
+   "sunTimeOfDayUTC": 2.92,
+   "camera": {
+    "position": [
+     2388346.263,
+     -13170373.735,
+     -22723596.791
+    ],
+    "target": [
+     554868.793,
+     -2870169.884,
+     -5674666.247
+    ],
+    "up": [
+     0.090524,
+     -0.5,
+     -0.861281
+    ],
+    "orbitUp": [
+     0.090524,
+     -0.5,
+     -0.861281
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 302,
+    "sunTimeOfDayUTC": 2.92
+   }
+  }
+ }
+]

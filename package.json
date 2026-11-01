@@ -11,7 +11,8 @@
     "render": "node scripts/render-shots.mjs",
     "lint": "eslint .",
     "test": "node --test",
-    "profile": "node scripts/profile.mjs"
+    "profile": "node scripts/profile.mjs",
+    "bench:clouds": "node scripts/bench-clouds.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
