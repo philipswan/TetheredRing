@@ -82,17 +82,21 @@ const DETAIL_TILE = 3000
 const MACRO_TILE = 400000
 // The clouds' types. The cover, where the satellite imagery is (realClouds.js; otherwise the weather's),
 // is shared between two layers:
-// - High cloud (cirrus, cirrostratus) takes the thin part of the opacity, up to HIGH_SHARE, as much of
-//   it as the reanalysis has high cloud often (thin cirrus is what the faint brightening of the imagery
-//   over clear sea mostly is); it is thin (opacity HIGH_OPACITY where it is, an optical depth of about
+// - High cloud (cirrus, cirrostratus) takes the thin part of the opacity, up to HIGH_SHARE, where the
+//   reanalysis has high cloud often (over HIGH_FREQUENCY; thin cirrus is what the faint brightening of
+//   the imagery over clear sea mostly is); it is thin (opacity HIGH_OPACITY where it is, an optical depth of about
 //   0.3), so it covers a good deal more of the sky than its opacity; HIGH_THICKNESS (m) deep from the high
 //   cloud base, drawn out into streaks along the wind (which is CIRRUS_WIND times the surface's aloft).
-// - Low cloud for the rest of the imagery's opacity: a few fair-weather cumulus where there is little
+// - Low cloud for the rest of the imagery's opacity, less LOW_FLOOR of it (the imagery's opacity varies
+//   about the blurred share the high cloud takes, and a thin sky would otherwise always have some low
+//   cloud under its cirrus): a few fair-weather cumulus where there is little
 //   (FAIR_CUMULUS of the sky, more with convection, in fields a few hundred kilometres across covering
 //   about FAIR_FIELDS of the clear sky, the rest clear), turning into stratocumulus and then a stratus
 //   sheet as it rises over STRATUS_ONSET; towers in showers (the weather's, where the imagery has cloud:
 //   SHOWER_OPACITY).
-const HIGH_SHARE = 0.3
+const HIGH_SHARE = 0.45
+const HIGH_FREQUENCY = [0.1, 0.5]
+const LOW_FLOOR = 0.12
 const HIGH_BLUR = 60000 // m
 const SHOWER_OPACITY = [0.3, 0.7]
 const HIGH_OPACITY = 0.25
@@ -303,9 +307,9 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   // (The high cloud's share follows the opacity blurred over HIGH_BLUR, so that only the low cloud carries
   // the imagery's edges: with both layers following them, from orbit the same pattern showed at both
   // heights, apart by parallax, as double vision.)
-  float highOpacity = min(opacitySmooth, ${HIGH_SHARE.toFixed(3)}) * a.a;
+  float highOpacity = min(opacitySmooth, ${HIGH_SHARE.toFixed(3)}) * smoothstep(${HIGH_FREQUENCY[0].toFixed(2)}, ${HIGH_FREQUENCY[1].toFixed(2)}, a.a);
   float highCover = clamp(highOpacity / ${HIGH_OPACITY.toFixed(3)}, 0.0, 1.0);
-  float lowOpacity = clamp(1.0 - (1.0 - opacity) / (1.0 - highOpacity), 0.0, 1.0);
+  float lowOpacity = clamp((1.0 - (1.0 - opacity) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
   float convective = a.b;
   float showers = convective * clamp(showerRain(a) / 3.0, 0.0, 1.0) * smoothstep(${SHOWER_OPACITY[0].toFixed(2)}, ${SHOWER_OPACITY[1].toFixed(2)}, opacity);
   // (The fair-weather cumulus come in fields: the large-scale noise above its FAIR_FIELDS quantile.)
