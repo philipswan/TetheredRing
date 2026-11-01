@@ -104,6 +104,8 @@ const MACRO_TILE = 400000
 //   sheet as it rises over STRATUS_ONSET; towers in showers (the weather's, where the imagery has cloud:
 //   SHOWER_OPACITY).
 const HIGH_SHARE = 0.45
+// The latitudes (degrees) over which the imagery's cover gives way to the weather's (see realShare).
+const POLAR_FADE = [66, 74]
 const HIGH_FREQUENCY = [0.1, 0.5]
 const LOW_FLOOR = 0.12
 const HIGH_BLUR = 60000 // m
@@ -280,6 +282,14 @@ float thresholdDensity(float shape, float cover) {
   return clamp((shape - threshold) / max(SHAPE_TOP - threshold, 0.02), 0.0, 1.0);
 }
 
+// How much of the cover comes from the real clouds' imagery at uv (once loaded): all of it, less towards the
+// poles over POLAR_FADE (degrees of latitude), where the weather's takes over. (There the satellite's
+// passes overlap at very different angles and the sea ice changes under them, which the imagery's
+// clouds show as arcs and straight lines.)
+float realShare(vec2 uv) {
+  return realBlend * (1.0 - smoothstep(${POLAR_FADE[0].toFixed(1)}, ${POLAR_FADE[1].toFixed(1)}, abs(uv.y * 180.0 - 90.0)));
+}
+
 // The weather and cloud cover of a column of the sky (the same for every height in it, and changing
 // little across a coarse cell of the march, which blends it between the cell's ends): from the
 // textures at uv, the point p (stretched) and planet-frame offset local, for a pixel footprint (m).
@@ -295,25 +305,24 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   vec4 b = texture2D(weatherB, uv);
   // The sky's opacity seen from space: the real clouds' (less the imagery's floor of faint haze and noise
   // over clear sea, about 0.05; the mip level from the pixel's footprint, as automatic derivatives mean
-  // nothing along a ray and jump at the date line), or the weather's.
-  float opacity, opacitySmooth;
-  if (realBlend > 0.5) {
+  // nothing along a ray and jump at the date line), or the weather's, which takes over towards the poles
+  // (realShare, see POLAR_FADE).
+  float opacity = a.r * 0.9;
+  // (Large-scale structure in the weather's smooth cover, fading out as it shrinks below a pixel.)
+  float macroDetail = 1.0 - smoothstep(2000.0, 8000.0, footprint);
+  if (macroDetail > 0.0 && opacity > 0.01) {
+    vec4 m = texture(shapeNoise, (local + macroOffset) / ${MACRO_TILE.toFixed(1)});
+    float macro = remap(m.r, m.g * 0.625 + m.b * 0.25 + m.a * 0.125 - 1.0, 1.0, 0.0, 1.0) - SHAPE_MEAN;
+    opacity = normalCdf(probit(clamp(opacity, 0.005, 0.995)) + 9.0 * macro * macroDetail);
+  }
+  float opacitySmooth = opacity;
+  float share = realShare(uv);
+  if (share > 0.0) {
     float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
-    opacity = clamp((real - 0.05) / 0.95, 0.0, 1.0);
+    opacity = mix(opacity, clamp((real - 0.05) / 0.95, 0.0, 1.0), share);
     // (And blurred over about HIGH_BLUR, for the high cloud's share: see below.)
     float smoothReal = textureLod(realClouds, uv, max(log2(max(footprint, 1.0) / realTexel), log2(${HIGH_BLUR.toFixed(1)} / realTexel))).r;
-    opacitySmooth = clamp((smoothReal - 0.05) / 0.95, 0.0, 1.0);
-  }
-  else {
-    opacity = a.r * 0.9;
-    opacitySmooth = opacity;
-    // (Large-scale structure in the weather's smooth cover, fading out as it shrinks below a pixel.)
-    float macroDetail = 1.0 - smoothstep(2000.0, 8000.0, footprint);
-    if (macroDetail > 0.0 && opacity > 0.01) {
-      vec4 m = texture(shapeNoise, (local + macroOffset) / ${MACRO_TILE.toFixed(1)});
-      float macro = remap(m.r, m.g * 0.625 + m.b * 0.25 + m.a * 0.125 - 1.0, 1.0, 0.0, 1.0) - SHAPE_MEAN;
-      opacity = normalCdf(probit(clamp(opacity, 0.005, 0.995)) + 9.0 * macro * macroDetail);
-    }
+    opacitySmooth = mix(opacitySmooth, clamp((smoothReal - 0.05) / 0.95, 0.0, 1.0), share);
   }
   // Shared between the layers: high cloud where the reanalysis has it, the rest low.
   // (The high cloud's share follows the opacity blurred over HIGH_BLUR, so that only the low cloud carries
@@ -574,8 +583,9 @@ vec2 sphere(vec3 o, vec3 d, float r) {
 
 // The real clouds' opacity (or the weather's cover) at uv, as the flat layer shows it, for a footprint (m).
 float flatOpacityAt(vec2 uv, float footprint) {
-  if (realBlend > 0.5) return clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0);
-  return texture2D(weatherA, uv).r * 0.9;
+  float weather = texture2D(weatherA, uv).r * 0.9, share = realShare(uv);
+  if (share <= 0.0) return weather;
+  return mix(weather, clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0), share);
 }
 
 // The share of sunlight reaching p (stretched; local: its planet-frame offset from the camera) through
