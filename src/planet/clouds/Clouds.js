@@ -328,11 +328,13 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   // nothing along a ray and jump at the date line), or the weather's, which takes over towards the poles
   // (realShare, see POLAR_FADE).
   float opacity = a.r * 0.9;
+  // The shape noise on the large-scale tile (read once, for two uses).
+  vec4 m = texture(shapeNoise, (local + macroOffset) / ${MACRO_TILE.toFixed(1)});
+  float field = remap(m.r, m.g * 0.625 + m.b * 0.25 + m.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
   // (Large-scale structure in the weather's smooth cover, fading out as it shrinks below a pixel.)
   float macroDetail = 1.0 - smoothstep(2000.0, 8000.0, footprint);
   if (macroDetail > 0.0 && opacity > 0.01) {
-    vec4 m = texture(shapeNoise, (local + macroOffset) / ${MACRO_TILE.toFixed(1)});
-    float macro = remap(m.r, m.g * 0.625 + m.b * 0.25 + m.a * 0.125 - 1.0, 1.0, 0.0, 1.0) - SHAPE_MEAN;
+    float macro = field - SHAPE_MEAN;
     opacity = normalCdf(probit(clamp(opacity, 0.005, 0.995)) + 9.0 * macro * macroDetail);
   }
   float opacitySmooth = opacity;
@@ -354,8 +356,6 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   float convective = a.b;
   float showers = convective * clamp(showerRain(a) / 3.0, 0.0, 1.0) * smoothstep(${SHOWER_OPACITY[0].toFixed(2)}, ${SHOWER_OPACITY[1].toFixed(2)}, opacity);
   // (The fair-weather cumulus come in fields: the large-scale noise above its FAIR_FIELDS quantile.)
-  vec4 fm = texture(shapeNoise, (local + macroOffset) / ${MACRO_TILE.toFixed(1)});
-  float field = remap(fm.r, fm.g * 0.625 + fm.b * 0.25 + fm.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
   float fieldThreshold = coverThreshold(${FAIR_FIELDS.toFixed(2)});
   float fair = mix(${FAIR_CUMULUS[0].toFixed(3)}, ${FAIR_CUMULUS[1].toFixed(3)}, convective) * smoothstep(fieldThreshold - 0.03, fieldThreshold + 0.06, field);
   float lowCover = max(lowOpacity / 0.9, fair);
