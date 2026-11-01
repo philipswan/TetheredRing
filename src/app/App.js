@@ -413,6 +413,13 @@ export class App {
       },
       // Double-click: follow the moving object nearest the pointer (as a shot anchor, so it can be
       // found again at any simulated time).
+      // A gesture that starts on (or near) a moving object takes hold of it: the camera follows it.
+      captureObjectAt: (x, y, maxDistance) => {
+        const anchor = this.shots?.pickAt(x, y, undefined, { radiusPx: 40, maxDistance })
+        if (!anchor) return false
+        this.shots.followAnchor(anchor, { capture: true })
+        return true
+      },
       followObjectAt: (x, y) => {
         const anchor = this.shots?.pickAt(x, y)
         if (!anchor) return false

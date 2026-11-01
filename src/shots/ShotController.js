@@ -238,7 +238,8 @@ export class ShotController {
   // Makes the free camera move with an anchor's object (the world anchor stops following). With
   // `aim`, the camera also turns to centre the object; otherwise the view stays as composed. With
   // `approach`, it also flies in close to the object.
-  followAnchor(anchor, { aim = false, approach = false } = {}) {
+  // With `capture`, the camera eases into riding along (see CameraController.follow).
+  followAnchor(anchor, { aim = false, approach = false, capture = false } = {}) {
     const camera = this.app.camera
     if (isWorldAnchor(anchor)) {
       if (camera.tracker.type === 'shotAnchor') camera.stopTracking()
@@ -258,7 +259,7 @@ export class ShotController {
         return f && { forward: v(f.forward), upward: v(f.upward) }
       },
     }
-    camera.follow(entry, { aim: aim || approach, approach })
+    camera.follow(entry, { aim: aim || approach, approach, capture })
     this.emit('mode')
   }
 
@@ -579,14 +580,16 @@ export class ShotController {
 
   get picking() { return !!this._pick }
 
-  pickAt(clientX, clientY, types) {
+  // radiusPx: how near the pointer (pixels); maxDistance: how far from the camera (m), e.g. no further than
+  // the surface under the pointer, so objects behind it are not picked.
+  pickAt(clientX, clientY, types, { radiusPx = PICK_RADIUS_PX, maxDistance = Infinity } = {}) {
     const camera = this.app.camera3d
     const rect = this.app.renderer.domElement.getBoundingClientRect()
     const ndc = new THREE.Vector2(2 * (clientX - rect.left) / rect.width - 1, 1 - 2 * (clientY - rect.top) / rect.height)
     const raycaster = new THREE.Raycaster()
     raycaster.setFromCamera(ndc, camera)
     const pixelsPerRadian = camera.projectionMatrix.elements[5] * rect.height / 2
-    const hit = this.resolver.nearestToRay(this.app.clock.time, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray(), PICK_RADIUS_PX / pixelsPerRadian, types)
+    const hit = this.resolver.nearestToRay(this.app.clock.time, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray(), radiusPx / pixelsPerRadian, types, maxDistance)
     return hit?.anchor ?? null
   }
 

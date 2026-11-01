@@ -190,14 +190,14 @@ export class AnchorResolver {
   }
 
   // The candidate nearest to the ray from `origin` along `direction` (world arrays): smallest angle off
-  // the ray, within maxAngle (radians). Returns { anchor, position, angle } or null.
-  nearestToRay(simTime, origin, direction, maxAngle, types) {
+  // the ray, within maxAngle (radians) and maxDistance (m). Returns { anchor, position, angle } or null.
+  nearestToRay(simTime, origin, direction, maxAngle, types, maxDistance = Infinity) {
     const dir = normalize(direction)
     let best = null
     for (const c of this.candidates(simTime, types)) {
       const d = [c.position[0] - origin[0], c.position[1] - origin[1], c.position[2] - origin[2]]
       const distance = Math.hypot(d[0], d[1], d[2])
-      if (!(distance > 0)) continue
+      if (!(distance > 0) || distance > maxDistance) continue
       const angle = Math.acos(Math.min(1, Math.max(-1, dot(d, dir) / distance)))
       if (angle > maxAngle) continue
       if (!best || angle < best.angle - 1e-9 || (Math.abs(angle - best.angle) <= 1e-9 && distance < best.distance)) best = { ...c, angle, distance }

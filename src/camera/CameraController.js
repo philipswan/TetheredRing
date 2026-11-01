@@ -45,6 +45,8 @@ const _ndc = new THREE.Vector2()
 const Y = new THREE.Vector3(0, 1, 0)
 const MIN_ZOOM_DISTANCE = 0.3 // m from the point being zoomed towards
 const MAX_RADIUS_FACTOR = 200 // the camera stays within this many planet radii of the centre
+const CAPTURE_RANGE = 30000 // m: gestures take hold of moving objects up to this far away
+const PICK_SPREAD_PX = 28 // how far round the pointer thin structures are looked for
 
 const forwardOf = (q, out = new THREE.Vector3()) => out.set(0, 0, -1).applyQuaternion(q)
 
@@ -167,7 +169,9 @@ export class CameraController {
   // planet's; getPickRoots(): objects the pointer can grab; followObjectAt(x, y): follows a moving
   // object near the pointer (client pixels) and returns true, or returns false if there is none.
   // getSunFrame(): { sun, north } world unit vectors towards the sun and the ecliptic's north (or null).
-  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, followObjectAt, getSunFrame }) {
+  // captureObjectAt(x, y, maxDistance): follows (capture: true) a moving object near the pointer, no
+  // further than maxDistance; returns true if there was one.
+  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, followObjectAt, captureObjectAt, getSunFrame }) {
     this.camera = camera
     this.domElement = domElement
     this.planetRadius = planetRadius
@@ -179,6 +183,7 @@ export class CameraController {
     this.ellipsoid = ellipsoid
     this.getPickRoots = getPickRoots ?? (() => [])
     this.followObjectAt = followObjectAt ?? (() => false)
+    this.captureObjectAt = captureObjectAt ?? (() => false)
     this.getSunFrame = getSunFrame ?? (() => null)
     this.tweeningTime = 2000 // ms, for callers that predict where an object will be at the end of a move
     this.tweenClockMs = 0
@@ -397,8 +402,12 @@ export class CameraController {
     return this.raycaster.ray
   }
 
-  // The nearest surface or structure under the pointer: { point, distance, terrain } or null.
-  pick(clientX, clientY) {
+  // What the pointer is on: { point, distance, terrain } or null. Thin structures (the ring, its tubes,
+  // the mass driver) are easy to miss by a pixel or two, and then the pivot would be the ground tens of
+  // km behind them, so the structures are looked for over a small patch round the pointer (`spread`
+  // pixels): the nearest one there wins over the ground. Its depth is taken along the pointer's own
+  // ray, so the point stays under the pointer.
+  pick(clientX, clientY, { spread = PICK_SPREAD_PX } = {}) {
     const ray = this.rayAt(clientX, clientY).clone()
     const raycaster = this.raycaster
     raycaster.far = Infinity
@@ -411,25 +420,108 @@ export class CameraController {
       const p = ray.intersectSphere(sphere, new THREE.Vector3())
       if (p) best = { point: p, distance: p.distanceTo(ray.origin), terrain: true }
     }
+    const rays = [ray]
+    for (const r of spread > 0 ? [spread / 2, spread] : []) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k + (r === spread ? 0.5 : 0)) * Math.PI / 4
+        rays.push(this.rayAt(clientX + r * Math.cos(a), clientY + r * Math.sin(a)).clone())
+      }
+    }
     raycaster.far = best ? best.distance : Infinity
+    let nearest = null
     const hits = []
     const skip = new Set([this.trackingMarker, this.targetMarker, this.orbitMarker, this.planet?.surface, this.planet?.atmosphere].filter(Boolean))
+    const centreLines = []
     const visit = (object) => {
       if (!object.visible || skip.has(object)) return
+      if (object.name === 'highlightStandIn') {
+        centreLines.push(object)
+        return
+      }
       if ((object.isMesh || object.isInstancedMesh) && !object.isLOD && raycaster.layers.test(object.layers)) {
         const m = object.material
         const material = Array.isArray(m) ? m[0] : m
         const ghost = !material || material.visible === false || (material.transparent && !material.depthWrite) || material.side === THREE.BackSide
-        if (!ghost) object.raycast(raycaster, hits)
+        if (!ghost) {
+          for (let i = 0; i < rays.length; i++) {
+            raycaster.ray.copy(rays[i])
+            hits.length = 0
+            object.raycast(raycaster, hits)
+            for (const h of hits) {
+              if (!nearest || h.distance < nearest.distance) nearest = { distance: h.distance, point: h.point.clone(), centre: i === 0 }
+            }
+          }
+        }
       }
       for (const child of object.children) visit(child)
     }
     for (const root of this.getPickRoots()) if (root) visit(root)
+    raycaster.ray.copy(ray)
     raycaster.far = Infinity
-    for (const h of hits) {
-      if (!best || h.distance < best.distance) best = { point: h.point.clone(), distance: h.distance, terrain: false }
+    // Far away the structures are a pixel or less across (or drawn as lines), so their centre lines are
+    // looked for too: the nearest within `spread` pixels of the pointer's ray.
+    const line = this.nearestCentreLine(ray, centreLines, spread * this.radiansPerPixel(), best ? best.distance : Infinity)
+    if (line && (!nearest || line.distance < nearest.distance)) nearest = { ...line, centre: true }
+    if (nearest && (!best || nearest.distance < best.distance)) {
+      best = { point: nearest.centre ? nearest.point : ray.at(nearest.distance, new THREE.Vector3()), distance: nearest.distance, terrain: false }
     }
     return best
+  }
+
+  // The point on the structures' centre lines (the highlight stand-ins: the ring, the mass driver) nearest
+  // to `ray` in angle, within maxAngle (radians) and nearer than maxDistance: { point, distance } or null.
+  nearestCentreLine(ray, groups, maxAngle, maxDistance) {
+    let best = null
+    let bestAngle = maxAngle
+    const a = new THREE.Vector3()
+    const b = new THREE.Vector3()
+    const onRay = new THREE.Vector3()
+    const onSegment = new THREE.Vector3()
+    for (const group of groups) {
+      for (const line of group.children) {
+        const position = line.geometry?.attributes?.position
+        if (!position) continue
+        line.updateWorldMatrix(true, false)
+        a.fromBufferAttribute(position, 0).applyMatrix4(line.matrixWorld)
+        for (let i = 1; i < position.count; i++) {
+          b.fromBufferAttribute(position, i).applyMatrix4(line.matrixWorld)
+          ray.distanceSqToSegment(a, b, onRay, onSegment)
+          const along = onSegment.clone().sub(ray.origin).dot(ray.direction)
+          if (along > 0) {
+            const distance = onSegment.distanceTo(ray.origin)
+            const angle = onSegment.distanceTo(onRay) / along
+            if (distance < maxDistance && angle < bestAngle) {
+              bestAngle = angle
+              best = { point: onSegment.clone(), distance }
+            }
+          }
+          a.copy(b)
+        }
+      }
+    }
+    return best
+  }
+
+  // pick() for a gesture's pivot, a little sticky: when the pointer lands on ground far behind the
+  // structure the last gesture was about, and that structure is still nearby and in view, the gesture is
+  // about the structure again (so missing a thin rail by a few pixels does not swing the camera round a
+  // point kilometres away).
+  pickPivot(clientX, clientY) {
+    const hit = this.pick(clientX, clientY)
+    const last = this.lastStructurePivot
+    if (hit && !hit.terrain) {
+      this.lastStructurePivot = hit.point.clone()
+      return hit
+    }
+    if (!last) return hit
+    const camera = this.camera
+    const distance = last.distanceTo(camera.position)
+    const ndc = last.clone().project(camera)
+    const inView = ndc.z < 1 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1
+    if (inView && distance < CAPTURE_RANGE && (!hit || distance < 0.2 * hit.distance)) {
+      return { point: last.clone(), distance, terrain: false, sticky: true }
+    }
+    return hit
   }
 
   // A point to act on when the pointer is over empty sky: along the pointer's ray at the focus distance.
@@ -513,19 +605,23 @@ export class CameraController {
     this.dragCamera.updateMatrixWorld()
     g.startPosition = camera.position.clone()
     g.startQuaternion = camera.quaternion.clone()
+    // A gesture that starts on (or near) a moving object takes hold of it (see capture()).
+    let hit = null
+    if (!this.tracking && ['orbit', 'pan', 'dolly', 'scrollpan'].includes(kind)) {
+      hit = this.pickPivot(x, y)
+      this.capture(x, y, hit)
+    }
     if (this.tracking) {
       g.pivot = this.rig.object.clone()
       g.groundAxis = this.verticalAt(g.pivot)
       g.globe = 0
     }
     else if (kind === 'scrollpan') {
-      const hit = this.pick(x, y)
       g.hit = hit
       g.sphere = hit && hit.point.length() > 0.5 * this.planetRadius ? hit.point.length() : 0
       g.distance = hit ? hit.distance : this.focusDistance()
     }
     else if (kind === 'orbit' || kind === 'pan' || kind === 'dolly') {
-      const hit = this.pick(x, y)
       g.hit = hit
       const w = this.globeWeight()
       if (kind === 'orbit') {
@@ -769,7 +865,11 @@ export class CameraController {
     let z = this.pendingZoom
     const moved = !z || Math.hypot(x - z.x, y - z.y) > 4 || now - z.time > 400
     if (moved || point) {
-      const target = point ?? (this.tracking ? null : (this.pick(x, y)?.point ?? this.pointOnRay(x, y, this.focusDistance())))
+      let target = point
+      if (!target && !this.tracking) {
+        const hit = this.pickPivot(x, y)
+        if (!this.capture(x, y, hit)) target = hit?.point ?? this.pointOnRay(x, y, this.focusDistance())
+      }
       z = { x, y, time: now, point: target, log: z && !moved ? z.log : 0 }
       this.pendingZoom = z
     }
@@ -826,6 +926,16 @@ export class CameraController {
     }
     else rig.rebase(this, position)
     this.applyPose(rig.evaluate(this))
+  }
+
+  // Takes hold of a moving object at (or within a few pixels of) the pointer, unless it is behind the
+  // surface or structure there (`hit`, from pick()). Returns true if the camera now follows one.
+  capture(x, y, hit) {
+    if (this.tracking) return false
+    // (Only nearby: from further away a drag near a busy track would grab one of thousands of vehicles;
+    // double-click flies in to one instead.)
+    const maxDistance = Math.min(CAPTURE_RANGE, hit ? hit.distance * 1.05 + 50 : Infinity)
+    return !!this.captureObjectAt(x, y, maxDistance) && this.tracking
   }
 
   doubleClick(x, y) {
@@ -904,17 +1014,26 @@ export class CameraController {
   // Follows a moving object (entry: { getPosition(dt), getFrame(dt) }, world coordinates).
   //   aim       turn to put the object in the middle of the view (otherwise the view stays as composed)
   //   approach  also fly closer (to `distance`, default min(current, ~250 m))
-  follow(entry, { aim = true, approach = false, distance = null, trackerTarget = entry } = {}) {
+  //   capture   take hold of it where it is on screen: it stays there, and the camera eases from standing
+  //             still to riding along with it (rather than jumping to its speed)
+  follow(entry, { aim = true, approach = false, capture = false, distance = null, trackerTarget = entry } = {}) {
     this.settle()
     this.tracker.target = trackerTarget
-    const rig = new TrackRig(entry, this.stationaryTracking ? 0 : this.param('trackingFollow', 1), this.param('trackingMode', 0) | 0)
+    const follow = this.stationaryTracking ? 0 : this.param('trackingFollow', 1)
+    const rig = new TrackRig(entry, capture ? 0 : follow, this.param('trackingMode', 0) | 0)
     if (!rig.locate(this)) {
       this.tracker.clear()
       return false
     }
     const p = this.camera.position.clone()
     const object = rig.object
-    if (approach) {
+    if (capture) {
+      rig.rebase(this, p, this.camera.quaternion)
+      this.rig = rig
+      this.transition = null
+      this.followTween = { from: 0, to: follow, start: this.tweenClockMs, duration: 1000 * this.param('cameraTransitionTime', 1) }
+    }
+    else if (approach) {
       const d = distance ?? Math.min(p.distanceTo(object), 250)
       const position = object.clone().addScaledVector(this.viewDirectionFrom(object, p), d)
       rig.rebase(this, position, this.aim(position, object, 0, 0))
