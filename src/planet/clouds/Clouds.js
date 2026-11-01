@@ -869,12 +869,6 @@ void main() {
       float rcm = 0.5 * (r + rc1);
       vec3 pB = c + d * (rc1 * stretch);
       CloudColumn colB = cloudColumn(mapUv(latLon(pB)), pB, D * rc1, rc1 * pixelAngle);
-      vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
-      slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
-      vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
-      vec3 sunlight = slSunTransmittance(c + d * (rcm * stretch)) * white;
-      vec3 skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
-      vec3 groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
       // The stretch's heights (the lowest where the line of sight passes closest to the centre).
       float hA = length(pA) - a, hB = length(pB) - a;
       float rLow = clamp(-dot(c, d) / stretch, r, rc1);
@@ -914,10 +908,25 @@ void main() {
           highCloud = SHAPE_MEAN + (bound - SHAPE_MEAN) / spreadNorm > coverThreshold(max(colA.highCover, colB.highCover));
         }
       }
+      // Without cloud, only the murk (often none).
+      float murk = 0.0;
       if (!lowCloud && !highCloud) {
         vec3 pm = c + d * (rcm * stretch);
         CloudColumn colM = mixColumn(colA, colB, 0.5);
-        float murk = airMurk(colM, length(pm) - a) + rainShaft(colM, pm, D * rcm, length(pm) - a);
+        murk = airMurk(colM, length(pm) - a) + rainShaft(colM, pm, D * rcm, length(pm) - a);
+      }
+      // The light at the middle (only where something is lit: it is costly). The sun's through the air (the
+      // direct light from slLightAt, as at the same point), the sky's and the ground's, and the murk's.
+      vec3 murkLight = vec3(0.0), sunlight = vec3(0.0), skyAmbient = vec3(0.0), groundAmbient = vec3(0.0);
+      if (lowCloud || highCloud || murk > 1e-7) {
+        vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
+        slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
+        murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
+        sunlight = stepDirect * sunIntensity;
+        skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
+        groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
+      }
+      if (!lowCloud && !highCloud) {
         if (murk > 1e-7) {
           float murkT = exp(-murk * (rc1 - r) * stretch);
           light += transmittance * murkLight * (1.0 - murkT);
