@@ -380,11 +380,17 @@ credentials in that clone's own config (which take precedence over `.lfsconfig`;
 `.lfsconfig` with write credentials in place of the read-only ones):
 
 ```sh
-git config --local lfs.url "https://<write credentials>@<the .lfsconfig URL without its credentials>"
-git lfs push --all origin 2026-claude-refactor   # every LFS object the branch refers to that the store lacks
+git config --local lfs.pushurl "https://<write credentials>@<the .lfsconfig URL without its credentials>"
+git lfs push philipswan 2026-claude-refactor   # LFS objects in commits that philipswan's branches lack
 ```
 
-The same commands work in PowerShell. (`git lfs push --dry-run --all origin <branch>` lists them first.)
+The same commands work in PowerShell. (`git lfs push --dry-run philipswan <branch>` lists them first.)
+`lfs.pushurl` only changes where uploads go, so downloads can still come from `.lfsconfig` (or a local
+mirror set in `lfs.url`). The store's proxy hands out an upload URL for every object asked about, even
+ones it already holds, so a repeated or interrupted push sends everything again. Run `git fetch
+philipswan` first, so the scan starts from the branches already there, and to resume a large upload,
+push only the missing objects with `git lfs push --object-id --stdin philipswan` (an object is missing
+when a 1-byte ranged GET of its batch-API download URL returns 404).
 
 ### Moving the textures into LFS
 
