@@ -23,7 +23,8 @@ export default async function ({ page }) {
     return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
   })
   for (const { name, view } of views) {
-    const timing = await page.evaluate(async (view, frames) => {
+    // BENCH_PASSES=1: also the GPU time of each pass (see below).
+    const timing = await page.evaluate(async (view, frames, passesWanted) => {
       const app = window.tetheredRing.app, gl = app.renderer.getContext()
       const frame = () => new Promise(r => requestAnimationFrame(r))
       const { applyViewState } = await import('/src/ui/ViewStatus.js')
@@ -61,8 +62,34 @@ export default async function ({ page }) {
       }
       const clouds = app.clouds ? await summary(app.clouds, 'render') : { median: 0, p90: 0, n: 0 }
       const frameTime = await summary(app, 'render')
-      return { clouds, frame: frameTime }
-    }, view, frames)
+      // Each of the renderer's passes on its own (the sky, the scene, the clouds' three, ...): every
+      // renderer.render call timed, by what it draws. (Calls do not nest, so neither do the queries.)
+      const passes = {}
+      if (passesWanted) {
+        const renderer = app.renderer, original = renderer.render, pending = []
+        const label = (scene) => scene === app.scene ? (scene.overrideMaterial ? 'cloudDistance' : 'scene')
+          : scene === app.clouds?.marchScene ? 'cloudMarch' : scene === app.clouds?.compositeScene ? 'cloudComposite'
+            : scene.name || scene.children[0]?.name || scene.children[0]?.material?.type || 'other'
+        renderer.render = function (scene, camera) {
+          const q = gl.createQuery()
+          gl.beginQuery(ext.TIME_ELAPSED_EXT, q)
+          original.call(this, scene, camera)
+          gl.endQuery(ext.TIME_ELAPSED_EXT)
+          pending.push([label(scene), q])
+        }
+        for (let i = 0; i < frames; i++) await frame()
+        renderer.render = original
+        await new Promise(r => setTimeout(r, 300))
+        const sums = {}
+        for (const [name, q] of pending) {
+          if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) continue
+          ;(sums[name] ??= []).push(gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6)
+        }
+        // (Per frame: a pass drawn several times a frame is summed.)
+        for (const [name, v] of Object.entries(sums)) passes[name] = +(v.reduce((s, x) => s + x, 0) / frames).toFixed(2)
+      }
+      return { clouds, frame: frameTime, passes }
+    }, view, frames, !!process.env.BENCH_PASSES)
     if (timing.error) throw new Error(timing.error)
     const file = path.join(out, `${name}.png`)
     await page.screenshot({ path: file })

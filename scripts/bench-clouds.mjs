@@ -6,6 +6,9 @@
 //
 //   npm run bench:clouds -- [--out .scratch/bench/now] [--baseline .scratch/bench/base] [--only name,name]
 //                           [--frames 60] [--width 1280 --height 720]
+//   BENCH_PASSES=1  also times each pass (sky, scene, the clouds' distance, march and composite, ...)
+//   BENCH_COST=1    the march's work per pixel (counts and a heat map; see Clouds.setCostView)
+//   BENCH_MOTION=kind:amount:frames  a camera move's frames, for tools/motion_artifacts.py
 //
 // Uses the GPU (like SMOKE_GPU=1). Timings vary with the GPU's clock: compare runs on the same machine,
 // and look at the cloud pass's median rather than one number. It prints the GPU it ran on: headless Chrome
@@ -61,6 +64,7 @@ console.log(pad('view', 22) + pad('clouds ms', 11) + pad('frame ms', 10) + (base
 for (const r of report) {
   console.log(pad(r.name, 22) + pad(r.clouds.median.toFixed(2), 11) + pad(r.frame.median.toFixed(2), 10)
     + (r.diff ? `      ${r.diff.mean.toFixed(2).padEnd(6)}${(r.diff.over8 * 100).toFixed(2).padStart(6)}%  ${r.diff.max}` : ''))
+  if (r.passes && Object.keys(r.passes).length) console.log('  passes (ms/frame): ' + Object.entries(r.passes).map(([k, v]) => `${k} ${v}`).join(', '))
 }
 const errors = lines.filter(l => /error/i.test(l) && !l.startsWith('BENCH '))
 if (result.status !== 0 || errors.length) { console.log(errors.join('\n')); process.exit(1) }
