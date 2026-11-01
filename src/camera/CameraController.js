@@ -72,6 +72,17 @@ class FreeRig {
     }
   }
 
+  // Moves with the sun's frame (see CameraController.carryWithSun) by `delta`, about `centre`, in
+  // proportion to how much of the planet is in view from here.
+  carry(ctl, delta, centre) {
+    const w = ctl.globeWeight(this.position)
+    if (w <= 0) return null
+    const part = new THREE.Quaternion().slerp(delta, w)
+    this.position.sub(centre).applyQuaternion(part).add(centre)
+    this.quaternion.premultiply(part).normalize()
+    return part
+  }
+
   rebase(ctl, position, quaternion, focus = null) {
     this.position.copy(position)
     this.quaternion.copy(quaternion).normalize()
@@ -185,6 +196,7 @@ export class CameraController {
     this.ringAxis = new THREE.Vector3(0, 1, 0)
     this.playbackActive = false // true while a shot (or Google Earth playback) drives the camera
     this.wasPlayback = false
+    this.lastSunFrame = null
 
     this.upHint = camera.up.clone()
     this.focus = new THREE.Vector3()
@@ -974,6 +986,7 @@ export class CameraController {
     const clockDt = dt !== 0 ? Math.abs(dt) : wallDt
     this.tweenClockMs += 1000 * clockDt
     if (this.playbackActive) {
+      this.lastSunFrame = null
       this.wasPlayback = true
       this.updateClippingPlanes()
       return
@@ -996,6 +1009,7 @@ export class CameraController {
       if (s >= 1) this.followTween = null
     }
 
+    this.carryWithSun()
     this.applyPendingZoom(wallDt)
     this.applyKeyMotions(dt, clockDt)
 
@@ -1008,6 +1022,30 @@ export class CameraController {
     else this.trackingMarker.visible = false
     this.placeMarker(this.orbitMarker, this.focus, this.param('showTrackingMarkers', false))
     this.updateClippingPlanes()
+  }
+
+  // High above the planet the free camera stays put relative to the sun and the ecliptic (the planet
+  // turns beneath it, and the sun keeps its place in the view as the time of day or year changes); near
+  // the ground it stays put on the planet. Between, it is carried part of the way (globeWeight).
+  carryWithSun() {
+    const frame = this.getSunFrame()
+    if (!frame) {
+      this.lastSunFrame = null
+      return
+    }
+    const across = new THREE.Vector3().crossVectors(frame.sun, frame.north)
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(frame.sun, frame.north, across))
+    const last = this.lastSunFrame
+    this.lastSunFrame = q
+    if (!last) return
+    const delta = q.clone().multiply(last.clone().invert())
+    if (1 - Math.abs(delta.w) < 1e-15) return
+    const centre = this.planetCoordSys.getWorldPosition(new THREE.Vector3())
+    const rigs = new Set([this.rig, this.transition?.from, this.transition?.to].filter(r => r?.isFree))
+    for (const rig of rigs) {
+      const part = rig.carry(this, delta, centre)
+      if (part && rig === (this.transition ? this.transition.to : this.rig)) this.upHint.applyQuaternion(part)
+    }
   }
 
   // Keyboard-driven motions: slow zoom (Z/X), climb (U/D), auto-rotation (Q), following the elevators

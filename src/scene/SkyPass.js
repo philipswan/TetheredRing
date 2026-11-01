@@ -38,6 +38,9 @@ function sunTexture() {
 // anything beyond it (stars at 256 planet radii, the Moon at 384,000 km) used to be clipped. The sky
 // camera copies the main camera's orientation and position but has a far plane large enough for
 // the solar neighbourhood.
+const _spin = new THREE.Quaternion()
+const _axisY = new THREE.Vector3(0, 1, 0)
+
 export class SkyPass {
   constructor(dParamWithUnits, planetSpec, { isLunarSimulation, earthRadius }) {
     this.scene = new THREE.Scene()
@@ -86,6 +89,14 @@ export class SkyPass {
     this.companionBody.position.copy(direction).normalize().multiplyScalar(distance)
   }
 
+  // The stars are fixed in space: the planet turns under them once a sidereal day (a little faster than
+  // the sun's day, so over the year the sun moves once round them). `days` is the day of the year
+  // (from 1) plus the fraction of the day (UTC). The star field is random, so where the angle starts
+  // does not matter, only that it turns at the sidereal rate about the planet's axis.
+  setSiderealTime(days) {
+    this.siderealAngle = 2 * Math.PI * 1.0027379093508 * (days - 1)
+  }
+
   update(mainCamera, planetCoordSys, sunLight, dParamWithUnits, planetSpec) {
     mainCamera.updateMatrixWorld()
     mainCamera.matrixWorld.decompose(this.camera.position, this.camera.quaternion, this.camera.scale)
@@ -97,6 +108,9 @@ export class SkyPass {
     planetCoordSys.updateMatrixWorld()
     this.planetFrame.matrix.copy(planetCoordSys.matrixWorld)
     this.planetFrame.matrixWorldNeedsUpdate = true
+    // (Turning about the planet's axis, its local y, against the planet's rotation.)
+    planetCoordSys.getWorldQuaternion(this.stars.quaternion)
+    this.stars.quaternion.multiply(_spin.setFromAxisAngle(_axisY, -(this.siderealAngle ?? 0)))
     this.sunLight.position.copy(sunLight.getWorldPosition(new THREE.Vector3()))
     _sunDir.copy(this.sunLight.position).sub(sunLight.target.getWorldPosition(_target)).normalize()
     this.sun.position.copy(this.camera.position).addScaledVector(_sunDir, SUN_DISTANCE)
