@@ -39,6 +39,10 @@ function sunTexture() {
 // camera copies the main camera's orientation and position but has a far plane large enough for
 // the solar neighbourhood.
 const _spin = new THREE.Quaternion()
+const _x = new THREE.Vector3()
+const _y = new THREE.Vector3()
+const _z = new THREE.Vector3()
+const _m = new THREE.Matrix4()
 const _axisY = new THREE.Vector3(0, 1, 0)
 
 export class SkyPass {
@@ -71,7 +75,8 @@ export class SkyPass {
 
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1)
     this.scene.add(this.sunLight)
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.15))
+    // (A little light on the night side: earthshine on the Moon.)
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.04))
 
     // The sun: a disc (its real 0.53 degree size) with a glow, far beyond the Moon so the Moon (and
     // the planet, drawn later) can pass in front of it. Seen through the air, the atmosphere draws it
@@ -90,11 +95,21 @@ export class SkyPass {
   }
 
   // The stars are fixed in space: the planet turns under them once a sidereal day (a little faster than
-  // the sun's day, so over the year the sun moves once round them). `days` is the day of the year
-  // (from 1) plus the fraction of the day (UTC). The star field is random, so where the angle starts
-  // does not matter, only that it turns at the sidereal rate about the planet's axis.
-  setSiderealTime(days) {
-    this.siderealAngle = 2 * Math.PI * 1.0027379093508 * (days - 1)
+  // the sun's day, so over the year the sun moves once round them). `angle`: how far the planet has
+  // turned about its axis from the March equinox (Greenwich sidereal time, radians).
+  setSiderealAngle(angle) {
+    this.siderealAngle = angle
+  }
+
+  // Places the companion body at `position` (planet frame, from the planet's centre), turned so the same
+  // face is towards the planet (tidally locked: the texture's middle, its local +x, faces the planet,
+  // with its north towards the planet's).
+  setCompanionBodyPosition(position) {
+    const body = this.companionBody
+    body.position.copy(position)
+    const x = _x.copy(position).negate().normalize()
+    const y = _y.set(0, 1, 0).addScaledVector(x, -x.y).normalize()
+    body.quaternion.setFromRotationMatrix(_m.makeBasis(x, y, _z.crossVectors(x, y)))
   }
 
   update(mainCamera, planetCoordSys, sunLight, dParamWithUnits, planetSpec) {
@@ -114,6 +129,8 @@ export class SkyPass {
     this.sunLight.position.copy(sunLight.getWorldPosition(new THREE.Vector3()))
     _sunDir.copy(this.sunLight.position).sub(sunLight.target.getWorldPosition(_target)).normalize()
     this.sun.position.copy(this.camera.position).addScaledVector(_sunDir, SUN_DISTANCE)
+    // (The sky's light shines along the sun's direction, whatever the main light's shadow placement.)
+    this.sunLight.position.copy(_sunDir)
     // The camera's height (above the ellipsoid, along the geocentric direction: close enough) and
     // the sun's elevation there, for the stars.
     _up.copy(this.camera.position).sub(_target.setFromMatrixPosition(planetCoordSys.matrixWorld))
@@ -125,7 +142,30 @@ export class SkyPass {
     this.stars.animate(dParamWithUnits, _up, altitude, _sunDir)
   }
 
-  render(renderer) {
+  // True when the companion body is entirely nearer the camera than the planet (between them, or the
+  // camera beyond it): it must then be drawn over the planet (renderCompanion) instead of behind it.
+  companionInFront(planetCoordSys, planetRadius) {
+    const body = this.companionBody
+    if (!body.visible) return false
+    const centre = _x.setFromMatrixPosition(planetCoordSys.matrixWorld)
+    const toPlanet = centre.distanceTo(this.camera.position)
+    const toBody = body.getWorldPosition(_y).distanceTo(this.camera.position)
+    return toBody + body.geometry.parameters.radius < toPlanet - planetRadius
+  }
+
+  render(renderer, { companion = true } = {}) {
+    const visible = this.companionBody.visible
+    if (!companion) this.companionBody.visible = false
     renderer.render(this.scene, this.camera)
+    this.companionBody.visible = visible
+  }
+
+  // The companion body alone (over what is already drawn; clear the depth first).
+  renderCompanion(renderer) {
+    if (!this.companionBody.visible) return
+    const hidden = [this.stars, this.sun].filter(o => o.visible)
+    for (const o of hidden) o.visible = false
+    renderer.render(this.scene, this.camera)
+    for (const o of hidden) o.visible = true
   }
 }

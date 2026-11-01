@@ -37,6 +37,7 @@ import * as Launcher from '../launcher/launcher.js'
 import { analyzeLauncherTerrainDisplacement } from '../launcher/launcherTerrainAnalysis.js'
 import { CameraController } from '../camera/CameraController.js'
 import { eclipticNorth } from '../camera/cameraMath.js'
+import { julianDate, greenwichSiderealAngle, moonPositionECEF } from '../physics/moon.js'
 import { GoogleEarthCameraPlayback } from '../camera/GoogleEarthCameraPlayback.js'
 import { trackPointLogger } from '../camera/trackPointLogger.js'
 import { installKeyboardShortcuts, keyboardHelpText } from '../input/KeyboardShortcuts.js'
@@ -70,6 +71,7 @@ const _seaCamera = new THREE.Vector3()
 const _seaWind = new THREE.Vector3()
 const _sunPlanet = new THREE.Vector3()
 const _sunWorld = new THREE.Vector3()
+const _moonPlanet = new THREE.Vector3()
 const _sunTarget = new THREE.Vector3()
 
 export class App {
@@ -851,7 +853,7 @@ export class App {
     }
     const date = advanceDate(Math.max(1, this.store.get('sunDayOfYear')), Math.max(0, this.store.get('sunTimeOfDayUTC')), this.clock.time)
     this.sunDate = date
-    this.sky.setSiderealTime(date.dayOfYear + date.utcHours / 24)
+    this.updateSkyForDate(date)
     this.clouds?.update(this.renderer, date.dayOfYear, date.utcHours, this.clock.time)
     // The sea's roughness far away follows the weather map's wind, once it has been drawn.
     if (this.clouds && !this._seaWindMapSet) {
@@ -867,6 +869,17 @@ export class App {
     _sunWorld.copy(_sunPlanet).transformDirection(this.planetCoordSys.matrixWorld)
     this.sunWorld = (this.sunWorld ?? new THREE.Vector3()).copy(_sunWorld)
     this.lighting.setSunDirection(_sunWorld, _sunPlanet)
+  }
+
+  // The stars and the Moon at the date (on Earth; elsewhere they stay as placed).
+  updateSkyForDate(date) {
+    if (this.isLunarSimulation) return
+    const jd = julianDate(this.store.get('dateYear') || 2026, date.dayOfYear, date.utcHours)
+    this.sky.setSiderealAngle(greenwichSiderealAngle(jd))
+    if (!this.sunFollowsDate || !this.store.get('moonFollowsDate')) return
+    const m = moonPositionECEF(jd)
+    // (ECEF to the planet frame: x = ECEF y, y = ECEF z, z = ECEF x.)
+    this.sky.setCompanionBodyPosition(_moonPlanet.set(m.y, m.z, m.x))
   }
 
   stepRingAnimations(dt) {
@@ -919,7 +932,9 @@ export class App {
       this.planet.atmosphere.visible = false
     }
     renderer.clear()
-    if (!underwater) this.sky.render(renderer)
+    // (The Moon is drawn behind the planet, unless it is nearer than all of it.)
+    const moonInFront = !underwater && this.sky.companionInFront(this.planetCoordSys, this.planetRadius)
+    if (!underwater) this.sky.render(renderer, { companion: !moonInFront })
     renderer.clearDepth()
     this.googleEarth.render(renderer)
     if (this.background?.scene) {
@@ -933,6 +948,10 @@ export class App {
       this.clouds?.render(renderer, this.scene, this.camera3d, this.lighting.sunLight.intensity, this.planet.atmosphereUniforms.atmoParams.value.y)
     }
     this.lighting.updateSkyLight(false)
+    if (moonInFront) {
+      renderer.clearDepth()
+      this.sky.renderCompanion(renderer)
+    }
     if (underwater) {
       renderer.setClearColor(this._clearColor, this._clearAlpha)
       this.planet.atmosphere.visible = atmosphereVisible
@@ -1069,6 +1088,10 @@ export class App {
   }
 
   placeCompanionBodyInView() {
+    // (A placed Moon stays put rather than following the date.)
+    this.store.set('moonFollowsDate', false)
+    this.store.derive()
+    this.gui.refresh()
     const direction = this.camera.controls.target.clone().sub(this.camera3d.position).normalize()
     this.sky.setCompanionBodyDirection(direction)
     const p = this.sky.companionBody.position
