@@ -222,7 +222,20 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
 
 - `npm test` runs the unit tests: physics maths, the shot format, the camera path, the time warp, supersampling filter weights and the render queue.
 - `npm run lint` runs ESLint.
-- `npm run smoke` loads the full app in headless Chrome/Chromium and fails on any console error. Use `SMOKE_GPU=1` with real hardware; the software renderer takes over a minute to decode a single terrain tile. `--eval "<js>"` runs code against `window.tetheredRing` and prints the result, `--steps <file.mjs>` runs a multi-step check with screenshots, and `--page /tests/planet.html` targets a standalone test page.
+- `npm run smoke` loads the full app in headless Chrome/Chromium and fails on any console error. Use `SMOKE_GPU=1` with real hardware; the software renderer takes over a minute to decode a single terrain tile. `--eval "<js>"` runs code against `window.tetheredRing` and prints the result, `--steps <file.mjs>` runs a multi-step check with screenshots, and `--page /tests/planet.html` targets a standalone test page. `SMOKE_DUMPIO=1` passes the browser's own output through and `SMOKE_CHROME_ARGS` adds browser flags; together with Mesa's `AMD_DEBUG=ps,stats` or `INTEL_DEBUG=fs` (and `--in-process-gpu --disable-gpu-sandbox`) they print each shader's registers, spills and size as the driver compiled it.
+
+### Performance and visual checks
+
+- `npm run bench:clouds` renders the views in `tests/bench/cloudViews.json` at a fixed graphics quality (`BENCH_QUALITY`, default High: Auto would follow the frame time) and reports the GPU time of the cloud pass and of the frame, with a screenshot of each. `--render-node /dev/dri/renderD12x` picks one GPU on a Linux machine with two. `BENCH_PASSES=1` times each of the renderer's passes (the times include the GPU waiting for the CPU, so a pass of many draw calls can read high); `BENCH_COST=1` counts the march's work per pixel (`Clouds.setCostView`) and saves a heat map; `BENCH_MOTION=kind:amount:frames` saves the frames of a camera move (strafe, dolly, pan or orbit) with simulated time held. Compare a change with a baseline rendered with the same views in the same order: terrain loaded for one view can stay loaded for the next.
+- `tools/perceptual_diff.py` judges whether a change can be seen: per 16 x 16 block, whether the candidate differs from the baseline by more than encoding the baseline as high-quality AVIF (AV1) does, and the difference survives encoding. A good lossy codec spends its bits on what the eye would notice, so what it leaves out could change unseen.
+- `tools/motion_artifacts.py` looks for flicker, shimmer and sliding in a camera move's frames: what is left after block-matching motion estimation (as a video encoder does it), and the x264 and AV1 inter-frame bytes, against a baseline's.
+
+    POSIX:       .venv/bin/python -m tools.perceptual_diff --baseline .scratch/bench/base --candidate .scratch/bench/now
+                 .venv/bin/python -m tools.motion_artifacts .scratch/bench/now/<view>.motion --baseline .scratch/bench/base/<view>.motion
+    PowerShell:  .venv\Scripts\python.exe -m tools.perceptual_diff --baseline .scratch\bench\base --candidate .scratch\bench\now
+                 .venv\Scripts\python.exe -m tools.motion_artifacts .scratch\bench\now\<view>.motion --baseline .scratch\bench\base\<view>.motion
+
+  Both need ffmpeg (with libsvtav1 and libx264) and ffprobe on the PATH, and numpy and Pillow in the venv.
 
 ## Sun, sky and atmosphere
 
