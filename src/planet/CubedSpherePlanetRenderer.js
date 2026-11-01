@@ -113,6 +113,11 @@ const WATER_FALLBACK_COLOR = 0x0b2a3a; // (dark, like the imagery's ocean, so it
 const WATER_LAND_LUMINANCE = ['0.06', '0.18'];
 // The underside of the sea as seen from above it (through the water, near the horizon): deep water.
 const WATER_UNDERSIDE_FROM_ABOVE = [0.015, 0.035, 0.06];
+// From far away the sun's glint off the sea is one generic sunspot (see _createWaterMaterial): from
+// GLINT_FAR[0] to GLINT_FAR[1] (m) it becomes a glint off the level surface as rough as
+// GLINT_FAR_SLOPE_VARIANCE (Cox and Munk's mean square slope for a 6 m/s wind, plus the swell).
+const GLINT_FAR = [20000, 100000];
+const GLINT_FAR_SLOPE_VARIANCE = 0.035;
 // Sea floor seen from under the surface (linear RGB), and the depth over which it replaces the imagery.
 const SEAFLOOR_COLOR = [0.30, 0.28, 0.22];
 const SEAFLOOR_BLEND_DEPTH = 20;
@@ -2136,7 +2141,25 @@ material.specularShininess = clamp(2.0 / (seaUnresolved + 2e-4) - 2.0, 4.0, 8000
   vec3 view = normalize(vViewPosition);
   float fresnel = seaReflectance(dot(normal, view)) * (1.0 - seaIce);
   vec3 water = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
-  vec3 light = (1.0 - fresnel) * seaWaterAlpha * water + fresnel * seaSkyReflection(reflect(-view, normal), sqrt(seaUnresolved)) + reflectedLight.directSpecular;
+  // From far away (GLINT_FAR) the sun's glint is a generic sunspot: off the level surface, as rough as a
+  // typical breeze leaves the sea everywhere (GLINT_FAR_SLOPE_VARIANCE; Beckmann's distribution, Fresnel
+  // reflectance), whatever the waves, gusts, whitecaps or each place's wind (which made it a patchwork,
+  // with rings around the camera where the gusts' noise changed scale).
+  vec3 glint = reflectedLight.directSpecular;
+  float glintFar = smoothstep(${GLINT_FAR[0].toFixed(1)}, ${GLINT_FAR[1].toFixed(1)}, seaViewDistance);
+  #if NUM_DIR_LIGHTS > 0
+  if (glintFar > 0.0) {
+    vec3 n = seaToView(seaUp), l = directionalLights[0].direction;
+    vec3 h = normalize(l + view);
+    float nh = max(dot(n, h), 1e-3), nl = dot(n, l), nv = max(dot(n, view), 0.02);
+    float m2 = ${GLINT_FAR_SLOPE_VARIANCE.toFixed(4)};
+    float beckmann = exp(-(1.0 - nh * nh) / (nh * nh * m2)) / (PI * m2 * nh * nh * nh * nh);
+    float f = 0.02 + 0.98 * pow(1.0 - max(dot(view, h), 0.0), 5.0);
+    vec3 far = nl > 0.0 ? slDirect * directionalLights[0].color * f * beckmann / (4.0 * nv) : vec3(0.0);
+    glint = mix(glint, far * (1.0 - seaIce), glintFar);
+  }
+  #endif
+  vec3 light = (1.0 - fresnel) * seaWaterAlpha * water + fresnel * seaSkyReflection(reflect(-view, normal), sqrt(seaUnresolved)) + glint;
   float alpha = (1.0 - fresnel) * seaWaterAlpha + fresnel;
   // The light the water itself sends back (water-leaving light), in the sun and sky light (sunAndSkyLight.js).
   vec3 seaIrradiance = slSkyDown + ambientLightColor;
