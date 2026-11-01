@@ -11,6 +11,10 @@
 // Angles are in degrees here; ParameterStore.derive() converts the ones subsystems need in radians.
 
 import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
+// The grappler-sequencing algorithms are owned by the launcher module that implements them; re-exported
+// so presets can refer to them (e.g. grapplerSequencingModes.Original).
+import { grapplerSequencingModes } from '../launcher/grapplerPlacement.js'
+export { grapplerSequencingModes }
 
 const radiusOfEarth = 6378100 // m
 // 32800 km is the largest circumference a circular ring can have and still fit within the Pacific Ocean.
@@ -430,7 +434,15 @@ export function createParameterDefinitions() {
   adaptiveNutBetweenGrapplerFactor: {value: 0.5, units: '', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutShaftToGrapplerPad: {value: 0.172, units: 'm', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerPadLiftAwayDistance: {value: 0.01, units: 'm', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
-  // How long a grappler takes to hop from one flight of the screw to the next (see grapplerSwitchover.js).
+  // Which algorithm sequences the grapplers' flight-to-flight hops (see src/launcher/grapplerPlacement.js).
+  adaptiveNutGrapplerSequencingMode: {value: grapplerSequencingModes.Original, units: '', autoMap: true, options: grapplerSequencingModes, onChange: 'updateLauncher', folder: 'Grapplers'},
+  // Both original modes split each hop's switchover into three successive portions: the pad lifts
+  // off the flight (padLiftAwayPortion), untwists to neutral (padTwistPortion), then swings back to the
+  // middle of its travel (the remainder). Fractions of the whole switchover, so their sum must be < 1.
+  adaptiveNutGrapplerPadLiftAwayPortion: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
+  adaptiveNutGrapplerPadTwistPortion: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
+  // Hop duration for Scheduled and OriginalConstantRate; the latter budgets half before phase handover
+  // and half after it, using the original pose mapping (see grapplerPlacement.js).
   adaptiveNutGrapplerSwitchoverTime: {value: 0.6, units: 's', autoMap: true, min: 0.001, max: 10, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerClearanceFactor: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerBallJointClearance: {value: 0.1, units: 'm', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},

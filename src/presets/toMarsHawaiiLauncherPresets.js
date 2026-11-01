@@ -5,6 +5,7 @@ import { googleEarthStudioProvidedBackground } from './googleEarthStudioProvided
 import { toMarsFromEarthLauncherArchitecture } from './toAFromBLauncherArchitecture.js'
 import { toVenusFromEarthLauncherArchitecture } from './toVenusFromEarthLauncherArchitecture.js'
 import { toMarsFromMoonLauncherArchitecture } from './toAFromBLauncherArchitecture.js'
+import { grapplerSequencingModes } from '../params/parameterDefinitions.js'
 
 export function toMarsHawaiiLauncherPresets(guidParamWithUnits, nonGUIParams) {
 
@@ -157,7 +158,10 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, nonGUIParams) {
   //launchSledUpwardsOffset
   //launchSledForwardsOffset
   //launchSledNumModels
-  
+  //guidParamWithUnits['adaptiveNutGrapplerSequencingMode'].value = grapplerSequencingModes.Original
+  guidParamWithUnits['adaptiveNutGrapplerSequencingMode'].value = grapplerSequencingModes.OriginalConstantRate
+  //guidParamWithUnits['adaptiveNutGrapplerSequencingMode'].value = grapplerSequencingModes.Scheduled
+
   //guidParamWithUnits['launcherMassDriverScrewRotationRate'].value = 200
 
   // Grappler Parameters
