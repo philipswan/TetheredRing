@@ -358,5 +358,77 @@
     "sunTimeOfDayUTC": 2.92
    }
   }
+ },
+ {
+  "name": "under-showers",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 8,
+   "sunTimeOfDayUTC": 1.12,
+   "camera": {
+    "position": [
+     2366304.446,
+     -881821.659,
+     -5856809.024
+    ],
+    "target": [
+     2366460.216,
+     -879865.363,
+     -5857194.569
+    ],
+    "up": [
+     0.371,
+     -0.139,
+     -0.918
+    ],
+    "orbitUp": [
+     0.371,
+     -0.139,
+     -0.918
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 8,
+    "sunTimeOfDayUTC": 1.12
+   }
+  }
+ },
+ {
+  "name": "showers-from-15km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 8,
+   "sunTimeOfDayUTC": 1.12,
+   "camera": {
+    "position": [
+     2390452.888,
+     -916789.094,
+     -5857625.992
+    ],
+    "target": [
+     2389456.283,
+     -915058.861,
+     -5857740.322
+    ],
+    "up": [
+     0.374,
+     -0.144,
+     -0.916
+    ],
+    "orbitUp": [
+     0.374,
+     -0.144,
+     -0.916
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 8,
+    "sunTimeOfDayUTC": 1.12
+   }
+  }
  }
 ]
