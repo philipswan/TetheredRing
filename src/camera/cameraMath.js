@@ -143,6 +143,8 @@ export function transitionSeconds(S, turn, scale = 1) {
 export function classifyWheel(event, recent = null) {
   if (event.ctrlKey) return 'pinch'
   if (event.deltaMode !== 0) return 'wheel'
+  // Within a touchpad burst, a fast swipe can send whole-number steps that look like a wheel's.
+  if (recent === 'touchpad') return 'touchpad'
   const dx = Math.abs(event.deltaX)
   const dy = Math.abs(event.deltaY)
   if (dx > 0) return 'touchpad'

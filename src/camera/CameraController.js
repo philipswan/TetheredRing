@@ -445,6 +445,7 @@ export class CameraController {
       zoomAt: (x, y, factor) => this.zoomAt(x, y, factor),
       twist: (x, y, angle) => this.twist(angle),
       doubleClick: (x, y) => this.doubleClick(x, y),
+      scrollPan: (x, y, mx, my) => this.scrollPan(x, y, mx, my),
       scrollMode: () => this.param('cameraTouchpadScroll', 'auto'),
       zoomSpeed: () => this.param('cameraZoomSpeed', 1),
     }
@@ -476,6 +477,12 @@ export class CameraController {
     if (this.tracking) {
       g.pivot = this.rig.object.clone()
       g.axis = this.verticalAt(g.pivot)
+    }
+    else if (kind === 'scrollpan') {
+      const hit = this.pick(x, y)
+      g.hit = hit
+      g.sphere = hit && hit.point.length() > 0.5 * this.planetRadius ? hit.point.length() : 0
+      g.distance = hit ? hit.distance : this.focusDistance()
     }
     else if (kind === 'orbit' || kind === 'pan' || kind === 'dolly') {
       const hit = this.pick(x, y)
@@ -512,9 +519,14 @@ export class CameraController {
     if (this.transition) this.settle()
     const rate = this.radiansPerPixel()
     const speed = this.param('cameraRotateSpeed', 1) * this.controls.rotateSpeed
-    // Orbiting: dragging right swings the camera left round the pivot (the scene turns with the
-    // pointer); dragging down raises the camera. Looking around: the sky follows the pointer.
-    const orbitRate = 1.2 * Math.PI / (this.domElement.clientHeight || 1) * speed
+    // Orbiting: the scene turns with the pointer (dragging right swings the camera left round the
+    // pivot, dragging down raises it). Seeing the whole planet, the rate is the one at which the surface
+    // under the middle of the view follows the pointer, so it feels like turning a globe by hand.
+    // Looking around: the sky follows the pointer.
+    const w = this.globeWeight()
+    const R = this.planetRadius
+    const globeRate = rate * Math.max(0, this.camera.position.length() - R) / R
+    const orbitRate = ((1 - w) * 1.2 * Math.PI / (this.domElement.clientHeight || 1) + w * globeRate) * speed
     if (g.kind === 'orbit') this.orbit(g.pivot, g.axis, -dx * orbitRate, -dy * orbitRate)
     else if (g.kind === 'look') this.lookAround(dx * rate * speed, dy * rate * speed)
     else if (g.kind === 'pan') this.pan(g, x, y, dx, dy)
@@ -532,6 +544,53 @@ export class CameraController {
       const ahead = _v.copy(p).sub(this.camera.position).dot(forwardOf(this.camera.quaternion, _w))
       if (ahead > 1) this.rig.focusDistance = ahead
     }
+  }
+
+  // Touchpad scrolling: the scene under the pointer (x, y) moves by (mx, my) pixels. Each step is
+  // worked out from the camera as it is now, so the pointer never leaves the scene however far it scrolls.
+  scrollPan(x, y, mx, my) {
+    const g = this.gesture
+    if (!g) return
+    this.settle()
+    if (this.tracking) {
+      this.pan(g, x, y, mx, my)
+      return
+    }
+    const camera = this.camera
+    const from = this.rayAt(x, y).clone()
+    const to = this.rayAt(x + mx, y + my).clone()
+    const position = camera.position.clone()
+    const q = camera.quaternion.clone()
+    let done = false
+    if (g.sphere) {
+      const sphere = new THREE.Sphere(new THREE.Vector3(), g.sphere)
+      const a = from.intersectSphere(sphere, new THREE.Vector3())
+      const b = to.intersectSphere(sphere, new THREE.Vector3())
+      if (a && b) {
+        const rotation = new THREE.Quaternion().setFromUnitVectors(b.normalize(), a.normalize())
+        position.applyQuaternion(rotation)
+        q.premultiply(rotation)
+        this.upHint.applyQuaternion(rotation)
+        done = true
+      }
+    }
+    if (!done && this.globeWeight() > 0.5) {
+      // Off the edge of the planet: turn the globe as a drag would.
+      const R = this.planetRadius
+      const rate = this.radiansPerPixel() * Math.max(0, camera.position.length() - R) / R
+      this.orbit(this.planetCoordSys.getWorldPosition(new THREE.Vector3()), this.polarAxis(), -mx * rate, -my * rate)
+      return
+    }
+    if (!done) {
+      const forward = forwardOf(q)
+      const grab = from.at(g.distance, new THREE.Vector3())
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(forward, grab)
+      const b = to.intersectPlane(plane, new THREE.Vector3())
+      if (!b) return
+      position.add(grab.sub(b))
+    }
+    this.rig.rebase(this, position, q)
+    this.applyPose(this.rig.evaluate(this))
   }
 
   // Applies a world-space rotation about `pivot` to the camera.
@@ -563,7 +622,7 @@ export class CameraController {
       const minPolar = THREE.MathUtils.degToRad(0.5)
       const maxPolar = Math.min(this.controls.maxPolarAngle, Math.PI - minPolar)
       const next = clamp(polar + elevation, minPolar, maxPolar)
-      rotation.premultiply(new THREE.Quaternion().setFromAxisAngle(across, polar - next))
+      rotation.premultiply(new THREE.Quaternion().setFromAxisAngle(across, next - polar))
     }
     this.rotateCameraAbout(pivot, rotation)
   }
@@ -659,14 +718,24 @@ export class CameraController {
       this.pendingZoom = null
     }
     z.log -= step
-    this.scaleDistance(Math.exp(step), z.point)
+    this.scaleDistance(Math.exp(step), z.point, { globe: true })
   }
 
   // Multiplies the camera's distance from `point` (or, following an object, from the object) by `factor`.
-  scaleDistance(factor, point = null) {
+  // With `globe` (the user's zooming), the point slides to the planet's centre as the view takes in the
+  // whole planet, and moving away turns the view towards the centre in step, so the planet is centred
+  // by the time it fits in the view and stays centred while zooming in until it no longer fits.
+  scaleDistance(factor, point = null, { globe = false } = {}) {
     const camera = this.camera
     const rig = this.rig
-    const centre = rig.isFree ? (point ?? this.focus) : rig.object
+    const planetCentre = this.planetCoordSys.getWorldPosition(new THREE.Vector3())
+    const w0 = this.globeWeight()
+    let centre = rig.isFree ? (point ?? this.focus) : rig.object
+    if (globe && rig.isFree) {
+      // (The surface point below the camera: on the line to the centre, at the scale of the altitude.)
+      const below = camera.position.clone().sub(planetCentre).setLength(this.planetRadius).add(planetCentre)
+      centre = centre.clone().lerp(below, w0)
+    }
     const offset = camera.position.clone().sub(centre)
     const distance = offset.length()
     if (!(distance > 0)) return
@@ -676,8 +745,14 @@ export class CameraController {
     const position = centre.clone().addScaledVector(offset, next / distance)
     if (position.length() > limit) return
     if (rig.isFree) {
-      const ahead = centre.clone().sub(position).dot(forwardOf(camera.quaternion, _w))
-      rig.rebase(this, position, camera.quaternion)
+      const q = camera.quaternion.clone()
+      const w1 = this.globeWeight(position)
+      if (globe && w1 > w0) {
+        const toCentre = aimRotation(position, planetCentre, this.verticalAt(position), this.upHint, 0, 0)
+        q.slerp(toCentre, w0 < 1 ? (w1 - w0) / (1 - w0) : 1)
+      }
+      const ahead = centre.clone().sub(position).dot(forwardOf(q, _w))
+      rig.rebase(this, position, q)
       if (ahead > 1) rig.focusDistance = ahead
     }
     else rig.rebase(this, position)

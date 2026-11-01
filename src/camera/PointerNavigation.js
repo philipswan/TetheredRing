@@ -13,12 +13,13 @@
 //
 // Handler methods (all optional except where used):
 //   enabled() -> bool
-//   beginDrag(kind, x, y)   kind: 'orbit' | 'pan' | 'look' | 'dolly'
+//   beginDrag(kind, x, y)   kind: 'orbit' | 'pan' | 'look' | 'dolly' | 'scrollpan'
 //   drag(kind, x, y, dx, dy)
 //   endDrag(kind)
 //   zoomAt(x, y, factor)    factor < 1 moves closer (the distance is multiplied by it)
 //   twist(x, y, angle)      radians, anticlockwise on screen
 //   doubleClick(x, y)
+//   scrollPan(x, y, mx, my) touchpad scrolling: the scene under the pointer moves by (mx, my)
 //   scrollMode() -> 'auto' | 'pan' | 'orbit' | 'zoom'   what touchpad scrolling does
 //   zoomSpeed() -> number
 import { classifyWheel } from './cameraMath.js'
@@ -233,12 +234,15 @@ export class PointerNavigation {
     if (this.scroll && this.scroll.kind !== scroll) this.endScroll()
     if (!this.scroll) {
       this.scroll = { kind: scroll, x: event.clientX, y: event.clientY, timer: null }
-      this.call('beginDrag', scroll, this.scroll.x, this.scroll.y)
+      this.call('beginDrag', scroll === 'pan' ? 'scrollpan' : scroll, this.scroll.x, this.scroll.y)
     }
     const s = this.scroll
-    s.x -= dx
-    s.y -= dy
-    this.call('drag', scroll, s.x, s.y, -dx, -dy)
+    if (scroll === 'pan') this.call('scrollPan', event.clientX, event.clientY, -dx, -dy)
+    else {
+      s.x -= dx
+      s.y -= dy
+      this.call('drag', scroll, s.x, s.y, -dx, -dy)
+    }
     clearTimeout(s.timer)
     s.timer = setTimeout(() => this.endScroll(), SCROLL_GESTURE_END_MS)
   }
@@ -248,6 +252,6 @@ export class PointerNavigation {
     if (!s) return
     clearTimeout(s.timer)
     this.scroll = null
-    this.call('endDrag', s.kind)
+    this.call('endDrag', s.kind === 'pan' ? 'scrollpan' : s.kind)
   }
 }
