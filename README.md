@@ -26,8 +26,8 @@ Install Git LFS:
 The commands are the same in PowerShell (Windows) and in a POSIX shell (Linux/macOS):
 
 ```
-git clone https://gitlab.bommanager.org/alastair/tethered-ring.git
-cd tethered-ring
+git clone -b 2026-claude-refactor https://github.com/philipswan/TetheredRing.git
+cd TetheredRing
 npm install
 npm run setup
 ```
