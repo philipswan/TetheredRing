@@ -18,6 +18,9 @@ export default async function ({ page }) {
     app.store.set('showLogo', false)
     app.applyAllParameters()
   })
+  // A fixed quality (BENCH_QUALITY, default high): in Auto the render resolution follows the frame time, so
+  // it would depend on how loaded the GPU is and on the views measured before.
+  await page.evaluate((mode) => window.tetheredRing.app.quality.setMode(mode), process.env.BENCH_QUALITY || 'high')
   const gpu = await page.evaluate(() => {
     const gl = window.tetheredRing.app.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
     return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
@@ -88,7 +91,20 @@ export default async function ({ page }) {
         // (Per frame: a pass drawn several times a frame is summed.)
         for (const [name, v] of Object.entries(sums)) passes[name] = +(v.reduce((s, x) => s + x, 0) / frames).toFixed(2)
       }
-      return { clouds, frame: frameTime, passes }
+      // What the frame depended on, to tell a change in the code from a change in the state (a view should
+      // look the same whichever views came before it).
+      const u = app.clouds?.uniforms
+      const round = (v) => Array.from(v.toArray ? v.toArray() : v, (x) => +x.toFixed(5))
+      const state = {
+        time: app.clock.time,
+        drift: u && round(u.drift.value),
+        realDate: app.clouds?.realClouds.textureDate,
+        weather: app.clouds?.weatherMap.date,
+        sun: u?.slSun && [u.slSun.value.x, u.slSun.value.y, u.slSun.value.z].map((x) => +x.toFixed(5)),
+        exposure: u && round(u.exposure.value),
+        buffer: `${app.renderer.domElement.width}x${app.renderer.domElement.height}`,
+      }
+      return { clouds, frame: frameTime, passes, state }
     }, view, frames, !!process.env.BENCH_PASSES)
     if (timing.error) throw new Error(timing.error)
     const file = path.join(out, `${name}.png`)

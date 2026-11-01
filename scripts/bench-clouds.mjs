@@ -6,6 +6,7 @@
 //
 //   npm run bench:clouds -- [--out .scratch/bench/now] [--baseline .scratch/bench/base] [--only name,name]
 //                           [--frames 60] [--width 1280 --height 720]
+//   BENCH_QUALITY=high|balanced|low  the graphics quality (default high; never Auto, which follows the frame time)
 //   BENCH_PASSES=1  also times each pass (sky, scene, the clouds' distance, march and composite, ...)
 //   BENCH_COST=1    the march's work per pixel (counts and a heat map; see Clouds.setCostView)
 //   BENCH_MOTION=kind:amount:frames  a camera move's frames, for tools/motion_artifacts.py
