@@ -48,4 +48,3 @@ npm run bench:clouds   # cloud GPU timings + screenshots for tests/bench/cloudVi
 - SI units throughout. Angles in parameters are degrees; `store.derived` converts where subsystems need radians.
 - The scene frame is X = ECEF y, Y = ECEF z (the polar axis), Z = ECEF x.
 - Match the surrounding code's style: 2-space indent, mostly no semicolons. Prettier is intentionally not used.
-- Bugs found in the pre-refactor code are filed on GitLab (gitlab.bommanager.org/alastair/tethered-ring) with file:line references on the `2025changes` branch. Don't close those issues.
