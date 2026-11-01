@@ -452,8 +452,20 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
         }
         // (Averaging narrows the noise's spread: restored, so the cover stays about the same.)
         shape += weight * (SHAPE_MEAN + (smear / ${STREAK_TAPS.toFixed(1)} - SHAPE_MEAN) * ${STREAK_SPREAD.toFixed(2)});
-        if (full) {
+      }
+      shape = SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
+      d = thresholdDensity(shape, highCover) * profile;
+      // Fibres along the wind (cirrus), filling in to an even veil as the cover rises (cirrostratus). (Only
+      // where there is cloud to draw them in, and the veil has not filled them in: they are the most costly
+      // part of the march.)
+      float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
+      if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
+      else if (full && d > 0.0) {
+        for (int i = 0; i < 2; i++) {
+          float weight = i == 0 ? 1.0 - drift.z : drift.z;
+          if (weight < 0.002) continue;
           COST(cost2.x)
+          float age = i == 0 ? drift.x : drift.y;
           vec3 qf = planetPoint - windAloft * age + driftShift[i];
           float f = 0.0;
           for (int k = 0; k < ${FIBRE_TAPS}; k++) {
@@ -461,15 +473,10 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
           }
           fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
         }
-      }
-      shape = SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
-      d = thresholdDensity(shape, highCover) * profile;
-      // Fibres along the wind (cirrus), filling in to an even veil as the cover rises (cirrostratus).
-      if (full && d > 0.0) {
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
         float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
-        d = min(d, 1.0) * mix(streaks, 1.0, smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity));
+        d = min(d, 1.0) * mix(streaks, 1.0, veil);
       }
     }
     float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5) * profile;
