@@ -162,7 +162,8 @@ export function classifyWheel(event, recent = null) {
 // year. The sun's ecliptic longitude is taken as 0 at the March equinox (day 80); in an inertial frame
 // with x towards the equinox the pole is (0, -sin e, cos e), which in terms of the sun's direction and
 // declination d is  cos e / cos^2 d * (polar - sin d * sun) - sin e * cos(longitude) / cos^2 d * (polar x sun).
-// It is perpendicular to `sun`, so taking it as "up" keeps the day-night terminator upright.
+// It is perpendicular to `sun`, so taking it as "up" keeps the day-night terminator upright seen from
+// the ecliptic's plane.
 export const OBLIQUITY = THREE.MathUtils.degToRad(23.44)
 export function eclipticNorth(sun, polar, dayOfYear, out = new THREE.Vector3()) {
   const sinD = clamp(sun.dot(polar), -1, 1)
@@ -176,17 +177,4 @@ export function eclipticNorth(sun, polar, dayOfYear, out = new THREE.Vector3()) 
   // (Keep it exactly perpendicular to the sun, whatever the date model's small differences.)
   out.addScaledVector(sun, -out.dot(sun))
   return out.lengthSq() > 1e-18 ? out.normalize() : anyPerpendicular(sun, out)
-}
-
-// "Up" for a view of the whole planet along `forward`: across the screen from the sun (so the sun's
-// direction is level on screen and the terminator upright), on the side of `north` (eclipticNorth).
-// Looking straight towards or away from the sun that is undefined, and `north` is used instead.
-export function sunUp(forward, sun, north, out = new THREE.Vector3()) {
-  out.crossVectors(forward, sun)
-  const m = out.length()
-  if (out.dot(north) < 0) out.negate()
-  const a = smoothstep(0.05, 0.25, m)
-  if (m > 0) out.multiplyScalar(a / m)
-  out.addScaledVector(north, 1 - a)
-  return out.lengthSq() > 1e-18 ? out.normalize() : out.copy(north)
 }

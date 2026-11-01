@@ -4,7 +4,7 @@ import { PointerNavigation } from './PointerNavigation.js'
 import { ecefToGeodetic } from '../physics/geodesy.js'
 import {
   clamp, smoothstep, smootherstep, levelUp, lookRotation, aimRotation, framingFromDirection, slerpUnit,
-  zoomPanPath, transitionSeconds, anyPerpendicular, sunUp,
+  zoomPanPath, transitionSeconds, anyPerpendicular,
 } from './cameraMath.js'
 
 // Everything that moves the free camera (shots place it themselves through setState).
@@ -61,7 +61,7 @@ class FreeRig {
 
   evaluate(ctl) {
     const forward = forwardOf(this.quaternion, _v)
-    const up = levelUp(forward, ctl.levelReference(this.position, forward), ctl.upHint, _u)
+    const up = levelUp(forward, ctl.levelReference(this.position), ctl.upHint, _u)
     lookRotation(forward, up, this.quaternion)
     return {
       position: this.position.clone(),
@@ -429,16 +429,21 @@ export class CameraController {
     return Math.max(1, this.focus.distanceTo(this.camera.position))
   }
 
-  // The direction the horizon is kept level about, for a camera at `position` looking along `forward`:
-  // the local vertical near the planet, turning (with globeWeight) to an "up" set by the sun far from it,
-  // so whole-planet views keep the day-night terminator upright (see cameraMath.sunUp).
-  levelReference(position, forward) {
+  // The direction the horizon is kept level about, for a camera at `position`: the local vertical near
+  // the planet, turning (with globeWeight) to the ecliptic's north far from it (skyNorth).
+  levelReference(position) {
     const radial = this.verticalAt(position, new THREE.Vector3())
     const g = this.lockUpToRingAxis ? 0 : this.globeWeight(position)
     if (g <= 0) return radial
+    return slerpUnit(radial, this.skyNorth(), g)
+  }
+
+  // "Up" for views of the whole planet: the ecliptic's north (the Sun's north pole, near enough), which
+  // is perpendicular to the sunlight, so the day-night terminator is upright seen from the ecliptic's
+  // plane. Without a sun, the planet's polar axis.
+  skyNorth(out = new THREE.Vector3()) {
     const frame = this.getSunFrame()
-    const up = frame ? sunUp(forward, frame.sun, frame.north) : this.polarAxis()
-    return slerpUnit(radial, up, g)
+    return frame ? out.copy(frame.north) : this.polarAxis(out)
   }
 
   // A camera orientation at `position` looking at `subject` (with the framing yaw, pitch), level.
@@ -446,7 +451,7 @@ export class CameraController {
     const forward = new THREE.Vector3().subVectors(subject, position)
     if (forward.lengthSq() < 1e-18) forward.set(0, 0, -1)
     forward.normalize()
-    return aimRotation(position, subject, this.levelReference(position, forward), this.upHint, yaw, pitch)
+    return aimRotation(position, subject, this.levelReference(position), this.upHint, yaw, pitch)
   }
 
   // How far up the camera is, as 0 (near the ground) .. 1 (seeing the whole planet): the orbit pivot
@@ -635,19 +640,26 @@ export class CameraController {
   }
 
   // An orbit drag. Near the ground (globe 0) the camera turns about the vertical at the pivot and rises
-  // or sinks towards it, never passing over the top. Seeing the whole planet (globe 1) it turns about
-  // the screen's own axes through the planet's centre, like a trackball: the globe always moves with
-  // the pointer whichever way up it is, and passes over the poles without spinning.
+  // or sinks towards it, never passing over the top; seeing the whole planet (globe 1) the same about the
+  // ecliptic's north through the planet's centre, so the globe turns like the Earth in its orbit.
   orbitGesture(g, azimuth, elevation) {
-    const screenUp = _u.set(0, 1, 0).applyQuaternion(this.camera.quaternion)
-    const axis = g.groundAxis ? slerpUnit(g.groundAxis, screenUp, g.globe) : screenUp.clone()
-    this.orbit(g.pivot, axis, azimuth, elevation, g.globe < 0.5 ? g.groundAxis : null)
+    // Seeing the whole planet the camera turns about the ecliptic's north (skyNorth) and rises towards
+    // it, staying 15 degrees short of its poles, where which way is up on screen is still well defined.
+    const north = this.skyNorth()
+    const axis = g.groundAxis ? slerpUnit(g.groundAxis, north, g.globe) : north
+    if (g.globe < 0.5) this.orbit(g.pivot, axis, azimuth, elevation, g.groundAxis, 0.5)
+    else {
+      // Towards the poles the middle of the view moves less for a given turn (as cos latitude): turn
+      // faster there so it still keeps up with the pointer.
+      const sinPolar = _v.copy(this.camera.position).sub(g.pivot).normalize().cross(north).length()
+      this.orbit(g.pivot, axis, azimuth / Math.max(0.25, sinPolar), elevation, north, 15)
+    }
   }
 
   // Turns the camera about `pivot`: by `azimuth` about `axis`, then by `elevation` up or down. With a
   // `clampAxis`, the elevation is about the horizontal across the view and limited so the camera never
   // passes over that axis (which would flip the view); without, it is about the camera's own right axis.
-  orbit(pivot, axis, azimuth, elevation, clampAxis = axis) {
+  orbit(pivot, axis, azimuth, elevation, clampAxis = axis, minPolarDegrees = 0.5) {
     const camera = this.camera
     const offset = camera.position.clone().sub(pivot)
     if (offset.lengthSq() < 1e-12) return this.lookAround(azimuth, elevation)
@@ -664,7 +676,7 @@ export class CameraController {
     if (across.lengthSq() > 1e-12) {
       across.normalize()
       const polar = Math.acos(clamp(r.clone().normalize().dot(axis), -1, 1))
-      const minPolar = THREE.MathUtils.degToRad(0.5)
+      const minPolar = THREE.MathUtils.degToRad(minPolarDegrees)
       const maxPolar = Math.min(this.controls.maxPolarAngle, Math.PI - minPolar)
       const next = clamp(polar + elevation, minPolar, maxPolar)
       rotation.premultiply(new THREE.Quaternion().setFromAxisAngle(across, next - polar))
