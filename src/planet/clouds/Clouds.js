@@ -117,13 +117,14 @@ const HIGH_DENSITY = 0.012
 // wind, so it is drawn out into hair-like streaks a few hundred metres across and kilometres long; the
 // cloud is where that rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser
 // there, so the streaks gather some of the cloud the layer would have spread evenly.
-// Where the high cover rises over VEIL_COVER it thickens into an even veil (cirrostratus).
+// Where the high cloud's opacity rises over VEIL_OPACITY it thickens into an even veil (cirrostratus);
+// below that it is streaks. (By the opacity: the cover saturates wherever there is much cirrus at all.)
 const FIBRE_TILE = 4000
 const FIBRE_LENGTH = 3000
 const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
 const FIBRE_TAPS = 12
 const FIBRE_EDGES = [0.3, 1.5]
-const VEIL_COVER = [0.5, 0.9]
+const VEIL_OPACITY = [0.35, 0.45]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
 // (which narrows its spread; STREAK_SPREAD restores it).
 const STREAK_TAPS = 3
@@ -444,7 +445,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
         float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
-        d = min(d, 1.0) * mix(streaks, 1.0, smoothstep(${VEIL_COVER[0].toFixed(2)}, ${VEIL_COVER[1].toFixed(2)}, highCover));
+        d = min(d, 1.0) * mix(streaks, 1.0, smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity));
       }
     }
     float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5) * profile;
@@ -593,7 +594,8 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
   float flatLit = 1.0;
   if (flatShare > 0.0) {
     vec3 q = p + sunS * max((${FLAT_HEIGHT.toFixed(1)} - hp) / mu, 0.0);
-    flatLit = 1.0 - flatOpacityAt(mapUv(latLon(q)), footprint);
+    // (Only below the layer: ground that rises through it, such as a high mountain, is above its clouds.)
+    flatLit = 1.0 - flatOpacityAt(mapUv(latLon(q)), footprint) * (1.0 - smoothstep(${(FLAT_HEIGHT - 300).toFixed(1)}, ${(FLAT_HEIGHT + 300).toFixed(1)}, hp));
     if (flatShare > 0.999) return flatLit;
   }
   CloudColumn col = cloudColumn(mapUv(latLon(p)), p, local, max(footprint, 150.0));
