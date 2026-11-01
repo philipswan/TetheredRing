@@ -13,7 +13,8 @@
 //
 // Handler methods (all optional except where used):
 //   enabled() -> bool
-//   beginDrag(kind, x, y)   kind: 'orbit' | 'pan' | 'look' | 'dolly' | 'scrollpan'
+//   beginDrag(kind, x, y, { speed })   kind: 'orbit' | 'pan' | 'look' | 'dolly' | 'scrollpan'; speed:
+//                           how fast the pointer started moving (pixels/s)
 //   drag(kind, x, y, dx, dy)
 //   endDrag(kind)
 //   zoomAt(x, y, factor)    factor < 1 moves closer (the distance is multiplied by it)
@@ -96,7 +97,7 @@ export class PointerNavigation {
     if (!kind) return
     this.endScroll()
     this.domElement.setPointerCapture?.(event.pointerId)
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, kind, dragging: false, pointerType: event.pointerType })
+    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, startTime: event.timeStamp, kind, dragging: false, pointerType: event.pointerType })
     if (event.pointerType === 'touch') {
       if (this.pointers.size === 2) {
         // A second finger: whatever the first was doing becomes a two-finger gesture.
@@ -123,7 +124,9 @@ export class PointerNavigation {
       if (Math.hypot(p.x - p.startX, p.y - p.startY) < DRAG_THRESHOLD_PX) return
       p.dragging = true
       this.mode = p.kind
-      this.call('beginDrag', p.kind, p.startX, p.startY)
+      // (How fast the pointer left its starting place: a fast flick means a big move of the view.)
+      const seconds = Math.max(1e-3, (event.timeStamp - p.startTime) / 1000)
+      this.call('beginDrag', p.kind, p.startX, p.startY, { speed: Math.hypot(p.x - p.startX, p.y - p.startY) / seconds })
       this.call('drag', p.kind, p.x, p.y, p.x - p.startX, p.y - p.startY)
       return
     }

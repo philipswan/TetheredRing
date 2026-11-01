@@ -48,6 +48,7 @@ import { downloadText, specsCsv } from './exports.js'
 import * as kmlutils from '../export/kmlutils.js'
 import { ShotController } from '../shots/ShotController.js'
 import { WORLD_ANCHOR } from '../shots/ShotFormat.js'
+import { anchorKey } from '../shots/Anchors.js'
 import { ShotSidebar } from '../ui/ShotSidebar.js'
 import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
 import { placeAtHeightInRingPlane } from '../ring/ringGeometry.js'
@@ -413,21 +414,21 @@ export class App {
       },
       // Double-click: follow the moving object nearest the pointer (as a shot anchor, so it can be
       // found again at any simulated time).
-      // A gesture that starts on (or near) a moving object takes hold of it: the camera follows it.
-      captureObjectAt: (x, y, maxDistance) => {
-        const anchor = this.shots?.pickAt(x, y, undefined, { radiusPx: 40, maxDistance })
-        if (!anchor) return false
-        this.shots.followAnchor(anchor, { capture: true })
-        return true
-      },
-      followObjectAt: (x, y) => {
-        const anchor = this.shots?.pickAt(x, y)
-        if (!anchor) return false
-        this.shots.followAnchor(anchor, { aim: true, approach: true })
-        return true
-      },
+      // Moving objects, as shot anchors (so they can be found again at any simulated time); see
+      // InteractionFocus for how gestures choose among them.
+      objectsNear: (x, y, radiusPx, maxDistance) => this.shots?.objectsNear(x, y, radiusPx, maxDistance) ?? [],
+      followAnchor: (anchor, options) => this.shots?.followAnchor(anchor, options),
+      trackedKey: () => (this.shots?.following ? anchorKey(this.shots.following) : null),
+      trackedType: () => this.shots?.following?.type ?? null,
     })
     this.camera.addMarkersTo(this.planetCoordSys)
+    // (However the camera lets go of an object, the shot panel stops showing it as followed.)
+    this.camera.trackingReleased = () => {
+      if (this.shots?.following) {
+        this.shots.following = null
+        this.shots.emit('mode')
+      }
+    }
     this.camera.ringAxis.set(0, 1, 0).applyQuaternion(this.ring.ringToPlanetRotation)
     const reference = this.nonGUIParams.initialReferencePoint === 'feederRailEntrancePosition' && this.launchSystem
       ? this.launchSystem.feederRailEntrancePosition

@@ -5,7 +5,7 @@ import {
 } from './ShotFormat.js'
 import { sampleCameraPath } from './CameraPath.js'
 import { createTimeMap, solveSpeedFor } from './ShotTiming.js'
-import { AnchorResolver } from './Anchors.js'
+import { AnchorResolver, anchorKey } from './Anchors.js'
 import { ShotPathOverlay } from './ShotPathOverlay.js'
 import {
   VideoRecorder, resolveCodec, defaultBitrate, evenDimension, isRecordingSupported, CODEC_LABELS,
@@ -591,6 +591,28 @@ export class ShotController {
     const pixelsPerRadian = camera.projectionMatrix.elements[5] * rect.height / 2
     const hit = this.resolver.nearestToRay(this.app.clock.time, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray(), radiusPx / pixelsPerRadian, types, maxDistance)
     return hit?.anchor ?? null
+  }
+
+  // The moving objects within radiusPx of the pointer and maxDistance of the camera, nearest on screen
+  // first: [{ anchor, key, type, position (THREE.Vector3), distance (m), px (pixels from the pointer) }].
+  objectsNear(clientX, clientY, radiusPx, maxDistance = Infinity) {
+    const camera = this.app.camera3d
+    const rect = this.app.renderer.domElement.getBoundingClientRect()
+    const ndc = new THREE.Vector2(2 * (clientX - rect.left) / rect.width - 1, 1 - 2 * (clientY - rect.top) / rect.height)
+    const raycaster = new THREE.Raycaster()
+    raycaster.setFromCamera(ndc, camera)
+    const { origin, direction } = raycaster.ray
+    const pixelsPerRadian = camera.projectionMatrix.elements[5] * rect.height / 2
+    const out = []
+    for (const c of this.resolver.candidates(this.app.clock.time)) {
+      const position = new THREE.Vector3(...c.position)
+      const d = position.clone().sub(origin)
+      const distance = d.length()
+      if (!(distance > 0) || distance > maxDistance) continue
+      const px = d.angleTo(direction) * pixelsPerRadian
+      if (px <= radiusPx) out.push({ anchor: c.anchor, key: anchorKey(c.anchor), type: c.anchor.type, position, distance, px })
+    }
+    return out.sort((a, b) => a.px - b.px)
   }
 
   // The object of `type` nearest to the middle of the view (or, failing that, to the camera).

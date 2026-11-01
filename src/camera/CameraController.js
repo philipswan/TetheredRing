@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { ObjectTracker, TRACKABLE_TYPES } from './ObjectTracker.js'
 import { PointerNavigation } from './PointerNavigation.js'
+import { InteractionFocus, REINFORCE } from './InteractionFocus.js'
 import { ecefToGeodetic } from '../physics/geodesy.js'
 import {
   clamp, smoothstep, smootherstep, levelUp, lookRotation, aimRotation, framingFromDirection, slerpUnit,
@@ -47,8 +48,41 @@ const MIN_ZOOM_DISTANCE = 0.3 // m from the point being zoomed towards
 const MAX_RADIUS_FACTOR = 200 // the camera stays within this many planet radii of the centre
 const CAPTURE_RANGE = 30000 // m: gestures take hold of moving objects up to this far away
 const PICK_SPREAD_PX = 28 // how far round the pointer thin structures are looked for
+const OBJECT_REACH_PX = 120 // how far round the pointer moving objects are considered
 
 const forwardOf = (q, out = new THREE.Vector3()) => out.set(0, 0, -1).applyQuaternion(q)
+
+// Rough sizes (m) of the moving objects, for how big they look (see InteractionFocus).
+const OBJECT_SIZES = { launchVehicle: 60, launchSled: 40, adaptiveNut: 20, transitVehicle: 30, elevatorCar: 10 }
+
+// What a hit mesh is part of (its Highlights class, e.g. 'ring', 'massDriver', 'elevators') and its
+// size (bounding radius, m).
+function structureInfo(object) {
+  let tag = null
+  for (let o = object; o && !tag; o = o.parent) tag = o.userData?.highlight ?? null
+  const geometry = object?.geometry
+  if (geometry && !geometry.boundingSphere) geometry.computeBoundingSphere()
+  const radius = geometry?.boundingSphere?.radius ?? 0
+  const scale = object ? object.getWorldScale(new THREE.Vector3()) : null
+  return { tag, size: scale ? radius * Math.max(scale.x, scale.y, scale.z) : radius }
+}
+
+// The extent (bounding radius, m) of a structure's centre line (a highlight stand-in), measured once.
+const _extents = new WeakMap()
+function centreLineExtent(group) {
+  let r = _extents.get(group)
+  if (r === undefined) {
+    const box = new THREE.Box3()
+    for (const line of group.children) {
+      line.geometry.computeBoundingBox()
+      line.updateWorldMatrix(true, false)
+      box.union(line.geometry.boundingBox.clone().applyMatrix4(line.matrixWorld))
+    }
+    r = box.isEmpty() ? 0 : box.getSize(new THREE.Vector3()).length() / 2
+    _extents.set(group, r)
+  }
+  return r
+}
 
 // ---- Rigs ------------------------------------------------------------------------------------------
 
@@ -169,9 +203,10 @@ export class CameraController {
   // planet's; getPickRoots(): objects the pointer can grab; followObjectAt(x, y): follows a moving
   // object near the pointer (client pixels) and returns true, or returns false if there is none.
   // getSunFrame(): { sun, north } world unit vectors towards the sun and the ecliptic's north (or null).
-  // captureObjectAt(x, y, maxDistance): follows (capture: true) a moving object near the pointer, no
-  // further than maxDistance; returns true if there was one.
-  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, followObjectAt, captureObjectAt, getSunFrame }) {
+  // objectsNear(x, y, radiusPx, maxDistance): moving objects near the pointer (ShotController.objectsNear);
+  // followAnchor(anchor, options): follows one (ShotController.followAnchor); trackedKey(): the key of
+  // the anchor followed now, if any; trackedType(): its type.
+  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, objectsNear, followAnchor, trackedKey, trackedType, getSunFrame }) {
     this.camera = camera
     this.domElement = domElement
     this.planetRadius = planetRadius
@@ -182,8 +217,11 @@ export class CameraController {
     this.planetCoordSys = planetCoordSys
     this.ellipsoid = ellipsoid
     this.getPickRoots = getPickRoots ?? (() => [])
-    this.followObjectAt = followObjectAt ?? (() => false)
-    this.captureObjectAt = captureObjectAt ?? (() => false)
+    this.objectsNear = objectsNear ?? (() => [])
+    this.followAnchor = followAnchor ?? (() => {})
+    this.trackedKey = trackedKey ?? (() => null)
+    this.trackedType = trackedType ?? (() => null)
+    this.focusModel = new InteractionFocus()
     this.getSunFrame = getSunFrame ?? (() => null)
     this.tweeningTime = 2000 // ms, for callers that predict where an object will be at the end of a move
     this.tweenClockMs = 0
@@ -407,7 +445,9 @@ export class CameraController {
   // km behind them, so the structures are looked for over a small patch round the pointer (`spread`
   // pixels): the nearest one there wins over the ground. Its depth is taken along the pointer's own
   // ray, so the point stays under the pointer.
-  pick(clientX, clientY, { spread = PICK_SPREAD_PX } = {}) {
+  // With `parts`, returns { ground, structure } separately (structure with `px`, how far from the pointer
+  // it was found), for weighing against other candidates (see InteractionFocus).
+  pick(clientX, clientY, { spread = PICK_SPREAD_PX, parts = false } = {}) {
     const ray = this.rayAt(clientX, clientY).clone()
     const raycaster = this.raycaster
     raycaster.far = Infinity
@@ -421,10 +461,12 @@ export class CameraController {
       if (p) best = { point: p, distance: p.distanceTo(ray.origin), terrain: true }
     }
     const rays = [ray]
+    const rayPx = [0]
     for (const r of spread > 0 ? [spread / 2, spread] : []) {
       for (let k = 0; k < 8; k++) {
         const a = (k + (r === spread ? 0.5 : 0)) * Math.PI / 4
         rays.push(this.rayAt(clientX + r * Math.cos(a), clientY + r * Math.sin(a)).clone())
+        rayPx.push(r)
       }
     }
     raycaster.far = best ? best.distance : Infinity
@@ -448,7 +490,7 @@ export class CameraController {
             hits.length = 0
             object.raycast(raycaster, hits)
             for (const h of hits) {
-              if (!nearest || h.distance < nearest.distance) nearest = { distance: h.distance, point: h.point.clone(), centre: i === 0 }
+              if (!nearest || h.distance < nearest.distance) nearest = { distance: h.distance, point: h.point.clone(), centre: i === 0, px: rayPx[i], object }
             }
           }
         }
@@ -460,12 +502,23 @@ export class CameraController {
     raycaster.far = Infinity
     // Far away the structures are a pixel or less across (or drawn as lines), so their centre lines are
     // looked for too: the nearest within `spread` pixels of the pointer's ray.
-    const line = this.nearestCentreLine(ray, centreLines, spread * this.radiansPerPixel(), best ? best.distance : Infinity)
-    if (line && (!nearest || line.distance < nearest.distance)) nearest = { ...line, centre: true }
+    // (Found beside the pointer, not on its ray: hidden only if the planet is in the way of it.)
+    const line = this.nearestCentreLine(ray, centreLines, spread * this.radiansPerPixel(), Infinity)
+    // Two kinds of structure hit: the part under (or near) the pointer, sized by its own bounds, and the
+    // whole structure whose centre line passes near it (the ring, a mass driver), sized by its extent.
+    // Close up the part is what is meant; from far away the whole.
+    const structures = []
     if (nearest && (!best || nearest.distance < best.distance)) {
-      best = { point: nearest.centre ? nearest.point : ray.at(nearest.distance, new THREE.Vector3()), distance: nearest.distance, terrain: false }
+      const info = structureInfo(nearest.object)
+      structures.push({ point: nearest.centre ? nearest.point : ray.at(nearest.distance, new THREE.Vector3()), distance: nearest.distance, terrain: false, px: nearest.px, ...info })
     }
-    return best
+    if (line) {
+      structures.push({ point: line.point, distance: line.distance, terrain: false, px: line.angle / this.radiansPerPixel(), tag: line.group.userData.highlight ?? null, size: centreLineExtent(line.group) })
+    }
+    if (parts) return { ground: best, structures }
+    let structure = null
+    for (const t of structures) if (!structure || t.distance < structure.distance) structure = t
+    return structure ?? best
   }
 
   // The point on the structures' centre lines (the highlight stand-ins: the ring, the mass driver) nearest
@@ -490,9 +543,9 @@ export class CameraController {
           if (along > 0) {
             const distance = onSegment.distanceTo(ray.origin)
             const angle = onSegment.distanceTo(onRay) / along
-            if (distance < maxDistance && angle < bestAngle) {
+            if (distance < maxDistance && angle < bestAngle && !this.behindPlanet(onSegment)) {
               bestAngle = angle
-              best = { point: onSegment.clone(), distance }
+              best = { point: onSegment.clone(), distance, angle, group }
             }
           }
           a.copy(b)
@@ -502,26 +555,86 @@ export class CameraController {
     return best
   }
 
-  // pick() for a gesture's pivot, a little sticky: when the pointer lands on ground far behind the
-  // structure the last gesture was about, and that structure is still nearby and in view, the gesture is
-  // about the structure again (so missing a thin rail by a few pixels does not swing the camera round a
-  // point kilometres away).
-  pickPivot(clientX, clientY) {
-    const hit = this.pick(clientX, clientY)
-    const last = this.lastStructurePivot
-    if (hit && !hit.terrain) {
-      this.lastStructurePivot = hit.point.clone()
-      return hit
+  // True if the planet (its sea-level ellipsoid, a little shrunk) hides `point` from the camera.
+  behindPlanet(point) {
+    const origin = this.camera.position
+    const toPoint = point.clone().sub(origin)
+    const length = toPoint.length()
+    if (!(length > 0)) return false
+    const ray = new THREE.Ray(origin, toPoint.multiplyScalar(1 / length))
+    const centre = this.planetCoordSys.getWorldPosition(new THREE.Vector3())
+    const hit = ray.intersectSphere(new THREE.Sphere(centre, this.planetRadius * 0.998), new THREE.Vector3())
+    return !!hit && hit.distanceTo(origin) < length - 1
+  }
+
+  // Everything a gesture starting at the pointer might be about (see InteractionFocus): the ground and
+  // the structure there, moving objects near it, points worked with recently that are still in view (and
+  // not hidden behind what is under the pointer), and the object followed now.
+  gatherCandidates(x, y) {
+    const now = performance.now()
+    const { ground, structures } = this.pick(x, y, { parts: true })
+    let front = ground
+    for (const t of structures) if (!front || t.distance < front.distance) front = t
+    // (How big things look: candidates of about the right size on screen to work with are favoured.)
+    const pixelsPerRadian = 1 / this.radiansPerPixel()
+    const apparent = (size, distance) => size > 0 ? 2 * size / Math.max(distance, 1e-3) * pixelsPerRadian : null
+    const candidates = []
+    if (ground) candidates.push({ kind: 'ground', point: ground.point, distance: ground.distance, px: 0 })
+    for (const t of structures) {
+      candidates.push({ kind: 'structure', point: t.point, distance: t.distance, px: t.px, tag: t.tag, size: t.size, apparentPx: apparent(t.size, t.distance) })
     }
-    if (!last) return hit
+    const trackedKey = this.tracking ? this.trackedKey() : null
+    // (Moving objects only nearby: from further away a gesture near a busy track would grab one of
+    // thousands of vehicles; double-click flies in to one instead.)
+    for (const o of this.objectsNear(x, y, OBJECT_REACH_PX, CAPTURE_RANGE)) {
+      // (Hidden behind what is under the pointer, if on its ray; behind the planet, if beside it.)
+      if (front && o.px < 3 && o.distance > front.distance * 1.05 + 50) continue
+      if (this.behindPlanet(o.position)) continue
+      if (o.key !== trackedKey) candidates.push({ kind: 'object', ...o, point: o.position, apparentPx: apparent(OBJECT_SIZES[o.type], o.distance) })
+    }
     const camera = this.camera
-    const distance = last.distanceTo(camera.position)
-    const ndc = last.clone().project(camera)
-    const inView = ndc.z < 1 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1
-    if (inView && distance < CAPTURE_RANGE && (!hit || distance < 0.2 * hit.distance)) {
-      return { point: last.clone(), distance, terrain: false, sticky: true }
+    const rect = this.domElement.getBoundingClientRect()
+    const toPx = (point) => {
+      const ndc = point.clone().project(camera)
+      if (!(ndc.z < 1) || Math.abs(ndc.x) > 1 || Math.abs(ndc.y) > 1) return null
+      return Math.hypot(rect.left + (ndc.x + 1) / 2 * rect.width - x, rect.top + (1 - ndc.y) / 2 * rect.height - y)
     }
-    return hit
+    for (const e of this.focusModel.rememberedPoints(now)) {
+      const px = toPx(e.point)
+      const distance = e.point.distanceTo(camera.position)
+      if (px === null || (front && px < 3 && distance > front.distance * 1.05 + 50) || this.behindPlanet(e.point)) continue
+      candidates.push({ kind: e.kind, point: e.point.clone(), distance, px, tag: e.tag, size: e.size, apparentPx: apparent(e.size, distance) })
+    }
+    if (this.tracking) {
+      const px = toPx(this.rig.object)
+      const distance = this.rig.object.distanceTo(camera.position)
+      const type = this.trackedType?.() ?? this.tracker.type
+      candidates.push({ kind: 'object', tracked: true, key: trackedKey, type, point: this.rig.object.clone(), distance, px: px ?? 1e4, apparentPx: apparent(OBJECT_SIZES[type] ?? 30, distance) })
+    }
+    return candidates
+  }
+
+  // The candidate a gesture at the pointer is about, and remembers it (reinforce: how much).
+  chooseTarget(x, y, { speed = 0, doubleClick = false, reinforce = REINFORCE.gesture } = {}) {
+    const now = performance.now()
+    const best = this.focusModel.choose(this.gatherCandidates(x, y), { now, speed, doubleClick })
+    if (best) this.focusModel.reinforce(best, reinforce, now)
+    return best
+  }
+
+  // Acts on the chosen target before a gesture: a moving object is taken hold of (followed, easing into
+  // riding along). Returns the point to act on otherwise ({ point, distance, terrain }), or null (sky,
+  // or the followed object).
+  takeTarget(best) {
+    if (!best) return null
+    if (best.kind === 'object') {
+      if (!best.tracked && best.anchor) this.followAnchor(best.anchor, { capture: true })
+      return null
+    }
+    // (While following an object, a gesture about something else still turns about the object: it is
+    // sticky. Esc or a double-click elsewhere lets go.)
+    if (this.tracking) return null
+    return { point: best.point, distance: best.distance, terrain: best.kind === 'ground' }
   }
 
   // A point to act on when the pointer is over empty sky: along the pointer's ray at the focus distance.
@@ -570,7 +683,7 @@ export class CameraController {
   gestureHandler() {
     return {
       enabled: () => this.controls.enabled && !this.playbackActive,
-      beginDrag: (kind, x, y) => this.beginDrag(kind, x, y),
+      beginDrag: (kind, x, y, info) => this.beginDrag(kind, x, y, info),
       drag: (kind, x, y, dx, dy) => this.drag(kind, x, y, dx, dy),
       endDrag: (kind) => this.endDrag(kind),
       zoomAt: (x, y, factor) => this.zoomAt(x, y, factor),
@@ -597,7 +710,7 @@ export class CameraController {
     return THREE.MathUtils.degToRad(this.camera.fov) / height
   }
 
-  beginDrag(kind, x, y) {
+  beginDrag(kind, x, y, { speed = 0 } = {}) {
     this.settle()
     const camera = this.camera
     const g = { kind, x, y }
@@ -605,12 +718,13 @@ export class CameraController {
     this.dragCamera.updateMatrixWorld()
     g.startPosition = camera.position.clone()
     g.startQuaternion = camera.quaternion.clone()
-    // A gesture that starts on (or near) a moving object takes hold of it (see capture()).
+    // What the gesture is about (see InteractionFocus): a moving object is taken hold of.
     let hit = null
-    if (!this.tracking && ['orbit', 'pan', 'dolly', 'scrollpan'].includes(kind)) {
-      hit = this.pickPivot(x, y)
-      this.capture(x, y, hit)
+    if (['orbit', 'pan', 'dolly', 'scrollpan'].includes(kind)) {
+      g.target = this.chooseTarget(x, y, { speed })
+      hit = this.takeTarget(g.target)
     }
+    g.startMs = performance.now()
     if (this.tracking) {
       g.pivot = this.rig.object.clone()
       g.groundAxis = this.verticalAt(g.pivot)
@@ -674,6 +788,11 @@ export class CameraController {
     const g = this.gesture
     this.gesture = null
     this.targetMarker.visible = false
+    // (A longer gesture about something is a stronger sign of interest in it.)
+    if (g?.target && g.startMs) {
+      const seconds = (performance.now() - g.startMs) / 1000
+      this.focusModel.reinforce(g.target, Math.min(REINFORCE.maxPerGesture, REINFORCE.perSecond * seconds), performance.now())
+    }
     if (!g || this.tracking) return
     // The focus (the point looked at) becomes what the gesture was about, if it is ahead.
     const p = g.hit?.point ?? g.pivot
@@ -816,9 +935,21 @@ export class CameraController {
     if (this.tracking) {
       // Following an object: panning moves the object on screen (its framing).
       const rate = this.radiansPerPixel()
-      const limit = THREE.MathUtils.degToRad(this.camera.fov)
-      this.rig.yaw = clamp(this.rig.yaw + dx * rate, -limit, limit)
-      this.rig.pitch = clamp(this.rig.pitch + dy * rate, -limit, limit)
+      const camera = this.camera
+      const halfHeight = THREE.MathUtils.degToRad(camera.fov) / 2
+      const halfWidth = Math.atan(Math.tan(halfHeight) * camera.aspect)
+      this.rig.yaw += dx * rate
+      this.rig.pitch += dy * rate
+      // Elastic: dragged to the edge of the view, the followed object pulls free (the camera eases to a
+      // stop and lets go of it), and the rest of this drag is ignored (the next one starts afresh).
+      if (Math.abs(this.rig.yaw) > halfWidth || Math.abs(this.rig.pitch) > halfHeight) {
+        this.rig.yaw = clamp(this.rig.yaw, -halfWidth, halfWidth)
+        this.rig.pitch = clamp(this.rig.pitch, -halfHeight, halfHeight)
+        this.applyPose(this.rig.evaluate(this))
+        this.letGo()
+        g.kind = 'none'
+        return
+      }
       this.applyPose(this.rig.evaluate(this))
       return
     }
@@ -866,9 +997,9 @@ export class CameraController {
     const moved = !z || Math.hypot(x - z.x, y - z.y) > 4 || now - z.time > 400
     if (moved || point) {
       let target = point
-      if (!target && !this.tracking) {
-        const hit = this.pickPivot(x, y)
-        if (!this.capture(x, y, hit)) target = hit?.point ?? this.pointOnRay(x, y, this.focusDistance())
+      if (!target) {
+        const hit = this.takeTarget(this.chooseTarget(x, y, { reinforce: REINFORCE.zoom }))
+        if (!this.tracking) target = hit?.point ?? this.pointOnRay(x, y, this.focusDistance())
       }
       z = { x, y, time: now, point: target, log: z && !moved ? z.log : 0 }
       this.pendingZoom = z
@@ -928,21 +1059,18 @@ export class CameraController {
     this.applyPose(rig.evaluate(this))
   }
 
-  // Takes hold of a moving object at (or within a few pixels of) the pointer, unless it is behind the
-  // surface or structure there (`hit`, from pick()). Returns true if the camera now follows one.
-  capture(x, y, hit) {
-    if (this.tracking) return false
-    // (Only nearby: from further away a drag near a busy track would grab one of thousands of vehicles;
-    // double-click flies in to one instead.)
-    const maxDistance = Math.min(CAPTURE_RANGE, hit ? hit.distance * 1.05 + 50 : Infinity)
-    return !!this.captureObjectAt(x, y, maxDistance) && this.tracking
-  }
-
+  // Double-click: the strongest signal of what the user wants. An object is flown to and followed; a
+  // point is flown to (and lets go of anything followed).
   doubleClick(x, y) {
     this.settle()
-    if (this.followObjectAt(x, y)) return
-    const hit = this.pick(x, y)
-    if (hit) this.flyTo(hit.point, { distance: hit.distance * 0.3 })
+    const best = this.chooseTarget(x, y, { doubleClick: true, reinforce: REINFORCE.doubleClick })
+    if (!best) return
+    if (best.kind === 'object') {
+      if (best.anchor) this.followAnchor(best.anchor, { aim: true, approach: true })
+      else if (best.tracked) this.follow(this.tracker.worldEntry?.() ?? this.rig.entry, { aim: true, approach: true, trackerTarget: this.tracker.target })
+      return
+    }
+    this.flyTo(best.point, { distance: best.distance * 0.3 })
   }
 
   // ---- Moves ---------------------------------------------------------------------------------
@@ -1051,11 +1179,19 @@ export class CameraController {
     return true
   }
 
+  // Lets go of the followed object gently: the camera eases from riding along to standing still, then
+  // stops following it.
+  letGo() {
+    if (this.rig.isFree) return
+    this.followTween = { from: this.rig.follow, to: 0, start: this.tweenClockMs, duration: 700, release: true }
+  }
+
   releaseTracking() {
     if (this.rig.isFree) return
     this.tracker.clear()
     this.followTween = null
     this.rig = new FreeRig(this.camera.position, this.camera.quaternion, this.focusDistance())
+    this.trackingReleased?.()
   }
 
   // Number keys: track the nearest object of TRACKABLE_TYPES[index]; pressing again releases it.
@@ -1125,7 +1261,11 @@ export class CameraController {
       const t = this.followTween
       const s = smootherstep((this.tweenClockMs - t.start) / t.duration)
       this.rig.setFollow(this, t.from + (t.to - t.from) * s)
-      if (s >= 1) this.followTween = null
+      if (s >= 1) {
+        const release = t.release
+        this.followTween = null
+        if (release) this.releaseTracking()
+      }
     }
 
     this.carryWithSun()
