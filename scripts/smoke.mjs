@@ -57,10 +57,14 @@ const browser = await puppeteer.launch({
   executablePath: findChrome(),
   headless: true,
   // SMOKE_GPU=1 uses the real GPU (much faster KTX2/terrain); the default software renderer works anywhere.
-  args: process.env.SMOKE_GPU
+  args: [...(process.env.SMOKE_CHROME_ARGS?.split(' ').filter(Boolean) ?? [])].concat(process.env.SMOKE_GPU
     ? ['--enable-gpu', '--use-angle=' + (process.env.SMOKE_ANGLE ?? 'gl-egl'), '--ignore-gpu-blocklist', `--window-size=${width},${height}`]
-    : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${width},${height}`],
+    : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${width},${height}`]),
+  // SMOKE_CHROME_ARGS: more browser flags, space-separated (e.g. --disable-gpu-sandbox).
+  ignoreDefaultArgs: false,
   defaultViewport: { width, height, deviceScaleFactor },
+  // SMOKE_DUMPIO=1 passes the browser's own stdout/stderr through (e.g. a GPU driver's shader statistics).
+  dumpio: !!process.env.SMOKE_DUMPIO,
 })
 
 const errors = []
