@@ -42,10 +42,17 @@ import { MULTIPLE_SCATTERING } from '../../scene/skyIrradiance.js'
 // 3. Composite: the scene dimmed by the clouds' shadow, the clouds over it (premultiplied; their
 //    transmittance dims what is behind), and rain streaks when the camera is in the rain.
 
-// The cloud target's resolution (of the screen's): half near the clouds (they are soft, and marching them
-// is costly), full from high up, where the march is cheap and their edges are sharp.
+// The cloud target's resolution (of the screen's), the same from every height (switching it changed the
+// pixels' footprints, and with them the clouds' detail, at once).
 const RESOLUTION = 0.5
-const HIGH_RESOLUTION = [100000, 300000] // m: the camera altitudes over which it rises to full
+// The pixel footprints (m) over which the clouds become a flat layer of the real clouds' opacity, at
+// FLAT_HEIGHT (m), as the imagery shows them from far out in space (too small to see as shapes, and the
+// march's cells are too few to show them steadily).
+const FLAT_FOOTPRINT = [1500, 5000]
+const FLAT_HEIGHT = 2000
+// The flat layer's light: shares of the sunlight on it (by the sun's height) and of the sky's.
+const FLAT_SUN = 0.55
+const FLAT_SKY = 1.0
 const SHELL_TOP = 13000 // m
 // The march (see main): the cloud layer, from LAYER_BOTTOM (m) up (below the lowest cloud bases), in the
 // cells of a grid fixed to the planet: fine cells CELL_MIN (m) and up, powers of two at about CELL_SHARE
@@ -619,17 +626,43 @@ void main() {
   float sunIntensity = exposure.y;
   float murkPhase = mix(phaseHG(sunCos, 0.5), 1.0 / (4.0 * PI), 0.5);
   vec3 white = mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
+  // The line of sight in the planet's axes (true metres), and the grid's coordinates (the camera's planet
+  // position modulo CELL_MAX, worked out in float64, plus the offset from it).
+  vec3 D = normalize(worldToPlanet * dirWorld);
+  vec3 safeD = vec3(abs(D.x) > 1e-6 ? D.x : 1e-6, abs(D.y) > 1e-6 ? D.y : 1e-6, abs(D.z) > 1e-6 ? D.z : 1e-6);
+  // From far enough away, the flat layer (FLAT_FOOTPRINT), lit by the sun on it and the sky above it; in
+  // between, blended with the march's clouds.
+  float flatShare = 0.0;
+  vec3 flatLight = vec3(0.0);
+  float flatOpacity = 0.0, tFlat = 0.0;
+  vec2 flatHit = sphere(c, d, a + ${FLAT_HEIGHT.toFixed(1)});
+  if (flatHit.y > 0.0) {
+    tFlat = flatHit.x > 0.0 ? flatHit.x : flatHit.y;
+    float footprint = tFlat / stretch * pixelAngle;
+    flatShare = smoothstep(${FLAT_FOOTPRINT[0].toFixed(1)}, ${FLAT_FOOTPRINT[1].toFixed(1)}, footprint);
+    if (flatShare > 0.0 && tFlat >= t0 && tFlat <= t1) {
+      vec3 pf = c + d * tFlat;
+      vec2 uv = mapUv(latLon(pf));
+      if (realBlend > 0.5) flatOpacity = clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0);
+      else flatOpacity = texture2D(weatherA, uv).r * 0.9;
+      // (Seen aslant, more of the sky is cloud: the clear share falls as through a layer, by the length of
+      // the line of sight across it, as the march's clouds do from afar.)
+      float slant = abs(dot(D, normalize(cameraPlanet + D * (tFlat / stretch))));
+      flatOpacity = 1.0 - pow(1.0 - min(flatOpacity, 0.999), min(1.0 / max(slant, 1e-3), 30.0));
+      vec3 fDirect, fSkyDown, fGroundUp, fUp;
+      slLightAt(dirWorld * (tFlat / stretch), fDirect, fSkyDown, fGroundUp, fUp);
+      float mu = max(dot(fUp, slSun), 0.0);
+      flatLight = (fDirect * mu * ${FLAT_SUN.toFixed(2)} + fSkyDown * ${FLAT_SKY.toFixed(2)} * RECIPROCAL_PI) * sunIntensity * flatOpacity;
+    }
+  }
   // The stretches: below the layer before it (from a camera under it), in it, and below it after it
   // (looking down through it).
   vec2 bottom = sphere(c, d, a + LAYER_BOTTOM);
   float tLayer0 = t0, tLayer1 = t1;
   if (length(c) < a + LAYER_BOTTOM) tLayer0 = min(max(bottom.y, t0), t1);
   else if (bottom.x > t0) tLayer1 = min(bottom.x, t1);
-  // The line of sight in the planet's axes (true metres), and the grid's coordinates (the camera's planet
-  // position modulo CELL_MAX, worked out in float64, plus the offset from it).
-  vec3 D = normalize(worldToPlanet * dirWorld);
-  vec3 safeD = vec3(abs(D.x) > 1e-6 ? D.x : 1e-6, abs(D.y) > 1e-6 ? D.y : 1e-6, abs(D.z) > 1e-6 ? D.z : 1e-6);
   for (int stretchIndex = 0; stretchIndex < 3; stretchIndex++) {
+    if (flatShare > 0.999) break;
     float ta = stretchIndex == 0 ? t0 : stretchIndex == 1 ? tLayer0 : tLayer1;
     float tb = stretchIndex == 0 ? tLayer0 : stretchIndex == 1 ? tLayer1 : t1;
     if (tb <= ta) continue;
@@ -811,6 +844,12 @@ void main() {
       if (transmittance < 0.01) break;
     }
     if (transmittance < 0.01) break;
+  }
+  if (flatShare > 0.0) {
+    light = mix(light, flatLight, flatShare);
+    transmittance = mix(transmittance, 1.0 - flatOpacity, flatShare);
+    depthSum = mix(depthSum, flatOpacity * tFlat, flatShare);
+    depthWeight = mix(depthWeight, flatOpacity, flatShare);
   }
   // Haze between the camera and the cloud (by its opacity-weighted distance). The air's light in front of
   // a cloud is the brighter of the sky's (as the sky beside it is drawn, with its exposure: clouds seen
@@ -1006,8 +1045,7 @@ export class Clouds {
     this.planetCoordSys.updateWorldMatrix(true, false)
     camera.getWorldPosition(_cameraPlanet)
     this.planetCoordSys.worldToLocal(_cameraPlanet)
-    const altitude = _cameraPlanet.length() - this.planet.atmosphereUniforms.atmoParams.value.z // (about: the equatorial radius)
-    const resolution = THREE.MathUtils.smoothstep(altitude, HIGH_RESOLUTION[0], HIGH_RESOLUTION[1]) > 0.5 ? 1 : RESOLUTION
+    const resolution = RESOLUTION
     const w = Math.max(1, Math.round(size.x * resolution)), h = Math.max(1, Math.round(size.y * resolution))
     if (this.distanceTarget.width !== w || this.distanceTarget.height !== h) {
       this.distanceTarget.setSize(w, h)
