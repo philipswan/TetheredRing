@@ -315,7 +315,7 @@ float realShare(vec2 uv) {
 struct CloudColumn {
   float highCover, highOpacity, lowCover, stratiform, showers;
   float base, top, highBase;
-  vec3 wind, east;
+  vec3 wind;
   float humidity, rain;
 };
 
@@ -376,7 +376,6 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.top = mix(cumulusTop, max(b.y * 1000.0, base + 500.0), stratiform);
   col.highBase = c.g * 1000.0;
   col.wind = b.z * east + b.w * north;
-  col.east = east;
   col.humidity = c.r;
   col.rain = showerRain(a);
   return col;
@@ -421,7 +420,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   layer = 0.0;
   float highCover = col.highCover, highOpacity = col.highOpacity, lowCover = col.lowCover;
   float stratiform = col.stratiform, showers = col.showers, base = col.base, top = col.top;
-  vec3 surfaceWind = col.wind, east = col.east;
+  vec3 surfaceWind = col.wind;
   // Too far for the noise's features (a few hundred metres up) to be seen: its expected value.
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   float density = 0.0;
@@ -437,7 +436,10 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
     layer = 1.0;
     float profile = smoothstep(0.0, 0.3, hh) * smoothstep(1.0, 0.6, hh);
     vec3 windAloft = surfaceWind * ${CIRRUS_WIND.toFixed(1)};
-    vec3 along = normalize(length(windAloft) > 0.1 ? windAloft : east);
+    // (Or, becalmed, east: worked out here rather than kept with the column, to save registers.)
+    vec3 along = windAloft;
+    if (length(windAloft) <= 0.1) along = cross(vec3(0.0, 1.0, 0.0), cameraPlanet + local);
+    along = normalize(along);
     float d = 0.0;
     if (lod < 1.0) {
       // Drawn out along the wind: the noise averaged over STREAK_TAPS points along it (a smear depends only on
@@ -589,7 +591,6 @@ CloudColumn mixColumn(CloudColumn a, CloudColumn b, float t) {
   m.top = mix(a.top, b.top, t);
   m.highBase = mix(a.highBase, b.highBase, t);
   m.wind = mix(a.wind, b.wind, t);
-  m.east = normalize(mix(a.east, b.east, t));
   m.humidity = mix(a.humidity, b.humidity, t);
   m.rain = mix(a.rain, b.rain, t);
   return m;
@@ -894,7 +895,7 @@ void main() {
           vec3 windM = 0.75 * (colA.wind + colB.wind);
           float windChange = 0.75 * length(colB.wind - colA.wind);
           float bound = 0.0;
-          for (int k = 0; k < 2; k++) {
+          for (int k = 0; k < 2 * noUnroll; k++) {
             float age = k == 0 ? drift.x : drift.y;
             bound = max(bound, shapeBound(localM - windM * age + shapeOffset[k], halfLength + windChange * age, ${SHAPE_TILE.toFixed(1)}));
           }
@@ -904,7 +905,7 @@ void main() {
           vec3 windM = 0.5 * ${CIRRUS_WIND.toFixed(1)} * (colA.wind + colB.wind);
           float windChange = 0.5 * ${CIRRUS_WIND.toFixed(1)} * length(colB.wind - colA.wind);
           float bound = 0.0;
-          for (int k = 0; k < 2; k++) {
+          for (int k = 0; k < 2 * noUnroll; k++) {
             float age = k == 0 ? drift.x : drift.y;
             vec3 q = cameraPlanet + localM - windM * age + driftShift[k] + vec3(9137.0, 4211.0, 15731.0);
             float b = shapeBound(q, halfLength + windChange * age + ${(HIGH_STREAK_LENGTH / 2).toFixed(1)}, ${HIGH_TILE.toFixed(1)});
