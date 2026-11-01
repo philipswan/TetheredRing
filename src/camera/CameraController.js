@@ -61,7 +61,7 @@ class FreeRig {
 
   evaluate(ctl) {
     const forward = forwardOf(this.quaternion, _v)
-    const up = levelUp(forward, ctl.verticalAt(this.position, _w), ctl.upHint, _u)
+    const up = levelUp(forward, ctl.verticalAt(this.position, _w), ctl.upHint, _u, 1 - ctl.globeWeight(this.position))
     lookRotation(forward, up, this.quaternion)
     return {
       position: this.position.clone(),
@@ -476,7 +476,8 @@ export class CameraController {
     g.startQuaternion = camera.quaternion.clone()
     if (this.tracking) {
       g.pivot = this.rig.object.clone()
-      g.axis = this.verticalAt(g.pivot)
+      g.groundAxis = this.verticalAt(g.pivot)
+      g.globe = 0
     }
     else if (kind === 'scrollpan') {
       const hit = this.pick(x, y)
@@ -490,12 +491,14 @@ export class CameraController {
       const w = this.globeWeight()
       if (kind === 'orbit') {
         if (hit) {
-          g.pivot = hit.point.clone().multiplyScalar(1 - w)
-          g.axis = slerpUnit(this.verticalAt(hit.point), this.polarAxis(), w)
+          g.pivot = hit.point.clone().lerp(this.planetCoordSys.getWorldPosition(new THREE.Vector3()), w)
+          g.groundAxis = this.verticalAt(hit.point)
+          g.globe = w
         }
         else if (w > 0.5) {
-          g.pivot = new THREE.Vector3()
-          g.axis = this.polarAxis()
+          g.pivot = this.planetCoordSys.getWorldPosition(new THREE.Vector3())
+          g.groundAxis = null
+          g.globe = 1
         }
         else g.kind = 'look'
       }
@@ -508,7 +511,6 @@ export class CameraController {
         g.planeNormal = forwardOf(camera.quaternion)
       }
     }
-    if (g.kind === 'look') g.axis = null
     this.gesture = g
     this.placeMarker(this.targetMarker, g.pivot ?? g.grab ?? this.focus, this.param('showTrackingMarkers', false) && !!(g.pivot ?? g.grab))
   }
@@ -527,7 +529,7 @@ export class CameraController {
     const R = this.planetRadius
     const globeRate = rate * Math.max(0, this.camera.position.length() - R) / R
     const orbitRate = ((1 - w) * 1.2 * Math.PI / (this.domElement.clientHeight || 1) + w * globeRate) * speed
-    if (g.kind === 'orbit') this.orbit(g.pivot, g.axis, -dx * orbitRate, -dy * orbitRate)
+    if (g.kind === 'orbit') this.orbitGesture(g, -dx * orbitRate, -dy * orbitRate)
     else if (g.kind === 'look') this.lookAround(dx * rate * speed, dy * rate * speed)
     else if (g.kind === 'pan') this.pan(g, x, y, dx, dy)
     else if (g.kind === 'dolly') this.zoomAt(g.x, g.y, Math.exp(dy * 0.005 * this.param('cameraZoomSpeed', 1)), g.hit?.point ?? g.grab)
@@ -578,7 +580,7 @@ export class CameraController {
       // Off the edge of the planet: turn the globe as a drag would.
       const R = this.planetRadius
       const rate = this.radiansPerPixel() * Math.max(0, camera.position.length() - R) / R
-      this.orbit(this.planetCoordSys.getWorldPosition(new THREE.Vector3()), this.polarAxis(), -mx * rate, -my * rate)
+      this.orbitGesture({ pivot: this.planetCoordSys.getWorldPosition(new THREE.Vector3()), groundAxis: null, globe: 1 }, -mx * rate, -my * rate)
       return
     }
     if (!done) {
@@ -607,13 +609,31 @@ export class CameraController {
     this.applyPose(rig.evaluate(this))
   }
 
-  orbit(pivot, axis, azimuth, elevation) {
+  // An orbit drag. Near the ground (globe 0) the camera turns about the vertical at the pivot and rises
+  // or sinks towards it, never passing over the top. Seeing the whole planet (globe 1) it turns about
+  // the screen's own axes through the planet's centre, like a trackball: the globe always moves with
+  // the pointer whichever way up it is, and passes over the poles without spinning.
+  orbitGesture(g, azimuth, elevation) {
+    const screenUp = _u.set(0, 1, 0).applyQuaternion(this.camera.quaternion)
+    const axis = g.groundAxis ? slerpUnit(g.groundAxis, screenUp, g.globe) : screenUp.clone()
+    this.orbit(g.pivot, axis, azimuth, elevation, g.globe < 0.5 ? g.groundAxis : null)
+  }
+
+  // Turns the camera about `pivot`: by `azimuth` about `axis`, then by `elevation` up or down. With a
+  // `clampAxis`, the elevation is about the horizontal across the view and limited so the camera never
+  // passes over that axis (which would flip the view); without, it is about the camera's own right axis.
+  orbit(pivot, axis, azimuth, elevation, clampAxis = axis) {
     const camera = this.camera
     const offset = camera.position.clone().sub(pivot)
     if (offset.lengthSq() < 1e-12) return this.lookAround(azimuth, elevation)
     const rotation = new THREE.Quaternion().setFromAxisAngle(axis, azimuth)
-    // Elevation: about the horizontal axis across the view, limited so the camera never passes over the
-    // pivot's vertical (which would flip the view).
+    if (!clampAxis) {
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).applyQuaternion(rotation)
+      rotation.premultiply(new THREE.Quaternion().setFromAxisAngle(right, elevation))
+      this.rotateCameraAbout(pivot, rotation)
+      return
+    }
+    axis = clampAxis
     const r = offset.clone().applyQuaternion(rotation)
     const across = new THREE.Vector3().crossVectors(axis, r)
     if (across.lengthSq() > 1e-12) {

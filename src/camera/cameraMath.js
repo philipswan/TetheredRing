@@ -35,9 +35,11 @@ export function anyPerpendicular(v, out = new THREE.Vector3()) {
 // The camera "up" for a view along `forward` (unit) that keeps the horizon level: the vertical
 // (unit) projected onto the screen plane. Looking (nearly) straight up or down that projection
 // vanishes, so there the previous up (`previousUp`) is kept instead, blending between the two over
-// the last LEVEL_CONE of tilt. The result is continuous however the view direction moves.
+// the last LEVEL_CONE of tilt. The result is continuous however the view direction moves. `strength`
+// (0..1) scales the levelling: 0 keeps the previous roll whatever the view (for views of the whole
+// planet, where the local vertical says nothing about which way is up on screen).
 export const LEVEL_CONE = 0.2 // sin of the angle off the vertical below which the previous up is kept
-export function levelUp(forward, vertical, previousUp, out = new THREE.Vector3()) {
+export function levelUp(forward, vertical, previousUp, out = new THREE.Vector3(), strength = 1) {
   _h.copy(vertical).addScaledVector(forward, -vertical.dot(forward))
   const w = _h.length()
   _p.copy(previousUp).addScaledVector(forward, -previousUp.dot(forward))
@@ -45,7 +47,7 @@ export function levelUp(forward, vertical, previousUp, out = new THREE.Vector3()
   else _p.normalize()
   if (w < 1e-9) return out.copy(_p)
   _h.multiplyScalar(1 / w)
-  const a = smoothstep(0, LEVEL_CONE, w)
+  const a = smoothstep(0, LEVEL_CONE, w) * strength
   if (a >= 1) return out.copy(_h)
   out.copy(_p).multiplyScalar(1 - a).addScaledVector(_h, a)
   if (out.lengthSq() < 1e-12) return out.copy(_h)
