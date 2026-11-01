@@ -73,6 +73,11 @@ const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
 const LIGHT_STEPS = 5
+// The sky's and the ground's light inside the clouds: dimmed by the cloud above (or below) as
+// exp(-AMBIENT_EXTINCTION * its optical depth), slower than the direct sunlight as it is scattered on
+// rather than lost; VERTICAL_STEPS samples each way (see verticalDepth).
+const AMBIENT_EXTINCTION = 0.5
+const VERTICAL_STEPS = 4
 // The noise tiles (m): shape and detail.
 const SHAPE_TILE = 24000
 const DETAIL_TILE = 3000
@@ -133,8 +138,9 @@ const CLEAR_VISIBILITY = 60000
 const FOG_VISIBILITY = 300
 // Rain: visibility (m) for a rain rate R (mm/h), RAIN_VISIBILITY * R^-0.63.
 const RAIN_VISIBILITY = 12000
-// How far (m) the clouds' shadow on the scene fades out (into the haze already over it).
-const SHADOW_FADE = 40000
+// The clouds' shadow on the scene: samples across the low and the high cloud (see cloudShadow).
+const SHADOW_STEPS = 16
+const SHADOW_HIGH_STEPS = 4
 
 const fullscreenVertex = `
 varying vec2 vUv;
@@ -485,9 +491,25 @@ float cloudScatter(float od, float phase) {
   float att = 1.0, ext = 1.0, ph = 1.0;
   for (int k = 0; k < 3; k++) {
     scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase, ph);
-    att *= 0.5; ext *= 0.25; ph *= 0.5;
+    att *= 0.5; ext *= 0.5; ph *= 0.5;
   }
   return scatter * (1.0 - 0.6 * exp(-od * 2.0));
+}
+
+// The cloud's optical depth straight up (dir 1) or down (dir -1) from height h (m) at planet-frame offset
+// local, in a column col: VERTICAL_STEPS steps doubling from 80 m, for the sky's light from above and the
+// ground's from below.
+float verticalDepth(CloudColumn col, vec3 local, float h, float dir, float footprint) {
+  vec3 up = normalize(cameraPlanet + local);
+  float od = 0.0, unused;
+  float stepLength = 80.0;
+  for (int k = 0; k < ${VERTICAL_STEPS}; k++) {
+    float at = dir * stepLength * (float(k) + 0.5);
+    if (h + at < 0.0) break;
+    od += columnDensity(col, local + up * at, h + at, false, footprint, unused) * stepLength;
+    stepLength *= 2.0;
+  }
+  return od * EXTINCTION;
 }
 
 // Columns blended (t from a to b), for the points between two where they are known.
@@ -528,24 +550,49 @@ vec2 sphere(vec3 o, vec3 d, float r) {
   return vec2(-b - s, -b + s);
 }
 
-// The cloud's transmittance towards the sun from stretched point p (planet-frame offset from the camera
-// local): a march across the cloud layer, without the detail noise.
+// The real clouds' opacity (or the weather's cover) at uv, as the flat layer shows it, for a footprint (m).
+float flatOpacityAt(vec2 uv, float footprint) {
+  if (realBlend > 0.5) return clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0);
+  return texture2D(weatherA, uv).r * 0.9;
+}
+
+// The share of sunlight reaching p (stretched; local: its planet-frame offset from the camera) through
+// the clouds towards the sun (sunS, stretched), for a pixel footprint (m). The line towards the sun is
+// sampled only where it crosses the layers' heights (from the column at p): SHADOW_STEPS across the low
+// cloud and SHADOW_HIGH_STEPS across the high, at fixed fractions, so the samples are points fixed to the
+// planet wherever the camera is. From far enough away (FLAT_FOOTPRINT, as the clouds themselves), the
+// flat layer's opacity where the line crosses FLAT_HEIGHT instead.
 float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
   float a = slParams.z;
-  vec2 exit = sphere(p, sunS, a + SHELL_TOP);
-  if (exit.y <= 0.0) return 1.0;
   vec2 floorHit = sphere(p, sunS, a);
   if (floorHit.x > 0.0) return 0.0;  // (the planet's own shadow is the light model's)
-  float len = exit.y, od = 0.0;
-  for (int j = 0; j < 8; j++) {
-    float t = len * (float(j) + 0.5) / 8.0;
-    vec3 q = p + sunS * t;
-    float h = length(q) - a;
-    if (h < 100.0) continue;
-    float unused;
-    od += cloudDensity(mapUv(latLon(q)), q, local + worldToPlanet * (slSun * t), h, false, max(footprint, 400.0), unused) * len / 8.0;
+  float hp = length(p) - a;
+  float mu = max(dot(normalize(p), sunS), 0.02);
+  float flatShare = smoothstep(${FLAT_FOOTPRINT[0].toFixed(1)}, ${FLAT_FOOTPRINT[1].toFixed(1)}, footprint);
+  float flatLit = 1.0;
+  if (flatShare > 0.0) {
+    vec3 q = p + sunS * max((${FLAT_HEIGHT.toFixed(1)} - hp) / mu, 0.0);
+    flatLit = 1.0 - flatOpacityAt(mapUv(latLon(q)), footprint);
+    if (flatShare > 0.999) return flatLit;
   }
-  return exp(-EXTINCTION * od);
+  CloudColumn col = cloudColumn(mapUv(latLon(p)), p, local, max(footprint, 150.0));
+  float od = 0.0, unused;
+  for (int layerIndex = 0; layerIndex < 2; layerIndex++) {
+    bool low = layerIndex == 0;
+    float bottom = low ? col.base : col.highBase, top = low ? col.top : col.highBase + ${HIGH_THICKNESS.toFixed(1)};
+    if (!low && col.highCover <= 0.005) continue;
+    float ta = max((bottom - ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu, 0.0), tb = (top + ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu;
+    if (tb <= ta) continue;
+    int steps = low ? ${SHADOW_STEPS} : ${SHADOW_HIGH_STEPS};
+    float dt = (tb - ta) / float(steps);
+    for (int j = 0; j < ${SHADOW_STEPS}; j++) {
+      if (j >= steps) break;
+      float t = ta + dt * (float(j) + 0.5);
+      vec3 q = p + sunS * t;
+      od += cloudDensity(mapUv(latLon(q)), q, local + worldToPlanet * (slSun * t), length(q) - a, false, max(footprint, 150.0), unused) * dt;
+    }
+  }
+  return mix(exp(-EXTINCTION * od), flatLit, flatShare);
 }
 
 // The air's murk at a point (extinction, 1/m), beyond the clear air the atmosphere model already has:
@@ -611,7 +658,15 @@ void main() {
     float directShare = dot(sun, vec3(0.2126, 0.7152, 0.0722)) / max(dot(sun + sky, vec3(0.2126, 0.7152, 0.0722)), 1e-6);
     float cover = texture2D(weatherA, mapUv(latLon(ps))).r;
     float lit = directShare * sceneSun + (1.0 - directShare) * (1.0 - 0.5 * cover * cover);
-    shade = mix(1.0, lit, exp(-tScene / stretch / ${SHADOW_FADE.toFixed(1)}));
+    // (Seen through the air's haze, which the shadow does not darken: by the air's transmittance.)
+    float at0, at1;
+    float airSeen = 1.0;
+    if (atmoRoots(dot(ds / stretch, ds / stretch), dot(c, d), dot(c, c) - (a + 100000.0) * (a + 100000.0), at0, at1)) {
+      vec3 airLight, airTransmittance;
+      atmoScatter(c, d, dirWorld, max(at0, 0.0), min(at1, tScene), slSun, a, 8, airLight, airTransmittance);
+      airSeen = dot(airTransmittance, vec3(0.2126, 0.7152, 0.0722));
+    }
+    shade = mix(1.0, lit, airSeen);
   }
   else if (slParams.x > 0.5) {
     // (Sky: the murk's sunlight as at the camera.)
@@ -661,8 +716,7 @@ void main() {
     if (flatShare > 0.0 && tFlat >= t0 && tFlat <= t1) {
       vec3 pf = c + d * tFlat;
       vec2 uv = mapUv(latLon(pf));
-      if (realBlend > 0.5) flatOpacity = clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0);
-      else flatOpacity = texture2D(weatherA, uv).r * 0.9;
+      flatOpacity = flatOpacityAt(uv, footprint);
       // (Seen aslant, more of the sky is cloud: the clear share falls as through a layer, by the length of
       // the line of sight across it, as the march's clouds do from afar.)
       float slant = abs(dot(D, normalize(cameraPlanet + D * (tFlat / stretch))));
@@ -717,7 +771,7 @@ void main() {
     CloudColumn colA = cloudColumn(mapUv(latLon(pA)), pA, D * r, r * pixelAngle);
     float d0 = 0.0;          // the density where the next fine cell starts
     bool d0Known = false;
-    float od0 = -1.0;        // its optical depth towards the sun (< 0: not known)
+    vec3 od0 = vec3(-1.0);   // its optical depths towards the sun, up and down (x < 0: not known)
     for (int i = 0; i < ${MAX_COARSE}; i++) {
       if (r >= rEnd) break;
       float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
@@ -739,7 +793,8 @@ void main() {
       slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
       vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
       vec3 sunlight = slSunTransmittance(c + d * (rcm * stretch)) * white;
-      vec3 ambient = (stepSkyDown * 1.6 + stepGroundUp * 0.6) * sunIntensity * RECIPROCAL_PI * 0.5;
+      vec3 skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
+      vec3 groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
       // The stretch's heights (the lowest where the line of sight passes closest to the centre).
       float hA = length(pA) - a, hB = length(pB) - a;
       float rLow = clamp(-dot(c, d) / stretch, r, rc1);
@@ -790,7 +845,7 @@ void main() {
         }
         d0 = 0.0;
         d0Known = true;
-        od0 = -1.0;
+        od0 = vec3(-1.0);
       }
       else {
         if (!d0Known) {
@@ -827,23 +882,32 @@ void main() {
           d0 = d1;
           float rf0 = rf;
           rf = r1;
-          if (density <= 0.0005) { od0 = -1.0; continue; }
+          if (density <= 0.0005) { od0 = vec3(-1.0); continue; }
           float sigma = EXTINCTION * density;
           // Light towards the sun through the cloud, from the cell's stretch's ends (shared with the cells
           // beside it, so the light is continuous from cell to cell; from the middle alone, each cell was lit
           // evenly, and the cells showed as steps), and the light scattered towards the eye.
           // (High cloud alone is too thin to shade itself much: lit as if clear.)
-          float od1 = 0.0;
+          // The same for the cloud above and below, which the sky's and the ground's light come through.
+          vec3 od1 = vec3(0.0);
           if (lowCloud) {
             CloudColumn col0 = mixColumn(colA, colB, (rf0 - r) / max(rc1 - r, 1e-3));
-            if (od0 < 0.0) od0 = sunwardDepth(col0, c + d * (rf0 * stretch), D * rf0, sunDirS, rf0 * pixelAngle);
-            od1 = sunwardDepth(col1, p1, D * r1, sunDirS, r1 * pixelAngle);
+            if (od0.x < 0.0) {
+              float h0 = length(c + d * (rf0 * stretch)) - a;
+              od0 = vec3(sunwardDepth(col0, c + d * (rf0 * stretch), D * rf0, sunDirS, rf0 * pixelAngle),
+                verticalDepth(col0, D * rf0, h0, 1.0, rf0 * pixelAngle), verticalDepth(col0, D * rf0, h0, -1.0, rf0 * pixelAngle));
+            }
+            float h1 = length(p1) - a;
+            od1 = vec3(sunwardDepth(col1, p1, D * r1, sunDirS, r1 * pixelAngle),
+              verticalDepth(col1, D * r1, h1, 1.0, r1 * pixelAngle), verticalDepth(col1, D * r1, h1, -1.0, r1 * pixelAngle));
           }
-          else od0 = 0.0;
-          float scatter = 0.5 * (cloudScatter(od0, phase) + cloudScatter(od1, phase));
+          else od0 = vec3(0.0);
+          float scatter = 0.5 * (cloudScatter(od0.x, phase) + cloudScatter(od1.x, phase));
+          vec2 ambientShare = 0.5 * (exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od0.yz) + exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od1.yz));
+          vec3 ambient = skyAmbient * ambientShare.x + groundAmbient * ambientShare.y;
           od0 = od1;
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
-          // more higher up, nearer the sunlit top. (Sky and ground light: ambient.)
+          // more higher up, nearer the sunlit top. (Sky and ground light: ambient, from above and below.)
           vec3 diffuse = sunlight * 0.05 * mix(0.35, 1.0, layer);
           vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
           // Energy-conserving integration across the stretch.
