@@ -14,11 +14,11 @@ import { MULTIPLE_SCATTERING } from '../../scene/skyIrradiance.js'
 // 1. Distance: the scene again, writing each pixel's distance from the camera, so the clouds stop at
 //    whatever is in front of them (the ground, the sea, the ring, a vehicle in a cloud).
 // 2. Clouds: each pixel's line of sight is marched through the cloud shell (sea level to SHELL_TOP over
-//    the ellipsoid, stretched to a sphere as the sky does), up to the ground or the scene, in steps a
-//    share of their distance in the cloud layer, split finer where there is cloud (fewer below it),
-//    sampled at their middles without jitter (a jitter stays where the camera puts it while the clouds
-//    move behind it, which looked like rippled glass); nothing changes from frame to frame, so
-//    recordings are repeatable. At each step:
+//    the ellipsoid, stretched to a sphere as the sky does), up to the ground or the scene, across the
+//    cells of a grid fixed to the planet (see main): what is drawn depends on where the camera is only
+//    through where it is seen from, so moving the camera never makes the clouds shimmer, slide or pop
+//    (samples at distances from the camera, or jittered, sliced them into terraces that slid as it
+//    moved); nothing changes from frame to frame, so recordings are repeatable. Along the way:
 //    - The weather map gives the cover, the low cloud layer's base and top, the convective share, the
 //      rain and the wind. Convective weather gives cumulus, rising into towers in heavy showers;
 //      otherwise the layer is stratiform.
@@ -47,30 +47,24 @@ import { MULTIPLE_SCATTERING } from '../../scene/skyIrradiance.js'
 const RESOLUTION = 0.5
 const HIGH_RESOLUTION = [100000, 300000] // m: the camera altitudes over which it rises to full
 const SHELL_TOP = 13000 // m
-// The march (see main): steps in the cloud layer a share CLOUD_STEP of their distance (more if MAX_STEPS
-// would not reach the layer's end), starting at MIN_STEP (m), split into FINE_STEPS where there is cloud;
-// at most MAX_STEPS in each stretch; MURK_STEPS across each stretch below the layer, which is from
-// LAYER_BOTTOM (m) up (below the lowest cloud bases).
-const CLOUD_STEP = 0.08
-const FINE_STEPS = 6
-// Where split, fine steps of FINE_SHARE of the distance, at least FINE_MIN (m); at most FINE_MAX_SPLIT per
-// coarse step, and the loop allows MAX_FINE_SAMPLES more samples for them.
-const FINE_SHARE = 0.005
-const FINE_MIN = 8
-const FINE_MAX_SPLIT = 12
-const MAX_FINE_SAMPLES = 160
-// The probes' margin (cloudProbe): PROBE_GROW[0] plus PROBE_GROW[1] per PROBE_GROW[2] m of step, at most
-// PROBE_GROW[3] (in the shape noise's units; its middle 80% spans about 0.15).
-const PROBE_GROW = [0.02, 0.05, 400, 0.25]
+// The march (see main): the cloud layer, from LAYER_BOTTOM (m) up (below the lowest cloud bases), in the
+// cells of a grid fixed to the planet: fine cells CELL_MIN (m) and up, powers of two at about CELL_SHARE
+// of the distance, climbing or falling no more than VERTICAL_CELL (m) across one (HIGH_CELLS times both
+// where there can only be high cloud), in coarse cells COARSE fine ones across, up to CELL_MAX (m), at
+// most MAX_COARSE of them; HEIGHT_MARGIN (m): how far beyond a column's layers cloud is looked for.
+// MURK_STEPS across each stretch below the layer.
+const CELL_MIN = 16
+const CELL_MAX = 8192
+const CELL_SHARE = 0.004
+const COARSE = 8
+const MAX_COARSE = 1500
+const HEIGHT_MARGIN = 100
+const HIGH_CELLS = 8
+const VERTICAL_CELL = 150
+const MURK_STEPS = 10
+const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
-const MIN_STEP = 25
-const MAX_STEPS = 64
-const MURK_STEPS = 10
-// At least this many steps across the line of sight's path through the cloud layer (from far away, a
-// share of the distance would step right over it).
-const LAYER_STEPS = 24
-const LAYER_BOTTOM = 250
 const LIGHT_STEPS = 5
 // The noise tiles (m): shape and detail.
 const SHAPE_TILE = 24000
@@ -165,11 +159,13 @@ uniform sampler2D weatherB;
 uniform sampler2D weatherC;
 uniform sampler3D shapeNoise;
 uniform sampler3D detailNoise;
+uniform sampler3D occupancy;      // bounds on the shape noise (cloudNoise.js)
 uniform mat4 inverseProjection;
 uniform mat4 cameraWorld;
 uniform mat3 worldToPlanet;
 uniform vec3 shapeOffset[2];    // the camera's planet position modulo the shape tile (m), for each drift copy
 uniform vec3 detailOffset[2];
+uniform vec3 cameraGrid;        // the camera's planet position modulo CELL_MAX (m), for the march's grid
 uniform vec3 cameraPlanet;      // the camera's planet position (m; float32, for the high cloud's streaks)
 uniform vec3 driftShift[2];     // each drift copy's own shift (m)
 uniform vec3 macroOffset;        // the camera's planet position modulo the large-scale tile (m)
@@ -184,11 +180,7 @@ layout(location = 0) out vec4 outClouds;
 layout(location = 1) out vec4 outShade;  // r: the scene's dimming by the clouds; g: rain at the camera (mm/h)
 
 const float SHELL_TOP = ${SHELL_TOP.toFixed(1)};
-const float CLOUD_STEP = ${CLOUD_STEP.toFixed(3)};
-const float STEP_ORIGIN = ${(MIN_STEP / CLOUD_STEP).toFixed(1)};
-const int FINE_STEPS = ${FINE_STEPS};
 const int MURK_STEPS = ${MURK_STEPS};
-const float LAYER_STEPS = ${LAYER_STEPS.toFixed(1)};
 const float LAYER_BOTTOM = ${LAYER_BOTTOM.toFixed(1)};
 const float EXTINCTION = ${EXTINCTION.toFixed(4)};
 
@@ -250,18 +242,15 @@ float driftedShape(vec3 local, vec3 wind, float tile, vec3 offsets[2], out float
 }
 
 // Density (0..1) of thresholded noise for a cover: from 0 at the threshold to 1 near the noise's top
-// (SHAPE_TOP), so even sparse clouds are dense at their cores. probeGrow grows the clouds for the march's
-// probes (cloudProbe).
-float probeGrow = 0.0;
+// (SHAPE_TOP), so even sparse clouds are dense at their cores.
 float thresholdDensity(float shape, float cover) {
-  shape += probeGrow;
   float threshold = coverThreshold(cover);
   return clamp((shape - threshold) / max(SHAPE_TOP - threshold, 0.02), 0.0, 1.0);
 }
 
 // The weather and cloud cover of a column of the sky (the same for every height in it, and changing
-// little over a step of the march, which reuses it for its samples): from the textures at uv, the
-// point p (stretched) and planet-frame offset local, for a pixel footprint (m).
+// little across a coarse cell of the march, which blends it between the cell's ends): from the
+// textures at uv, the point p (stretched) and planet-frame offset local, for a pixel footprint (m).
 struct CloudColumn {
   float highCover, highOpacity, lowCover, stratiform, showers;
   float base, top, highBase;
@@ -368,8 +357,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   // High cloud: streaks along the wind aloft.
   float hb = col.highBase;
   float hh = (h - hb) / ${HIGH_THICKNESS.toFixed(1)};
-  // (Not for the march's probes: thin and soft, it does not need its steps split.)
-  if (probeGrow == 0.0 && highCover > 0.005 && hh > 0.0 && hh < 1.0) {
+  if (highCover > 0.005 && hh > 0.0 && hh < 1.0) {
     layer = 1.0;
     float profile = smoothstep(0.0, 0.3, hh) * smoothstep(1.0, 0.6, hh);
     vec3 windAloft = surfaceWind * ${CIRRUS_WIND.toFixed(1)};
@@ -420,6 +408,81 @@ float cloudDensity(vec2 uv, vec3 p, vec3 local, float h, bool full, float footpr
   return columnDensity(cloudColumn(uv, p, local, footprint), local, h, full, footprint, layer);
 }
 
+// The distance along the line of sight D (planet axes; safeD: D with no zero component) from r to where
+// it leaves the grid's cell of size cell (m) it is in (moving on from a cell's plane, into the next).
+float cellExit(float r, float cell, vec3 D, vec3 safeD) {
+  vec3 q = cameraGrid + D * r;
+  vec3 inside = floor((q + D * (cell * 1e-3)) / cell) * cell;   // (nudged off the plane it is on)
+  vec3 ahead = (inside + step(vec3(0.0), D) * cell - q) / safeD;
+  return max(min(ahead.x, min(ahead.y, ahead.z)), cell * 1e-3);
+}
+
+// An upper bound on the shape noise's value anywhere within extent (m) of q (m, before dividing by the
+// tile): the highest of the occupancy texture's blocks overlapping that box, at the finest level whose
+// blocks are at least the box's size across (so it overlaps at most two along each axis).
+float shapeBound(vec3 q, float extent, float tile) {
+  int size = textureSize(occupancy, 0).x;
+  float texels = 2.0 * extent / tile * float(size);
+  int level = int(clamp(ceil(log2(max(texels, 1.0))), 0.0, log2(float(size))));
+  int n = size >> level;
+  vec3 lo = (fract(q / tile) - extent / tile) * float(n);
+  ivec3 a = ivec3(floor(lo)), b = ivec3(floor(lo + 2.0 * extent / tile * float(n)));
+  float bound = 0.0;
+  for (int k = 0; k < 8; k++) {
+    ivec3 i = ivec3((k & 1) == 0 ? a.x : b.x, (k & 2) == 0 ? a.y : b.y, (k & 4) == 0 ? a.z : b.z);
+    i = ((i % n) + n) % n;
+    bound = max(bound, texelFetch(occupancy, ivec3(i.xy, 2 * size - 2 * n + i.z), 0).r);
+  }
+  return bound;
+}
+
+// The cloud's optical depth from p (stretched; local: its planet-frame offset from the camera) towards the
+// sun (sunDirS stretched), in a column col, over LIGHT_STEPS steps doubling from 60 m.
+float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float footprint) {
+  float a = slParams.z;
+  float od = 0.0, unused;
+  float lightStep = 60.0;
+  for (int k = 0; k < ${LIGHT_STEPS}; k++) {
+    float lightAt = lightStep * (float(k) + 0.5);
+    vec3 q = p + sunDirS * lightAt;
+    vec3 ql = local + worldToPlanet * (slSun * lightAt);
+    od += columnDensity(col, ql, length(q) - a, false, footprint, unused) * lightStep;
+    lightStep *= 2.0;
+  }
+  return od * EXTINCTION;
+}
+
+// The share of sunlight scattered towards the eye at optical depth od from the sun: multiple scattering,
+// approximately (octaves of weaker extinction and flatter phase), less the powder effect (the sunlit side
+// of a cloud's surface is darker than its depths' glow).
+float cloudScatter(float od, float phase) {
+  float scatter = 0.0;
+  float att = 1.0, ext = 1.0, ph = 1.0;
+  for (int k = 0; k < 3; k++) {
+    scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase, ph);
+    att *= 0.5; ext *= 0.25; ph *= 0.5;
+  }
+  return scatter * (1.0 - 0.6 * exp(-od * 2.0));
+}
+
+// Columns blended (t from a to b), for the points between two where they are known.
+CloudColumn mixColumn(CloudColumn a, CloudColumn b, float t) {
+  CloudColumn m;
+  m.highCover = mix(a.highCover, b.highCover, t);
+  m.highOpacity = mix(a.highOpacity, b.highOpacity, t);
+  m.lowCover = mix(a.lowCover, b.lowCover, t);
+  m.stratiform = mix(a.stratiform, b.stratiform, t);
+  m.showers = mix(a.showers, b.showers, t);
+  m.base = mix(a.base, b.base, t);
+  m.top = mix(a.top, b.top, t);
+  m.highBase = mix(a.highBase, b.highBase, t);
+  m.wind = mix(a.wind, b.wind, t);
+  m.east = normalize(mix(a.east, b.east, t));
+  m.humidity = mix(a.humidity, b.humidity, t);
+  m.rain = mix(a.rain, b.rain, t);
+  return m;
+}
+
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
@@ -458,21 +521,6 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
     od += cloudDensity(mapUv(latLon(q)), q, local + worldToPlanet * (slSun * t), h, false, max(footprint, 400.0), unused) * len / 8.0;
   }
   return exp(-EXTINCTION * od);
-}
-
-// Whether there may be cloud near distance t along the line of sight, for the march to split its step
-// there: the clouds' shapes (without the detail) grown by a margin that widens with the step (coarse,
-// m), so that clouds between the probes are not missed (they would snap in and out as the camera moved),
-// while the clear sky between them is stepped over coarsely.
-float cloudProbe(CloudColumn col, vec3 c, vec3 d, vec3 dirWorld, float stretch, float t, float coarse) {
-  vec3 p = c + d * t;
-  float h = length(p) - slParams.z;
-  if (h < 0.0 || h > SHELL_TOP) return 0.0;
-  float unused;
-  probeGrow = clamp(${PROBE_GROW[0].toFixed(3)} + ${PROBE_GROW[1].toFixed(3)} * coarse / ${PROBE_GROW[2].toFixed(1)}, 0.0, ${PROBE_GROW[3].toFixed(3)});
-  float density = columnDensity(col, worldToPlanet * (dirWorld * (t / stretch)), h, false, t / stretch * pixelAngle, unused);
-  probeGrow = 0.0;
-  return density;
 }
 
 // The air's murk at a point (extinction, 1/m), beyond the clear air the atmosphere model already has:
@@ -547,13 +595,22 @@ void main() {
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
   if (outer.y <= 0.0 || t1 <= t0) { outClouds = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  // The cloud layer (from LAYER_BOTTOM to the shell's top) is marched in steps that grow with the
-  // distance, a share CLOUD_STEP of it, and wherever a probe at a step's start, middle or end finds that
-  // there may be cloud there (cloudProbe), the step is split into FINE_STEPS (so the clouds are sampled as finely, relative to their size
-  // on screen, near and far). The samples are at the middles of the steps, without jitter: any jitter
-  // stays where the camera puts it while the clouds move behind it (fixed to the screen it was a noise
-  // mask, fixed to cells of space a grid), and with steps this fine there is little banding to hide. The
-  // stretches of the line of sight below the layer hold only the murk, which is smooth: MURK_STEPS each.
+  // The march. Everything it samples must be fixed to the planet, so that moving the camera cannot
+  // change what is drawn, only where it is seen from: sampling at distances from the camera (in steps,
+  // fine or jittered) sliced the clouds into terraces that slid over them as it moved (moire).
+  // - The cloud layer (from LAYER_BOTTOM to the shell's top) is cut into the cells of a grid fixed to the
+  //   planet (planet axes, powers of two growing with the distance so each divides the next: see
+  //   CELL_SHARE), and the density is integrated across each cell's stretch of the line of sight by
+  //   Simpson's rule, from its values where the line of sight enters and leaves the cell (on the grid's
+  //   planes) and at the middle; the light from the sun through the cloud is worked out at the ends and
+  //   blended across. The cells' boundaries belong to the world, and the points move smoothly along them
+  //   as the camera moves, so nothing slides.
+  // - The fine cells come in coarse ones. Where neither of a coarse cell's columns can hold cloud at the
+  //   heights crossed, or (near enough for the noise's shapes) the noise cannot reach the cover's
+  //   threshold anywhere along it (the occupancy bounds, cloudNoise.js), only the murk is added. Either
+  //   test only skips what would be empty, so it changes nothing that is drawn.
+  // - The weather and the light change little across a coarse cell: from its ends (blended) and middle.
+  // - Below the layer there is only the murk, which is smooth: MURK_STEPS steps each side.
   float transmittance = 1.0;
   vec3 light = vec3(0.0);
   float depthSum = 0.0, depthWeight = 0.0;
@@ -561,145 +618,196 @@ void main() {
   float phase = mix(phaseHG(sunCos, 0.65), phaseHG(sunCos, -0.2), 0.3);
   float sunIntensity = exposure.y;
   float murkPhase = mix(phaseHG(sunCos, 0.5), 1.0 / (4.0 * PI), 0.5);
+  vec3 white = mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
   // The stretches: below the layer before it (from a camera under it), in it, and below it after it
   // (looking down through it).
   vec2 bottom = sphere(c, d, a + LAYER_BOTTOM);
   float tLayer0 = t0, tLayer1 = t1;
   if (length(c) < a + LAYER_BOTTOM) tLayer0 = min(max(bottom.y, t0), t1);
   else if (bottom.x > t0) tLayer1 = min(bottom.x, t1);
-  // The sun's, the sky's and the ground's light (sunAndSkyLight.js) changes slowly along the line of sight
-  // and is costly to work out (the air between a point and the sun, the sky's light): it is worked out at
-  // the two ends of the part of it in the cloud layer and interpolated.
-  float lightNear = tLayer0, lightFar = max(tLayer1, tLayer0 + 1.0);
-  vec3 directNear, skyNear, groundNear, directFar, skyFar, groundFar, upW;
-  slLightAt(dirWorld * (lightNear / stretch), directNear, skyNear, groundNear, upW);
-  slLightAt(dirWorld * (lightFar / stretch), directFar, skyFar, groundFar, upW);
-  vec3 white = mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
-  vec3 sunNear = slSunTransmittance(c + d * lightNear) * white, sunFar = slSunTransmittance(c + d * lightFar) * white;
-  // Interleaved gradient noise (Jimenez): a hash of the pixel that is well spread at a pixel's scale.
-  float pixelJitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-  float lightJitter = fract(pixelJitter + 0.61803399);
+  // The line of sight in the planet's axes (true metres), and the grid's coordinates (the camera's planet
+  // position modulo CELL_MAX, worked out in float64, plus the offset from it).
+  vec3 D = normalize(worldToPlanet * dirWorld);
+  vec3 safeD = vec3(abs(D.x) > 1e-6 ? D.x : 1e-6, abs(D.y) > 1e-6 ? D.y : 1e-6, abs(D.z) > 1e-6 ? D.z : 1e-6);
   for (int stretchIndex = 0; stretchIndex < 3; stretchIndex++) {
     float ta = stretchIndex == 0 ? t0 : stretchIndex == 1 ? tLayer0 : tLayer1;
     float tb = stretchIndex == 0 ? tLayer0 : stretchIndex == 1 ? tLayer1 : t1;
     if (tb <= ta) continue;
-    bool inLayer = stretchIndex == 1;
-    float murkStep = (tb - ta) / float(MURK_STEPS);
-    // In the layer, steps grow geometrically: each a share g of (distance + STEP_ORIGIN), STEP_ORIGIN
-    // making the first ones MIN_STEP long. g is CLOUD_STEP where the budget of MAX_STEPS reaches the
-    // layer's end, and larger where it would not (a fixed share ran out of steps tens of kilometres off,
-    // a distance limit that came and went with where the march began, i.e. the camera's height); it is
-    // at most the share that crosses the layer in LAYER_STEPS (from far away a share of the distance
-    // would step right over it). It changes smoothly with the camera, so nothing pops.
-    float ratio = (tb / stretch + STEP_ORIGIN) / (ta / stretch + STEP_ORIGIN);
-    float g = min(max(CLOUD_STEP, pow(ratio, 1.0 / float(${MAX_STEPS})) - 1.0), pow(ratio, 1.0 / LAYER_STEPS) - 1.0);
-    float t = ta;
-    // The column (cloudColumn) of the step being sampled, at its middle.
-    CloudColumn col = cloudColumn(mapUv(latLon(c + d * t)), c + d * t, worldToPlanet * (dirWorld * (t / stretch)), t / stretch * pixelAngle);
-    float probeEnd = inLayer ? cloudProbe(col, c, d, dirWorld, stretch, t, g * (t / stretch + STEP_ORIGIN)) : 0.0;
-    // One sample per iteration (a loop inside the loop was several times slower on the GPU): a coarse
-    // step, or one of the FINE_STEPS it is split into where there may be cloud.
-    int fineLeft = 0;
-    bool split = false;
-    float dt = 0.0;
-
-    for (int i = 0; i < ${MAX_STEPS * 2 + MAX_FINE_SAMPLES}; i++) {
-      if (fineLeft == 0) {
-        float coarse = inLayer ? g * (t / stretch + STEP_ORIGIN) * stretch : murkStep;
-        if (t + coarse > tb) coarse = tb - t;
-        if (coarse <= 0.0) break;
-        fineLeft = 1;
-        float tm = t + 0.5 * coarse;
-        col = cloudColumn(mapUv(latLon(c + d * tm)), c + d * tm, worldToPlanet * (dirWorld * (tm / stretch)), tm / stretch * pixelAngle);
-        if (inLayer) {
-          float probeStart = probeEnd;
-          float coarseM = coarse / stretch;
-          probeEnd = cloudProbe(col, c, d, dirWorld, stretch, t + coarse, coarseM);
-          // (Only where the clouds' shapes are drawn: further away their expected density is smooth.)
-          if (probeStart + probeEnd + cloudProbe(col, c, d, dirWorld, stretch, tm, coarseM) > 0.0
-              && t / stretch * pixelAngle < ${LOD_FOOTPRINT[1].toFixed(1)}) {
-            // Fine steps of FINE_SHARE of the distance (at least FINE_STEPS): coarser ones slice the clouds
-            // into terraces at fixed distances from the camera, which slide over them as it moves (moire).
-            float fineLength = max(tm / stretch * ${FINE_SHARE.toFixed(4)}, ${FINE_MIN.toFixed(1)}) * stretch;
-            // Only as far as the samples left allow, keeping enough coarse steps to reach the layer's end
-            // (splitting every step near the camera used them all up, and the clouds beyond vanished).
-            int coarseLeft = int(ceil(log((tb / stretch + STEP_ORIGIN) / (t / stretch + STEP_ORIGIN)) / log(1.0 + g)));
-            int spare = ${MAX_STEPS * 2 + MAX_FINE_SAMPLES} - i - coarseLeft;
-            fineLeft = clamp(int(ceil(coarse / fineLength)), FINE_STEPS, ${FINE_MAX_SPLIT});
-            fineLeft = clamp(fineLeft, 1, max(spare, 1));
-          }
+    float r = ta / stretch, rEnd = tb / stretch;   // true metres along the line of sight
+    if (stretchIndex != 1) {
+      // Below the layer: the murk alone.
+      for (int i = 0; i < MURK_STEPS; i++) {
+        float r1 = min(r + (rEnd - ta / stretch) / float(MURK_STEPS), rEnd);
+        float rm = 0.5 * (r + r1);
+        vec3 p = c + d * (rm * stretch);
+        float h = length(p) - a;
+        vec3 local = D * rm;
+        CloudColumn col = cloudColumn(mapUv(latLon(p)), p, local, rm * pixelAngle);
+        float murk = airMurk(col, h) + rainShaft(col, p, local, h);
+        if (murk > 1e-7) {
+          vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
+          slLightAt(dirWorld * rm, stepDirect, stepSkyDown, stepGroundUp, upW);
+          vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
+          float murkT = exp(-murk * (r1 - r) * stretch);
+          light += transmittance * murkLight * (1.0 - murkT);
+          transmittance *= murkT;
         }
-        dt = coarse / float(fineLeft);
-        split = fineLeft > 1;
+        r = r1;
+        if (r >= rEnd || transmittance < 0.01) break;
       }
-      // (Fine samples are jittered within their step by a pixel's hash: the terraces that fixed samples cut
-      // at fixed distances from the camera would show as moire; the jitter is a fine step at most, tens of
-      // metres, which the composite's filter smooths away.)
-      float ts = t + (split ? pixelJitter : 0.5) * dt;
-      t += dt;
-      fineLeft--;
-      // The light here, between its values at the ends of the clouds' part of the line of sight.
-      float lightMix = clamp((ts - lightNear) / max(lightFar - lightNear, 1.0), 0.0, 1.0);
-      vec3 stepDirect = mix(directNear, directFar, lightMix);
-      vec3 stepSkyDown = mix(skyNear, skyFar, lightMix);
-      vec3 stepGroundUp = mix(groundNear, groundFar, lightMix);
-      vec3 stepSunlight = mix(sunNear, sunFar, lightMix);
-      vec3 p = c + d * ts;
-      float h = length(p) - a;
-      if (h < 0.0 || h > SHELL_TOP) continue;
-      vec3 local = worldToPlanet * (dirWorld * (ts / stretch));
-      float footprint = ts / stretch * pixelAngle;
-      // The murk (haze, fog and rain), lit by the sun reaching the line of sight's end, and the sky.
-      float murk = airMurk(col, h) + rainShaft(col, p, local, h);
-      if (murk > 1e-7) {
-        vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5)
-          * mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
-        float murkT = exp(-murk * dt);
-        light += transmittance * murkLight * (1.0 - murkT);
-        transmittance *= murkT;
-      }
-      if (!inLayer) continue;
-      float layer;
-      float density = columnDensity(col, local, h, true, footprint, layer);
-      if (density <= 0.001) continue;
-      float sigma = EXTINCTION * density;
-      // Light towards the sun through the cloud.
-      float od = 0.0;
-      float step = 60.0;
-      for (int j = 0; j < ${LIGHT_STEPS}; j++) {
-        // (Jittered within its step: at fixed points, the light changed in steps as they left a cloud's
-        // top, which banded the clouds into stripes.)
-        float lightAt = step * (float(j) + lightJitter);
-        vec3 q = p + sunDirS * lightAt;
-        vec3 ql = local + worldToPlanet * (slSun * lightAt);
-        float unused;
-        od += columnDensity(col, ql, length(q) - a, false, footprint, unused) * step;
-        step *= 2.0;
-      }
-      od *= EXTINCTION;
-      vec3 sunlight = stepSunlight;
-      // Multiple scattering, approximately: octaves of weaker extinction and flatter phase.
-      float scatter = 0.0;
-      float att = 1.0, ext = 1.0, ph = 1.0;
-      for (int k = 0; k < 3; k++) {
-        scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase, ph);
-        att *= 0.5; ext *= 0.25; ph *= 0.5;
-      }
-      // The powder effect: the sunlit side of a cloud's surface is darker than its depths' glow.
-      scatter *= 1.0 - 0.6 * exp(-od * 2.0);
-      // Sky and ground light: from the sky above (brighter towards the top of the layer) and the ground.
-      vec3 ambient = (stepSkyDown * 1.6 + stepGroundUp * 0.6) * sunIntensity * RECIPROCAL_PI * 0.5;
-      // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
-      // more higher up, nearer the sunlit top.
-      vec3 diffuse = sunlight * 0.05 * mix(0.35, 1.0, layer);
-      vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
-      // Energy-conserving integration across the step.
-      float stepT = exp(-sigma * dt);
-      light += transmittance * sourceLight * (1.0 - stepT);
-      depthSum += transmittance * (1.0 - stepT) * ts;
-      depthWeight += transmittance * (1.0 - stepT);
-      transmittance *= stepT;
       if (transmittance < 0.01) break;
+      continue;
+    }
+    // The layer, a coarse cell at a time (COARSE fine cells across). The weather, the light and the murk
+    // change little across one: its columns are worked out where the line of sight enters and leaves it
+    // (and blended between), its light at the middle. Where neither end's column can hold cloud at the
+    // stretch's heights, only the murk is added; otherwise the fine cells across it are integrated.
+    vec3 pA = c + d * (r * stretch);
+    CloudColumn colA = cloudColumn(mapUv(latLon(pA)), pA, D * r, r * pixelAngle);
+    float d0 = 0.0;          // the density where the next fine cell starts
+    bool d0Known = false;
+    float od0 = -1.0;        // its optical depth towards the sun (< 0: not known)
+    for (int i = 0; i < ${MAX_COARSE}; i++) {
+      if (r >= rEnd) break;
+      float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
+      // (And short enough to climb or fall no more than VERTICAL_CELL across one, for the layers' height
+      // profiles: looking down from orbit, cells as long as the distance asks for would each span the
+      // whole layer, and slice it into rings.)
+      float climb = abs(dot(D, normalize(cameraPlanet + D * r)));
+      float steepest = exp2(max(floor(log2(${VERTICAL_CELL.toFixed(1)} / max(climb, 1e-4))), log2(${CELL_MIN.toFixed(1)})));
+      fine = min(fine, steepest);
+      float coarse = fine * ${COARSE.toFixed(1)};
+      // (Far enough for only the expected density, which is smooth across: the coarse cell is one fine
+      // cell, unless it would climb too far.)
+      if (r * pixelAngle >= ${LOD_FOOTPRINT[1].toFixed(1)}) fine = min(coarse, steepest);
+      float rc1 = min(r + cellExit(r, coarse, D, safeD), rEnd);
+      float rcm = 0.5 * (r + rc1);
+      vec3 pB = c + d * (rc1 * stretch);
+      CloudColumn colB = cloudColumn(mapUv(latLon(pB)), pB, D * rc1, rc1 * pixelAngle);
+      vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
+      slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
+      vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
+      vec3 sunlight = slSunTransmittance(c + d * (rcm * stretch)) * white;
+      vec3 ambient = (stepSkyDown * 1.6 + stepGroundUp * 0.6) * sunIntensity * RECIPROCAL_PI * 0.5;
+      // The stretch's heights (the lowest where the line of sight passes closest to the centre).
+      float hA = length(pA) - a, hB = length(pB) - a;
+      float rLow = clamp(-dot(c, d) / stretch, r, rc1);
+      float hLow = length(c + d * (rLow * stretch)) - a;
+      float hHigh = max(hA, hB);
+      bool lowCloud = max(colA.lowCover, colB.lowCover) > 0.002
+        && hHigh > min(colA.base, colB.base) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.top, colB.top) + ${HEIGHT_MARGIN.toFixed(1)};
+      bool highCloud = max(colA.highCover, colB.highCover) > 0.005
+        && hHigh > min(colA.highBase, colB.highBase) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.highBase, colB.highBase) + ${(HIGH_THICKNESS + HEIGHT_MARGIN).toFixed(1)};
+      // Near enough for the noise's shapes everywhere along it (no expected density): whether the noise
+      // can reach the threshold of the higher cover anywhere along it (both drift copies, the wind
+      // changing between the columns, and for the high cloud its smear along the wind).
+      if (rc1 * pixelAngle <= ${LOD_FOOTPRINT[0].toFixed(1)}) {
+        float halfLength = 0.5 * (rc1 - r);
+        vec3 localM = D * rcm;
+        float spreadNorm = length(vec2(1.0 - drift.z, drift.z));
+        if (lowCloud) {
+          vec3 windM = 0.75 * (colA.wind + colB.wind);
+          float windChange = 0.75 * length(colB.wind - colA.wind);
+          float bound = 0.0;
+          for (int k = 0; k < 2; k++) {
+            float age = k == 0 ? drift.x : drift.y;
+            bound = max(bound, shapeBound(localM - windM * age + shapeOffset[k], halfLength + windChange * age, ${SHAPE_TILE.toFixed(1)}));
+          }
+          lowCloud = SHAPE_MEAN + (bound - SHAPE_MEAN) / spreadNorm > coverThreshold(max(colA.lowCover, colB.lowCover));
+        }
+        if (highCloud) {
+          vec3 windM = 0.5 * ${CIRRUS_WIND.toFixed(1)} * (colA.wind + colB.wind);
+          float windChange = 0.5 * ${CIRRUS_WIND.toFixed(1)} * length(colB.wind - colA.wind);
+          float bound = 0.0;
+          for (int k = 0; k < 2; k++) {
+            float age = k == 0 ? drift.x : drift.y;
+            vec3 q = cameraPlanet + localM - windM * age + driftShift[k] + vec3(9137.0, 4211.0, 15731.0);
+            float b = shapeBound(q, halfLength + windChange * age + ${(HIGH_STREAK_LENGTH / 2).toFixed(1)}, ${HIGH_TILE.toFixed(1)});
+            bound = max(bound, SHAPE_MEAN + (b - SHAPE_MEAN) * ${STREAK_SPREAD.toFixed(2)});
+          }
+          highCloud = SHAPE_MEAN + (bound - SHAPE_MEAN) / spreadNorm > coverThreshold(max(colA.highCover, colB.highCover));
+        }
+      }
+      if (!lowCloud && !highCloud) {
+        vec3 pm = c + d * (rcm * stretch);
+        CloudColumn colM = mixColumn(colA, colB, 0.5);
+        float murk = airMurk(colM, length(pm) - a) + rainShaft(colM, pm, D * rcm, length(pm) - a);
+        if (murk > 1e-7) {
+          float murkT = exp(-murk * (rc1 - r) * stretch);
+          light += transmittance * murkLight * (1.0 - murkT);
+          transmittance *= murkT;
+        }
+        d0 = 0.0;
+        d0Known = true;
+        od0 = -1.0;
+      }
+      else {
+        if (!d0Known) {
+          float unused;
+          d0 = columnDensity(colA, D * r, hA, true, r * pixelAngle, unused);
+        }
+        // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
+        // cells HIGH_CELLS times the low cloud's.)
+        if (!lowCloud) fine = min(fine * ${HIGH_CELLS.toFixed(1)}, min(coarse, steepest * 4.0));
+        float rf = r;
+        for (int j = 0; j < ${3 * COARSE + 3}; j++) {
+          if (rf >= rc1) break;
+          float r1 = min(rf + cellExit(rf, fine, D, safeD), rc1);
+          float rm = 0.5 * (rf + r1);
+          float dt = (r1 - rf) * stretch;
+          vec3 p = c + d * (rm * stretch);
+          float h = length(p) - a;
+          vec3 local = D * rm;
+          float footprint = rm * pixelAngle;
+          CloudColumn col = mixColumn(colA, colB, (rm - r) / max(rc1 - r, 1e-3));
+          CloudColumn col1 = mixColumn(colA, colB, (r1 - r) / max(rc1 - r, 1e-3));
+          float murk = airMurk(col, h) + rainShaft(col, p, local, h);
+          if (murk > 1e-7) {
+            float murkT = exp(-murk * dt);
+            light += transmittance * murkLight * (1.0 - murkT);
+            transmittance *= murkT;
+          }
+          // The density across the fine cell's stretch (Simpson's rule).
+          float layer, unused;
+          float dm = columnDensity(col, local, h, true, footprint, layer);
+          vec3 p1 = c + d * (r1 * stretch);
+          float d1 = columnDensity(col1, D * r1, length(p1) - a, true, r1 * pixelAngle, unused);
+          float density = (d0 + 4.0 * dm + d1) / 6.0;
+          d0 = d1;
+          float rf0 = rf;
+          rf = r1;
+          if (density <= 0.0005) { od0 = -1.0; continue; }
+          float sigma = EXTINCTION * density;
+          // Light towards the sun through the cloud, from the cell's stretch's ends (shared with the cells
+          // beside it, so the light is continuous from cell to cell; from the middle alone, each cell was lit
+          // evenly, and the cells showed as steps), and the light scattered towards the eye.
+          // (High cloud alone is too thin to shade itself much: lit as if clear.)
+          float od1 = 0.0;
+          if (lowCloud) {
+            CloudColumn col0 = mixColumn(colA, colB, (rf0 - r) / max(rc1 - r, 1e-3));
+            if (od0 < 0.0) od0 = sunwardDepth(col0, c + d * (rf0 * stretch), D * rf0, sunDirS, rf0 * pixelAngle);
+            od1 = sunwardDepth(col1, p1, D * r1, sunDirS, r1 * pixelAngle);
+          }
+          else od0 = 0.0;
+          float scatter = 0.5 * (cloudScatter(od0, phase) + cloudScatter(od1, phase));
+          od0 = od1;
+          // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
+          // more higher up, nearer the sunlit top. (Sky and ground light: ambient.)
+          vec3 diffuse = sunlight * 0.05 * mix(0.35, 1.0, layer);
+          vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
+          // Energy-conserving integration across the stretch.
+          float stepT = exp(-sigma * dt);
+          light += transmittance * sourceLight * (1.0 - stepT);
+          depthSum += transmittance * (1.0 - stepT) * rm * stretch;
+          depthWeight += transmittance * (1.0 - stepT);
+          transmittance *= stepT;
+          if (transmittance < 0.01) break;
+        }
+        d0Known = true;
+      }
+      r = rc1;
+      pA = pB;
+      colA = colB;
       if (transmittance < 0.01) break;
     }
     if (transmittance < 0.01) break;
@@ -806,12 +914,14 @@ export class Clouds {
       weatherC: { value: this.weatherMap.textures[2] },
       shapeNoise: { value: noise.shape },
       detailNoise: { value: noise.detail },
+      occupancy: { value: noise.occupancy },
       inverseProjection: { value: new THREE.Matrix4() },
       cameraWorld: { value: new THREE.Matrix4() },
       worldToPlanet: { value: new THREE.Matrix3() },
       shapeOffset: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       macroOffset: { value: new THREE.Vector3() },
       cameraPlanet: { value: new THREE.Vector3() },
+      cameraGrid: { value: new THREE.Vector3() },
       driftShift: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       realClouds: { value: null },
       realBlend: { value: 0 },
@@ -926,6 +1036,7 @@ export class Clouds {
       }
     })
     u.cameraPlanet.value.copy(_cameraPlanet)
+    u.cameraGrid.value.set(...['x', 'y', 'z'].map(k => ((_cameraPlanet[k] % CELL_MAX) + CELL_MAX) % CELL_MAX))
     const mt = MACRO_TILE
     u.macroOffset.value.set(((_cameraPlanet.x % mt) + mt) % mt, ((_cameraPlanet.y % mt) + mt) % mt, ((_cameraPlanet.z % mt) + mt) % mt)
     u.inverseProjection.value.copy(camera.projectionMatrixInverse)

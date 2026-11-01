@@ -5,6 +5,8 @@ import { hash } from '../../physics/weatherNoise.js'
 //   shape (SHAPE_SIZE^3): R Perlin-Worley (billowy fractal noise, its gaps carved by Worley noise),
 //     G, B, A Worley noise at 4, 8 and 16 cells across the tile, for eroding it at finer scales;
 //   detail (DETAIL_SIZE^3): R, G, B Worley noise at 4, 8 and 16 cells, for wispy edges.
+//   occupancy (SHAPE_SIZE^2 x (2 SHAPE_SIZE - 1), R8): bounds on the shape value, for skipping empty space
+//     (see occupancyTexture).
 // Worley noise here is 1 - the distance to the nearest of one random point per cell (so it is high in
 // the cells' middles: puffs, not cracks). Both wrap, so the renderer tiles them over the planet.
 
@@ -75,9 +77,82 @@ function texture3d(size, fill) {
   return t
 }
 
+// An upper bound on the shape value (R remapped by the Worley octaves, as the renderer combines them from
+// the texture's interpolated channels) over blocks of the shape texture: at each level L (blocks 2^L
+// texels across, (SHAPE_SIZE >> L)^3 of them, stacked along z from 2 SHAPE_SIZE - 2 (SHAPE_SIZE >> L)),
+// the bound for anywhere in the block and a texel beyond (for the interpolation). The remap rises with R and falls with
+// the octaves' sum, so the bound is from the highest R and the lowest sum. Rounded up.
+function occupancyTexture(shape) {
+  const n = SHAPE_SIZE, d = shape.image.data
+  // The texels' R and octave sum, then the most and least of each over 3x3x3 texels (interpolation).
+  let rMax = new Float32Array(n * n * n), fMin = new Float32Array(n * n * n)
+  for (let i = 0; i < n * n * n; i++) {
+    rMax[i] = d[i * 4] / 255
+    fMin[i] = (d[i * 4 + 1] * 0.625 + d[i * 4 + 2] * 0.25 + d[i * 4 + 3] * 0.125) / 255
+  }
+  const spread = (a, size, op, reach) => {
+    // (Separable: along x, y, then z, over -reach..reach blocks, wrapping.)
+    for (let axis = 0; axis < 3; axis++) {
+      const out = new Float32Array(a.length)
+      for (let z = 0; z < size; z++) {
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            let v = a[(z * size + y) * size + x]
+            for (let k = -reach; k <= reach; k++) {
+              const q = [x, y, z]
+              q[axis] = (((q[axis] + k) % size) + size) % size
+              v = op(v, a[(q[2] * size + q[1]) * size + q[0]])
+            }
+            out[(z * size + y) * size + x] = v
+          }
+        }
+      }
+      a = out
+    }
+    return a
+  }
+  rMax = spread(rMax, n, Math.max, 1)
+  fMin = spread(fMin, n, Math.min, 1)
+  const data = new Uint8Array(n * n * (2 * n - 1))
+  let size = n, r = rMax, f = fMin
+  for (let level = 0; size >= 1; level++) {
+    const z0 = 2 * n - 2 * size
+    for (let z = 0; z < size; z++) {
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const i = (z * size + y) * size + x
+          const bound = (r[i] + 1 - f[i]) / (2 - f[i])
+          data[((z0 + z) * n + y) * n + x] = Math.min(255, Math.ceil(bound * 255 + 1e-6))
+        }
+      }
+    }
+    // The next level's blocks: the most and least of the 2x2x2 below.
+    if (size === 1) break
+    const half = size / 2, r2 = new Float32Array(half ** 3), f2 = new Float32Array(half ** 3).fill(1)
+    for (let z = 0; z < size; z++) {
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const i = (z * size + y) * size + x, j = ((z >> 1) * half + (y >> 1)) * half + (x >> 1)
+          r2[j] = Math.max(r2[j], r[i])
+          f2[j] = Math.min(f2[j], f[i])
+        }
+      }
+    }
+    r = r2
+    f = f2
+    size = half
+  }
+  const t = new THREE.Data3DTexture(data, n, n, 2 * n - 1)
+  t.format = THREE.RedFormat
+  t.minFilter = t.magFilter = THREE.NearestFilter
+  t.generateMipmaps = false
+  t.needsUpdate = true
+  return t
+}
+
 let cached = null
 
-/** The clouds' noise textures ({ shape, detail, shapeStats: the shape value's mean and quantiles }), made on first use. */
+/** The clouds' noise textures ({ shape, detail, occupancy, shapeStats: the shape value's mean and quantiles }), made on first use. */
 export function cloudNoiseTextures() {
   if (cached) return cached
   const shape = texture3d(SHAPE_SIZE, (x, y, z) => {
@@ -104,6 +179,6 @@ export function cloudNoiseTextures() {
   values.sort()
   const mean = values.reduce((s, v) => s + v, 0) / values.length
   const quantiles = Array.from({ length: QUANTILES + 1 }, (_, i) => values[Math.min(values.length - 1, Math.round(i / QUANTILES * (values.length - 1)))])
-  cached = { shape, detail, shapeStats: { mean, quantiles } }
+  cached = { shape, detail, occupancy: occupancyTexture(shape), shapeStats: { mean, quantiles } }
   return cached
 }
