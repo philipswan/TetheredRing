@@ -91,8 +91,33 @@ export class ObjectTracker {
     return finiteVector(position) ? position : null
   }
 
-  // Orientation frame of the tracked object (vehicles only), or null.
+  // Orientation frame of the tracked object (vehicles only) in world directions, or null.
   getFrame(dt = 0) {
-    return this.target?.getFrame ? this.target.getFrame(dt) : null
+    return this.target ? this.frameOf(this.target, dt) : null
+  }
+
+  frameOf(entry, dt) {
+    const f = entry.getFrame ? entry.getFrame(dt) : null
+    if (!f?.forward) return null
+    if (entry.frame !== 'ring') return { forward: f.forward.clone(), upward: f.upward?.clone() ?? null }
+    const ring = this.getContext().ringRefCoordSys
+    ring.updateWorldMatrix(true, false)
+    return {
+      forward: f.forward.clone().transformDirection(ring.matrixWorld),
+      upward: f.upward ? f.upward.clone().transformDirection(ring.matrixWorld) : null,
+    }
+  }
+
+  // The selected object as { getPosition(dt), getFrame(dt) } in world coordinates (what the camera follows).
+  worldEntry(entry = this.target) {
+    if (!entry) return null
+    return {
+      type: entry.type,
+      getPosition: (dt = 0) => {
+        const p = this.toWorld(entry, entry.getPosition(dt))
+        return finiteVector(p) ? p : null
+      },
+      getFrame: (dt = 0) => this.frameOf(entry, dt),
+    }
   }
 }

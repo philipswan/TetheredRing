@@ -45,6 +45,7 @@ import { ILLUSTRATION_SETTINGS } from './illustrationSettings.js'
 import { downloadText, specsCsv } from './exports.js'
 import * as kmlutils from '../export/kmlutils.js'
 import { ShotController } from '../shots/ShotController.js'
+import { WORLD_ANCHOR } from '../shots/ShotFormat.js'
 import { ShotSidebar } from '../ui/ShotSidebar.js'
 import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
 import { placeAtHeightInRingPlane } from '../ring/ringGeometry.js'
@@ -375,9 +376,10 @@ export class App {
     const moved = placeAtHeightInRingPlane(old.clone(), crv.currentMainRingAltitude, this.ring.ringToPlanetRotation, this.planetSpec.ellipsoid, this.ring.mainRingCurve.planeOffset)
     const shift = ring.localToWorld(moved).sub(ring.localToWorld(old))
     const move = (p) => p.copy(parent.worldToLocal(parent.localToWorld(p.clone()).add(shift)))
-    move(controls.target)
-    move(controls.object.position)
-    controls.update()
+    const state = this.camera.getState()
+    const movedTarget = move(new THREE.Vector3().fromArray(state.target))
+    const movedPosition = move(new THREE.Vector3().fromArray(state.position))
+    this.camera.setState({ ...state, target: movedTarget.toArray(), position: movedPosition.toArray() })
   }
 
   buildCamera() {
@@ -394,6 +396,18 @@ export class App {
         transitSystem: this.transitSystem,
         ringRefCoordSys: this.ring.refCoordSys,
       }),
+      planet: this.planet,
+      planetCoordSys: this.planetCoordSys,
+      ellipsoid: this.planetSpec.ellipsoid,
+      getPickRoots: () => [this.planetCoordSys],
+      // Double-click: follow the moving object nearest the pointer (as a shot anchor, so it can be
+      // found again at any simulated time).
+      followObjectAt: (x, y) => {
+        const anchor = this.shots?.pickAt(x, y)
+        if (!anchor) return false
+        this.shots.followAnchor(anchor, { aim: true, approach: true })
+        return true
+      },
     })
     this.camera.addMarkersTo(this.planetCoordSys)
     this.camera.ringAxis.set(0, 1, 0).applyQuaternion(this.ring.ringToPlanetRotation)
@@ -519,7 +533,7 @@ export class App {
       updateLogoSprite: visibility((p) => this.overlays.setLogoVisible(p.showLogo.value)),
       updateCamerFieldOfView: visibility((p) => { this.camera3d.fov = p.cameraFieldOfView.value; this.camera3d.updateProjectionMatrix() }),
       resizeTrackingMarkers: () => {},
-      updateTrackingMode: () => {},
+      updateTrackingMode: () => this.camera.updateTrackingParameters(),
       adjustStarsVisibility: () => {},
       adjustMoonsVisibility: visibility((p) => { this.sky.companionBody.visible = p.showMoon.value }),
       adjustLaunchTrajectoryOpacity: () => {},
@@ -956,7 +970,7 @@ export class App {
     this.camera.climbRate = 0
     this.camera.followElevator = null
     this.camera.followTransitAngularSpeed = 0
-    this.camera.tracker.clear()
+    this.camera.stopTracking()
   }
 
   onResize({ force = false } = {}) {
@@ -986,29 +1000,21 @@ export class App {
     this.shots.togglePlay()
   }
 
+  // O key: turn to look at the planet's centre (auto-rotation, Q, then turns round it).
   orbitPlanetCentre() {
-    const c = this.camera.controls
-    c.upDirection.set(0, 1, 0)
-    if (this.nonGUIParams.overrideOrbitControlsUpDirection) c.upDirection.applyQuaternion(this.ring.ringToPlanetRotation)
-    this.camera3d.up.copy(c.upDirection)
-    c.target.set(0, 0, 0)
-    c.rotateSpeed = 1
-    c.maxPolarAngle = Math.PI
+    this.camera.lookAtPoint(this.planetCoordSys.localToWorld(new THREE.Vector3()))
   }
 
+  // I key: turn to look at the ring's centre.
   orbitRingCentre() {
-    const c = this.camera.controls
-    c.upDirection.copy(this.camera.ringAxis)
-    this.camera3d.up.copy(c.upDirection)
-    c.target.copy(c.upDirection).multiplyScalar(this.ring.crv.y0)
     this.store.set('logZoomRate', -3)
     this.store.derive()
     this.gui.refresh()
-    c.rotateSpeed = 1
-    c.maxPolarAngle = Math.PI
+    this.camera.lookAtPoint(this.camera.ringAxis.clone().multiplyScalar(this.ring.crv.y0))
   }
 
-  // P key: orbit around what is under the mouse pointer. Moving objects are tracked.
+  // P key: turn to look at what is under the mouse pointer (the focus that Q and Z/X act about).
+  // Moving objects are followed.
   orbitPointUnderMouse() {
     this.raycaster.setFromCamera(this.mouse, this.camera3d)
     const pickable = ['launchVehicle', 'elevatorCar', 'transitVehicle', 'transitTube', 'massDriverTube']
@@ -1019,25 +1025,17 @@ export class App {
         let object = hit.object
         while (object && object.name !== name) object = object.parent
         if (!object || !this.isVisibleInScene(hit.object)) continue
-        if (name in moving) {
-          this.camera.tracker.findNearest(name, hit.point)
-          this.camera.tweenTo(this.camera.tracker.getPosition(this.camera.tweeningTime / 1000))
+        const tracker = this.camera.tracker
+        if (name in moving && tracker.findNearest(name, hit.point)) {
+          const raw = tracker.target
+          this.camera.follow(tracker.worldEntry(raw), { aim: true, trackerTarget: raw })
         }
-        else {
-          this.camera.tweenTo(hit.point)
-        }
-        this.camera.controls.rotateSpeed = 0.9
+        else this.camera.lookAtPoint(hit.point)
         return
       }
     }
     const surface = this.planet.raycast(this.raycaster)[0]
-    if (surface) {
-      const altitude = this.d.pKeyAltitudeFactor.value * this.ring.crv.currentMainRingAltitude
-      const point = surface.point.clone().multiplyScalar((this.planetRadius + altitude) / this.planetRadius)
-      this.camera.placeMarker(this.camera.targetMarker, point, this.d.showTrackingMarkers.value)
-      this.camera.tweenTo(point)
-      this.camera.controls.rotateSpeed = 0.9
-    }
+    if (surface) this.camera.lookAtPoint(surface.point.clone())
   }
 
   isVisibleInScene(object) {
@@ -1064,7 +1062,13 @@ export class App {
   }
 
   toggleStationaryTracking() {
-    this.camera.stationaryTracking = !this.camera.stationaryTracking
+    this.camera.setStationaryTracking(!this.camera.stationaryTracking)
+  }
+
+  stopTracking() {
+    if (this.shots.picking) return
+    this.camera.stopTracking()
+    this.shots.followAnchor(WORLD_ANCHOR)
   }
 
   toggleAutoRotate() {
@@ -1095,7 +1099,6 @@ export class App {
       up: v(preset.cameraUp).toArray(),
       orbitUp: v(preset.orbitUpDirection).toArray(),
     })
-    this.camera.controls.maxPolarAngle = Math.PI
   }
 
   printCameraPosition() {
@@ -1150,8 +1153,9 @@ export class App {
     const duration = launcher.durationOfLaunchTrajectory
     const target = curve.getPoint(20 / duration).multiplyScalar((this.planetRadius + 100) / this.planetRadius)
     const position = curve.getPoint(0).multiplyScalar((this.planetRadius + 100) / this.planetRadius)
-    this.camera.tweenTo(target)
-    this.camera3d.position.copy(position)
+    this.camera.stopTracking()
+    this.camera.setState({ position: position.toArray(), target: this.camera.focus.toArray(), up: position.clone().normalize().toArray() })
+    this.camera.lookAtPoint(target)
   }
 
   updateSpecsSummary() {

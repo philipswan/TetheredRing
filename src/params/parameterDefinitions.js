@@ -672,7 +672,18 @@ export function createParameterDefinitions() {
   animateLaunchVehicles: {value: true, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Rendering'},
   animateElevatedEvacuatedTubeDeployment: {value: false, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Rendering'},
   launchTrajectoryVisibility: {value: 1, units: '', autoMap: true, min: 0, max: 1, onChange: 'adjustLaunchTrajectoryOpacity', folder: 'Rendering'},
-  trackingMode: {value: 0, units: '', autoMap: true, min: 0, max: 2, onChange: 'updateTrackingMode', folder: 'Rendering'},
+  // Tracking (src/camera/CameraController.js). trackingMode is the frame the camera's offset from a followed
+  // object is held in: 0 level, keeping its compass bearing (drone); 1 the object's own axes (selfie stick);
+  // 2 level, turning with the object's heading (chase). trackingFollow: 1 rides along with the object, 0 stays
+  // put and only turns to keep it in frame, between drifts after it.
+  trackingMode: {value: 0, units: '', autoMap: true, min: 0, max: 2, step: 1, onChange: 'updateTrackingMode', folder: 'Camera'},
+  trackingFollow: {value: 1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateTrackingMode', folder: 'Camera'},
+  // Navigation with the mouse, touchpad and touchscreen.
+  cameraRotateSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
+  cameraZoomSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
+  cameraTouchpadScroll: {value: 'auto', units: '', autoMap: true, options: {'Auto (scroll pans, shift+scroll orbits)': 'auto', 'Pan': 'pan', 'Orbit': 'orbit', 'Zoom (as a mouse wheel)': 'zoom'}, onChange: 'updatedParam', folder: 'Camera'},
+  cameraTransitionTime: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
+  cameraMinGroundClearance: {value: 1.5, units: 'm', autoMap: true, min: 0, max: 100, onChange: 'updatedParam', folder: 'Camera'},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, onChange: 'updateCamerFieldOfView', folder: 'Rendering'},
   orbitControlsAutoRotate: {value: false, units: '', autoMap: true, onChange: 'updateOrbitControlsRotateSpeed', folder: 'Rendering'},
   orbitControlsRotateSpeed: {value: 0.1, units: '', autoMap: true, min: -10, max: 10, onChange: 'updateOrbitControlsRotateSpeed', folder: 'Rendering'},

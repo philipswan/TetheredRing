@@ -236,11 +236,12 @@ export class ShotController {
   }
 
   // Makes the free camera move with an anchor's object (the world anchor stops following). With
-  // `aim`, the camera also turns to centre the object; otherwise the view stays as composed.
-  followAnchor(anchor, { aim = false } = {}) {
+  // `aim`, the camera also turns to centre the object; otherwise the view stays as composed. With
+  // `approach`, it also flies in close to the object.
+  followAnchor(anchor, { aim = false, approach = false } = {}) {
     const camera = this.app.camera
     if (isWorldAnchor(anchor)) {
-      camera.tracker.clear()
+      if (camera.tracker.type === 'shotAnchor') camera.stopTracking()
       this.following = null
       this.emit('mode')
       return
@@ -248,17 +249,16 @@ export class ShotController {
     this.following = anchor
     const objectAt = (dt) => this.resolver.objectFrame(anchor, this.app.clock.time + dt)
     const v = (a) => a && new THREE.Vector3(...a)
-    camera.tracker.target = {
+    const entry = {
       type: 'shotAnchor',
       frame: 'world',
-      getPosition: (dt) => v(objectAt(dt)?.position),
-      getFrame: (dt) => {
+      getPosition: (dt = 0) => v(objectAt(dt)?.position),
+      getFrame: (dt = 0) => {
         const f = objectAt(dt)
         return f && { forward: v(f.forward), upward: v(f.upward) }
       },
     }
-    camera.lastTrackingPoint = null
-    if (aim) camera.tweenTo(camera.tracker.getPosition(camera.tweeningTime / 1000))
+    camera.follow(entry, { aim: aim || approach, approach })
     this.emit('mode')
   }
 

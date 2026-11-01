@@ -1,9 +1,9 @@
 // Keyboard shortcuts. Each binding maps a KeyboardEvent.code to an App method, so the bindings,
 // the help text and the implementation cannot drift apart.
 export const KEY_BINDINGS = [
-  { code: 'KeyO', label: 'O', help: 'Orbit around the planet centre, with "up" along the planet axis', action: (app) => app.orbitPlanetCentre() },
-  { code: 'KeyI', label: 'I', help: 'Orbit around the ring centre, with "up" along the ring axis', action: (app) => app.orbitRingCentre() },
-  { code: 'KeyP', label: 'P', help: 'Orbit around the object or surface point under the mouse', action: (app) => app.orbitPointUnderMouse() },
+  { code: 'KeyO', label: 'O', help: 'Look at the planet centre', action: (app) => app.orbitPlanetCentre() },
+  { code: 'KeyI', label: 'I', help: 'Look at the ring centre', action: (app) => app.orbitRingCentre() },
+  { code: 'KeyP', label: 'P', help: 'Look at the object or surface point under the mouse (follows moving objects)', action: (app) => app.orbitPointUnderMouse() },
   { code: 'Digit0', label: '0', help: 'Track the nearest launch vehicle', action: (app) => app.camera.toggleTracking(0) },
   { code: 'Digit1', label: '1', help: 'Track the nearest adaptive nut', action: (app) => app.camera.toggleTracking(1) },
   { code: 'Digit2', label: '2', help: 'Track the nearest launch sled', action: (app) => app.camera.toggleTracking(2) },
@@ -13,7 +13,8 @@ export const KEY_BINDINGS = [
   { code: 'Digit6', label: '6', help: 'Log a count of scene objects by name to the console', action: (app) => app.logObjectCounts() },
   { code: 'Digit7', label: '7', help: 'Analyse terrain clearance under the launcher ramp (console)', action: (app) => app.analyseLauncherTerrain() },
   { code: 'Digit8', label: '8', help: 'Place the Moon (or Earth, on the Moon) in view behind the camera target', action: (app) => app.placeCompanionBodyInView() },
-  { code: 'Digit9', label: '9', help: 'Toggle stationary tracking (camera stays put and pans to follow)', action: (app) => app.toggleStationaryTracking() },
+  { code: 'Digit9', label: '9', help: 'Toggle stationary tracking (camera stays put and turns to follow)', action: (app) => app.toggleStationaryTracking() },
+  { code: 'Escape', label: 'Esc', help: 'Stop following the tracked object', action: (app) => app.stopTracking() },
   { code: 'KeyQ', label: 'Q', help: 'Toggle auto-rotation around the orbit target', action: (app) => app.toggleAutoRotate() },
   { code: 'KeyR', label: 'R', help: 'Raise the ring (or deploy the evacuated tube)', action: (app) => app.toggleRaise(+1) },
   { code: 'KeyL', label: 'L', help: 'Lower the ring (or retract the evacuated tube)', action: (app) => app.toggleRaise(-1) },
