@@ -104,8 +104,8 @@ const MACRO_TILE = 400000
 //   sheet as it rises over STRATUS_ONSET; towers in showers (the weather's, where the imagery has cloud:
 //   SHOWER_OPACITY).
 const HIGH_SHARE = 0.45
-// The latitudes (degrees) over which the imagery's cover gives way to the weather's (see realShare).
-const POLAR_FADE = [66, 74]
+// The noon sun's elevations (degrees) over which the imagery's cover gives way to the weather's (see realShare).
+const NOON_SUN_FADE = [15, 25]
 const HIGH_FREQUENCY = [0.1, 0.5]
 const LOW_FLOOR = 0.12
 const HIGH_BLUR = 60000 // m
@@ -204,6 +204,7 @@ uniform vec3 driftShift[2];     // each drift copy's own shift (m)
 uniform vec3 macroOffset;        // the camera's planet position modulo the large-scale tile (m)
 uniform sampler2D realClouds;    // the real clouds' opacity (realClouds.js)
 uniform float realBlend;         // 1 where the real clouds' opacity sets the cover (it has loaded), else 0
+uniform float realDeclination;   // the sun's declination (degrees) on the snapshot's day
 uniform float realTexel;         // the real clouds' texel size (m)
 uniform vec3 drift;             // x, y: the two copies' drift times (s); z: the second copy's weight
 uniform vec2 exposure;          // x: the sky's exposure (Planet.js); y: the sun's intensity
@@ -282,12 +283,14 @@ float thresholdDensity(float shape, float cover) {
   return clamp((shape - threshold) / max(SHAPE_TOP - threshold, 0.02), 0.0, 1.0);
 }
 
-// How much of the cover comes from the real clouds' imagery at uv (once loaded): all of it, less towards the
-// poles over POLAR_FADE (degrees of latitude), where the weather's takes over. (There the satellite's
-// passes overlap at very different angles and the sea ice changes under them, which the imagery's
-// clouds show as arcs and straight lines.)
+// How much of the cover comes from the real clouds' imagery at uv (once loaded): all of it, less where the
+// noon sun was low on the snapshot's day (over NOON_SUN_FADE, degrees of elevation), where the weather's
+// takes over. (There, over snow and ice in grazing light, the satellite's neighbouring passes look very
+// different, and the imagery's clouds show their edges as arcs and straight lines: above about 75 degrees
+// of latitude around the equinoxes, down to about 50 in midwinter.)
 float realShare(vec2 uv) {
-  return realBlend * (1.0 - smoothstep(${POLAR_FADE[0].toFixed(1)}, ${POLAR_FADE[1].toFixed(1)}, abs(uv.y * 180.0 - 90.0)));
+  float noonSun = 90.0 - abs(uv.y * 180.0 - 90.0 - realDeclination);
+  return realBlend * smoothstep(${NOON_SUN_FADE[0].toFixed(1)}, ${NOON_SUN_FADE[1].toFixed(1)}, noonSun);
 }
 
 // The weather and cloud cover of a column of the sky (the same for every height in it, and changing
@@ -1102,6 +1105,7 @@ export class Clouds {
       driftShift: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       realClouds: { value: null },
       realBlend: { value: 0 },
+      realDeclination: { value: 0 },
       realTexel: { value: 4000 },
       detailOffset: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       drift: { value: new THREE.Vector3() },
@@ -1224,6 +1228,11 @@ export class Clouds {
     u.realClouds.value = this.realClouds.texture
     u.realTexel.value = 2 * Math.PI * 6378137 / (this.realClouds.texture.image?.width ?? 10240)
     u.realBlend.value = this.realClouds.ready ? 1 : 0
+    const snapshot = this.realClouds.textureDate
+    if (snapshot) {
+      const day = (Date.parse(`${snapshot}T12:00:00Z`) - Date.UTC(Number(snapshot.slice(0, 4)), 0, 1)) / 86400000 + 1
+      u.realDeclination.value = -23.44 * Math.cos(2 * Math.PI * (day + 10) / 365.25)
+    }
 
     const previousTarget = renderer.getRenderTarget()
     const previousClear = renderer.getClearColor(new THREE.Color()), previousAlpha = renderer.getClearAlpha()

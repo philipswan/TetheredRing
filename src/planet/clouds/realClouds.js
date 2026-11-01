@@ -15,6 +15,7 @@ export class RealClouds {
     this.texture.needsUpdate = true
     this.ready = false
     this.date = null
+    this.textureDate = null // the date of the snapshot showing (YYYY-MM-DD)
     this.loading = false // (a snapshot for a new date is on its way)
     this.manifest = fetch(`${baseUrl}/manifest.json`)
       .then((response) => (response.ok ? response.json() : null))
@@ -63,6 +64,7 @@ export class RealClouds {
       this.texture.dispose()
       this.texture = texture
       this.ready = true
+      this.textureDate = date
       this.onChange?.(texture)
     } catch (error) {
       console.warn('[clouds] could not load real clouds for', date, error)
