@@ -403,7 +403,8 @@ export class App {
       getPickRoots: () => [this.planetCoordSys],
       // Far from the planet "up" is set by the sun (the terminator stays upright).
       getSunFrame: () => {
-        const sun = this.lighting.sunDirection
+        // (The sun's direction for this date, not the lighting's: a local shadow focus holds that still.)
+        const sun = this.sunFollowsDate && this.sunWorld ? this.sunWorld : this.lighting.sunDirection
         const polar = new THREE.Vector3(0, 1, 0).transformDirection(this.planetCoordSys.matrixWorld)
         const day = this.sunDate ? this.sunDate.dayOfYear + this.sunDate.utcHours / 24 : this.store.get('sunDayOfYear')
         return { sun, north: eclipticNorth(sun, polar, day) }
@@ -734,6 +735,9 @@ export class App {
       this.pendingInitialTracking = null
     }
 
+    // (The sun before the camera: high above the planet the camera keeps its place relative to the sun,
+    // so both must be for this moment, or the sun and stars lag the view as the date changes.)
+    this.updateSun()
     const googleEarthDrives = this.googleEarth.update(t)
     this.camera.playbackActive = this.shots.drivesCamera || googleEarthDrives
     this.camera.update(t, dt)
@@ -751,7 +755,6 @@ export class App {
       this.updateSeaSurfaceVisibility()
     }
     MooringCables.refreshSome()
-    this.updateSun()
     this.updateOceanTerminal(t)
     this.lighting.followCameraTarget(this.camera.controls.target)
 
@@ -862,6 +865,7 @@ export class App {
     _sunPlanet.set(p.x, p.y, p.z).normalize()
     this.planetCoordSys.updateWorldMatrix(true, false)
     _sunWorld.copy(_sunPlanet).transformDirection(this.planetCoordSys.matrixWorld)
+    this.sunWorld = (this.sunWorld ?? new THREE.Vector3()).copy(_sunWorld)
     this.lighting.setSunDirection(_sunWorld, _sunPlanet)
   }
 
