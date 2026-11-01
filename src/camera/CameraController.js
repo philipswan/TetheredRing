@@ -4,7 +4,7 @@ import { PointerNavigation } from './PointerNavigation.js'
 import { ecefToGeodetic } from '../physics/geodesy.js'
 import {
   clamp, smoothstep, smootherstep, levelUp, lookRotation, aimRotation, framingFromDirection, slerpUnit,
-  zoomPanPath, transitionSeconds, anyPerpendicular,
+  zoomPanPath, transitionSeconds, anyPerpendicular, sunUp,
 } from './cameraMath.js'
 
 // Everything that moves the free camera (shots place it themselves through setState).
@@ -61,7 +61,7 @@ class FreeRig {
 
   evaluate(ctl) {
     const forward = forwardOf(this.quaternion, _v)
-    const up = levelUp(forward, ctl.verticalAt(this.position, _w), ctl.upHint, _u, 1 - ctl.globeWeight(this.position))
+    const up = levelUp(forward, ctl.levelReference(this.position, forward), ctl.upHint, _u)
     lookRotation(forward, up, this.quaternion)
     return {
       position: this.position.clone(),
@@ -74,7 +74,7 @@ class FreeRig {
 
   rebase(ctl, position, quaternion, focus = null) {
     this.position.copy(position)
-    this.quaternion.copy(quaternion)
+    this.quaternion.copy(quaternion).normalize()
     if (focus) this.focusDistance = Math.max(1, focus.distanceTo(position))
   }
 }
@@ -114,7 +114,7 @@ class TrackRig {
     const position = this.positionNow()
     return {
       position,
-      quaternion: aimRotation(position, this.object, ctl.verticalAt(position, _w), ctl.upHint, this.yaw, this.pitch),
+      quaternion: ctl.aim(position, this.object, this.yaw, this.pitch),
       focus: this.object.clone(),
       yaw: this.yaw,
       pitch: this.pitch,
@@ -155,7 +155,8 @@ export class CameraController {
   // planet: the Planet (raycast, sampleTerrainHeight); planetCoordSys: its frame; ellipsoid: the
   // planet's; getPickRoots(): objects the pointer can grab; followObjectAt(x, y): follows a moving
   // object near the pointer (client pixels) and returns true, or returns false if there is none.
-  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, followObjectAt }) {
+  // getSunFrame(): { sun, north } world unit vectors towards the sun and the ecliptic's north (or null).
+  constructor({ camera, domElement, planetRadius, store, nonGUIParams, getTrackerContext, enableVR, planet, planetCoordSys, ellipsoid, getPickRoots, followObjectAt, getSunFrame }) {
     this.camera = camera
     this.domElement = domElement
     this.planetRadius = planetRadius
@@ -167,6 +168,7 @@ export class CameraController {
     this.ellipsoid = ellipsoid
     this.getPickRoots = getPickRoots ?? (() => [])
     this.followObjectAt = followObjectAt ?? (() => false)
+    this.getSunFrame = getSunFrame ?? (() => null)
     this.tweeningTime = 2000 // ms, for callers that predict where an object will be at the end of a move
     this.tweenClockMs = 0
     this.lastWallMs = null
@@ -427,11 +429,31 @@ export class CameraController {
     return Math.max(1, this.focus.distanceTo(this.camera.position))
   }
 
+  // The direction the horizon is kept level about, for a camera at `position` looking along `forward`:
+  // the local vertical near the planet, turning (with globeWeight) to an "up" set by the sun far from it,
+  // so whole-planet views keep the day-night terminator upright (see cameraMath.sunUp).
+  levelReference(position, forward) {
+    const radial = this.verticalAt(position, new THREE.Vector3())
+    const g = this.lockUpToRingAxis ? 0 : this.globeWeight(position)
+    if (g <= 0) return radial
+    const frame = this.getSunFrame()
+    const up = frame ? sunUp(forward, frame.sun, frame.north) : this.polarAxis()
+    return slerpUnit(radial, up, g)
+  }
+
+  // A camera orientation at `position` looking at `subject` (with the framing yaw, pitch), level.
+  aim(position, subject, yaw = 0, pitch = 0) {
+    const forward = new THREE.Vector3().subVectors(subject, position)
+    if (forward.lengthSq() < 1e-18) forward.set(0, 0, -1)
+    forward.normalize()
+    return aimRotation(position, subject, this.levelReference(position, forward), this.upHint, yaw, pitch)
+  }
+
   // How far up the camera is, as 0 (near the ground) .. 1 (seeing the whole planet): the orbit pivot
   // slides from the point under the pointer to the planet's centre over this range.
   globeWeight(position = this.camera.position) {
     const R = this.planetRadius
-    return smoothstep(0.05 * R, 0.8 * R, this.altitude(position))
+    return smoothstep(0.08 * R, R, this.altitude(position))
   }
 
   // ---- Gestures ------------------------------------------------------------------------------
@@ -564,7 +586,8 @@ export class CameraController {
     const position = camera.position.clone()
     const q = camera.quaternion.clone()
     let done = false
-    if (g.sphere) {
+    const globe = this.globeWeight() > 0.3
+    if (g.sphere && !globe) {
       const sphere = new THREE.Sphere(new THREE.Vector3(), g.sphere)
       const a = from.intersectSphere(sphere, new THREE.Vector3())
       const b = to.intersectSphere(sphere, new THREE.Vector3())
@@ -576,8 +599,10 @@ export class CameraController {
         done = true
       }
     }
-    if (!done && this.globeWeight() > 0.5) {
-      // Off the edge of the planet: turn the globe as a drag would.
+    if (globe) {
+      // Seeing (most of) the planet: turn the globe as a drag would, at the rate at which the surface in
+      // the middle of the view follows the fingers (grabbing the point under the pointer is far too
+      // sensitive towards the planet's edge).
       const R = this.planetRadius
       const rate = this.radiansPerPixel() * Math.max(0, camera.position.length() - R) / R
       this.orbitGesture({ pivot: this.planetCoordSys.getWorldPosition(new THREE.Vector3()), groundAxis: null, globe: 1 }, -mx * rate, -my * rate)
@@ -768,7 +793,7 @@ export class CameraController {
       const q = camera.quaternion.clone()
       const w1 = this.globeWeight(position)
       if (globe && w1 > w0) {
-        const toCentre = aimRotation(position, planetCentre, this.verticalAt(position), this.upHint, 0, 0)
+        const toCentre = this.aim(position, planetCentre, 0, 0)
         q.slerp(toCentre, w0 < 1 ? (w1 - w0) / (1 - w0) : 1)
       }
       const ahead = centre.clone().sub(position).dot(forwardOf(q, _w))
@@ -815,7 +840,7 @@ export class CameraController {
     this.settle()
     this.releaseTracking()
     const p = this.camera.position
-    const q = aimRotation(p, point, this.verticalAt(p), this.upHint, 0, 0)
+    const q = this.aim(p, point, 0, 0)
     this.startTransition(new FreeRig(p, q, point.distanceTo(p)), 'aim')
   }
 
@@ -828,7 +853,7 @@ export class CameraController {
     const dir = this.viewDirectionFrom(point, p)
     const position = point.clone().addScaledVector(dir, d)
     this.keepAboveGround(position)
-    const q = aimRotation(position, point, this.verticalAt(position), this.upHint, 0, 0)
+    const q = this.aim(position, point, 0, 0)
     this.startTransition(new FreeRig(position, q, point.distanceTo(position)), 'fly')
   }
 
@@ -868,11 +893,11 @@ export class CameraController {
     if (approach) {
       const d = distance ?? Math.min(p.distanceTo(object), 250)
       const position = object.clone().addScaledVector(this.viewDirectionFrom(object, p), d)
-      rig.rebase(this, position, aimRotation(position, object, this.verticalAt(position), this.upHint, 0, 0))
+      rig.rebase(this, position, this.aim(position, object, 0, 0))
       this.startTransition(rig, 'fly')
     }
     else if (aim) {
-      rig.rebase(this, p, aimRotation(p, object, this.verticalAt(p), this.upHint, 0, 0))
+      rig.rebase(this, p, this.aim(p, object, 0, 0))
       this.startTransition(rig, 'aim')
     }
     else {
@@ -1044,7 +1069,7 @@ export class CameraController {
     const position = focus.clone().addScaledVector(dir, distance)
     const yaw = a.yaw + (b.yaw - a.yaw) * e
     const pitch = a.pitch + (b.pitch - a.pitch) * e
-    const quaternion = aimRotation(position, focus, this.verticalAt(position), this.upHint, yaw, pitch)
+    const quaternion = this.aim(position, focus, yaw, pitch)
     return { position, quaternion, focus }
   }
 
@@ -1079,7 +1104,7 @@ export class CameraController {
     if (!pose) return
     const camera = this.camera
     camera.position.copy(pose.position)
-    camera.quaternion.copy(pose.quaternion)
+    camera.quaternion.copy(pose.quaternion).normalize()
     camera.up.copy(Y).applyQuaternion(camera.quaternion)
     this.upHint.copy(camera.up)
     this.focus.copy(pose.focus)

@@ -57,12 +57,14 @@ export function levelUp(forward, vertical, previousUp, out = new THREE.Vector3()
 // Quaternion of a camera looking along `forward` (unit) with `up` (need not be perpendicular).
 export function lookRotation(forward, up, out = new THREE.Quaternion()) {
   _z.copy(forward).negate()
+  if (_z.lengthSq() < 1e-18) _z.set(0, 0, 1)
+  _z.normalize()
   _x.crossVectors(up, _z)
   if (_x.lengthSq() < 1e-18) anyPerpendicular(_z, _x)
   _x.normalize()
   _y.crossVectors(_z, _x)
   _m.makeBasis(_x, _y, _z)
-  return out.setFromRotationMatrix(_m)
+  return out.setFromRotationMatrix(_m).normalize()
 }
 
 // Framing: where a tracked object sits on screen, as a yaw and pitch (radians) of the camera away
@@ -153,4 +155,38 @@ export function classifyWheel(event, recent = null) {
   if (!Number.isInteger(event.deltaY)) return 'touchpad'
   if (dy >= 50) return 'wheel'
   return recent ?? 'touchpad'
+}
+
+// The ecliptic's north pole (the normal of Earth's orbit, near the Sun's own north pole) as a unit vector,
+// from the direction to the sun `sun` (unit), the planet's polar axis `polar` (unit) and the day of the
+// year. The sun's ecliptic longitude is taken as 0 at the March equinox (day 80); in an inertial frame
+// with x towards the equinox the pole is (0, -sin e, cos e), which in terms of the sun's direction and
+// declination d is  cos e / cos^2 d * (polar - sin d * sun) - sin e * cos(longitude) / cos^2 d * (polar x sun).
+// It is perpendicular to `sun`, so taking it as "up" keeps the day-night terminator upright.
+export const OBLIQUITY = THREE.MathUtils.degToRad(23.44)
+export function eclipticNorth(sun, polar, dayOfYear, out = new THREE.Vector3()) {
+  const sinD = clamp(sun.dot(polar), -1, 1)
+  const cos2 = 1 - sinD * sinD
+  if (cos2 < 1e-9) return anyPerpendicular(sun, out)
+  const longitude = 2 * Math.PI * (dayOfYear - 80) / 365.2422
+  const a = Math.cos(OBLIQUITY) / cos2
+  const c = -Math.sin(OBLIQUITY) * Math.cos(longitude) / cos2
+  out.copy(polar).multiplyScalar(a).addScaledVector(sun, -a * sinD)
+  out.addScaledVector(_p.crossVectors(polar, sun), c)
+  // (Keep it exactly perpendicular to the sun, whatever the date model's small differences.)
+  out.addScaledVector(sun, -out.dot(sun))
+  return out.lengthSq() > 1e-18 ? out.normalize() : anyPerpendicular(sun, out)
+}
+
+// "Up" for a view of the whole planet along `forward`: across the screen from the sun (so the sun's
+// direction is level on screen and the terminator upright), on the side of `north` (eclipticNorth).
+// Looking straight towards or away from the sun that is undefined, and `north` is used instead.
+export function sunUp(forward, sun, north, out = new THREE.Vector3()) {
+  out.crossVectors(forward, sun)
+  const m = out.length()
+  if (out.dot(north) < 0) out.negate()
+  const a = smoothstep(0.05, 0.25, m)
+  if (m > 0) out.multiplyScalar(a / m)
+  out.addScaledVector(north, 1 - a)
+  return out.lengthSq() > 1e-18 ? out.normalize() : out.copy(north)
 }

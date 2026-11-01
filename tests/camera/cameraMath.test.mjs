@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import * as THREE from 'three'
 import {
   levelUp, lookRotation, aimRotation, framingDirection, framingFromDirection, zoomPanPath, slerpUnit,
-  classifyWheel, transitionSeconds,
+  classifyWheel, transitionSeconds, eclipticNorth, sunUp,
 } from '../../src/camera/cameraMath.js'
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`)
@@ -86,4 +86,26 @@ test('wheel classification', () => {
 test('transition durations are bounded', () => {
   assert.ok(transitionSeconds(0, 0) >= 0.7)
   assert.ok(transitionSeconds(100, Math.PI) <= 5)
+})
+
+test('eclipticNorth matches the inertial-frame pole through the year', () => {
+  const e = 23.44 * Math.PI / 180
+  // Inertial frame with x towards the March equinox and z north; the pole is (0, -sin e, cos e).
+  for (const day of [80, 120, 172, 230, 266, 300, 355, 20]) {
+    const lambda = 2 * Math.PI * (day - 80) / 365.2422
+    const sun = V(Math.cos(lambda), Math.sin(lambda) * Math.cos(e), Math.sin(lambda) * Math.sin(e))
+    const n = eclipticNorth(sun, V(0, 0, 1), day)
+    nearV(n, V(0, -Math.sin(e), Math.cos(e)), 1e-9)
+  }
+})
+
+test('sunUp is perpendicular to the sun and the view, on the north side', () => {
+  const sun = V(1, 0, 0)
+  const north = V(0, 1, 0)
+  const f = V(-0.3, -0.2, -1).normalize()
+  const up = sunUp(f, sun, north)
+  near(up.dot(sun), 0)
+  near(up.dot(f), 0)
+  assert.ok(up.dot(north) > 0)
+  nearV(sunUp(V(-1, 0, 0), sun, north), north)
 })

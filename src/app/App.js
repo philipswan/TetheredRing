@@ -36,6 +36,7 @@ import { transitSystem } from '../transit/transitsystems.js'
 import * as Launcher from '../launcher/launcher.js'
 import { analyzeLauncherTerrainDisplacement } from '../launcher/launcherTerrainAnalysis.js'
 import { CameraController } from '../camera/CameraController.js'
+import { eclipticNorth } from '../camera/cameraMath.js'
 import { GoogleEarthCameraPlayback } from '../camera/GoogleEarthCameraPlayback.js'
 import { trackPointLogger } from '../camera/trackPointLogger.js'
 import { installKeyboardShortcuts, keyboardHelpText } from '../input/KeyboardShortcuts.js'
@@ -400,6 +401,13 @@ export class App {
       planetCoordSys: this.planetCoordSys,
       ellipsoid: this.planetSpec.ellipsoid,
       getPickRoots: () => [this.planetCoordSys],
+      // Far from the planet "up" is set by the sun (the terminator stays upright).
+      getSunFrame: () => {
+        const sun = this.lighting.sunDirection
+        const polar = new THREE.Vector3(0, 1, 0).transformDirection(this.planetCoordSys.matrixWorld)
+        const day = this.sunDate ? this.sunDate.dayOfYear + this.sunDate.utcHours / 24 : this.store.get('sunDayOfYear')
+        return { sun, north: eclipticNorth(sun, polar, day) }
+      },
       // Double-click: follow the moving object nearest the pointer (as a shot anchor, so it can be
       // found again at any simulated time).
       followObjectAt: (x, y) => {
@@ -839,6 +847,7 @@ export class App {
       this.launchSystem?.resetWeather()
     }
     const date = advanceDate(Math.max(1, this.store.get('sunDayOfYear')), Math.max(0, this.store.get('sunTimeOfDayUTC')), this.clock.time)
+    this.sunDate = date
     this.clouds?.update(this.renderer, date.dayOfYear, date.utcHours, this.clock.time)
     // The sea's roughness far away follows the weather map's wind, once it has been drawn.
     if (this.clouds && !this._seaWindMapSet) {

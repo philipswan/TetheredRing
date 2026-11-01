@@ -39,6 +39,7 @@ export class PointerNavigation {
     this.wheelClass = null
     this.wheelClassTime = 0
     this.lastTap = null
+    this.debug = false
 
     this.onPointerDown = this.onPointerDown.bind(this)
     this.onPointerMove = this.onPointerMove.bind(this)
@@ -213,6 +214,8 @@ export class PointerNavigation {
     const kind = classifyWheel(event, recent)
     this.wheelClass = kind
     this.wheelClassTime = now
+    // Diagnosis: window.tetheredRing.app.camera.navigation.debug = true logs how each event is read.
+    if (this.debug) console.log(`wheel ${kind}: dx ${event.deltaX} dy ${event.deltaY} mode ${event.deltaMode} ctrl ${event.ctrlKey} shift ${event.shiftKey}`)
     const pixels = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1
     const dx = event.deltaX * pixels
     const dy = event.deltaY * pixels
