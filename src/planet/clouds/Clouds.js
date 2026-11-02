@@ -126,6 +126,25 @@ const FIBRE_TILE = 4000
 const FIBRE_LENGTH = 3000
 const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
 const FIBRE_TAPS = 12
+// The slab's fibres are contour lines (FLOW_LINES of them per unit) of a smooth field (the shape noise on
+// FLOW_TILE, m): long, thin and curved, as cirrus are, for a few reads where averaging the noise along an
+// arc took dozens; FLOW_WARP of a field on FLOW_WARP_TILE (m) bends them. The noise on STRAND_TILE (m)
+// breaks them into strands.
+const FLOW_TILE = 400000
+const FLOW_WARP_TILE = 60000
+const FLOW_WARP = 0.05
+const FLOW_LINES = 250
+// Each line is drawn with probability LINE_KEEP, its sharpness (higher: thinner) in LINE_SHARPNESS, at a
+// place across its band in LINE_PLACE, all from a hash of its index: irregular, as evenly spaced lines
+// looked like a contour map.
+const LINE_KEEP = 0.4
+const LINE_SHARPNESS = [6, 24]
+const LINE_PLACE = [0.25, 0.75]
+const STRAND_TILE = 12000
+// The slab's fibres (a few tens of metres to a couple of hundred across) fade to their average over pixel
+// footprints of FIBRE_FADE (m), well before the rest of the cloud's shapes (LOD_FOOTPRINT): narrower than
+// a pixel they broke up into speckle.
+const FIBRE_FADE = [40, 150]
 const FIBRE_GROUP = 4 // (taps read together: see noUnroll)
 const FIBRE_EDGES = [0.3, 1.5]
 const VEIL_OPACITY = [0.35, 0.45]
@@ -135,6 +154,13 @@ const STREAK_TAPS = 3
 const HIGH_STREAK_LENGTH = 20000
 const STREAK_SPREAD = 1.45
 const CIRRUS_WIND = 3
+// The high cloud drawn as a slab (CIRRUS_SLAB, Clouds.setCirrusSlab): its density varies across but not up
+// (its height profile is integrated: the share of the layer's depth PROFILE_SHARE), so each line of sight
+// reads it once where it crosses the layer, with the optical depth of its path across the layer. Over a path
+// across the layer longer than SLAB_CHORD (m) (towards the horizon), the streaks fade to their expected
+// value, as they average out along it. The march then has no high cloud to cross.
+const PROFILE_SHARE = 0.65
+const SLAB_CHORD = [5000, 40000]
 // Low cloud mostly either covers much of the sky or is absent, breaking up in a narrow band at the edges
 // of overcast masses: where the imagery's opacity is low, the cloud it shows is mostly thin haze and the
 // odd cloud rather than a field of cumulus, so the low cover is faded out below LOW_COVER_EDGES[1], to
@@ -272,6 +298,7 @@ float showerRain(vec4 weather) {
 // The shape value's quantiles (cloudNoise.js): the threshold that leaves a fraction cover above it.
 const float SHAPE_QUANTILE[${stats.quantiles.length}] = float[](${stats.quantiles.map(q => q.toFixed(5)).join(', ')});
 const float SHAPE_MEAN = ${stats.mean.toFixed(5)};
+
 const float SHAPE_TOP = ${stats.quantiles[stats.quantiles.length - 2].toFixed(5)};
 float normalCdf(float x) {
   float t = 1.0 / (1.0 + 0.2316419 * abs(x));
@@ -471,6 +498,141 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
   return density;
 }
 
+// The high cloud's density in a column at planet-frame offset from the camera local, at level of detail
+// lod (see columnDensity), before its height profile; full adds the fibres.
+#ifdef CIRRUS_SLAB
+// The shape noise's smooth fields (r: billowy, g: Worley at 4 cells) at x (in tiles), by a cubic B-spline
+// rather than trilinearly (eight filtered reads): the fibres are its contour lines, which trilinear
+// interpolation bent sharply at the texels' edges.
+vec2 smoothNoise(vec3 x) {
+  float n = float(textureSize(shapeNoise, 0).x);
+  vec3 c = x * n - 0.5, i = floor(c), f = c - i;
+  vec3 w0 = (1.0 - f) * (1.0 - f) * (1.0 - f) / 6.0, w1 = (3.0 * f * f * f - 6.0 * f * f + 4.0) / 6.0;
+  vec3 w3 = f * f * f / 6.0, w2 = 1.0 - w0 - w1 - w3;
+  vec3 g0 = w0 + w1, g1 = w2 + w3;
+  vec3 h0 = (i - 0.5 + w1 / g0) / n, h1 = (i + 1.5 + w3 / g1) / n;
+  vec2 v = vec2(0.0);
+  for (int k = 0; k < 8; k++) {
+    vec3 at = vec3((k & 1) == 0 ? h0.x : h1.x, (k & 2) == 0 ? h0.y : h1.y, (k & 4) == 0 ? h0.z : h1.z);
+    float weight = ((k & 1) == 0 ? g0.x : g1.x) * ((k & 2) == 0 ? g0.y : g1.y) * ((k & 4) == 0 ? g0.z : g1.z);
+    v += weight * texture(shapeNoise, at).rg;
+  }
+  return v;
+}
+#endif
+
+// A hash (0..1) of a fibre's line index and a salt.
+float hashLine(float line, float salt) {
+  return fract(sin(line * 12.9898 + salt * 78.233) * 43758.5453);
+}
+
+// How far the fibres have faded to their average (see FIBRE_FADE; the slab's only).
+float fibreFade = 0.0;
+
+float highCloudDensity(CloudColumn col, vec3 local, bool full, float lod) {
+  float highCover = col.highCover, highOpacity = col.highOpacity;
+  vec3 surfaceWind = col.wind;
+  vec3 windAloft = surfaceWind * ${CIRRUS_WIND.toFixed(1)};
+  // (Or, becalmed, east: worked out here rather than kept with the column, to save registers.)
+  vec3 along = windAloft;
+  if (length(windAloft) <= 0.1) along = cross(vec3(0.0, 1.0, 0.0), cameraPlanet + local);
+  along = normalize(along);
+  float d = 0.0;
+  if (lod < 1.0) {
+    // Drawn out along the wind: the noise averaged over STREAK_TAPS points along it (a smear depends only on
+    // the point's own position, so the streaks stay put as the camera moves; squeezing the coordinates
+    // along the wind needs a point to squeeze about, and about the camera they slid and jumped). In the
+    // planet's frame: float32 is precise enough here, to about a metre, for features kilometres across.
+    vec3 planetPoint = cameraPlanet + local;
+    float shape = 0.0, fibre = 0.0;
+    for (int i = 0; i < 2; i++) {
+      float weight = i == 0 ? 1.0 - drift.z : drift.z;
+      if (weight < 0.002) continue;
+      float age = i == 0 ? drift.x : drift.y;
+      // (Offset from the low cloud's noise, so the two layers' shapes are unrelated.)
+      vec3 q = planetPoint - windAloft * age + driftShift[i] + vec3(9137.0, 4211.0, 15731.0);
+      float smear = 0.0;
+      for (int k = 0; k < ${STREAK_TAPS}; k++) {
+        vec4 sn = texture(shapeNoise, (q + along * ${HIGH_STREAK_LENGTH.toFixed(1)} * (float(k) / ${(STREAK_TAPS - 1).toFixed(1)} - 0.5)) / ${HIGH_TILE.toFixed(1)});
+        smear += remap(sn.r, sn.g * 0.625 + sn.b * 0.25 + sn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
+      }
+      // (Averaging narrows the noise's spread: restored, so the cover stays about the same.)
+      shape += weight * (SHAPE_MEAN + (smear / ${STREAK_TAPS.toFixed(1)} - SHAPE_MEAN) * ${STREAK_SPREAD.toFixed(2)});
+    }
+    shape = SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
+    d = thresholdDensity(shape, highCover);
+    // Fibres along the wind (cirrus), filling in to an even veil as the cover rises (cirrostratus). (Only
+    // where there is cloud to draw them in, and the veil has not filled them in: they are the most costly
+    // part of the march.)
+    float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
+#ifdef CIRRUS_SLAB
+    if (full && d > 0.0 && (veil >= 1.0 || fibreFade >= 1.0)) d = min(d, 1.0);
+#else
+    if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
+#endif
+    else if (full && d > 0.0) {
+#ifdef CIRRUS_SLAB
+      for (int i = 0; i < 2; i++) {
+        float weight = i == 0 ? 1.0 - drift.z : drift.z;
+        if (weight < 0.002) continue;
+        float age = i == 0 ? drift.x : drift.y;
+        vec3 qf = planetPoint - windAloft * age + driftShift[i];
+        // (Mostly a field on a large tile, whose gradient is nearly even across a view, so the lines run
+        // roughly parallel; bent by a little of one on a smaller tile.)
+        float psi = smoothNoise(qf / ${FLOW_TILE.toFixed(1)}).r + ${FLOW_WARP.toFixed(3)} * smoothNoise(qf / ${FLOW_WARP_TILE.toFixed(1)} + vec3(0.41, 0.17, 0.73)).r;
+        float line = floor(psi * ${FLOW_LINES.toFixed(1)}), across = fract(psi * ${FLOW_LINES.toFixed(1)});
+        float keep = step(hashLine(line, 1.0), ${LINE_KEEP.toFixed(2)});
+        float sharpness = mix(${LINE_SHARPNESS[0].toFixed(1)}, ${LINE_SHARPNESS[1].toFixed(1)}, hashLine(line, 2.0));
+        float place = mix(${LINE_PLACE[0].toFixed(2)}, ${LINE_PLACE[1].toFixed(2)}, hashLine(line, 3.0));
+        float ridge = max(1.0 - 2.0 * abs(across - place), 0.0);
+        float strand = smoothstep(0.35, 0.75, texture(shapeNoise, qf / ${STRAND_TILE.toFixed(1)} + vec3(0.29, 0.53, 0.11)).b);
+        // (A line's average across its band is 1 / (sharpness + 1) / 2, the strands' about a half, and a
+        // LINE_KEEP share are drawn: normalised to 1 on average.)
+        fibre += weight * keep * pow(ridge, sharpness) * strand * 4.0 * (sharpness + 1.0) / ${LINE_KEEP.toFixed(2)};
+      }
+      fibre /= (1.0 - drift.z) + drift.z;
+      float streaks = fibre;
+      d = min(d, 1.0) * mix(mix(streaks, 1.0, fibreFade), 1.0, veil);
+#else
+      for (int i = 0; i < 2; i++) {
+        float weight = i == 0 ? 1.0 - drift.z : drift.z;
+        if (weight < 0.002) continue;
+        COST(cost2.x)
+        float age = i == 0 ? drift.x : drift.y;
+        vec3 qf = planetPoint - windAloft * age + driftShift[i];
+        float f = 0.0;
+        for (int k0 = 0; k0 < ${FIBRE_TAPS} * noUnroll; k0 += ${FIBRE_GROUP}) {
+          for (int j = 0; j < ${FIBRE_GROUP}; j++) {
+            float k = float(k0 + j);
+            f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (k / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
+          }
+        }
+        fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
+      }
+      fibre /= length(vec2(1.0 - drift.z, drift.z));
+      // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
+      float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
+      d = min(d, 1.0) * mix(streaks, 1.0, veil);
+#endif
+    }
+  }
+  float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5);
+  // (Not clamped to 1: the fibres gather the layer's cloud into the streaks.)
+  // (Not clamped to 1: the fibres gather the layer's cloud into the streaks.)
+  return mix(max(d, 0.0) * ${HIGH_DENSITY.toFixed(3)}, far, lod);
+}
+
+// The high cloud's optical depth straight across its layer, at planet-frame offset from the camera local,
+// for a pixel footprint (m), and the path across the layer (chord, m) it is averaged over (see SLAB_CHORD).
+float cirrusDepth(CloudColumn col, vec3 local, bool full, float footprint, float chord) {
+  if (col.highCover <= 0.005) return 0.0;
+  float lod = max(smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint), smoothstep(${SLAB_CHORD[0].toFixed(1)}, ${SLAB_CHORD[1].toFixed(1)}, chord));
+  fibreFade = smoothstep(${FIBRE_FADE[0].toFixed(1)}, ${FIBRE_FADE[1].toFixed(1)}, footprint);
+  float depth = EXTINCTION * highCloudDensity(col, local, full, lod) * ${(PROFILE_SHARE * HIGH_THICKNESS).toFixed(1)};
+  fibreFade = 0.0;
+  return depth;
+}
+
 // Cloud density (0..1) in a column at planet-frame offset from the camera local, altitude h (m); full
 // adds the detail erosion. layer: the height within its layer (0 at the base, 1 at the top; 1 in high
 // cloud).
@@ -487,72 +649,16 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   // Low cloud.
   density += lowCloudDensity(col, local, h, full, lod, layer);
 
-  // High cloud: streaks along the wind aloft.
+  // High cloud: streaks along the wind aloft (drawn as a slab instead with CIRRUS_SLAB: see cirrusDepth).
+#ifndef CIRRUS_SLAB
   float hb = col.highBase;
   float hh = (h - hb) / ${HIGH_THICKNESS.toFixed(1)};
   if (highCover > 0.005 && hh > 0.0 && hh < 1.0) {
     layer = 1.0;
     float profile = smoothstep(0.0, 0.3, hh) * smoothstep(1.0, 0.6, hh);
-    vec3 windAloft = surfaceWind * ${CIRRUS_WIND.toFixed(1)};
-    // (Or, becalmed, east: worked out here rather than kept with the column, to save registers.)
-    vec3 along = windAloft;
-    if (length(windAloft) <= 0.1) along = cross(vec3(0.0, 1.0, 0.0), cameraPlanet + local);
-    along = normalize(along);
-    float d = 0.0;
-    if (lod < 1.0) {
-      // Drawn out along the wind: the noise averaged over STREAK_TAPS points along it (a smear depends only on
-      // the point's own position, so the streaks stay put as the camera moves; squeezing the coordinates
-      // along the wind needs a point to squeeze about, and about the camera they slid and jumped). In the
-      // planet's frame: float32 is precise enough here, to about a metre, for features kilometres across.
-      vec3 planetPoint = cameraPlanet + local;
-      float shape = 0.0, fibre = 0.0;
-      for (int i = 0; i < 2; i++) {
-        float weight = i == 0 ? 1.0 - drift.z : drift.z;
-        if (weight < 0.002) continue;
-        float age = i == 0 ? drift.x : drift.y;
-        // (Offset from the low cloud's noise, so the two layers' shapes are unrelated.)
-        vec3 q = planetPoint - windAloft * age + driftShift[i] + vec3(9137.0, 4211.0, 15731.0);
-        float smear = 0.0;
-        for (int k = 0; k < ${STREAK_TAPS}; k++) {
-          vec4 sn = texture(shapeNoise, (q + along * ${HIGH_STREAK_LENGTH.toFixed(1)} * (float(k) / ${(STREAK_TAPS - 1).toFixed(1)} - 0.5)) / ${HIGH_TILE.toFixed(1)});
-          smear += remap(sn.r, sn.g * 0.625 + sn.b * 0.25 + sn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
-        }
-        // (Averaging narrows the noise's spread: restored, so the cover stays about the same.)
-        shape += weight * (SHAPE_MEAN + (smear / ${STREAK_TAPS.toFixed(1)} - SHAPE_MEAN) * ${STREAK_SPREAD.toFixed(2)});
-      }
-      shape = SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
-      d = thresholdDensity(shape, highCover) * profile;
-      // Fibres along the wind (cirrus), filling in to an even veil as the cover rises (cirrostratus). (Only
-      // where there is cloud to draw them in, and the veil has not filled them in: they are the most costly
-      // part of the march.)
-      float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
-      if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
-      else if (full && d > 0.0) {
-        for (int i = 0; i < 2; i++) {
-          float weight = i == 0 ? 1.0 - drift.z : drift.z;
-          if (weight < 0.002) continue;
-          COST(cost2.x)
-          float age = i == 0 ? drift.x : drift.y;
-          vec3 qf = planetPoint - windAloft * age + driftShift[i];
-          float f = 0.0;
-          for (int k0 = 0; k0 < ${FIBRE_TAPS} * noUnroll; k0 += ${FIBRE_GROUP}) {
-            for (int j = 0; j < ${FIBRE_GROUP}; j++) {
-              float k = float(k0 + j);
-              f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (k / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
-            }
-          }
-          fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
-        }
-        fibre /= length(vec2(1.0 - drift.z, drift.z));
-        // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
-        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
-        d = min(d, 1.0) * mix(streaks, 1.0, veil);
-      }
-    }
-    float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5) * profile;
-    // (Not clamped to 1: the fibres gather the layer's cloud into the streaks.)
-    density += mix(max(d, 0.0) * ${HIGH_DENSITY.toFixed(3)}, far, lod);
+    density += highCloudDensity(col, local, full, lod) * profile;
   }
+#endif
   return density;
 }
 
@@ -708,7 +814,19 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
   }
   CloudColumn col = cloudColumn(mapUv(latLon(p)), p, local, max(footprint, 150.0));
   float od = 0.0, unused;
+#ifdef CIRRUS_SLAB
+  // (The slab: where the line towards the sun crosses the middle of its layer.)
+  float slabHeight = col.highBase + ${(0.5 * HIGH_THICKNESS).toFixed(1)};
+  if (col.highCover > 0.005 && hp < slabHeight) {
+    float ts = (slabHeight - hp) / mu;
+    vec3 q = p + sunS * ts;
+    vec3 localQ = local + worldToPlanet * (slSun * ts);
+    od += cirrusDepth(cloudColumn(mapUv(latLon(q)), q, localQ, max(footprint, 150.0)), localQ, false, max(footprint, 150.0), 0.0) / (EXTINCTION * mu);
+  }
+  for (int layerIndex = 0; layerIndex < 1; layerIndex++) {
+#else
   for (int layerIndex = 0; layerIndex < 2; layerIndex++) {
+#endif
     bool low = layerIndex == 0;
     float bottom = low ? col.base : col.highBase, top = low ? col.top : col.highBase + ${HIGH_THICKNESS.toFixed(1)};
     if (!low && col.highCover <= 0.005) continue;
@@ -758,6 +876,16 @@ float cameraRain(vec3 c, vec3 cameraLocal) {
   float shaft = rainShaft(cloudColumn(mapUv(latLon(c)), c, cameraLocal, 400.0), c, cameraLocal, length(c) - slParams.z);
   return shaft > 0.0 ? pow(shaft * ${RAIN_VISIBILITY.toFixed(1)} / 3.912, 1.0 / 0.63) : 0.0;
 }
+
+#ifdef CIRRUS_SLAB
+// Adds a stretch of the slab (its light and transmittance, at distance t, stretched) behind what is in front.
+void addSlab(inout vec3 light, inout float transmittance, inout float depthSum, inout float depthWeight, vec4 slab, float t) {
+  light += transmittance * slab.rgb;
+  depthSum += transmittance * (1.0 - slab.a) * t;
+  depthWeight += transmittance * (1.0 - slab.a);
+  transmittance *= slab.a;
+}
+#endif
 
 void main() {
   vec4 view = inverseProjection * vec4(vUv * 2.0 - 1.0, -1.0, 1.0); // (the near plane: the far one is too far for float32)
@@ -868,6 +996,45 @@ void main() {
   }
   // The stretches: below the layer before it (from a camera under it), in it, and below it after it
   // (looking down through it).
+#ifdef CIRRUS_SLAB
+  // The slab: the line of sight's stretches across the high cloud's layer (from its base at the camera's
+  // column, up to two: in and out of it), each read once at its middle; added in front of the low cloud
+  // behind it as the march passes it.
+  vec4 slab0 = vec4(0.0, 0.0, 0.0, 1.0), slab1 = vec4(0.0, 0.0, 0.0, 1.0);
+  float slabT0 = -1.0, slabT1 = -1.0;
+  int slabNext = 0;
+  // (Not where the flat layer stands in for the clouds.)
+  if (flatShare <= 0.999) {
+    float hb = cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0).highBase;
+    vec2 outerS = sphere(c, d, a + hb + ${HIGH_THICKNESS.toFixed(1)});
+    vec2 innerS = sphere(c, d, a + hb);
+    bool innerHit = dot(c, d) * dot(c, d) - (dot(c, c) - (a + hb) * (a + hb)) >= 0.0;
+    for (int k = 0; k < 2; k++) {
+      if (outerS.y <= 0.0) break;
+      float sa = k == 0 ? outerS.x : (innerHit ? innerS.y : 1e30);
+      float sb = k == 0 ? (innerHit ? innerS.x : outerS.y) : outerS.y;
+      sa = max(sa, 0.0);
+      sb = min(sb, t1);
+      if (sb <= sa) continue;
+      float tm = 0.5 * (sa + sb), rm = tm / stretch, chord = (sb - sa) / stretch;
+      vec3 pm = c + d * tm;
+      vec3 localM = D * rm;
+      CloudColumn colS = cloudColumn(mapUv(latLon(pm)), pm, localM, rm * pixelAngle);
+      float tau = cirrusDepth(colS, localM, true, rm * pixelAngle, chord) * chord / ${HIGH_THICKNESS.toFixed(1)};
+      if (tau < 1e-5) continue;
+      // Lit as the march lights high cloud: as if clear, by the sun, the sky and the ground.
+      vec3 sDirect, sSkyDown, sGroundUp, sUp;
+      slLightAt(dirWorld * rm, sDirect, sSkyDown, sGroundUp, sUp);
+      vec3 sunlightS = sDirect * sunIntensity;
+      vec3 source = sunlightS * (cloudScatter(0.0, phase) * 4.0 + 0.05)
+        + (sSkyDown * 1.6 + sGroundUp * 0.6) * sunIntensity * RECIPROCAL_PI * 0.5;
+      float slabT = exp(-tau);
+      vec4 slabK = vec4(source * (1.0 - slabT), slabT);
+      if (slabT0 < 0.0) { slab0 = slabK; slabT0 = tm; }
+      else { slab1 = slabK; slabT1 = tm; }
+    }
+  }
+#endif
   vec2 bottom = sphere(c, d, a + LAYER_BOTTOM);
   float tLayer0 = t0, tLayer1 = t1;
   if (length(c) < a + LAYER_BOTTOM) tLayer0 = min(max(bottom.y, t0), t1);
@@ -917,6 +1084,10 @@ void main() {
     bool odL0Known = false, odL1Known = false;
     for (int i = 0; i < ${MAX_COARSE}; i++) {
       if (r >= rEnd) break;
+#ifdef CIRRUS_SLAB
+      if (slabNext == 0 && slabT0 >= 0.0 && r * stretch >= slabT0) { addSlab(light, transmittance, depthSum, depthWeight, slab0, slabT0); slabNext = 1; }
+      if (slabNext == 1 && slabT1 >= 0.0 && r * stretch >= slabT1) { addSlab(light, transmittance, depthSum, depthWeight, slab1, slabT1); slabNext = 2; }
+#endif
       float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
       // (And short enough to climb or fall no more than VERTICAL_CELL across one, for the layers' height
       // profiles: looking down from orbit, cells as long as the distance asks for would each span the
@@ -939,8 +1110,12 @@ void main() {
       float hHigh = max(hA, hB);
       bool lowCloud = max(colA.lowCover, colB.lowCover) > 0.002
         && hHigh > min(colA.base, colB.base) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.top, colB.top) + ${HEIGHT_MARGIN.toFixed(1)};
+#ifdef CIRRUS_SLAB
+      bool highCloud = false;
+#else
       bool highCloud = max(colA.highCover, colB.highCover) > 0.005
         && hHigh > min(colA.highBase, colB.highBase) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.highBase, colB.highBase) + ${(HIGH_THICKNESS + HEIGHT_MARGIN).toFixed(1)};
+#endif
       // Near enough for the noise's shapes everywhere along it (no expected density): whether the noise
       // can reach the threshold of the higher cover anywhere along it (both drift copies, the wind
       // changing between the columns, and for the high cloud its smear along the wind).
@@ -1112,6 +1287,13 @@ void main() {
     }
     if (transmittance < 0.01) break;
   }
+#ifdef CIRRUS_SLAB
+  // (The slab's stretches the march did not pass: beyond the low cloud's layer, or the march ended first.)
+  if (transmittance >= 0.01) {
+    if (slabNext == 0 && slabT0 >= 0.0) { addSlab(light, transmittance, depthSum, depthWeight, slab0, slabT0); slabNext = 1; }
+    if (slabNext == 1 && slabT1 >= 0.0) addSlab(light, transmittance, depthSum, depthWeight, slab1, slabT1);
+  }
+#endif
   if (flatShare > 0.0) {
     light = mix(light, flatLight, flatShare);
     transmittance = mix(transmittance, 1.0 - flatOpacity, flatShare);
@@ -1395,6 +1577,15 @@ export class Clouds {
     renderer.setRenderTarget(previousTarget)
     renderer.setClearColor(previousClear, previousAlpha)
     renderer.render(this.compositeScene, this.quadCamera)
+  }
+
+  // Draws the high cloud as a slab (CIRRUS_SLAB) rather than through the march: much cheaper.
+  setCirrusSlab(on) {
+    const material = this.marchScene.children[0].material
+    if (on === ('CIRRUS_SLAB' in material.defines)) return
+    if (on) material.defines.CIRRUS_SLAB = ''
+    else delete material.defines.CIRRUS_SLAB
+    material.needsUpdate = true
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
