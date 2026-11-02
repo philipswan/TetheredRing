@@ -1301,7 +1301,11 @@ void main() {
         if (cameraSun < 0.0) cameraSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
         inScatter *= mix(0.2, 1.0, smoothstep(0.0, 0.5, cameraSun));
       }
-      light = light * cloudTransmittance + inScatter * (1.0 - transmittance);
+      // (Over the clouds' share of the opacity (depthWeight), not the murk's, whose light is the air's own:
+      // where rain or mist hid all but a trace of the clouds beyond, the haze over the whole of it began
+      // abruptly at the elevation where the clouds came into reach, a hard arc across the sky.)
+      float cloudShare = depthWeight / max(1.0 - transmittance, 1e-4);
+      light = light * mix(vec3(1.0), cloudTransmittance, cloudShare) + inScatter * depthWeight;
     }
   }
   outClouds = vec4(light, transmittance);
