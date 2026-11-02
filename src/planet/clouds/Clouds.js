@@ -113,6 +113,13 @@ const MID_CELLS = 0.6
 // stratiform share rises over MID_SHEET_EVEN (with the altocumulus's cells it was a field of soft blobs), at
 // MID_SHEET_DENSITY of that.
 const MID_SHEET_EVEN = [0.5, 1.0]
+// (But not wholly even where it is seen, only where the light passes through it: MID_SHEET_TEXTURE of the
+// shapes is left, the little texture real altostratus has.)
+const MID_SHEET_TEXTURE = 0.35
+// The pixel footprints (m) over which the mid-level cloud's shapes fade to their expected density: smaller
+// than the low cloud's (LOD_FOOTPRINT), as its shapes are, so that towards the horizon altocumulus blurs
+// together, as it does, rather than packing its cells (and the noise's repetition) into rows of texture.
+const MID_LOD_FOOTPRINT = [25, 100]
 const MID_SHEET_DENSITY = 1.0
 // Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
 // erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
@@ -589,7 +596,14 @@ float midDepthAbove(CloudColumn col, float h) {
     * clamp((midL.z + midDepth - max(h, midL.z)) / midDepth, 0.0, 1.0);
 }
 
-float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod, inout float layer) {
+// The levels of detail (0: the noise's shapes, 1: their expected value) for a pixel footprint (m): the low
+// cloud's (LOD_FOOTPRINT) and the mid-level cloud's (MID_LOD_FOOTPRINT), worked out once for many samples.
+vec2 levelsOfDetail(float footprint) {
+  return vec2(smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint),
+    smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint));
+}
+
+float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods, inout float layer) {
   vec3 midL = midLayer(col);
   float density = 0.0;
   // The low layer, or the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), whichever
@@ -607,7 +621,9 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
     float hf = (h - base) / (top - base);
     if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) return 0.0;
     layer = hf;
-    if (mid) lod = max(lod, smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, stratiform));
+    // (The mid-level cloud's own level of detail, for its smaller shapes; altostratus mostly even, and fully
+    // so for the light through it, MID_SHEET_TEXTURE.)
+    float lod = mid ? max(lods.y, smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, stratiform) * (full ? ${(1 - MID_SHEET_TEXTURE).toFixed(2)} : 1.0)) : lods.x;
     // Height profiles: cumulus rounded at the top, stratus flat.
     float cumulus = smoothstep(0.0, 0.08, hf) * smoothstep(1.0, 0.45, hf);
     float stratus = smoothstep(0.0, 0.2, hf) * smoothstep(1.0, 0.75, hf);
@@ -644,13 +660,14 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   vec3 surfaceWind = col.wind;
   // Too far for the noise's features (a few hundred metres up) to be seen: its expected value.
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  float midLod = smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   float density = 0.0;
   if (full) COST(cost.y)
   fineWeight = full ? 1.0 - smoothstep(${FINE_FOOTPRINT[0].toFixed(1)}, ${FINE_FOOTPRINT[1].toFixed(1)}, footprint) : 0.0;
   crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
   // Low cloud.
-  density += lowCloudDensity(col, local, h, full, lod, layer);
+  density += lowCloudDensity(col, local, h, full, vec2(lod, midLod), layer);
   fineWeight = 0.0;
 
   // High cloud: streaks along the wind aloft.
@@ -770,7 +787,7 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
   float a = slParams.z;
   float od = 0.0, unused;
   float lightStep = 60.0;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   for (int k = 0; k < lightSteps.x; k++) {
     // (The middle of the step, which starts where the steps before it end. At lightStep * (k + 0.5) the
     // samples ran out to 4 km, and the light through a sheet more than a few hundred metres deep, such as
@@ -798,7 +815,7 @@ vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, floa
   float depth = max(col.top - col.base, 1.0);
   float density = ${LITE_DENSITY.toFixed(2)} * mix(1.0, 1.6, col.showers);
   float a = slParams.z;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   float sun = 0.0, unused;
   for (int k = 0; k < 2; k++) {
     float at = k == 0 ? ${LITE_SUN_STEPS[0].toFixed(1)} : ${LITE_SUN_STEPS[1].toFixed(1)};
@@ -836,7 +853,7 @@ float verticalDepth(CloudColumn col, vec3 local, float h, float dir, float footp
   vec3 up = normalize(cameraPlanet + local);
   float od = 0.0, unused;
   float stepLength = 80.0;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   for (int k = 0; k < lightSteps.y; k++) {
     float at = dir * stepLength * (float(k) + 0.5);
     if (h + at < 0.0) break;
