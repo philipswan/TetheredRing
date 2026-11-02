@@ -44,6 +44,8 @@ const SWELL_SLOPE = 0.02 // RMS slope of the swell
 export const GUST_FREQUENCIES = [1 / 400, 1 / 150]
 export const FOAM_FREQUENCIES = [1 / 3, 1 / 1.2, 1 / 0.45]
 const GUST_SECONDS = 25
+// The real clouds' mip level for the sea's reflection of them (blurred, as a rough sea's reflection is).
+const SEA_COVER_BLUR = 3
 const FOAM_SECONDS = 5
 const FOAM_NOISE_SD = 0.247 // of the 3-octave noise (seaNoise.js fbm)
 
@@ -93,6 +95,11 @@ export const seaWaveUniforms = {
   seaSlopeVariance: { value: 0.03 },                        // the sea's mean square slope (see seaReflectanceGlsl)
   seaWindMap: { value: null },                              // the weather map's wind (weatherMap.js), if any
   seaWindMapActive: { value: 0 },
+  // The clouds' cover (Planet.setSeaClouds): the weather map's (weatherMap.js) and the real clouds' (realClouds.js),
+  // with the clouds' blend between them (Clouds.js realShare: blend, declination (degrees), active).
+  seaCoverMap: { value: null },
+  seaRealClouds: { value: null },
+  seaCloudBlend: { value: new THREE.Vector3() },
 }
 
 // A whole-lattice offset for pattern number n (so the noise stays seamless across tiles).
@@ -217,6 +224,9 @@ uniform float seaBandSlope[${WAVE_BANDS}];
 uniform vec4 seaWind;
 uniform sampler2D seaWindMap;
 uniform float seaWindMapActive;
+uniform sampler2D seaCoverMap;
+uniform sampler2D seaRealClouds;
+uniform vec3 seaCloudBlend;
 #ifndef SEA_SLOPE_VARIANCE
 #define SEA_SLOPE_VARIANCE
 uniform float seaSlopeVariance;
@@ -242,6 +252,19 @@ float seaRoughnessHere(vec3 n) {
   vec2 uv = vec2(atan(-n.z, n.x) / (2.0 * PI) + 0.5, asin(clamp(n.y, -1.0, 1.0)) / PI + 0.5);
   float speed = length(texture(seaWindMap, uv).zw);
   return 0.003 + 0.00512 * speed + ${(SWELL_SLOPE * SWELL_SLOPE).toFixed(5)};
+}
+
+// The clouds' opacity over the sea at the ellipsoid normal n (renderer frame), as the clouds have it far away
+// (Clouds.js flatOpacityAt, without its sharpening: the imagery's, blurred, where the clouds use it, otherwise
+// the weather's); 0 without clouds.
+float seaCloudCover(vec3 n) {
+  if (seaCloudBlend.z < 0.5) return 0.0;
+  vec2 uv = vec2(atan(-n.z, n.x) / (2.0 * PI) + 0.5, asin(clamp(n.y, -1.0, 1.0)) / PI + 0.5);
+  float opacity = texture(seaCoverMap, uv).r * 0.9;
+  float noonSun = 90.0 - abs(uv.y * 180.0 - 90.0 - seaCloudBlend.y);
+  float share = seaCloudBlend.x * smoothstep(15.0, 25.0, noonSun);
+  if (share > 0.0) opacity = mix(opacity, clamp((textureLod(seaRealClouds, uv, ${SEA_COVER_BLUR.toFixed(1)}).r - 0.05) / 0.95, 0.0, 1.0), share);
+  return opacity;
 }
 
 // The gust factor at a point (1 on average): how much rougher than average the short waves are.

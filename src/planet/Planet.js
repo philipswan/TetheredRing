@@ -305,6 +305,14 @@ export class Planet {
     seaWaveUniforms.seaWindMapActive.value = texture ? 1 : 0;
   }
 
+  /** The clouds' cover for the sea's reflection of them (seaWaves.js seaCloudCover): clouds, a Clouds (or null). */
+  setSeaClouds(clouds) {
+    const u = clouds?.uniforms;
+    seaWaveUniforms.seaCoverMap.value = u?.weatherA.value ?? null;
+    seaWaveUniforms.seaRealClouds.value = u?.realClouds.value ?? null;
+    seaWaveUniforms.seaCloudBlend.value.set(u?.realBlend.value ?? 0, u?.realDeclination.value ?? 0, u?.realClouds.value ? 1 : 0);
+  }
+
   updateAtmosphere(camera, sunDirection) {
     const { a, b } = this.ellipsoid;
     const k = a / b;

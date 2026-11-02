@@ -117,6 +117,8 @@ const WATER_UNDERSIDE_FROM_ABOVE = [0.015, 0.035, 0.06];
 // GLINT_FAR[0] to GLINT_FAR[1] (m) it becomes a glint off the level surface as rough as
 // GLINT_FAR_SLOPE_VARIANCE (Cox and Munk's mean square slope for a 6 m/s wind, plus the swell).
 const GLINT_FAR = [20000, 100000];
+// The sea's reflection of a thick overcast's base, as a share of the brightness of the sky it reflects.
+const SEA_CLOUD_BASE = 0.55;
 const GLINT_FAR_SLOPE_VARIANCE = 0.035;
 // Sea floor seen from under the surface (linear RGB), and the depth over which it replaces the imagery.
 const SEAFLOOR_COLOR = [0.30, 0.28, 0.22];
@@ -2161,10 +2163,17 @@ material.specularShininess = clamp(2.0 / (seaUnresolved + 2e-4) - 2.0, 4.0, 8000
     glint = mix(glint, far * (1.0 - seaIce), glintFar);
   }
   #endif
-  vec3 light = (1.0 - fresnel) * seaWaterAlpha * water + fresnel * seaSkyReflection(reflect(-view, normal), sqrt(seaUnresolved)) + glint;
+  // The sky it reflects, and in it the clouds over the sea (seaCloudCover), whose bases are grey, as bright as
+  // the sky under thin or broken cloud and darker under a thick overcast (SEA_CLOUD_BASE): under thick cloud
+  // the sea is grey, not the blue of a clear sky.
+  vec3 seaSky = seaSkyReflection(reflect(-view, normal), sqrt(seaUnresolved));
+  float seaCover = seaCloudCover(seaUp);
+  seaSky = mix(seaSky, vec3(dot(seaSky, vec3(0.2126, 0.7152, 0.0722))) * mix(1.0, ${SEA_CLOUD_BASE.toFixed(2)}, seaCover * seaCover), seaCover);
+  vec3 light = (1.0 - fresnel) * seaWaterAlpha * water + fresnel * seaSky + glint;
   float alpha = (1.0 - fresnel) * seaWaterAlpha + fresnel;
   // The light the water itself sends back (water-leaving light), in the sun and sky light (sunAndSkyLight.js).
-  vec3 seaIrradiance = slSkyDown + ambientLightColor;
+  // (Under cloud, the sky's light on it is the clouds' grey, not the clear sky's blue.)
+  vec3 seaIrradiance = mix(slSkyDown, vec3(dot(slSkyDown, vec3(0.2126, 0.7152, 0.0722))), seaCover) + ambientLightColor;
   #if NUM_DIR_LIGHTS > 0
     seaIrradiance += slDirect * directionalLights[0].color * max(dot(seaToView(seaUp), directionalLights[0].direction), 0.0);
   #endif

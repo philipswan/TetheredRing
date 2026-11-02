@@ -832,6 +832,7 @@ export class App {
       this._seaWindMapSet = true
       this.planet.setSeaWindMap(this.clouds.weatherMap.textures[1])
     }
+    this.planet.setSeaClouds(this.clouds)
     this.planet.setDayOfYear(date.dayOfYear + date.utcHours / 24)
     if (!this.sunFollowsDate) return
     const s = subsolarPoint(date.dayOfYear, date.utcHours)
