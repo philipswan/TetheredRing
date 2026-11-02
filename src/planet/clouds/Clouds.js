@@ -74,6 +74,12 @@ const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
 const LIGHT_STEPS = 5
+// The lighter qualities' light (CLOUD_LITE_LIGHT, liteDepths): the density (0..1) it passes through inside a
+// cloud, less than the cores' (the light finds its way between the shapes).
+const LITE_DENSITY = 0.03
+const LITE_REACH = 2000
+const LITE_SUN_STEPS = [60, 250]
+const LITE_AMBIENT = 0.5
 // The sky's and the ground's light inside the clouds: dimmed by the cloud above (or below) as
 // exp(-AMBIENT_EXTINCTION * its optical depth), slower than the direct sunlight as it is scattered on
 // rather than lost; VERTICAL_STEPS samples each way (see verticalDepth).
@@ -535,6 +541,9 @@ ${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
 // A column's mid-level layer: its cover, stratiform share (altocumulus 0, altostratus 1) and base (m).
 // Worked out when needed rather than kept with the column: the columns are many and live in registers.
 vec3 midLayer(CloudColumn col) {
+#ifdef CLOUD_NO_MID
+  return vec3(0.0, 0.0, 3500.0);  // (the lighter qualities have none)
+#endif
   if (cloudTypeTest > 0) return midTest;
   return vec3(0.0, 0.0, 3500.0);  // (none from the weather yet)
 }
@@ -641,8 +650,14 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
       // where there is cloud to draw them in, and the veil has not filled them in: they are the most costly
       // part of the march.)
       float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
+#ifdef CLOUD_LITE_HIGH
+      // (The lighter qualities draw the streaks without their fibres, filled in to their average.)
+      if (full && d > 0.0) d = min(d, 1.0) * mix(${Math.sqrt(fibre.filled).toFixed(4)}, 1.0, veil);
+      if (false) {
+#else
       if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
       else if (full && d > 0.0) {
+#endif
         for (int i = 0; i < 2; i++) {
           float weight = i == 0 ? 1.0 - drift.z : drift.z;
           if (weight < 0.002) continue;
@@ -720,6 +735,33 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
   }
   return od * EXTINCTION;
 }
+
+#ifdef CLOUD_LITE_LIGHT
+// The optical depths towards the sun, up and down (as lightDepths' x, y, z) at p (stretched; local: its
+// planet-frame offset; h: its height) in a column, for the lighter graphics qualities: towards the sun, two
+// short samples of the cloud (LITE_SUN_STEPS, m: whether the point is near a sunlit side) and beyond them
+// a typical density inside a cloud (LITE_DENSITY) up to the layer's top, no further than the march's
+// light reaches (LITE_REACH); up and down, that density along the paths to its top and base, less (the
+// sky's light reaches in from all round: LITE_AMBIENT). The tops and sides of the clouds are lit and their
+// bases dark as with the march; what is lost is the finer shading inside them and one cloud's shadow on
+// another. (The light marches made the march too large for small GPUs.)
+vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, float footprint) {
+  float depth = max(col.top - col.base, 1.0);
+  float density = ${LITE_DENSITY.toFixed(2)} * mix(1.0, 1.6, col.showers);
+  float a = slParams.z;
+  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  float sun = 0.0, unused;
+  for (int k = 0; k < 2; k++) {
+    float at = k == 0 ? ${LITE_SUN_STEPS[0].toFixed(1)} : ${LITE_SUN_STEPS[1].toFixed(1)};
+    float stepLength = k == 0 ? ${(2 * LITE_SUN_STEPS[0]).toFixed(1)} : ${(LITE_SUN_STEPS[1] - LITE_SUN_STEPS[0]).toFixed(1)};
+    sun += lowCloudDensity(col, local + worldToPlanet * (slSun * at), length(p + sunDirS * at) - a, false, lod, unused) * stepLength;
+  }
+  float mu = max(dot(normalize(p), sunDirS), 0.1);
+  float above = clamp(col.top - h, 0.0, min(depth, ${LITE_REACH.toFixed(1)})), below = clamp(h - col.base, 0.0, min(depth, ${LITE_REACH.toFixed(1)}));
+  sun += density * max(above / mu - ${LITE_SUN_STEPS[1].toFixed(1)}, 0.0);
+  return EXTINCTION * vec3(sun, ${LITE_AMBIENT.toFixed(2)} * density * above, ${LITE_AMBIENT.toFixed(2)} * density * below);
+}
+#endif
 
 // The share of sunlight scattered towards the eye at optical depth od from the sun: multiple scattering,
 // approximately (octaves of weaker extinction and flatter phase), less the powder effect (the sunlit side
@@ -830,9 +872,16 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
     vec3 midL = midLayer(col);
     if (low && midL.x > 0.002) { bottom = min(bottom, midL.z); top = max(top, midL.z + ${MID_DEPTH[1].toFixed(1)}); }
     if (!low && col.highCover <= 0.005) continue;
+#ifdef CLOUD_LITE_SHADOW
+    if (!low) continue;  // (the lighter qualities: no shadow of the thin high cloud)
+#endif
     float ta = max((bottom - ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu, 0.0), tb = (top + ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu;
     if (tb <= ta) continue;
+#ifdef CLOUD_LITE_SHADOW
+    int steps = ${SHADOW_STEPS / 4};  // (and fewer samples of the low cloud's)
+#else
     int steps = low ? ${SHADOW_STEPS} : ${SHADOW_HIGH_STEPS};
+#endif
     float dt = (tb - ta) / float(steps);
     for (int j = 0; j < ${SHADOW_STEPS}; j++) {
       if (j >= steps) break;
@@ -869,6 +918,10 @@ float overcastShare(CloudColumn col, float h) {
 // Rain below the clouds (extinction, 1/m): under the cloud bases that are raining, a shaft as wide as
 // the cloud above it.
 float rainShaft(CloudColumn col, vec3 p, vec3 local, float h) {
+#ifdef CLOUD_LITE_MURK
+  // (The lighter qualities have no rain shafts: the haze and fog only.)
+  return 0.0;
+#endif
   float rate = col.rain;
   if (rate < 0.1) return 0.0;
   float base = col.base;
@@ -1196,6 +1249,13 @@ void main() {
           // The same for the cloud above and below, which the sky's and the ground's light come through.
           // Worked out at the light grid's points and blended between them along the line of sight.
           vec3 od0 = vec3(0.0), od1 = vec3(0.0);
+#ifdef CLOUD_LITE_LIGHT
+          if (lowCloud) {
+            vec3 p0 = c + d * (rf0 * stretch);
+            od0 = liteDepths(col, p0, D * rf0, length(p0) - a, sunDirS, rf0 * pixelAngle);
+            od1 = liteDepths(col1, p1, D * r1, length(p1) - a, sunDirS, r1 * pixelAngle);
+          }
+#else
           if (lowCloud) {
             for (int e = 0; e < 2; e++) {
               float x = e == 0 ? rf0 : r1;
@@ -1219,6 +1279,7 @@ void main() {
               if (e == 0) od0 = od; else od1 = od;
             }
           }
+#endif
           // The light at the ends, weighted by the cloud there: where a cell crosses a cloud's edge, the light
           // is the cloud's, not the clear air's beside it (averaged evenly, how bright a cell at a cloud's top
           // was depended on where the grid's planes cut it, and the planes showed as ripples and a lattice).
@@ -1536,6 +1597,17 @@ export class Clouds {
     renderer.setRenderTarget(previousTarget)
     renderer.setClearColor(previousClear, previousAlpha)
     renderer.render(this.compositeScene, this.quadCamera)
+  }
+
+  // The shader's optional parts, for the graphics quality (names of its defines: CLOUD_LITE_LIGHT,
+  // CLOUD_LITE_MURK, ...); a change recompiles it.
+  setFeatures(defines) {
+    const material = this.marchScene.children[0].material
+    const current = Object.keys(material.defines).filter((k) => k.startsWith('CLOUD_LITE') || k.startsWith('CLOUD_NO_')).sort().join(',')
+    if (current === [...defines].sort().join(',')) return
+    for (const k of Object.keys(material.defines)) if (k.startsWith('CLOUD_LITE') || k.startsWith('CLOUD_NO_')) delete material.defines[k]
+    for (const k of defines) material.defines[k] = ''
+    material.needsUpdate = true
   }
 
   // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.

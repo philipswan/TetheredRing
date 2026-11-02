@@ -21,6 +21,8 @@ export default async function ({ page }) {
   // A fixed quality (BENCH_QUALITY, default high): in Auto the render resolution follows the frame time, so
   // it would depend on how loaded the GPU is and on the views measured before.
   await page.evaluate((mode) => window.tetheredRing.app.quality.setMode(mode), process.env.BENCH_QUALITY || 'high')
+  // BENCH_CLOUD_DEFINES=A,B: the clouds' optional shader parts (Clouds.setFeatures).
+  if (process.env.BENCH_CLOUD_DEFINES) await page.evaluate((d) => window.tetheredRing.app.clouds?.setFeatures(d.split(',')), process.env.BENCH_CLOUD_DEFINES)
   const gpu = await page.evaluate(() => {
     const gl = window.tetheredRing.app.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
     return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
