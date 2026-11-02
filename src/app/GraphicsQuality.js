@@ -6,10 +6,12 @@ import { PixelLOD } from '../scene/PixelLOD.js'
 //   maxPixelRatio  cap on the device pixel ratio used for the drawing buffer
 //   lodBias        multiplies every pixel-size LOD threshold (higher = coarser sooner)
 //   terrainSse     planet tile refinement threshold (pixels per texel)
+//   clouds         the volumetric clouds' render target, as a share of the drawing buffer's size across
+//                  (softer clouds, for much less work: their cost grows with its pixels)
 export const QUALITY_PRESETS = {
-  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5 },
-  balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2 },
-  low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3 },
+  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5 },
+  balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2, clouds: 0.4 },
+  low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.3 },
 }
 
 const STORAGE_KEY = 'tetheredRing.graphicsQuality'
@@ -72,6 +74,7 @@ export class GraphicsQuality {
   apply() {
     PixelLOD.lodBias = this.preset.lodBias
     if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = this.preset.terrainSse
+    if (this.app.clouds) this.app.clouds.resolution = this.preset.clouds
     this.app.onResize()
   }
 
@@ -79,6 +82,7 @@ export class GraphicsQuality {
   applyForRecording() {
     PixelLOD.lodBias = 1
     if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = QUALITY_PRESETS.high.terrainSse
+    if (this.app.clouds) this.app.clouds.resolution = QUALITY_PRESETS.high.clouds
   }
 
   // Called once per displayed frame with the frame's timestamp (ms).

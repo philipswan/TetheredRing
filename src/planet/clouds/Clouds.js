@@ -43,7 +43,8 @@ import { MULTIPLE_SCATTERING } from '../../scene/skyIrradiance.js'
 //    transmittance dims what is behind), and rain streaks when the camera is in the rain.
 
 // The cloud target's resolution (of the screen's), the same from every height (switching it changed the
-// pixels' footprints, and with them the clouds' detail, at once).
+// pixels' footprints, and with them the clouds' detail, at once). This is High quality's; the graphics
+// quality setting can choose a lower one (Clouds.resolution, GraphicsQuality.js).
 const RESOLUTION = 0.5
 // The pixel footprints (m) over which the clouds become a flat layer of the real clouds' opacity, at
 // FLAT_HEIGHT (m), as the imagery shows them from far out in space (too small to see as shapes, and the
@@ -1185,6 +1186,8 @@ export class Clouds {
     // Drawing-buffer pixels per output pixel across (the supersampling factor while recording): the
     // clouds' detail is filtered to the output pixel, so a supersampled frame looks like an ordinary one.
     this.pixelScale = 1
+    // The cloud target's resolution, of the drawing buffer's (see RESOLUTION).
+    this.resolution = RESOLUTION
     this.weatherMap = new WeatherMap()
     this.realClouds = new RealClouds()
     this.enabled = true
@@ -1295,7 +1298,7 @@ export class Clouds {
     this.planetCoordSys.updateWorldMatrix(true, false)
     camera.getWorldPosition(_cameraPlanet)
     this.planetCoordSys.worldToLocal(_cameraPlanet)
-    const resolution = RESOLUTION
+    const resolution = this.resolution
     const w = Math.max(1, Math.round(size.x * resolution)), h = Math.max(1, Math.round(size.y * resolution))
     if (this.distanceTarget.width !== w || this.distanceTarget.height !== h) {
       this.distanceTarget.setSize(w, h)
