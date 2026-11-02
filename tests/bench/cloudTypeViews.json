@@ -1,0 +1,261 @@
+[
+ {
+  "name": "cumulus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "cumulus"
+  }
+ },
+ {
+  "name": "cumulus-congestus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "cumulus congestus"
+  }
+ },
+ {
+  "name": "cumulonimbus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "cumulonimbus"
+  }
+ },
+ {
+  "name": "stratocumulus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "stratocumulus"
+  }
+ },
+ {
+  "name": "stratus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "stratus"
+  }
+ },
+ {
+  "name": "cirrus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "cirrus"
+  }
+ },
+ {
+  "name": "cirrostratus",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2179390.592,
+     2231991.487,
+     -5561149.332
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "cirrostratus"
+  }
+ }
+]

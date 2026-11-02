@@ -84,8 +84,13 @@ const VERTICAL_STEPS = 4
 // between them along the line of sight.
 const LIGHT_FOOTPRINT = 1
 // The noise tiles (m): shape and detail.
-const SHAPE_TILE = 24000
+const SHAPE_TILE = 8000
 const DETAIL_TILE = 3000
+// Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
+// erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
+const FINE_TILE = 750
+const FINE_FOOTPRINT = [4, 24]
+const FINE_SHARE = 0.5
 // Large-scale structure (cloud streets and cells, clusters and gaps): the shape noise again on this tile
 // (m), moving the cover through a probit transform, so it shows where the clouds themselves are too
 // small to see (from orbit).
@@ -160,6 +165,11 @@ const SHOWER_DEPTH = 3000
 const TOWER_DEPTH = 6000
 const TOWER_TILE = 80000
 const TOWER_SHARE = 0.25
+const CUMULUS_EROSION = 0.6
+const CUMULUS_DENSITY = 3.0
+// ...near the camera: they fade to the plain erosion and density over pixel footprints of CRISP_FOOTPRINT (m),
+// where the billows would be smaller than a pixel (and shimmer as the camera moves).
+const CRISP_FOOTPRINT = [2, 20]
 const FAIR_CUMULUS = [0.012, 0.03]
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
@@ -175,6 +185,19 @@ const RAIN_VISIBILITY = 12000
 // The clouds' shadow on the scene: samples across the low and the high cloud (see cloudShadow).
 const SHADOW_STEPS = 16
 const SHADOW_HIGH_STEPS = 4
+
+// Cloud types, for testing and tuning one at a time (Clouds.setCloudTypeTest): each sets the columns'
+// fields everywhere, over whatever the weather gives. low: [cover, stratiform, showers, base (m), top (m)];
+// high: [cover, opacity, base (m)]. Unset layers are clear.
+export const CLOUD_TYPES = [
+  { name: 'cumulus', low: [0.3, 0, 0, 900, 1900] },
+  { name: 'cumulus congestus', low: [0.45, 0, 0.6, 800, 4500] },
+  { name: 'cumulonimbus', low: [0.5, 0, 1, 700, 11000] },
+  { name: 'stratocumulus', low: [0.85, 0.6, 0, 700, 1500] },
+  { name: 'stratus', low: [1, 1, 0, 300, 900] },
+  { name: 'cirrus', high: [0.6, 0.15, 9000] },
+  { name: 'cirrostratus', high: [1, 0.45, 9000] },
+]
 
 const fullscreenVertex = `
 varying vec2 vUv;
@@ -243,6 +266,7 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 // instruction cache). Such loops are unrolled by hand in groups of a few reads, enough to keep the GPU's
 // memory busy.
 uniform int noUnroll;
+uniform int cloudTypeTest;      // 0, or a cloud type to fill the sky with (1 + its index in CLOUD_TYPES)
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -301,6 +325,11 @@ vec2 latLon(vec3 p) {
 vec2 mapUv(vec2 ll) { return vec2(ll.y / 360.0 + 0.5, (ll.x + 90.0) / 180.0); }
 
 // The two copies of the noise (flow-mapped with the wind) at q, cross-faded with their spread kept.
+// How much of the finer octave the detail noise has (see FINE_FOOTPRINT; set by columnDensity).
+float fineWeight = 0.0;
+// How crisp cumulus are (1 near, 0 far: see CRISP_FOOTPRINT; set by columnDensity).
+float crispWeight = 0.0;
+
 float driftedShape(vec3 local, vec3 wind, float tile, vec3 offsets[2], out float detail, bool full) {
   float shape = 0.0;
   detail = 0.0;
@@ -312,7 +341,12 @@ float driftedShape(vec3 local, vec3 wind, float tile, vec3 offsets[2], out float
     shape += weight * remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0);
     if (full) {
       vec4 dn = texture(detailNoise, (q + detailOffset[i]) / ${DETAIL_TILE.toFixed(1)});
-      detail += weight * (dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125);
+      float fbm = dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125;
+      if (fineWeight > 0.0) {
+        vec4 fn = texture(detailNoise, (q + mod(detailOffset[i], ${FINE_TILE.toFixed(1)})) / ${FINE_TILE.toFixed(1)});
+        fbm = mix(fbm, mix(fbm, fn.r * 0.625 + fn.g * 0.25 + fn.b * 0.125, ${FINE_SHARE.toFixed(2)}), fineWeight);
+      }
+      detail += weight * fbm;
     }
   }
   // (Cross-fading two copies narrows the spread: restore it, so the cover stays the same.)
@@ -436,6 +470,18 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.wind = b.z * east + b.w * north;
   col.humidity = c.r;
   col.rain = showerRain(a);
+  // (A cloud type filling the sky, for testing: see CLOUD_TYPES.)
+  if (cloudTypeTest > 0) {
+    col.lowCover = 0.0;
+    col.highCover = 0.0;
+    col.highOpacity = 0.0;
+    col.showers = 0.0;
+${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
+      col.lowCover = ${t.low[0].toFixed(3)}; col.stratiform = ${t.low[1].toFixed(3)}; col.showers = ${t.low[2].toFixed(3)};
+      col.base = ${t.low[3].toFixed(1)}; col.top = ${t.low[4].toFixed(1)};` : ''}${t.high ? `
+      col.highCover = ${t.high[0].toFixed(3)}; col.highOpacity = ${t.high[1].toFixed(3)}; col.highBase = ${t.high[2].toFixed(1)};` : ''}
+    }`).join('\n')}
+  }
   return col;
 }
 
@@ -460,12 +506,17 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
       float shape = driftedShape(local, surfaceWind * 1.5, ${SHAPE_TILE.toFixed(1)}, shapeOffset, detail, full);
       d = thresholdDensity(shape, lowCover) * profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
-      if (full && d > 0.0) d = remap(d, mix(0.3, 0.12, stratiform) * mix(detail, 1.0 - detail, clamp(hf * 4.0, 0.0, 1.0)), 1.0, 0.0, 1.0);
+      // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
+      // of its surface: their outlines are the detail's billows (crisp, as cauliflower), not the shape's
+      // smooth rise. Not for the light through them: as dense there, the approximate multiple scattering
+      // left them dark grey.)
+      if (full && d > 0.0) d = max(remap(d, mix(mix(0.3, ${CUMULUS_EROSION.toFixed(2)}, crispWeight), 0.12, stratiform) * mix(detail, 1.0 - detail, clamp(hf * 4.0, 0.0, 1.0)), 1.0, 0.0, 1.0), 0.0)
+        * mix(mix(1.0, ${CUMULUS_DENSITY.toFixed(1)}, crispWeight), 1.0, stratiform);
     }
     // Too far for the clouds to be told apart: a density giving the column the transmittance of a cover
     // of opaque clouds (spreading the clouds' own density out evenly would make any cover of them opaque).
     float far = -log(1.0 - 0.95 * min(lowCover, 1.0)) / (EXTINCTION * (top - base) * 0.5) * profile;
-    density = mix(clamp(d, 0.0, 1.0), far, lod) * mix(1.0, 1.6, showers);
+    density = mix(d, far, lod) * mix(1.0, 1.6, showers);
   }
 
   return density;
@@ -483,9 +534,12 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   float density = 0.0;
   if (full) COST(cost.y)
+  fineWeight = full ? 1.0 - smoothstep(${FINE_FOOTPRINT[0].toFixed(1)}, ${FINE_FOOTPRINT[1].toFixed(1)}, footprint) : 0.0;
+  crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
   // Low cloud.
   density += lowCloudDensity(col, local, h, full, lod, layer);
+  fineWeight = 0.0;
 
   // High cloud: streaks along the wind aloft.
   float hb = col.highBase;
@@ -1245,6 +1299,7 @@ export class Clouds {
       exposure: { value: new THREE.Vector2(1, Math.PI) },
       lightSteps: { value: [LIGHT_STEPS, VERTICAL_STEPS] },
       noUnroll: { value: 1 },
+      cloudTypeTest: { value: 0 },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
@@ -1395,6 +1450,11 @@ export class Clouds {
     renderer.setRenderTarget(previousTarget)
     renderer.setClearColor(previousClear, previousAlpha)
     renderer.render(this.compositeScene, this.quadCamera)
+  }
+
+  // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.
+  setCloudTypeTest(name) {
+    this.uniforms.cloudTypeTest.value = name ? CLOUD_TYPES.findIndex((t) => t.name === name) + 1 : 0
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see

@@ -31,6 +31,8 @@ export default async function ({ page }) {
       const app = window.tetheredRing.app, gl = app.renderer.getContext()
       const frame = () => new Promise(r => requestAnimationFrame(r))
       const { applyViewState } = await import('/src/ui/ViewStatus.js')
+      // (view.cloudType: the sky filled with one cloud type, Clouds.setCloudTypeTest.)
+      app.clouds?.setCloudTypeTest?.(view.cloudType ?? null)
       applyViewState(app, view)
       // Loaded: the planet's tiles, the real clouds, and a few quiet frames.
       for (let i = 0; i < 1200; i++) {

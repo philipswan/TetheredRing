@@ -7,7 +7,9 @@ be explained by the camera's motion. Two measures of what is not:
     found in the frame before, within +-search pixels; what is left after the best match (the mean
     absolute residual, of 255) is change that motion cannot explain. Reported per frame, and as a map
     of the median residual over the sequence (artifacts that persist show up; a block of new detail
-    coming into view once does not).
+    coming into view once does not). Matching whole pixels, fine detail leaves a residual under motion by
+    fractions of a pixel even when nothing is wrong, so it is also reported relative to each block's detail
+    (its mean difference between neighbouring pixels): a change that only adds detail leaves that the same.
   - Video codecs: the bytes of the inter-predicted frames, x264 at a fixed quantiser and AV1 (SVT-AV1) at
     a fixed quality. Both predict each frame from the one before with motion vectors, so flicker and
     shimmer cost bits.
@@ -17,7 +19,8 @@ residual grew are reported and mapped.
     POSIX:       .venv/bin/python -m tools.motion_artifacts <frames dir> [--baseline <frames dir>] [--mv-video mv.mp4]
     PowerShell:  .venv\\Scripts\\python.exe -m tools.motion_artifacts <frames dir> [--baseline <frames dir>]
 
-Writes residual.png (and, with a baseline, residual-growth.png) into the frames' directory. Needs ffmpeg
+Writes residual.png (and, with a baseline, residual-growth.png and relative-growth.png) into the frames'
+directory. Needs ffmpeg
 (libx264, libsvtav1) and ffprobe on the PATH.
 """
 import argparse
@@ -56,13 +59,25 @@ def residual(prev, cur, block=16, search=8):
     return best
 
 
+def detail(img, block=16):
+    """Per block: the mean absolute difference between neighbouring pixels (how much fine detail it has)."""
+    h, w = img.shape[0] // block * block, img.shape[1] // block * block
+    g = np.zeros((h, w), dtype=np.float32)
+    g[:, :-1] += np.abs(np.diff(img[:h, :w], axis=1))
+    g[:-1, :] += np.abs(np.diff(img[:h, :w], axis=0))
+    return (g / 2).reshape(h // block, block, w // block, block).mean(axis=(1, 3))
+
+
 def residuals(files, block, search):
-    out, prev = [], luma(files[0])
+    """Per frame and block: the residual, and the residual relative to the block's detail (+0.5)."""
+    out, rel, prev = [], [], luma(files[0])
     for f in files[1:]:
         cur = luma(f)
-        out.append(residual(prev, cur, block, search))
+        r = residual(prev, cur, block, search)
+        out.append(r)
+        rel.append(r / (detail(cur, block) + 0.5))
         prev = cur
-    return np.stack(out)
+    return np.stack(out), np.stack(rel)
 
 
 def codec_bytes(directory):
@@ -96,17 +111,20 @@ def main():
     p.add_argument('--mv-video', help='also write the x264 encoding with its motion vectors drawn')
     args = p.parse_args()
     files = frames(args.frames)
-    res = residuals(files, args.block, args.search)
+    res, rel = residuals(files, args.block, args.search)
     median = np.median(res, axis=0)
+    rel_median = np.median(rel, axis=0)
     print(f'{args.frames}: {len(files)} frames')
     print(f'  residual per frame (mean of blocks): {", ".join(f"{x:.2f}" for x in res.mean(axis=(1, 2)))}')
     print(f'  median residual: mean {median.mean():.3f}  p99 {np.percentile(median, 99):.3f}  max {median.max():.3f}')
+    print(f'  relative to detail: mean {rel_median.mean():.3f}  p99 {np.percentile(rel_median, 99):.3f}')
     codec = codec_bytes(args.frames)
     print(f'  inter-frame bytes: x264 {codec["x264"]}  av1 {codec["av1"]}')
     save_map(median, 8.0, os.path.join(args.frames, 'residual.png'))
     if args.baseline:
-        base = residuals(frames(args.baseline), args.block, args.search)
+        base, base_rel = residuals(frames(args.baseline), args.block, args.search)
         base_median = np.median(base, axis=0)
+        base_rel_median = np.median(base_rel, axis=0)
         growth = median - base_median
         grown = growth > 0.5 + 0.25 * base_median
         base_codec = codec_bytes(args.baseline)
@@ -115,7 +133,11 @@ def main():
         print(f'  vs baseline: inter-frame bytes x264 {base_codec["x264"]} -> {codec["x264"]} '
               f'({(codec["x264"] / max(base_codec["x264"], 1) - 1) * 100:+.1f}%), '
               f'av1 {base_codec["av1"]} -> {codec["av1"]} ({(codec["av1"] / max(base_codec["av1"], 1) - 1) * 100:+.1f}%)')
+        rel_grown = rel_median - base_rel_median > 0.1 + 0.25 * base_rel_median
+        print(f'  vs baseline, relative to detail (more detail alone does not raise it): {base_rel_median.mean():.3f} -> '
+              f'{rel_median.mean():.3f}; blocks grown {rel_grown.mean() * 100:.2f}%')
         save_map(np.maximum(growth, 0), 4.0, os.path.join(args.frames, 'residual-growth.png'))
+        save_map(np.maximum(rel_median - base_rel_median, 0), 1.0, os.path.join(args.frames, 'relative-growth.png'))
     if args.mv_video:
         with tempfile.TemporaryDirectory() as tmp:
             enc = os.path.join(tmp, 'x264.mp4')
