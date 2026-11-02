@@ -303,6 +303,9 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 uniform int noUnroll;
 uniform int cloudTypeTest;      // 0, or a cloud type to fill the sky with (1 + its index in CLOUD_TYPES)
 uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stratiform share, base), if any
+uniform vec4 lowTest;           // its low cloud's cover, stratiform share, showers and base (m)
+uniform vec3 lowTest2;          // its low cloud's top (m), and the rain (mm/h) and humidity (if rain >= 0)
+uniform vec3 highTest;          // its high cloud's cover, opacity and base (m)
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -525,17 +528,12 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.humidity = c.r;
   col.rain = showerRain(a);
   // (A cloud type filling the sky, for testing: see CLOUD_TYPES.)
+  // (From uniforms rather than a branch for each type, which, copied wherever a column is worked out, slowed
+  // the whole march.)
   if (cloudTypeTest > 0) {
-    col.lowCover = 0.0;
-    col.highCover = 0.0;
-    col.highOpacity = 0.0;
-    col.showers = 0.0;
-${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
-      col.lowCover = ${t.low[0].toFixed(3)}; col.stratiform = ${t.low[1].toFixed(3)}; col.showers = ${t.low[2].toFixed(3)};
-      col.base = ${t.low[3].toFixed(1)}; col.top = ${t.low[4].toFixed(1)};` : ''}${t.high ? `
-      col.highCover = ${t.high[0].toFixed(3)}; col.highOpacity = ${t.high[1].toFixed(3)}; col.highBase = ${t.high[2].toFixed(1)};` : ''}${t.rain !== undefined ? `
-      col.rain = ${t.rain.toFixed(2)}; col.humidity = ${t.humidity.toFixed(2)};` : ''}
-    }`).join('\n')}
+    col.lowCover = lowTest.x; col.stratiform = lowTest.y; col.showers = lowTest.z; col.base = lowTest.w; col.top = lowTest2.x;
+    col.highCover = highTest.x; col.highOpacity = highTest.y; col.highBase = highTest.z;
+    if (lowTest2.y >= 0.0) { col.rain = lowTest2.y; col.humidity = lowTest2.z; }
   }
   return col;
 }
@@ -1464,6 +1462,9 @@ export class Clouds {
       noUnroll: { value: 1 },
       cloudTypeTest: { value: 0 },
       midTest: { value: new THREE.Vector3() },
+      lowTest: { value: new THREE.Vector4() },
+      lowTest2: { value: new THREE.Vector3() },
+      highTest: { value: new THREE.Vector3() },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
@@ -1623,7 +1624,12 @@ export class Clouds {
   setCloudTypeTest(name) {
     const index = name ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
     this.uniforms.cloudTypeTest.value = index + 1
-    this.uniforms.midTest.value.fromArray(CLOUD_TYPES[index]?.mid ?? [0, 0, 3500])
+    const type = CLOUD_TYPES[index]
+    this.uniforms.midTest.value.fromArray(type?.mid ?? [0, 0, 3500])
+    const low = type?.low ?? [0, 0, 0, 1000, 2000]
+    this.uniforms.lowTest.value.fromArray(low)
+    this.uniforms.lowTest2.value.set(low[4], type?.rain ?? -1, type?.humidity ?? 0)
+    this.uniforms.highTest.value.fromArray(type?.high ?? [0, 0, 9000])
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
