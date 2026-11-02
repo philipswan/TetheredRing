@@ -103,7 +103,7 @@ const RATIO_TILE = MID_TILE / MID_RATIO
 // the billowy noise the low cloud uses; its thresholds are its own distribution's (midShapeStats).
 const MID_CELLS = 0.6
 // Altostratus (the stratiform mid-level cloud) is a fairly even sheet, the sun showing dimly through it as
-// through ground glass (an optical depth of about 3): its shapes fade to their expected density as its
+// through ground glass (an optical depth of about 5): its shapes fade to their expected density as its
 // stratiform share rises over MID_SHEET_EVEN (with the altocumulus's cells it was a field of soft blobs), at
 // MID_SHEET_DENSITY of that.
 const MID_SHEET_EVEN = [0.5, 1.0]
