@@ -159,6 +159,12 @@ const FIBRE_STRETCH = 16
 const FIBRE_BEND = 1500
 const FIBRE_WEIGHTS = [0.4, 0.3, 0.3, 0.0]
 const FIBRE_EDGES = [0.3, 1.5]
+// Cirrocumulus: the high cloud's fibres turned into small rounded cells in rows (by the share
+// Clouds.cirrocumulus; from the weather, none yet): the shape noise on CELLS_TILE (m), unstretched and
+// unbent, by CELLS_WEIGHTS (favouring the finest Worley octaves, cells about a hundred metres across, a
+// degree or less seen from below).
+const CELLS_TILE = 3000
+const CELLS_WEIGHTS = [0.1, 0.0, 0.6, 0.3]
 const VEIL_OPACITY = [0.35, 0.45]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
 // (which narrows its spread; STREAK_SPREAD restores it).
@@ -222,7 +228,7 @@ const SHADOW_HIGH_STEPS = 4
 
 // Cloud types, for testing and tuning one at a time (Clouds.setCloudTypeTest): each sets the columns'
 // fields everywhere, over whatever the weather gives. low: [cover, stratiform, showers, base (m), top (m)];
-// high: [cover, opacity, base (m)]; mid: [cover, stratiform, base (m)]; rain (mm/h) and
+// high: [cover, opacity, base (m)], cells: its share of cirrocumulus (0: cirrus); mid: [cover, stratiform, base (m)]; rain (mm/h) and
 // humidity. Unset layers are clear.
 export const CLOUD_TYPES = [
   { name: 'cumulus', low: [0.3, 0, 0, 900, 1900] },
@@ -234,6 +240,7 @@ export const CLOUD_TYPES = [
   { name: 'altocumulus', mid: [0.6, 0, 3500] },
   { name: 'altostratus', mid: [1, 1, 3000] },
   { name: 'cirrus', high: [0.6, 0.15, 9000] },
+  { name: 'cirrocumulus', high: [0.6, 0.15, 9000], cells: 1 },
   { name: 'cirrostratus', high: [1, 0.45, 9000] },
 ]
 
@@ -270,7 +277,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, fibre = smearStats(2, 0, FIBRE_WEIGHTS, FIBRE_EDGES), mid = midShapeStats(MID_CELLS)) => `
+const marchFragment = (stats, mid = midShapeStats(MID_CELLS)) => `
 #include <common>
 #include <sun_and_sky_light>
 precision highp sampler3D;
@@ -310,6 +317,14 @@ uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stra
 uniform vec4 lowTest;           // its low cloud's cover, stratiform share, showers and base (m)
 uniform vec3 lowTest2;          // its low cloud's top (m), and the rain (mm/h) and humidity (if rain >= 0)
 uniform vec3 highTest;          // its high cloud's cover, opacity and base (m)
+uniform float cirrocumulus;     // the high cloud's share of cirrocumulus (see CELLS_TILE)
+// The high cloud's fibres or cells (see FIBRE_TILE and CELLS_TILE, for its share of cirrocumulus, worked out
+// once rather than for each sample): 1 / their tile east and north (m), how far they bend (m per unit of the
+// patches' noise); the noise channels' weights; its mean, 1 / its standard deviation and 1 / the root of the
+// share of the sky the fibres fill.
+uniform vec4 fibreTiles;
+uniform vec4 fibreWeights;
+uniform vec3 fibreStats;
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -665,20 +680,22 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
         vec2 en = vec2(atan(planetPoint.x, planetPoint.z), atan(planetPoint.y, length(planetPoint.xz))) * ar;
         vec3 upP = normalize(planetPoint), eastP = normalize(cross(vec3(0.0, 1.0, 0.0), upP));
         vec2 windEN = vec2(dot(windAloft, eastP), dot(windAloft, cross(upP, eastP)));
-        float eastTile = 2.0 * PI * ar / round(2.0 * PI * ar / ${(FIBRE_STRETCH * FIBRE_TILE).toFixed(1)});
-        float bend = (shape - SHAPE_MEAN) * ${(FIBRE_BEND / 0.1).toFixed(1)};
+        float bend = (shape - SHAPE_MEAN) * fibreTiles.z;
         for (int i = 0; i < 2; i++) {
           float weight = i == 0 ? 1.0 - drift.z : drift.z;
           if (weight < 0.002) continue;
           COST(cost2.x)
           float age = i == 0 ? drift.x : drift.y;
           vec2 g = en - windEN * age + driftShift[i].xy;
-          float f = dot(texture(shapeNoise, vec3(g.x / eastTile, (g.y + bend) / ${FIBRE_TILE.toFixed(1)}, h / ${FIBRE_TILE.toFixed(1)})), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
-          fibre += weight * (f - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
+          // (Through the noise's tile on a slant, at irrational slopes, so that its pattern never repeats
+          // across the sky: on the level, the cirrocumulus's small cells repeated in rows towards the horizon.)
+          vec2 t = vec2(g.x * fibreTiles.x, (g.y + bend) * fibreTiles.y);
+          float f = dot(texture(shapeNoise, vec3(t, h * fibreTiles.y + dot(t, vec2(${(MID_RATIO - 1).toFixed(6)}, ${(Math.SQRT2 - 1).toFixed(6)})))), fibreWeights);
+          fibre += weight * (f - fibreStats.x) * fibreStats.y;
         }
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
-        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
+        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) * fibreStats.z;
         d = min(d, 1.0) * mix(streaks, 1.0, veil);
       }
     }
@@ -1471,6 +1488,10 @@ export class Clouds {
       lowTest: { value: new THREE.Vector4() },
       lowTest2: { value: new THREE.Vector3() },
       highTest: { value: new THREE.Vector3() },
+      cirrocumulus: { value: 0 },
+      fibreTiles: { value: new THREE.Vector4() },
+      fibreWeights: { value: new THREE.Vector4() },
+      fibreStats: { value: new THREE.Vector3() },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
@@ -1591,6 +1612,7 @@ export class Clouds {
     u.exposure.value.set(skyExposure, sunIntensity)
     this.compositeScene.children[0].material.uniforms.rainTime.value = t % 1000
     u.pixelAngle.value = 2 / (camera.projectionMatrix.elements[5] * h) * this.pixelScale
+    this.updateFibres()
     u.realClouds.value = this.realClouds.texture
     u.realTexel.value = 2 * Math.PI * 6378137 / (this.realClouds.texture.image?.width ?? 10240)
     u.realBlend.value = this.realClouds.ready ? 1 : 0
@@ -1626,6 +1648,22 @@ export class Clouds {
     renderer.render(this.compositeScene, this.quadCamera)
   }
 
+  // The high cloud's fibres or cells, for its share of cirrocumulus (see the fibreTiles uniform). The east
+  // periods divide the equator (of the planet's equatorial radius), so there is no seam at the date line.
+  updateFibres() {
+    const u = this.uniforms, cc = u.cirrocumulus.value
+    const a = u.slParams.value.z || 6378137
+    const east = (tile) => 1 / (2 * Math.PI * a / Math.round(2 * Math.PI * a / tile))
+    const mix = (x, y) => x + (y - x) * cc
+    this._fibreStats ??= smearStats(2, 0, FIBRE_WEIGHTS, FIBRE_EDGES)
+    this._cellStats ??= smearStats(2, 0, CELLS_WEIGHTS, FIBRE_EDGES)
+    const f = this._fibreStats, c = this._cellStats
+    const tile = mix(FIBRE_TILE, CELLS_TILE)
+    u.fibreTiles.value.set(east(mix(FIBRE_STRETCH, 1) * tile), 1 / tile, FIBRE_BEND / 0.1 * (1 - cc), 0)
+    u.fibreWeights.value.set(...FIBRE_WEIGHTS.map((w, i) => mix(w, CELLS_WEIGHTS[i])))
+    u.fibreStats.value.set(mix(f.mean, c.mean), 1 / mix(f.sd, c.sd), 1 / Math.sqrt(mix(f.filled, c.filled)))
+  }
+
   // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.
   setCloudTypeTest(name) {
     const index = name ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
@@ -1636,6 +1674,7 @@ export class Clouds {
     this.uniforms.lowTest.value.fromArray(low)
     this.uniforms.lowTest2.value.set(low[4], type?.rain ?? -1, type?.humidity ?? 0)
     this.uniforms.highTest.value.fromArray(type?.high ?? [0, 0, 9000])
+    this.uniforms.cirrocumulus.value = type?.cells ?? 0
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
