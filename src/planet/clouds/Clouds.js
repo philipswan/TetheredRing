@@ -190,6 +190,8 @@ const CRISP_FOOTPRINT = [2, 20]
 const FAIR_CUMULUS = [0.012, 0.03]
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
+// The sunlight diffused through the cloud to its base (see diffuseSun): cumulus's, a sheet's.
+const DIFFUSE_SUN = [0.05, 0.15]
 const DRIFT_PERIOD = 2400 // s
 // Extinction (1/m) of a cloud at full density.
 const EXTINCTION = 0.03
@@ -866,6 +868,20 @@ float overcastShare(CloudColumn col, float h) {
   return 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
 }
 
+// The share of the sunlight (times overcastShare) diffused down through the cloud to its depths and base:
+// DIFFUSE_SUN[0] for cumulus, whose light leaks out of their sides, up to DIFFUSE_SUN[1] for a sheet
+// (stratiform), which the light can only leave through its base or top. (With the cumulus's share,
+// nimbostratus was nearly black.)
+float diffuseSun(float stratiform) { return mix(${DIFFUSE_SUN[0].toFixed(3)}, ${DIFFUSE_SUN[1].toFixed(3)}, stratiform); }
+
+// The murk's light (before white): the sun's where it reaches (sun, its share through the clouds), with the
+// murk's phase function; the sky's and the ground's through the cloud above (overcast, overcastShare); and,
+// where the clouds shade the sun, its light diffused through them, as the cloud's base has it (diffuseSun).
+// (Without that, rain under nimbostratus was darker than the cloud it fell from.)
+vec3 murkLighting(vec3 direct, vec3 skyDown, vec3 groundUp, float sun, float overcast, float stratiform, float phase) {
+  return direct * (sun * phase * PI + (1.0 - sun) * diffuseSun(stratiform) * overcast) + (skyDown + groundUp) * RECIPROCAL_PI * 0.5 * overcast;
+}
+
 // Rain below the clouds (extinction, 1/m): under the cloud bases that are raining, a shaft as wide as
 // the cloud above it.
 float rainShaft(CloudColumn col, vec3 p, vec3 local, float h) {
@@ -910,6 +926,7 @@ void main() {
   // nimbostratus.)
   float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance < 1e8 ? sceneDistance * stretch : 1e30);
   float sceneSun = 1.0, shade = 1.0;
+  float cameraSun = -1.0;  // the camera's share of the sun through the clouds (see the haze below), once known
   if (tScene < 1e20 && slParams.x > 0.5) {
     vec3 ps = c + d * tScene;
     vec3 localS = worldToPlanet * (dirWorld * (tScene / stretch));
@@ -936,6 +953,7 @@ void main() {
     // LOD_FOOTPRINT, short of FLAT_FOOTPRINT): the murk against the sky reaches kilometres away, lit through
     // the cover on average, not darkened all over as one cumulus's shadow passes over the camera.)
     sceneSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
+    cameraSun = sceneSun;
   }
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
@@ -1024,7 +1042,7 @@ void main() {
         if (murk > 1e-7) {
           vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
           slLightAt(dirWorld * rm, stepDirect, stepSkyDown, stepGroundUp, upW);
-          vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(col, h)) * white;
+          vec3 murkLight = murkLighting(stepDirect, stepSkyDown, stepGroundUp, sceneSun, overcastShare(col, h), col.stratiform, murkPhase) * white;
           float murkT = exp(-murk * (r1 - r) * stretch);
           light += transmittance * murkLight * (1.0 - murkT);
           transmittance *= murkT;
@@ -1122,8 +1140,7 @@ void main() {
       if (lowCloud || highCloud || murk > 1e-7) {
         vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
         slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
-        murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25
-          + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(colA, length(c + d * (rcm * stretch)) - a)) * white;
+        murkLight = murkLighting(stepDirect, stepSkyDown, stepGroundUp, sceneSun, overcastShare(colA, length(c + d * (rcm * stretch)) - a), colA.stratiform, murkPhase) * white;
         sunlight = stepDirect * sunIntensity;
         skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
         groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
@@ -1233,7 +1250,7 @@ void main() {
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
           // less the more cloud there is above (overcastShare's diffuse transmission; the base of a deep cloud
           // is dark). (Sky and ground light: ambient, from above and below.)
-          vec3 diffuse = sunlight * 0.05 * overcastShare(col, h);
+          vec3 diffuse = sunlight * diffuseSun(col.stratiform) * overcastShare(col, h);
           vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
           // Energy-conserving integration across the stretch.
           float stepT = exp(-sigma * dt);
@@ -1275,6 +1292,15 @@ void main() {
       atmoScatter(c, d, dirWorld, max(at0, 0.0), min(at1, tc), slSun, a, 8, airLight, airTransmittance);
       vec3 cloudTransmittance = mix(airTransmittance, vec3(dot(airTransmittance, vec3(0.2126, 0.7152, 0.0722))), 0.5);
       vec3 inScatter = max((1.0 - exp(-airLight)) * exposure.x, airLight * ATMO_HAZE_THIN * ${MULTIPLE_SCATTERING.toFixed(2)});
+      // (That is the clear sky's air. Under a thick overcast the air in front of its base is in the clouds'
+      // shade, lit only by what comes through them, and the clear sky's blue over it made nimbostratus a pale
+      // blue-grey. Under broken cloud the sun lights the air through the gaps around, so this only dims it
+      // where the camera's sun through the clouds' expected density is below about a half; the planet's own
+      // shadow is the air light's.)
+      if (length(c) - a < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
+        if (cameraSun < 0.0) cameraSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
+        inScatter *= mix(0.2, 1.0, smoothstep(0.0, 0.5, cameraSun));
+      }
       light = light * cloudTransmittance + inScatter * (1.0 - transmittance);
     }
   }
