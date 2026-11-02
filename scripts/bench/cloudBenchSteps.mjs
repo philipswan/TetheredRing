@@ -23,6 +23,8 @@ export default async function ({ page }) {
   await page.evaluate((mode) => window.tetheredRing.app.quality.setMode(mode), process.env.BENCH_QUALITY || 'high')
   // BENCH_SKY_LUT=0: the sky marched at every pixel rather than read from its table (Planet.setSkyLut).
   if (process.env.BENCH_SKY_LUT === '0') await page.evaluate(() => window.tetheredRing.app.planet.setSkyLut(false))
+  // BENCH_HAZE_SAMPLES=n: the haze's samples (aerialPerspective.js), whatever the quality.
+  if (process.env.BENCH_HAZE_SAMPLES) await page.evaluate(async (n) => (await import('/src/planet/aerialPerspective.js')).AerialPerspective.setLowSamples(n), Number(process.env.BENCH_HAZE_SAMPLES))
   // BENCH_CLOUD_DEFINES=A,B: the clouds' optional shader parts (Clouds.setFeatures).
   if (process.env.BENCH_CLOUD_DEFINES) await page.evaluate((d) => window.tetheredRing.app.clouds?.setFeatures(d.split(',')), process.env.BENCH_CLOUD_DEFINES)
   const gpu = await page.evaluate(() => {
