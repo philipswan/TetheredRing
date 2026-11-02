@@ -203,14 +203,14 @@ export function midShapeStats(cells, samples = 200000) {
   const d = cloudNoiseTextures().shape.image.data, n = d.length / 4
   const value = (i) => {
     const r = d[i * 4] / 255, fbm = (d[i * 4 + 1] * 0.625 + d[i * 4 + 2] * 0.25 + d[i * 4 + 3] * 0.125) / 255
-    return [remap(r, fbm - 1, 1, 0, 1), (d[i * 4 + 1] * 0.7 + d[i * 4 + 2] * 0.3) / 255]
+    return [remap(r, fbm - 1, 1, 0, 1), d[i * 4 + 2] / 255]
   }
   let seed = 12345
   const next = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return Math.floor(seed / 2147483648 * n) }
   const values = new Float32Array(samples)
   for (let k = 0; k < samples; k++) {
     const a = value(next()), b = value(next())
-    values[k] = (1 - cells) * 0.5 * (a[0] + b[0]) + cells * 0.5 * (a[1] + b[1])
+    values[k] = (1 - cells) * 0.5 * (a[0] + b[0]) + cells * (0.75 * a[1] + 0.25 * b[1])
   }
   values.sort()
   const mean = values.reduce((s, v) => s + v, 0) / samples

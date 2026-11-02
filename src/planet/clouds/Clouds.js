@@ -94,7 +94,7 @@ const SHAPE_TILE = 8000
 const DETAIL_TILE = 3000
 // The mid-level layer's shapes are on MID_TILE (m, dividing SHAPE_TILE), smaller than the low cloud's, and
 // move with the wind aloft (MID_WIND times the surface's).
-const MID_TILE = 4000
+const MID_TILE = 2000
 const MID_WIND = 2.5
 // Its depth (m), from altocumulus's to altostratus's (by its stratiform share), and altostratus's density (a
 // deep but thin sheet, through which the sun shows dimly).
@@ -104,10 +104,15 @@ const MID_DEPTH = [200, 1500]
 // crisp, dense outlines (see CUMULUS_DENSITY). So overhead it is a faint, soft mottling, and its cells stand
 // out only when the light crosses the layer (a low sun), as a mackerel sky does. (Dense, it was a field of
 // white popcorn over everything below.)
-const MID_THIN = 0.07
-// How strongly its cover follows the large-scale cells (see MACRO_TILE): it comes in patches, not evenly
-// across a weather cell.
-const MID_PATCHES = 14
+const MID_THIN = 0.1
+// It comes in patches (see MACRO_TILE), not evenly across a weather cell: their edges' softness in the
+// large-scale field.
+const MID_PATCH_EDGE = 0.02
+// (The patches' tile (m; dividing MACRO_TILE, so that its offset serves): patches some kilometres across.)
+const MID_PATCH_TILE = 50000
+const MID_PACKED = 0.85
+// (The share of a cell's rise from its edge to its core over which its density rises: the lanes between.)
+const MID_FILL = 0.3
 // Its smaller tile repeated visibly (rows of the same shapes towards the horizon): its noise is averaged
 // with the noise again on a tile MID_RATIO (the golden ratio) times smaller, so that the two have no period
 // in common and the pattern does not repeat. (A turned copy did the same, but its matrix slowed the whole
@@ -128,7 +133,7 @@ const MID_SHEET_TEXTURE = 0.35
 // The pixel footprints (m) over which the mid-level cloud's shapes fade to their expected density: smaller
 // than the low cloud's (LOD_FOOTPRINT), as its shapes are, so that towards the horizon altocumulus blurs
 // together, as it does, rather than packing its cells (and the noise's repetition) into rows of texture.
-const MID_LOD_FOOTPRINT = [15, 60]
+const MID_LOD_FOOTPRINT = [12, 50]
 const MID_SHEET_DENSITY = 1.0
 // The mid-level layer's opacity seen from space per unit of its cover, from altocumulus's to altostratus's,
 // and the most of the cloudy share of the sky (after the high cloud) it may take.
@@ -441,7 +446,7 @@ float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool fu
       // (Mid-level: rounded cells, from the Worley noise more than the billowy (see MID_CELLS); averaged with
       // the same on a second tile (see MID_RATIO), its spread restored.)
       vec4 t = texture(shapeNoise, (ratioOffset[i] + q) / ${RATIO_TILE.toFixed(3)});
-      float cells = 0.5 * (s.g * 0.7 + s.b * 0.3 + t.g * 0.7 + t.b * 0.3);  // (the coarser octaves: wide pancakes)
+      float cells = s.b * 0.75 + t.b * 0.25;  // (one octave of cells, mostly one tile: averaging blurred them away)
       value = mix(0.5 * (value + remap(t.r, t.g * 0.625 + t.b * 0.25 + t.a * 0.125 - 1.0, 1.0, 0.0, 1.0)), cells, ${MID_CELLS.toFixed(2)});
     }
     shape += weight * value;
@@ -555,9 +560,15 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   float rest = -log(clamp((1.0 - opacitySmooth) / above, 0.01, 1.0));  // (the optical depth left for them)
   float midOpacity = min(1.0 - exp(-depths.x * rest / max(depths.x + depths.y, 1e-4)), midPerCover);
   mid.xy = vec2(midOpacity / midPerCover, dm.g);
-  // (In patches: the large-scale cells the low cloud's cover follows (macro), more strongly, MID_PATCHES, as
-  // altocumulus forms in the larger convection cells; through a probit transform, keeping its cover.)
-  if (mid.x > 0.002) mid.x = normalCdf(probit(clamp(mid.x, 0.005, 0.995)) + ${MID_PATCHES.toFixed(1)} * (field - SHAPE_MEAN));
+  // (In patches, packed: its cells touching (MID_PACKED of the sky inside a patch), the patches where the
+  // shape noise on PATCH_TILE (larger convection cells, which altocumulus forms in) is above the threshold
+  // that leaves as much in patches as keeps its cover, with edges MID_PATCH_EDGE soft.)
+  if (mid.x > 0.002) {
+    vec4 pn = texture(shapeNoise, (local + macroOffset) / ${MID_PATCH_TILE.toFixed(1)} + vec3(0.37, 0.11, 0.73));
+    float patchField = remap(pn.r, pn.g * 0.625 + pn.b * 0.25 + pn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
+    float patchThreshold = coverThreshold(min(mid.x / ${MID_PACKED.toFixed(2)}, 1.0));
+    mid.x = ${MID_PACKED.toFixed(2)} * smoothstep(patchThreshold - ${MID_PATCH_EDGE.toFixed(3)}, patchThreshold + ${MID_PATCH_EDGE.toFixed(3)}, patchField);
+  }
   above *= 1.0 - midOpacity;
 #endif
   float lowShare = clamp((1.0 - opacity) / above, 0.0, 1.0);  // (the clear share the low cloud must leave)
@@ -678,7 +689,11 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
       // (The mid-level tile divides the low cloud's, and the noise repeats: the same offsets serve, scaled.)
       float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full);
       float threshold = mid ? midCoverThreshold(lowCover) : coverThreshold(lowCover);
-      d = clamp((shape - threshold) / max((mid ? MID_TOP : SHAPE_TOP) - threshold, 0.02), 0.0, 1.0) * profile;
+      d = clamp((shape - threshold) / max((mid ? MID_TOP : SHAPE_TOP) - threshold, 0.02), 0.0, 1.0);
+      // (Altocumulus's cells filled, falling off only in the narrow lanes between them: rising across the
+      // whole cell, only their cores showed, as speckles.)
+      if (mid) d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d);
+      d *= profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
       // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
       // of its surface: their outlines are the detail's billows (crisp, as cauliflower), not the shape's
