@@ -236,6 +236,7 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
                  .venv\Scripts\python.exe -m tools.motion_artifacts .scratch\bench\now\<view>.motion --baseline .scratch\bench\base\<view>.motion
 
   Both need ffmpeg (with libsvtav1 and libx264) and ffprobe on the PATH, and numpy and Pillow in the venv.
+- `SMOKE_REMOTE=user@host` runs the browser of `npm run smoke` and `npm run bench:clouds` on another machine over ssh, on its GPU (for a laptop's integrated graphics), with the page served from here through ssh tunnels; `SMOKE_SSH_ARGS` adds ssh options (a key, `-o IdentitiesOnly=yes`) and `SMOKE_REMOTE_CHROME` names its browser (default `chromium-browser`). Tests views of one cloud type each: `npm run bench:clouds -- --views tests/bench/cloudTypeViews.json` (`Clouds.setCloudTypeTest`).
 
 ## Sun, sky and atmosphere
 
