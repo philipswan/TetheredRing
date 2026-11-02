@@ -892,6 +892,24 @@ float overcastShare(CloudColumn col, float h) {
   return share;
 }
 
+// The share of the sunlight reaching height h (m) in a column through its low and mid-level cloud, from their
+// expected density (as lowCloudDensity's from afar), for the sun's height (mu, the cosine of its zenith
+// angle): what the air under the clouds is lit by on average. (Worked out, not marched as cloudShadow is:
+// marched for every pixel of the sky, it was a twentieth of the whole march's time.)
+float expectedSun(CloudColumn col, float h, float mu) {
+  // (Each layer's far density integrates to -log(1 - 0.95 cover) / 0.5 times its profile's mean, over the
+  // share of it above h.)
+  float od = -log(1.0 - 0.95 * min(col.lowCover, 1.0)) * 2.0 * mix(0.68, 0.78, col.stratiform) * mix(1.0, 1.6, col.showers)
+    * clamp((col.top - max(h, col.base)) / max(col.top - col.base, 1.0), 0.0, 1.0);
+  vec3 midL = midLayer(col);
+  if (midL.x > 0.0) {
+    float midDepth = mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
+    od += -log(1.0 - 0.95 * min(midL.x, 1.0)) * 2.0 * mix(0.68, 0.78, midL.y) * mix(1.0, ${MID_SHEET_DENSITY.toFixed(2)}, midL.y)
+      * clamp((midL.z + midDepth - max(h, midL.z)) / midDepth, 0.0, 1.0);
+  }
+  return exp(-od / max(mu, 0.05));
+}
+
 // The share of the sunlight (times overcastShare) diffused down through the cloud to its depths and base:
 // DIFFUSE_SUN[0] for cumulus, whose light leaks out of their sides, up to DIFFUSE_SUN[1] for a sheet
 // (stratiform), which the light can only leave through its base or top. (With the cumulus's share,
@@ -950,7 +968,6 @@ void main() {
   // nimbostratus.)
   float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance < 1e8 ? sceneDistance * stretch : 1e30);
   float sceneSun = 1.0, shade = 1.0;
-  float cameraSun = -1.0;  // the camera's share of the sun through the clouds (see the haze below), once known
   if (tScene < 1e20 && slParams.x > 0.5) {
     vec3 ps = c + d * tScene;
     vec3 localS = worldToPlanet * (dirWorld * (tScene / stretch));
@@ -973,11 +990,10 @@ void main() {
     shade = mix(1.0, lit, airSeen);
   }
   else if (slParams.x > 0.5) {
-    // (Sky: the murk's sunlight as at the camera, through the clouds' expected density (a footprint past
-    // LOD_FOOTPRINT, short of FLAT_FOOTPRINT): the murk against the sky reaches kilometres away, lit through
-    // the cover on average, not darkened all over as one cumulus's shadow passes over the camera.)
-    sceneSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
-    cameraSun = sceneSun;
+    // (Sky: the murk's sunlight as at the camera, through the clouds' expected density (expectedSun): the
+    // murk against the sky reaches kilometres away, lit through the cover on average, not darkened all over
+    // as one cumulus's shadow passes over the camera.)
+    sceneSun = sphere(c, sunDirS, a).x > 0.0 ? 0.0 : expectedSun(cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0), length(c) - a, dot(normalize(c), sunDirS));
   }
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
@@ -1328,8 +1344,8 @@ void main() {
       // camera's sun through the clouds' expected density). The planet's own shadow is the air light's.)
       float hc = length(c) - a;
       if (hc < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
-        if (cameraSun < 0.0) cameraSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
-        inScatter *= mix(overcastShare(cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0), hc), 1.0, cameraSun);
+        CloudColumn colC = cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0);
+        inScatter *= mix(overcastShare(colC, hc), 1.0, expectedSun(colC, hc, dot(normalize(c), sunDirS)));
       }
       // (Over the clouds' share of the opacity (depthWeight), not the murk's, whose light is the air's own:
       // where rain or mist hid all but a trace of the clouds beyond, the haze over the whole of it began
