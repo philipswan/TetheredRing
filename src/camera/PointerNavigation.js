@@ -6,8 +6,9 @@
 //              ctrl/alt + left drag: look around from where the camera is
 //              middle drag: move in/out     wheel: move towards/away from the point under the cursor
 //              double-click: fly to (or follow) what is under the cursor
-//   Touchpad   pinch: move in/out           two-finger scroll: pan (or orbit with shift; see
+//   Touchpad   two-finger scroll: move in/out, as a mouse wheel (shift + scroll pans; see
 //              cameraTouchpadScroll)         click-drag: as the mouse
+//              pinch: move in/out too (over the scene; elsewhere the browser zooms the page)
 //   Touch      one finger: orbit            two fingers: pan, pinch to move in/out, twist to turn
 //              double tap: fly to
 //
@@ -21,7 +22,7 @@
 //   twist(x, y, angle)      radians, anticlockwise on screen
 //   doubleClick(x, y)
 //   scrollPan(x, y, mx, my) touchpad scrolling: the scene under the pointer moves by (mx, my)
-//   scrollMode() -> 'auto' | 'pan' | 'orbit' | 'zoom'   what touchpad scrolling does
+//   scrollMode() -> 'zoom' | 'pan' | 'orbit'   what touchpad scrolling does (shift: pan, or orbit if it pans)
 //   zoomSpeed() -> number
 import { classifyWheel } from './cameraMath.js'
 
@@ -228,14 +229,14 @@ export class PointerNavigation {
       this.call('zoomAt', event.clientX, event.clientY, Math.exp(dy * 0.01 * speed))
       return
     }
-    let scroll = this.call('scrollMode') ?? 'auto'
+    let scroll = this.call('scrollMode') ?? 'zoom'
+    if (scroll === 'auto') scroll = 'zoom' // (the old default)
+    if (event.shiftKey) scroll = scroll === 'pan' ? 'orbit' : 'pan'
     if (kind === 'wheel' || scroll === 'zoom') {
       this.endScroll()
       this.call('zoomAt', event.clientX, event.clientY, Math.exp(dy * 0.0025 * speed))
       return
     }
-    if (scroll === 'auto') scroll = event.shiftKey ? 'orbit' : 'pan'
-    else if (event.shiftKey) scroll = scroll === 'pan' ? 'orbit' : 'pan'
     // Touchpad scrolling: a drag of a virtual pointer that starts under the cursor.
     if (this.scroll && this.scroll.kind !== scroll) this.endScroll()
     if (!this.scroll) {

@@ -685,7 +685,7 @@ export function createParameterDefinitions() {
   // Navigation with the mouse, touchpad and touchscreen.
   cameraRotateSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
   cameraZoomSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
-  cameraTouchpadScroll: {value: 'auto', units: '', autoMap: true, options: {'Auto (scroll pans, shift+scroll orbits)': 'auto', 'Pan': 'pan', 'Orbit': 'orbit', 'Zoom (as a mouse wheel)': 'zoom'}, onChange: 'updatedParam', folder: 'Camera'},
+  cameraTouchpadScroll: {value: 'zoom', units: '', autoMap: true, options: {'Zoom, as a mouse wheel (shift+scroll pans)': 'zoom', 'Pan (shift+scroll orbits)': 'pan', 'Orbit (shift+scroll pans)': 'orbit'}, onChange: 'updatedParam', folder: 'Camera'},
   cameraTransitionTime: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
   cameraMinGroundClearance: {value: 1.5, units: 'm', autoMap: true, min: 0, max: 100, onChange: 'updatedParam', folder: 'Camera'},
   cameraFieldOfView: {value: 45, units: '', autoMap: true, min: 0, max: 90, tweenable: true, onChange: 'updateCamerFieldOfView', folder: 'Rendering'},

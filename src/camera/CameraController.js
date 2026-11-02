@@ -690,7 +690,7 @@ export class CameraController {
       twist: (x, y, angle) => this.twist(angle),
       doubleClick: (x, y) => this.doubleClick(x, y),
       scrollPan: (x, y, mx, my) => this.scrollPan(x, y, mx, my),
-      scrollMode: () => this.param('cameraTouchpadScroll', 'auto'),
+      scrollMode: () => this.param('cameraTouchpadScroll', 'zoom'),
       zoomSpeed: () => this.param('cameraZoomSpeed', 1),
     }
   }
