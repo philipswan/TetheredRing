@@ -94,7 +94,7 @@ const SHAPE_TILE = 8000
 const DETAIL_TILE = 3000
 // The mid-level layer's shapes are on MID_TILE (m, dividing SHAPE_TILE), smaller than the low cloud's, and
 // move with the wind aloft (MID_WIND times the surface's).
-const MID_TILE = 2000
+const MID_TILE = 1000
 const MID_WIND = 2.5
 // Its depth (m), from altocumulus's to altostratus's (by its stratiform share), and altostratus's density (a
 // deep but thin sheet, through which the sun shows dimly).
@@ -107,10 +107,10 @@ const MID_DEPTH = [200, 1500]
 const MID_THIN = 0.1
 // It comes in patches (see MACRO_TILE), not evenly across a weather cell: their edges' softness in the
 // large-scale field.
-const MID_PATCH_EDGE = 0.02
+const MID_PATCH_EDGE = 0.06
 // (The patches' tile (m; dividing MACRO_TILE, so that its offset serves): patches some kilometres across.)
 const MID_PATCH_TILE = 50000
-const MID_PACKED = 0.85
+const MID_PACKED = 0.97
 // (The share of a cell's rise from its edge to its core over which its density rises: the lanes between.)
 const MID_FILL = 0.3
 // Its smaller tile repeated visibly (rows of the same shapes towards the horizon): its noise is averaged
@@ -133,7 +133,7 @@ const MID_SHEET_TEXTURE = 0.35
 // The pixel footprints (m) over which the mid-level cloud's shapes fade to their expected density: smaller
 // than the low cloud's (LOD_FOOTPRINT), as its shapes are, so that towards the horizon altocumulus blurs
 // together, as it does, rather than packing its cells (and the noise's repetition) into rows of texture.
-const MID_LOD_FOOTPRINT = [12, 50]
+const MID_LOD_FOOTPRINT = [4.5, 18]
 const MID_SHEET_DENSITY = 1.0
 // The mid-level layer's opacity seen from space per unit of its cover, from altocumulus's to altostratus's,
 // and the most of the cloudy share of the sky (after the high cloud) it may take.
