@@ -23,3 +23,6 @@ __pycache__/
 smoke*.png
 .worktrees/
 .scratch/
+
+# Source data downloaded by tools/sources (large; not in Git or LFS)
+additional_earth_imagery
