@@ -108,7 +108,19 @@ const RATIO_TILE = MID_TILE / MID_RATIO
 // The mid-level cloud's shape is MID_CELLS Worley noise (rounded cells, as altocumulus are in), and the rest
 // the billowy noise the low cloud uses; its thresholds are its own distribution's (midShapeStats).
 const MID_CELLS = 0.6
-const MID_SHEET_DENSITY = 0.25
+// Altostratus (the stratiform mid-level cloud) is a fairly even sheet, the sun showing dimly through it as
+// through ground glass (an optical depth of about 5): its shapes fade to their expected density as its
+// stratiform share rises over MID_SHEET_EVEN (with the altocumulus's cells it was a field of soft blobs), at
+// MID_SHEET_DENSITY of that.
+const MID_SHEET_EVEN = [0.5, 1.0]
+// (But not wholly even where it is seen, only where the light passes through it: MID_SHEET_TEXTURE of the
+// shapes is left, the little texture real altostratus has.)
+const MID_SHEET_TEXTURE = 0.35
+// The pixel footprints (m) over which the mid-level cloud's shapes fade to their expected density: smaller
+// than the low cloud's (LOD_FOOTPRINT), as its shapes are, so that towards the horizon altocumulus blurs
+// together, as it does, rather than packing its cells (and the noise's repetition) into rows of texture.
+const MID_LOD_FOOTPRINT = [25, 100]
+const MID_SHEET_DENSITY = 1.0
 // Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
 // erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
 const FINE_TILE = 750
@@ -144,18 +156,28 @@ const HIGH_THICKNESS = 1500
 const HIGH_TILE = 30000
 const HIGH_DENSITY = 0.012
 // Its fibres (cirrus): the shape noise on FIBRE_TILE (m) (its channels by FIBRE_WEIGHTS, favouring the
-// finer octaves, for narrow streaks), averaged over FIBRE_TAPS points along FIBRE_LENGTH (m) of the
-// wind, so it is drawn out into hair-like streaks a few hundred metres across and kilometres long; the
-// cloud is where that rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser
-// there, so the streaks gather some of the cloud the layer would have spread evenly.
+// finer octaves, for narrow streaks), stretched FIBRE_STRETCH times along the east-west lines of the
+// planet's latitude and longitude, into hair-like streaks a few hundred metres across and kilometres long,
+// bent by the patches' noise (FIBRE_BEND, m per tenth of it) into curls and hooks; the cloud is where that
+// rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser there, so the streaks
+// gather some of the cloud the layer would have spread evenly. (Averaged instead along the wind over a
+// dozen points, a few hundred metres apart, as far apart as the noise's finest cells, the fibres were
+// grains: cirrocumulus. Stretched along latitude and longitude, they are fixed to the planet wherever the
+// camera is, from one point; stretched along the wind, they would need a point to stretch about, and
+// about the camera they slid and jumped. The upper winds are mostly zonal.)
 // Where the high cloud's opacity rises over VEIL_OPACITY it thickens into an even veil (cirrostratus);
 // below that it is streaks. (By the opacity: the cover saturates wherever there is much cirrus at all.)
 const FIBRE_TILE = 4000
-const FIBRE_LENGTH = 3000
-const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
-const FIBRE_TAPS = 12
-const FIBRE_GROUP = 4 // (taps read together: see noUnroll)
+const FIBRE_STRETCH = 16
+const FIBRE_BEND = 1500
+const FIBRE_WEIGHTS = [0.4, 0.3, 0.3, 0.0]
 const FIBRE_EDGES = [0.3, 1.5]
+// Cirrocumulus: the high cloud's fibres turned into small rounded cells in rows (by the share
+// Clouds.cirrocumulus; from the weather, none yet): the shape noise on CELLS_TILE (m), unstretched and
+// unbent, by CELLS_WEIGHTS (favouring the finest Worley octaves, cells about a hundred metres across, a
+// degree or less seen from below).
+const CELLS_TILE = 3000
+const CELLS_WEIGHTS = [0.1, 0.0, 0.6, 0.3]
 const VEIL_OPACITY = [0.35, 0.45]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
 // (which narrows its spread; STREAK_SPREAD restores it).
@@ -196,9 +218,17 @@ const CRISP_FOOTPRINT = [2, 20]
 const FAIR_CUMULUS = [0.012, 0.03]
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
+// The sunlight diffused through the cloud to its base (see diffuseSun): cumulus's, a sheet's.
+const DIFFUSE_SUN = [0.05, 0.15]
 const DRIFT_PERIOD = 2400 // s
+// The phase function's asymmetry in the second and third octaves of the multiple scattering (cloudScatter),
+// of the first's.
+const PHASE_OCTAVES = [0.6, 0.3]
 // Extinction (1/m) of a cloud at full density.
 const EXTINCTION = 0.03
+// (The sheet's expected density before MID_SHEET_DENSITY: the far density's (see lowCloudDensity) for a full
+// cover, times the stratiform profile's mean.)
+const MID_SHEET_MEAN = -Math.log(0.05) / (EXTINCTION * MID_DEPTH[1] * 0.5) * 0.8
 // The air's murk (airMurk): the visibility (m) for the surface humidity, clear up to 88% (typical over
 // the sea) and falling to fog near saturation: about 40 km at 90%, 10 km at 95%, 400 m at 99%.
 const CLEAR_VISIBILITY = 60000
@@ -211,7 +241,7 @@ const SHADOW_HIGH_STEPS = 4
 
 // Cloud types, for testing and tuning one at a time (Clouds.setCloudTypeTest): each sets the columns'
 // fields everywhere, over whatever the weather gives. low: [cover, stratiform, showers, base (m), top (m)];
-// high: [cover, opacity, base (m)]; mid: [cover, stratiform, base (m)]; rain (mm/h) and
+// high: [cover, opacity, base (m)], cells: its share of cirrocumulus (0: cirrus); mid: [cover, stratiform, base (m)]; rain (mm/h) and
 // humidity. Unset layers are clear.
 export const CLOUD_TYPES = [
   { name: 'cumulus', low: [0.3, 0, 0, 900, 1900] },
@@ -223,6 +253,7 @@ export const CLOUD_TYPES = [
   { name: 'altocumulus', mid: [0.6, 0, 3500] },
   { name: 'altostratus', mid: [1, 1, 3000] },
   { name: 'cirrus', high: [0.6, 0.15, 9000] },
+  { name: 'cirrocumulus', high: [0.6, 0.15, 9000], cells: 1 },
   { name: 'cirrostratus', high: [1, 0.45, 9000] },
 ]
 
@@ -259,7 +290,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, fibre = smearStats(FIBRE_TAPS, FIBRE_LENGTH / FIBRE_TILE, FIBRE_WEIGHTS, FIBRE_EDGES), mid = midShapeStats(MID_CELLS)) => `
+const marchFragment = (stats, mid = midShapeStats(MID_CELLS)) => `
 #include <common>
 #include <sun_and_sky_light>
 precision highp sampler3D;
@@ -296,6 +327,17 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 uniform int noUnroll;
 uniform int cloudTypeTest;      // 0, or a cloud type to fill the sky with (1 + its index in CLOUD_TYPES)
 uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stratiform share, base), if any
+uniform vec4 lowTest;           // its low cloud's cover, stratiform share, showers and base (m)
+uniform vec3 lowTest2;          // its low cloud's top (m), and the rain (mm/h) and humidity (if rain >= 0)
+uniform vec3 highTest;          // its high cloud's cover, opacity and base (m)
+uniform float cirrocumulus;     // the high cloud's share of cirrocumulus (see CELLS_TILE)
+// The high cloud's fibres or cells (see FIBRE_TILE and CELLS_TILE, for its share of cirrocumulus, worked out
+// once rather than for each sample): 1 / their tile east and north (m), how far they bend (m per unit of the
+// patches' noise); the noise channels' weights; its mean, 1 / its standard deviation and 1 / the root of the
+// share of the sky the fibres fill.
+uniform vec4 fibreTiles;
+uniform vec4 fibreWeights;
+uniform vec3 fibreStats;
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -518,17 +560,12 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.humidity = c.r;
   col.rain = showerRain(a);
   // (A cloud type filling the sky, for testing: see CLOUD_TYPES.)
+  // (From uniforms rather than a branch for each type, which, copied wherever a column is worked out, slowed
+  // the whole march.)
   if (cloudTypeTest > 0) {
-    col.lowCover = 0.0;
-    col.highCover = 0.0;
-    col.highOpacity = 0.0;
-    col.showers = 0.0;
-${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
-      col.lowCover = ${t.low[0].toFixed(3)}; col.stratiform = ${t.low[1].toFixed(3)}; col.showers = ${t.low[2].toFixed(3)};
-      col.base = ${t.low[3].toFixed(1)}; col.top = ${t.low[4].toFixed(1)};` : ''}${t.high ? `
-      col.highCover = ${t.high[0].toFixed(3)}; col.highOpacity = ${t.high[1].toFixed(3)}; col.highBase = ${t.high[2].toFixed(1)};` : ''}${t.rain !== undefined ? `
-      col.rain = ${t.rain.toFixed(2)}; col.humidity = ${t.humidity.toFixed(2)};` : ''}
-    }`).join('\n')}
+    col.lowCover = lowTest.x; col.stratiform = lowTest.y; col.showers = lowTest.z; col.base = lowTest.w; col.top = lowTest2.x;
+    col.highCover = highTest.x; col.highOpacity = highTest.y; col.highBase = highTest.z;
+    if (lowTest2.y >= 0.0) { col.rain = lowTest2.y; col.humidity = lowTest2.z; }
   }
   return col;
 }
@@ -548,7 +585,25 @@ vec3 midLayer(CloudColumn col) {
   return vec3(0.0, 0.0, 3500.0);  // (none from the weather yet)
 }
 
-float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod, inout float layer) {
+// The optical depth of a column's mid-level layer straight up from height h (m), from its expected density
+// (its far density integrates to -log(1 - 0.95 cover) / 0.5 times its profile's mean, over the share of it
+// above h).
+float midDepthAbove(CloudColumn col, float h) {
+  vec3 midL = midLayer(col);
+  if (midL.x <= 0.0) return 0.0;
+  float midDepth = mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
+  return -log(1.0 - 0.95 * min(midL.x, 1.0)) * 2.0 * mix(0.68, 0.78, midL.y) * mix(1.0, ${MID_SHEET_DENSITY.toFixed(2)}, midL.y)
+    * clamp((midL.z + midDepth - max(h, midL.z)) / midDepth, 0.0, 1.0);
+}
+
+// The levels of detail (0: the noise's shapes, 1: their expected value) for a pixel footprint (m): the low
+// cloud's (LOD_FOOTPRINT) and the mid-level cloud's (MID_LOD_FOOTPRINT), worked out once for many samples.
+vec2 levelsOfDetail(float footprint) {
+  return vec2(smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint),
+    smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint));
+}
+
+float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods, inout float layer) {
   vec3 midL = midLayer(col);
   float density = 0.0;
   // The low layer, or the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), whichever
@@ -566,6 +621,9 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
     float hf = (h - base) / (top - base);
     if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) return 0.0;
     layer = hf;
+    // (The mid-level cloud's own level of detail, for its smaller shapes; altostratus mostly even, and fully
+    // so for the light through it, MID_SHEET_TEXTURE.)
+    float lod = mid ? max(lods.y, smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, stratiform) * (full ? ${(1 - MID_SHEET_TEXTURE).toFixed(2)} : 1.0)) : lods.x;
     // Height profiles: cumulus rounded at the top, stratus flat.
     float cumulus = smoothstep(0.0, 0.08, hf) * smoothstep(1.0, 0.45, hf);
     float stratus = smoothstep(0.0, 0.2, hf) * smoothstep(1.0, 0.75, hf);
@@ -602,13 +660,14 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   vec3 surfaceWind = col.wind;
   // Too far for the noise's features (a few hundred metres up) to be seen: its expected value.
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  float midLod = smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   float density = 0.0;
   if (full) COST(cost.y)
   fineWeight = full ? 1.0 - smoothstep(${FINE_FOOTPRINT[0].toFixed(1)}, ${FINE_FOOTPRINT[1].toFixed(1)}, footprint) : 0.0;
   crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
   // Low cloud.
-  density += lowCloudDensity(col, local, h, full, lod, layer);
+  density += lowCloudDensity(col, local, h, full, vec2(lod, midLod), layer);
   fineWeight = 0.0;
 
   // High cloud: streaks along the wind aloft.
@@ -652,30 +711,34 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
       float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
 #ifdef CLOUD_LITE_HIGH
       // (The lighter qualities draw the streaks without their fibres, filled in to their average.)
-      if (full && d > 0.0) d = min(d, 1.0) * mix(${Math.sqrt(fibre.filled).toFixed(4)}, 1.0, veil);
+      if (full && d > 0.0) d = min(d, 1.0) * mix(1.0 / fibreStats.z, 1.0, veil);
       if (false) {
 #else
       if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
       else if (full && d > 0.0) {
 #endif
+        // (The point's east and north (m) on the sphere of the planet's equatorial radius, and the wind aloft's
+        // east and north; the east period divides the equator, so there is no seam at the date line.)
+        float ar = slParams.z;
+        vec2 en = vec2(atan(planetPoint.x, planetPoint.z), atan(planetPoint.y, length(planetPoint.xz))) * ar;
+        vec3 upP = normalize(planetPoint), eastP = normalize(cross(vec3(0.0, 1.0, 0.0), upP));
+        vec2 windEN = vec2(dot(windAloft, eastP), dot(windAloft, cross(upP, eastP)));
+        float bend = (shape - SHAPE_MEAN) * fibreTiles.z;
         for (int i = 0; i < 2; i++) {
           float weight = i == 0 ? 1.0 - drift.z : drift.z;
           if (weight < 0.002) continue;
           COST(cost2.x)
           float age = i == 0 ? drift.x : drift.y;
-          vec3 qf = planetPoint - windAloft * age + driftShift[i];
-          float f = 0.0;
-          for (int k0 = 0; k0 < ${FIBRE_TAPS} * noUnroll; k0 += ${FIBRE_GROUP}) {
-            for (int j = 0; j < ${FIBRE_GROUP}; j++) {
-              float k = float(k0 + j);
-              f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (k / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
-            }
-          }
-          fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
+          vec2 g = en - windEN * age + driftShift[i].xy;
+          // (Through the noise's tile on a slant, at irrational slopes, so that its pattern never repeats
+          // across the sky: on the level, the cirrocumulus's small cells repeated in rows towards the horizon.)
+          vec2 t = vec2(g.x * fibreTiles.x, (g.y + bend) * fibreTiles.y);
+          float f = dot(texture(shapeNoise, vec3(t, h * fibreTiles.y + dot(t, vec2(${(MID_RATIO - 1).toFixed(6)}, ${(Math.SQRT2 - 1).toFixed(6)})))), fibreWeights);
+          fibre += weight * (f - fibreStats.x) * fibreStats.y;
         }
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
-        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) / ${Math.sqrt(fibre.filled).toFixed(4)};
+        float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) * fibreStats.z;
         d = min(d, 1.0) * mix(streaks, 1.0, veil);
       }
     }
@@ -724,9 +787,12 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
   float a = slParams.z;
   float od = 0.0, unused;
   float lightStep = 60.0;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   for (int k = 0; k < lightSteps.x; k++) {
-    float lightAt = lightStep * (float(k) + 0.5);
+    // (The middle of the step, which starts where the steps before it end. At lightStep * (k + 0.5) the
+    // samples ran out to 4 km, and the light through a sheet more than a few hundred metres deep, such as
+    // altostratus, missed most of it: the sun through it was a glare 25 degrees across.)
+    float lightAt = lightStep * 1.5 - 60.0;
     vec3 q = p + sunDirS * lightAt;
     vec3 ql = local + worldToPlanet * (slSun * lightAt);
     od += lowCloudDensity(col, ql, length(q) - a, false, lod, unused) * lightStep;
@@ -749,7 +815,7 @@ vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, floa
   float depth = max(col.top - col.base, 1.0);
   float density = ${LITE_DENSITY.toFixed(2)} * mix(1.0, 1.6, col.showers);
   float a = slParams.z;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   float sun = 0.0, unused;
   for (int k = 0; k < 2; k++) {
     float at = k == 0 ? ${LITE_SUN_STEPS[0].toFixed(1)} : ${LITE_SUN_STEPS[1].toFixed(1)};
@@ -759,18 +825,22 @@ vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, floa
   float mu = max(dot(normalize(p), sunDirS), 0.1);
   float above = clamp(col.top - h, 0.0, min(depth, ${LITE_REACH.toFixed(1)})), below = clamp(h - col.base, 0.0, min(depth, ${LITE_REACH.toFixed(1)}));
   sun += density * max(above / mu - ${LITE_SUN_STEPS[1].toFixed(1)}, 0.0);
-  return EXTINCTION * vec3(sun, ${LITE_AMBIENT.toFixed(2)} * density * above, ${LITE_AMBIENT.toFixed(2)} * density * below);
+  // (And the mid-level layer above, from its expected density: without it, altostratus was lit as if
+  // nothing were above its base, a white glare.)
+  float mid = midDepthAbove(col, h) / EXTINCTION;
+  return EXTINCTION * vec3(sun + mid / mu, ${LITE_AMBIENT.toFixed(2)} * (density * above + mid), ${LITE_AMBIENT.toFixed(2)} * density * below);
 }
 #endif
 
 // The share of sunlight scattered towards the eye at optical depth od from the sun: multiple scattering,
-// approximately (octaves of weaker extinction and flatter phase), less the powder effect (the sunlit side
-// of a cloud's surface is darker than its depths' glow).
-float cloudScatter(float od, float phase) {
+// approximately (octaves of weaker extinction and flatter phase: phase holds each octave's lobe, broader as
+// the light is scattered more, see main), less the powder effect (the sunlit side of a cloud's surface is
+// darker than its depths' glow).
+float cloudScatter(float od, vec3 phase) {
   float scatter = 0.0;
   float att = 1.0, ext = 1.0, ph = 1.0;
   for (int k = 0; k < 3; k++) {
-    scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase, ph);
+    scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase[k], ph);
     att *= 0.5; ext *= 0.5; ph *= 0.5;
   }
   return scatter * (1.0 - 0.6 * exp(-od * 2.0));
@@ -783,7 +853,7 @@ float verticalDepth(CloudColumn col, vec3 local, float h, float dir, float footp
   vec3 up = normalize(cameraPlanet + local);
   float od = 0.0, unused;
   float stepLength = 80.0;
-  float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
+  vec2 lod = levelsOfDetail(footprint);
   for (int k = 0; k < lightSteps.y; k++) {
     float at = dir * stepLength * (float(k) + 0.5);
     if (h + at < 0.0) break;
@@ -906,13 +976,48 @@ float airMurk(CloudColumn col, float h) {
 }
 
 // The share of the light from above (the sky's, and the sun's scattered on its way through) that reaches
-// height h (m) through a column's low cloud: its clear share, and through the cloud the diffuse transmission
-// of a thick scattering layer (two-stream: 1 / (1 + 0.75 tau (1 - g)), g about 0.85) for the optical depth of
-// the cloud above (at half its full density). About a seventh under 4 km of nimbostratus, a half under a
-// thin stratus: under thick overcast the day is dim, and the murk and the cloud's base with it.
+// height h (m) through a column's low and mid-level cloud: for each, its clear share, and through the cloud
+// the diffuse transmission of a thick scattering layer (two-stream: 1 / (1 + 0.75 tau (1 - g)), g about 0.85)
+// for the optical depth of the cloud above (at half its full density; an even sheet of altostratus at its
+// own). About a seventh under 4 km of nimbostratus, a half under a thin stratus: under thick overcast the day
+// is dim, and the murk and the cloud's base with it.
 float overcastShare(CloudColumn col, float h) {
   float tau = EXTINCTION * 0.5 * max(col.top - max(h, col.base), 0.0);
-  return 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
+  float share = 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
+  vec3 midL = midLayer(col);
+  if (midL.x > 0.0) {
+    float midTop = midL.z + mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
+    float midTau = EXTINCTION * mix(0.5, ${MID_SHEET_MEAN.toFixed(4)} * ${MID_SHEET_DENSITY.toFixed(2)}, midL.y) * max(midTop - max(h, midL.z), 0.0);
+    share *= 1.0 - min(midL.x, 1.0) + min(midL.x, 1.0) / (1.0 + 0.1125 * midTau);
+  }
+  return share;
+}
+
+// The share of the sunlight reaching height h (m) in a column through its low and mid-level cloud, from their
+// expected density (as lowCloudDensity's from afar), for the sun's height (mu, the cosine of its zenith
+// angle): what the air under the clouds is lit by on average. (Worked out, not marched as cloudShadow is:
+// marched for every pixel of the sky, it was a twentieth of the whole march's time.)
+float expectedSun(CloudColumn col, float h, float mu) {
+  // (Each layer's far density integrates to -log(1 - 0.95 cover) / 0.5 times its profile's mean, over the
+  // share of it above h.)
+  float od = -log(1.0 - 0.95 * min(col.lowCover, 1.0)) * 2.0 * mix(0.68, 0.78, col.stratiform) * mix(1.0, 1.6, col.showers)
+    * clamp((col.top - max(h, col.base)) / max(col.top - col.base, 1.0), 0.0, 1.0);
+  od += midDepthAbove(col, h);
+  return exp(-od / max(mu, 0.05));
+}
+
+// The share of the sunlight (times overcastShare) diffused down through the cloud to its depths and base:
+// DIFFUSE_SUN[0] for cumulus, whose light leaks out of their sides, up to DIFFUSE_SUN[1] for a sheet
+// (stratiform), which the light can only leave through its base or top. (With the cumulus's share,
+// nimbostratus was nearly black.)
+float diffuseSun(float stratiform) { return mix(${DIFFUSE_SUN[0].toFixed(3)}, ${DIFFUSE_SUN[1].toFixed(3)}, stratiform); }
+
+// The murk's light (before white): the sun's where it reaches (sun, its share through the clouds), with the
+// murk's phase function; the sky's and the ground's through the cloud above (overcast, overcastShare); and,
+// where the clouds shade the sun, its light diffused through them, as the cloud's base has it (diffuseSun).
+// (Without that, rain under nimbostratus was darker than the cloud it fell from.)
+vec3 murkLighting(vec3 direct, vec3 skyDown, vec3 groundUp, float sun, float overcast, float stratiform, float phase) {
+  return direct * (sun * phase * PI + (1.0 - sun) * diffuseSun(stratiform) * overcast) + (skyDown + groundUp) * RECIPROCAL_PI * 0.5 * overcast;
 }
 
 // Rain below the clouds (extinction, 1/m): under the cloud bases that are raining, a shaft as wide as
@@ -958,7 +1063,10 @@ void main() {
   t1 = min(t1, sceneDistance * stretch);
   vec3 sunDirS = normalize(slSun + slPole.w * dot(slSun, slPole.xyz) * slPole.xyz);
   // The scene's dimming by the clouds, at the end of the line of sight (the ground or the scene).
-  float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance * stretch);
+  // (Where nothing was drawn the distance pass leaves 1e9 m: the sky, not a scene point out in space, which
+  // the clouds never shade; taken as one, the murk against the sky was lit by the full sun, even under
+  // nimbostratus.)
+  float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance < 1e8 ? sceneDistance * stretch : 1e30);
   float sceneSun = 1.0, shade = 1.0;
   if (tScene < 1e20 && slParams.x > 0.5) {
     vec3 ps = c + d * tScene;
@@ -982,8 +1090,10 @@ void main() {
     shade = mix(1.0, lit, airSeen);
   }
   else if (slParams.x > 0.5) {
-    // (Sky: the murk's sunlight as at the camera.)
-    sceneSun = cloudShadow(c, vec3(0.0), sunDirS, 400.0);
+    // (Sky: the murk's sunlight as at the camera, through the clouds' expected density (expectedSun): the
+    // murk against the sky reaches kilometres away, lit through the cover on average, not darkened all over
+    // as one cumulus's shadow passes over the camera.)
+    sceneSun = sphere(c, sunDirS, a).x > 0.0 ? 0.0 : expectedSun(cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0), length(c) - a, dot(normalize(c), sunDirS));
   }
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
@@ -1015,7 +1125,13 @@ void main() {
   vec3 light = vec3(0.0);
   float depthSum = 0.0, depthWeight = 0.0;
   float sunCos = dot(d, normalize(slSun + slPole.w * dot(slSun, slPole.xyz) * slPole.xyz));
-  float phase = mix(phaseHG(sunCos, 0.65), phaseHG(sunCos, -0.2), 0.3);
+  // (The two-lobed phase function for each octave of cloudScatter, the lobes broader as the light is scattered
+  // more: with the same sharp lobe in each, the sun through altostratus was a glare 25 degrees across.)
+  vec3 phase;
+  for (int k = 0; k < 3; k++) {
+    float g = k == 0 ? 1.0 : k == 1 ? ${PHASE_OCTAVES[0].toFixed(2)} : ${PHASE_OCTAVES[1].toFixed(2)};
+    phase[k] = mix(phaseHG(sunCos, 0.65 * g), phaseHG(sunCos, -0.2 * g), 0.3);
+  }
   float sunIntensity = exposure.y;
   float murkPhase = mix(phaseHG(sunCos, 0.5), 1.0 / (4.0 * PI), 0.5);
   vec3 white = mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
@@ -1072,7 +1188,7 @@ void main() {
         if (murk > 1e-7) {
           vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
           slLightAt(dirWorld * rm, stepDirect, stepSkyDown, stepGroundUp, upW);
-          vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(col, h)) * white;
+          vec3 murkLight = murkLighting(stepDirect, stepSkyDown, stepGroundUp, sceneSun, overcastShare(col, h), col.stratiform, murkPhase) * white;
           float murkT = exp(-murk * (r1 - r) * stretch);
           light += transmittance * murkLight * (1.0 - murkT);
           transmittance *= murkT;
@@ -1176,8 +1292,7 @@ void main() {
       if (lowCloud || highCloud || murk > 1e-7) {
         vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
         slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
-        murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25
-          + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(colA, length(c + d * (rcm * stretch)) - a)) * white;
+        murkLight = murkLighting(stepDirect, stepSkyDown, stepGroundUp, sceneSun, overcastShare(colA, length(c + d * (rcm * stretch)) - a), colA.stratiform, murkPhase) * white;
         sunlight = stepDirect * sunIntensity;
         skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
         groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
@@ -1295,7 +1410,7 @@ void main() {
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
           // less the more cloud there is above (overcastShare's diffuse transmission; the base of a deep cloud
           // is dark). (Sky and ground light: ambient, from above and below.)
-          vec3 diffuse = sunlight * 0.05 * overcastShare(col, h);
+          vec3 diffuse = sunlight * diffuseSun(col.stratiform) * overcastShare(col, h);
           vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
           // Energy-conserving integration across the stretch.
           float stepT = exp(-sigma * dt);
@@ -1337,7 +1452,20 @@ void main() {
       atmoScatter(c, d, dirWorld, max(at0, 0.0), min(at1, tc), slSun, a, 8, airLight, airTransmittance);
       vec3 cloudTransmittance = mix(airTransmittance, vec3(dot(airTransmittance, vec3(0.2126, 0.7152, 0.0722))), 0.5);
       vec3 inScatter = max((1.0 - exp(-airLight)) * exposure.x, airLight * ATMO_HAZE_THIN * ${MULTIPLE_SCATTERING.toFixed(2)});
-      light = light * cloudTransmittance + inScatter * (1.0 - transmittance);
+      // (That is the clear sky's air. Under an overcast the air in front of its base is in the clouds'
+      // shade, lit only by what comes through them (overcastShare at the camera), and the clear sky's blue over
+      // it made nimbostratus a pale blue-grey; under broken cloud the sun lights it through the gaps (the
+      // camera's sun through the clouds' expected density). The planet's own shadow is the air light's.)
+      float hc = length(c) - a;
+      if (hc < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
+        CloudColumn colC = cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0);
+        inScatter *= mix(overcastShare(colC, hc), 1.0, expectedSun(colC, hc, dot(normalize(c), sunDirS)));
+      }
+      // (Over the clouds' share of the opacity (depthWeight), not the murk's, whose light is the air's own:
+      // where rain or mist hid all but a trace of the clouds beyond, the haze over the whole of it began
+      // abruptly at the elevation where the clouds came into reach, a hard arc across the sky.)
+      float cloudShare = depthWeight / max(1.0 - transmittance, 1e-4);
+      light = light * mix(vec3(1.0), cloudTransmittance, cloudShare) + inScatter * depthWeight;
     }
   }
   outClouds = vec4(light, transmittance);
@@ -1450,6 +1578,13 @@ export class Clouds {
       noUnroll: { value: 1 },
       cloudTypeTest: { value: 0 },
       midTest: { value: new THREE.Vector3() },
+      lowTest: { value: new THREE.Vector4() },
+      lowTest2: { value: new THREE.Vector3() },
+      highTest: { value: new THREE.Vector3() },
+      cirrocumulus: { value: 0 },
+      fibreTiles: { value: new THREE.Vector4() },
+      fibreWeights: { value: new THREE.Vector4() },
+      fibreStats: { value: new THREE.Vector3() },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
@@ -1570,6 +1705,7 @@ export class Clouds {
     u.exposure.value.set(skyExposure, sunIntensity)
     this.compositeScene.children[0].material.uniforms.rainTime.value = t % 1000
     u.pixelAngle.value = 2 / (camera.projectionMatrix.elements[5] * h) * this.pixelScale
+    this.updateFibres()
     u.realClouds.value = this.realClouds.texture
     u.realTexel.value = 2 * Math.PI * 6378137 / (this.realClouds.texture.image?.width ?? 10240)
     u.realBlend.value = this.realClouds.ready ? 1 : 0
@@ -1605,6 +1741,22 @@ export class Clouds {
     renderer.render(this.compositeScene, this.quadCamera)
   }
 
+  // The high cloud's fibres or cells, for its share of cirrocumulus (see the fibreTiles uniform). The east
+  // periods divide the equator (of the planet's equatorial radius), so there is no seam at the date line.
+  updateFibres() {
+    const u = this.uniforms, cc = u.cirrocumulus.value
+    const a = u.slParams.value.z || 6378137
+    const east = (tile) => 1 / (2 * Math.PI * a / Math.round(2 * Math.PI * a / tile))
+    const mix = (x, y) => x + (y - x) * cc
+    this._fibreStats ??= smearStats(2, 0, FIBRE_WEIGHTS, FIBRE_EDGES)
+    this._cellStats ??= smearStats(2, 0, CELLS_WEIGHTS, FIBRE_EDGES)
+    const f = this._fibreStats, c = this._cellStats
+    const tile = mix(FIBRE_TILE, CELLS_TILE)
+    u.fibreTiles.value.set(east(mix(FIBRE_STRETCH, 1) * tile), 1 / tile, FIBRE_BEND / 0.1 * (1 - cc), 0)
+    u.fibreWeights.value.set(...FIBRE_WEIGHTS.map((w, i) => mix(w, CELLS_WEIGHTS[i])))
+    u.fibreStats.value.set(mix(f.mean, c.mean), 1 / mix(f.sd, c.sd), 1 / Math.sqrt(mix(f.filled, c.filled)))
+  }
+
   // The shader's optional parts, for the graphics quality (names of its defines: CLOUD_LITE_LIGHT,
   // CLOUD_LITE_MURK, ...); a change recompiles it.
   setFeatures(defines) {
@@ -1620,7 +1772,13 @@ export class Clouds {
   setCloudTypeTest(name) {
     const index = name ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
     this.uniforms.cloudTypeTest.value = index + 1
-    this.uniforms.midTest.value.fromArray(CLOUD_TYPES[index]?.mid ?? [0, 0, 3500])
+    const type = CLOUD_TYPES[index]
+    this.uniforms.midTest.value.fromArray(type?.mid ?? [0, 0, 3500])
+    const low = type?.low ?? [0, 0, 0, 1000, 2000]
+    this.uniforms.lowTest.value.fromArray(low)
+    this.uniforms.lowTest2.value.set(low[4], type?.rain ?? -1, type?.humidity ?? 0)
+    this.uniforms.highTest.value.fromArray(type?.high ?? [0, 0, 9000])
+    this.uniforms.cirrocumulus.value = type?.cells ?? 0
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
