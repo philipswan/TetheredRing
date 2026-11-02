@@ -139,6 +139,7 @@ export class App {
     this.nonGUIParams.renderer = this.renderer
     this.nonGUIParams.maxTextureAnisotropy = this.renderer.capabilities.getMaxAnisotropy()
     this.nonGUIParams.maxTextureSize = this.renderer.capabilities.maxTextureSize
+    this.quality.watchContextLoss(canvas)
   }
 
   buildScene() {

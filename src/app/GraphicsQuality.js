@@ -188,6 +188,21 @@ export class GraphicsQuality {
     }
   }
 
+  // A frame that keeps the GPU busy for too long (a couple of seconds) makes the driver reset it, and the
+  // browser takes the WebGL context away: everything drawn is lost. In Auto, a lighter tier is remembered
+  // and the page reloaded, so it starts at that tier (at the lightest already, it is left as it is).
+  watchContextLoss(canvas) {
+    canvas.addEventListener('webglcontextlost', () => {
+      console.warn('GraphicsQuality: the WebGL context was lost (the GPU was reset)')
+      const next = TIERS[TIERS.indexOf(this.autoTier) + 1]
+      if (this.mode !== 'auto' || !next) return
+      try { localStorage.setItem(AUTO_TIER_KEY, next) }
+      catch { return }  // (not remembered: reloading would only lose it again)
+      console.warn(`GraphicsQuality: reloading at ${next}`)
+      window.location.reload()
+    })
+  }
+
   // Moving the window to a monitor with a different scale factor changes devicePixelRatio, which
   // does not always fire a resize event.
   watchDevicePixelRatio() {
