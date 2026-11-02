@@ -134,6 +134,23 @@ const STREAK_TAPS = 3
 const HIGH_STREAK_LENGTH = 20000
 const STREAK_SPREAD = 1.45
 const CIRRUS_WIND = 3
+// Low cloud mostly either covers much of the sky or is absent, breaking up in a narrow band at the edges
+// of overcast masses: where the imagery's opacity is low, the cloud it shows is mostly thin haze and the
+// odd cloud rather than a field of cumulus, so the low cover is faded out below LOW_COVER_EDGES[1], to
+// none at LOW_COVER_EDGES[0]. (Pushing the higher covers to a full cover too made overcast masses solid
+// blocks with flat sides and walls along the imagery's texels.) Only at the imagery's own resolution: a
+// larger area's average cover (a coarser footprint) is left as it is, so this fades out over pixel
+// footprints of SHARPEN_FOOTPRINT imagery texels. The fade follows the imagery blurred over SHARPEN_BLUR
+// mip levels (~2^levels texels), so that the edges follow smooth contours rather than the texels.
+const LOW_COVER_EDGES = [0.2, 0.5]
+const SHARPEN_FOOTPRINT = [1, 8]
+const SHARPEN_BLUR = 1.5
+// The low layer's depth (m): cumulus CUMULUS_DEPTH[0] deep, and up to CUMULUS_DEPTH[1] more as the cover
+// rises (towers in showers aside); stratiform cloud STRATUS_DEPTH_SHARE of the reanalysis's layer, within
+// STRATUS_DEPTH.
+const CUMULUS_DEPTH = [500, 900]
+const STRATUS_DEPTH_SHARE = 0.5
+const STRATUS_DEPTH = [500, 1200]
 const FAIR_CUMULUS = [0.012, 0.03]
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
@@ -299,6 +316,22 @@ float thresholdDensity(float shape, float cover) {
   return clamp((shape - threshold) / max(SHAPE_TOP - threshold, 0.02), 0.0, 1.0);
 }
 
+
+// The low cloud's opacity with its low values faded out (LOW_COVER_EDGES), at the imagery's resolution (see
+// SHARPEN_FOOTPRINT).
+// lowOpacity: as the imagery shows it at the footprint; soft: from the imagery blurred (SHARPEN_BLUR).
+float sharpenLow(float lowOpacity, float soft, float footprint) {
+  float strength = 1.0 - smoothstep(${SHARPEN_FOOTPRINT[0].toFixed(1)} * realTexel, ${SHARPEN_FOOTPRINT[1].toFixed(1)} * realTexel, footprint);
+  return lowOpacity * mix(1.0, smoothstep(${LOW_COVER_EDGES[0].toFixed(2)}, ${LOW_COVER_EDGES[1].toFixed(2)}, soft), strength);
+}
+
+// The real clouds' (or the weather's) opacity at uv, blurred for sharpening (see SHARPEN_BLUR).
+float softOpacity(vec2 uv, float weatherOpacity, float share, float footprint) {
+  if (share <= 0.0) return weatherOpacity;
+  float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel) + ${SHARPEN_BLUR.toFixed(1)}).r;
+  return mix(weatherOpacity, clamp((real - 0.05) / 0.95, 0.0, 1.0), share);
+}
+
 // How much of the cover comes from the real clouds' imagery at uv (once loaded): all of it, less where the
 // noon sun was low on the snapshot's day (over NOON_SUN_FADE, degrees of elevation), where the weather's
 // takes over. (There, over snow and ice in grazing light, the satellite's neighbouring passes look very
@@ -339,6 +372,7 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   }
   float opacitySmooth = opacity;
   float share = realShare(uv);
+  float opacitySoft = softOpacity(uv, opacity, share, footprint);
   if (share > 0.0) {
     float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
     opacity = mix(opacity, clamp((real - 0.05) / 0.95, 0.0, 1.0), share);
@@ -352,19 +386,24 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   // heights, apart by parallax, as double vision.)
   float highOpacity = min(opacitySmooth, ${HIGH_SHARE.toFixed(3)}) * smoothstep(${HIGH_FREQUENCY[0].toFixed(2)}, ${HIGH_FREQUENCY[1].toFixed(2)}, a.a);
   float highCover = clamp(highOpacity / ${HIGH_OPACITY.toFixed(3)}, 0.0, 1.0);
-  float lowOpacity = clamp((1.0 - (1.0 - opacity) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
+  float lowRaw = clamp((1.0 - (1.0 - opacity) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
   float convective = a.b;
   float showers = convective * clamp(showerRain(a) / 3.0, 0.0, 1.0) * smoothstep(${SHOWER_OPACITY[0].toFixed(2)}, ${SHOWER_OPACITY[1].toFixed(2)}, opacity);
+  // (Not faded in showers: their towers are solid clouds, and thinned they were tall, translucent wisps.)
+  float lowOpacity = mix(sharpenLow(lowRaw,
+    clamp((1.0 - (1.0 - opacitySoft) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0), footprint), lowRaw, showers);
   // (The fair-weather cumulus come in fields: the large-scale noise above its FAIR_FIELDS quantile.)
   float fieldThreshold = coverThreshold(${FAIR_FIELDS.toFixed(2)});
   float fair = mix(${FAIR_CUMULUS[0].toFixed(3)}, ${FAIR_CUMULUS[1].toFixed(3)}, convective) * smoothstep(fieldThreshold - 0.03, fieldThreshold + 0.06, field);
   float lowCover = max(lowOpacity / 0.9, fair);
-  float stratiform = smoothstep(${STRATUS_ONSET[0].toFixed(2)}, ${STRATUS_ONSET[1].toFixed(2)}, lowCover) * (1.0 - showers);
+  // (The cloud's type from the cover before fading, which changes where there is cloud, not what kind.)
+  float stratiform = smoothstep(${STRATUS_ONSET[0].toFixed(2)}, ${STRATUS_ONSET[1].toFixed(2)}, max(lowRaw / 0.9, fair)) * (1.0 - showers);
   vec3 up = normalize(worldToPlanet * p);
   vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), up));
   vec3 north = cross(up, east);
   float base = b.x * 1000.0;
-  float cumulusTop = base + 800.0 + 1500.0 * lowCover + 9000.0 * showers;
+  float cumulusTop = base + ${CUMULUS_DEPTH[0].toFixed(1)} + ${CUMULUS_DEPTH[1].toFixed(1)} * lowCover + 9000.0 * showers;
+  float stratusTop = base + clamp(${STRATUS_DEPTH_SHARE.toFixed(2)} * (b.y * 1000.0 - base), ${STRATUS_DEPTH[0].toFixed(1)}, ${STRATUS_DEPTH[1].toFixed(1)});
   vec4 c = texture2D(weatherC, uv);
   CloudColumn col;
   col.highCover = highCover;
@@ -373,7 +412,7 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.stratiform = stratiform;
   col.showers = showers;
   col.base = base;
-  col.top = mix(cumulusTop, max(b.y * 1000.0, base + 500.0), stratiform);
+  col.top = mix(cumulusTop, stratusTop, stratiform);
   col.highBase = c.g * 1000.0;
   col.wind = b.z * east + b.w * north;
   col.humidity = c.r;
@@ -618,9 +657,14 @@ vec2 sphere(vec3 o, vec3 d, float r) {
 
 // The real clouds' opacity (or the weather's cover) at uv, as the flat layer shows it, for a footprint (m).
 float flatOpacityAt(vec2 uv, float footprint) {
-  float weather = texture2D(weatherA, uv).r * 0.9, share = realShare(uv);
-  if (share <= 0.0) return weather;
-  return mix(weather, clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0), share);
+  vec4 w = texture2D(weatherA, uv);
+  float opacity = w.r * 0.9, share = realShare(uv);
+  float soft = softOpacity(uv, opacity, share, footprint);
+  if (share > 0.0) opacity = mix(opacity, clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0), share);
+  // (The low cloud's part faded, as the march's: see cloudColumn.)
+  float high = min(opacity, ${HIGH_SHARE.toFixed(3)}) * smoothstep(${HIGH_FREQUENCY[0].toFixed(2)}, ${HIGH_FREQUENCY[1].toFixed(2)}, w.a);
+  float low = sharpenLow(clamp(1.0 - (1.0 - opacity) / (1.0 - high), 0.0, 1.0), clamp(1.0 - (1.0 - soft) / (1.0 - high), 0.0, 1.0), footprint);
+  return 1.0 - (1.0 - high) * (1.0 - low);
 }
 
 // The share of sunlight reaching p (stretched; local: its planet-frame offset from the camera) through
@@ -946,7 +990,9 @@ void main() {
         if (!lowCloud) fine = min(fine * ${HIGH_CELLS.toFixed(1)}, min(coarse, steepest * 4.0));
         // The light grid across it: cells of about a pixel's footprint (LIGHT_FOOTPRINT), from the fine
         // cells' size to the coarse's, whose planes are some of the fine cells' (the grids are aligned).
-        float lightCell = clamp(exp2(ceil(log2(max(rcm * pixelAngle * ${LIGHT_FOOTPRINT.toFixed(2)}, 1.0)))), fine, coarse);
+        // (No longer than the low cloud's cells may climb across one, so the light is worked out through a
+        // thin layer's height: otherwise how bright its top was depended on where the planes cut it.)
+        float lightCell = clamp(exp2(ceil(log2(max(rcm * pixelAngle * ${LIGHT_FOOTPRINT.toFixed(2)}, 1.0)))), fine, max(min(coarse, steepest), fine));
         if (rL1 >= 0.0 && abs(rL1 - r) < 1e-3 * fine) { odL0 = odL1; odL0Known = odL1Known; }
         else odL0Known = false;
         rL0 = r;
@@ -977,6 +1023,9 @@ void main() {
           vec3 p1 = c + d * (r1 * stretch);
           float d1 = columnDensity(col1, D * r1, length(p1) - a, true, r1 * pixelAngle, unused);
           float density = (d0 + 4.0 * dm + d1) / 6.0;
+          // (Each end's share of the cell's cloud, for its light: the middle's split between them.)
+          float end0 = d0 + 2.0 * dm, end1 = d1 + 2.0 * dm;
+          float share0 = end0 / max(end0 + end1, 1e-6);
           d0 = d1;
           float rf0 = rf;
           rf = r1;
@@ -1012,8 +1061,11 @@ void main() {
               if (e == 0) od0 = od; else od1 = od;
             }
           }
-          float scatter = 0.5 * (cloudScatter(od0.x, phase) + cloudScatter(od1.x, phase));
-          vec2 ambientShare = 0.5 * (exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od0.yz) + exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od1.yz));
+          // The light at the ends, weighted by the cloud there: where a cell crosses a cloud's edge, the light
+          // is the cloud's, not the clear air's beside it (averaged evenly, how bright a cell at a cloud's top
+          // was depended on where the grid's planes cut it, and the planes showed as ripples and a lattice).
+          float scatter = mix(cloudScatter(od1.x, phase), cloudScatter(od0.x, phase), share0);
+          vec2 ambientShare = mix(exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od1.yz), exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od0.yz), share0);
           vec3 ambient = skyAmbient * ambientShare.x + groundAmbient * ambientShare.y;
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
           // more higher up, nearer the sunlit top. (Sky and ground light: ambient, from above and below.)
