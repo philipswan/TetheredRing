@@ -16,7 +16,7 @@
 
 // Scattering coefficients at sea level (1/m) and scale heights (m).
 const vec3 ATMO_BETA_R = vec3(5.8e-6, 13.5e-6, 33.1e-6);
-const float ATMO_BETA_M = 8e-6;   // a clear day (21e-6 is hazy)
+const float ATMO_BETA_M = 25e-6;  // marine air (8e-6 is a clean day over land): distant clouds and the horizon indistinct
 const float ATMO_HEIGHT_R = 8000.0;
 const float ATMO_HEIGHT_M = 1200.0;
 const float ATMO_MIE_G = 0.76;

@@ -8,7 +8,7 @@
 // is scaled by MULTIPLE_SCATTERING.
 
 export const ATMO_BETA_R = [5.8e-6, 13.5e-6, 33.1e-6]
-export const ATMO_BETA_M = 8e-6
+export const ATMO_BETA_M = 25e-6
 export const ATMO_HEIGHT_R = 8000
 export const ATMO_HEIGHT_M = 1200
 export const ATMO_MIE_G = 0.76

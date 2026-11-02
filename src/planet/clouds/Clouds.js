@@ -268,9 +268,12 @@ const EXTINCTION = 0.03
 // (The sheet's expected density before MID_SHEET_DENSITY: the far density's (see lowCloudDensity) for a full
 // cover, times the stratiform profile's mean.)
 const MID_SHEET_MEAN = -Math.log(0.05) / (EXTINCTION * MID_DEPTH[1] * 0.5) * 0.8
-// The air's murk (airMurk): the visibility (m) for the surface humidity, clear up to 88% (typical over
-// the sea) and falling to fog near saturation: about 40 km at 90%, 10 km at 95%, 400 m at 99%.
-const CLEAR_VISIBILITY = 60000
+// The air's murk (airMurk): the visibility (m) for the surface humidity, CLEAR_VISIBILITY up to 88% and
+// falling to fog near saturation: about 60 km at 90%, 15 km at 95%, 600 m at 99%. It adds what the
+// atmosphere's own aerosol (atmosphereCommon.glsl's ATMO_BETA_M, marine air: ATMO_VISIBILITY, repeated
+// here) leaves out: the haze of dry air is the atmosphere's, lit as the sky is.
+const ATMO_VISIBILITY = 3.912 / (25e-6 * 1.1 + 13.5e-6)
+const CLEAR_VISIBILITY = ATMO_VISIBILITY
 const FOG_VISIBILITY = 300
 // Rain: visibility (m) for a rain rate R (mm/h), RAIN_VISIBILITY * R^-0.63.
 const RAIN_VISIBILITY = 12000
@@ -1078,7 +1081,7 @@ float airMurk(CloudColumn col, float h) {
   float rh = col.humidity;
   float visibility = ${CLEAR_VISIBILITY.toFixed(1)} * pow(clamp((1.0 - rh) / 0.12, 0.0, 1.0), 2.0);
   visibility = max(visibility, ${FOG_VISIBILITY.toFixed(1)});
-  float extinction = max(3.912 / visibility - 3.912 / ${CLEAR_VISIBILITY.toFixed(1)}, 0.0);
+  float extinction = max(3.912 / visibility - 3.912 / ${ATMO_VISIBILITY.toFixed(1)}, 0.0);
   float height = mix(1200.0, 200.0, smoothstep(0.93, 0.99, rh));
   return extinction * exp(-max(h, 0.0) / height);
 }
