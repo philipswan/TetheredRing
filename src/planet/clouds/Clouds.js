@@ -193,6 +193,9 @@ const STRATUS_ONSET = [0.4, 0.85]
 // The sunlight diffused through the cloud to its base (see diffuseSun): cumulus's, a sheet's.
 const DIFFUSE_SUN = [0.05, 0.15]
 const DRIFT_PERIOD = 2400 // s
+// The phase function's asymmetry in the second and third octaves of the multiple scattering (cloudScatter),
+// of the first's.
+const PHASE_OCTAVES = [0.6, 0.3]
 // Extinction (1/m) of a cloud at full density.
 const EXTINCTION = 0.03
 // The air's murk (airMurk): the visibility (m) for the surface humidity, clear up to 88% (typical over
@@ -713,7 +716,10 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
   float lightStep = 60.0;
   float lod = smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint);
   for (int k = 0; k < lightSteps.x; k++) {
-    float lightAt = lightStep * (float(k) + 0.5);
+    // (The middle of the step, which starts where the steps before it end. At lightStep * (k + 0.5) the
+    // samples ran out to 4 km, and the light through a sheet more than a few hundred metres deep, such as
+    // altostratus, missed most of it: the sun through it was a glare 25 degrees across.)
+    float lightAt = lightStep * 1.5 - 60.0;
     vec3 q = p + sunDirS * lightAt;
     vec3 ql = local + worldToPlanet * (slSun * lightAt);
     od += lowCloudDensity(col, ql, length(q) - a, false, lod, unused) * lightStep;
@@ -724,13 +730,14 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
 }
 
 // The share of sunlight scattered towards the eye at optical depth od from the sun: multiple scattering,
-// approximately (octaves of weaker extinction and flatter phase), less the powder effect (the sunlit side
-// of a cloud's surface is darker than its depths' glow).
-float cloudScatter(float od, float phase) {
+// approximately (octaves of weaker extinction and flatter phase: phase holds each octave's lobe, broader as
+// the light is scattered more, see main), less the powder effect (the sunlit side of a cloud's surface is
+// darker than its depths' glow).
+float cloudScatter(float od, vec3 phase) {
   float scatter = 0.0;
   float att = 1.0, ext = 1.0, ph = 1.0;
   for (int k = 0; k < 3; k++) {
-    scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase, ph);
+    scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase[k], ph);
     att *= 0.5; ext *= 0.5; ph *= 0.5;
   }
   return scatter * (1.0 - 0.6 * exp(-od * 2.0));
@@ -985,7 +992,13 @@ void main() {
   vec3 light = vec3(0.0);
   float depthSum = 0.0, depthWeight = 0.0;
   float sunCos = dot(d, normalize(slSun + slPole.w * dot(slSun, slPole.xyz) * slPole.xyz));
-  float phase = mix(phaseHG(sunCos, 0.65), phaseHG(sunCos, -0.2), 0.3);
+  // (The two-lobed phase function for each octave of cloudScatter, the lobes broader as the light is scattered
+  // more: with the same sharp lobe in each, the sun through altostratus was a glare 25 degrees across.)
+  vec3 phase;
+  for (int k = 0; k < 3; k++) {
+    float g = k == 0 ? 1.0 : k == 1 ? ${PHASE_OCTAVES[0].toFixed(2)} : ${PHASE_OCTAVES[1].toFixed(2)};
+    phase[k] = mix(phaseHG(sunCos, 0.65 * g), phaseHG(sunCos, -0.2 * g), 0.3);
+  }
   float sunIntensity = exposure.y;
   float murkPhase = mix(phaseHG(sunCos, 0.5), 1.0 / (4.0 * PI), 0.5);
   vec3 white = mix(vec3(1.0), SL_WHITE, slParams.y) * sunIntensity;
