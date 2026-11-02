@@ -112,7 +112,8 @@ const MID_PATCH_EDGE = 0.06
 const MID_PATCH_TILE = 50000
 const MID_PACKED = 0.97
 // (The share of a cell's rise from its edge to its core over which its density rises: the lanes between.)
-const MID_FILL = 0.3
+const MID_FILL = 0.6
+const MID_EDGE_COVER = 0.7
 // Its smaller tile repeated visibly (rows of the same shapes towards the horizon): its noise is averaged
 // with the noise again on a tile MID_RATIO (the golden ratio) times smaller, so that the two have no period
 // in common and the pattern does not repeat. (A turned copy did the same, but its matrix slowed the whole
@@ -121,7 +122,7 @@ const MID_RATIO = (1 + Math.sqrt(5)) / 2
 const RATIO_TILE = MID_TILE / MID_RATIO
 // The mid-level cloud's shape is MID_CELLS Worley noise (rounded cells, as altocumulus are in), and the rest
 // the billowy noise the low cloud uses; its thresholds are its own distribution's (midShapeStats).
-const MID_CELLS = 0.85
+const MID_CELLS = 1.0
 // Altostratus (the stratiform mid-level cloud) is a fairly even sheet, the sun showing dimly through it as
 // through ground glass (an optical depth of about 5): its shapes fade to their expected density as its
 // stratiform share rises over MID_SHEET_EVEN (with the altocumulus's cells it was a field of soft blobs), at
@@ -688,11 +689,13 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
     if (lod < 1.0) {
       // (The mid-level tile divides the low cloud's, and the noise repeats: the same offsets serve, scaled.)
       float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full);
-      float threshold = mid ? midCoverThreshold(lowCover) : coverThreshold(lowCover);
+      // (Altocumulus's cells stay at least MID_EDGE_COVER and fade, rather than shrink, where its cover thins
+      // towards a patch's edge: shrunk, they were a wide band of separate dots, which looked sandy.)
+      float threshold = mid ? midCoverThreshold(max(lowCover, ${MID_EDGE_COVER.toFixed(2)})) : coverThreshold(lowCover);
       d = clamp((shape - threshold) / max((mid ? MID_TOP : SHAPE_TOP) - threshold, 0.02), 0.0, 1.0);
       // (Altocumulus's cells filled, falling off only in the narrow lanes between them: rising across the
       // whole cell, only their cores showed, as speckles.)
-      if (mid) d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d);
+      if (mid) d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d) * min(lowCover / ${MID_PACKED.toFixed(2)}, 1.0);
       d *= profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
       // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
