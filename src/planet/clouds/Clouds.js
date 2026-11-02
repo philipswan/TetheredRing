@@ -104,7 +104,7 @@ const MID_DEPTH = [200, 1500]
 // crisp, dense outlines (see CUMULUS_DENSITY). So overhead it is a faint, soft mottling, and its cells stand
 // out only when the light crosses the layer (a low sun), as a mackerel sky does. (Dense, it was a field of
 // white popcorn over everything below.)
-const MID_THIN = 0.1
+const MID_THIN = 0.3
 // It comes in patches (see MACRO_TILE), not evenly across a weather cell: their edges' softness in the
 // large-scale field.
 const MID_PATCH_EDGE = 0.06
