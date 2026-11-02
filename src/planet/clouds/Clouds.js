@@ -1098,7 +1098,13 @@ void main() {
     bool odL0Known = false, odL1Known = false;
     for (int i = 0; i < ${MAX_COARSE}; i++) {
       if (r >= rEnd) break;
+      // (CLOUD_LITE_CELLS: twice as long, for the lightest graphics quality, whose pixels are larger: the clouds'
+      // edges a little chunkier, for a third fewer density samples.)
+#ifdef CLOUD_LITE_CELLS
+      float fine = exp2(ceil(log2(clamp(r * ${(2 * CELL_SHARE).toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
+#else
       float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
+#endif
       // (And short enough to climb or fall no more than VERTICAL_CELL across one, for the layers' height
       // profiles: looking down from orbit, cells as long as the distance asks for would each span the
       // whole layer, and slice it into rings.)
