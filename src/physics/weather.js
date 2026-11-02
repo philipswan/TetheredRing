@@ -137,7 +137,7 @@ const _c = new Float64Array(FIELDS)
 
 /**
  * The weather at geodetic latitude/longitude (degrees) on day of year `dayOfYear` (1..366) at
- * `utcHours`: cover (0..1) of cloud, the low cloud layer's base and top (m) and its cumuliform share
+ * `utcHours`: cover (0..1) of cloud, the low cloud layer's cover (0..1), base and top (m) and its cumuliform share
  * (0..1: cumulus and cumulonimbus, rather than stratocumulus and stratus); the middle cloud layer's cover
  * (0..1), stratiform share (altostratus and nimbostratus, rather than altocumulus) and base (m); the high
  * cloud's cover (0..1) and base (m); rain (mm/h, averaged over the area), its convective share (0..1, showers rather
@@ -160,6 +160,7 @@ export function weatherAt(lat, lon, dayOfYear, utcHours) {
     cover,
     lowBase: 1000 * c[F.lowBase],
     lowTop: 1000 * Math.max(c[F.lowTop], c[F.lowBase] + 0.3),
+    lowCover: layerCover(z, lowSum),
     cumuliform: shiftShare((c[F.cu] + c[F.cb]) / Math.max(lowSum, 1e-3), -TYPE_SHIFT * z),
     midCover: layerCover(zMid, midMean),
     midStratiform: shiftShare((c[F.as_] + c[F.ns]) / Math.max(midMean, 1e-3), TYPE_SHIFT * zMid + MID_SHEET_BIAS),

@@ -13,7 +13,7 @@ import { DAYS_PER_YEAR, PLANET_RADIUS, weatherDraws, weatherNoiseGlsl } from '..
 //                       base (km), the low cloud's cumuliform share (cumulus and cumulonimbus, rather than
 //                       stratocumulus and stratus)
 //   weather.texture[3]: the middle cloud's cover and its stratiform share (altostratus and nimbostratus,
-//                       rather than altocumulus), its top (km)
+//                       rather than altocumulus), its top (km); the low cloud's cover
 // (The cloud types: see weather.js's LAYER_OWN; this repeats its formulas.)
 // It is redrawn when the date changes (setDate).
 
@@ -209,7 +209,7 @@ void main() {
   float midMean = W(${wf.ac}) + W(${wf.as_}) + W(${wf.ns});
   float midStratiform = shiftShare((W(${wf.as_}) + W(${wf.ns})) / max(midMean, 1e-3), ${TYPE_SHIFT.toFixed(2)} * zMid + ${MID_SHEET_BIAS.toFixed(2)});
   outAir.a = cumuliform;
-  outTypes = vec4(layerCover(zMid, midMean), midStratiform, max(W(${wf.midTop}), W(${wf.midBase}) + 0.5), 1.0);
+  outTypes = vec4(layerCover(zMid, midMean), midStratiform, max(W(${wf.midTop}), W(${wf.midBase}) + 0.5), layerCover(z, lowSum));
   outWeather.a = layerCover(zHigh, W(${wf.hi}));  // (the high cloud's cover)
 }
 `,
