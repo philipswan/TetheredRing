@@ -27,7 +27,7 @@ const SAMPLES = 8
 
 const camera = { x: 0, y: 0, z: 0, w: 0 }   // xyz: stretched camera (planet centre at the origin, world axes); w: |C'|^2 - top^2
 const pole = { x: 0, y: 1, z: 0, w: 0 }     // xyz: polar axis (world); w: a/b - 1
-const params = { x: 1, y: 0, z: 1, w: 1 }   // x: exposure (see Planet.js); y: active; z: a (m)
+const params = { x: 1, y: 0, z: 1, w: SAMPLES } // x: exposure (see Planet.js); y: active; z: a (m); w: samples
 const sun = { x: 0, y: 1, z: 0 }            // direction to the sun (world)
 
 const LIBRARIES = ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite']
@@ -73,7 +73,7 @@ THREE.ShaderChunk.fog_fragment += `
       apT1 = min(apT1, apDistance - vSeaPath);
       if (apT1 > apT0) {
         vec3 apLight, apTransmittance;
-        atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, ${SAMPLES}, apLight, apTransmittance);
+        atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, int(apParams.w), apLight, apTransmittance);
         apLight *= atmoHazeScale(apTransmittance, apParams.x);
         vec3 apColor = sRGBTransferEOTF(vec4(gl_FragColor.rgb, 1.0)).rgb * apTransmittance + (1.0 - exp(-apLight));
         gl_FragColor.rgb = sRGBTransferOETF(vec4(apColor, 1.0)).rgb;
@@ -83,7 +83,19 @@ THREE.ShaderChunk.fog_fragment += `
 #endif
 `
 
+// The lighter graphics qualities' samples (setLowSamples) serve below LOW_SAMPLES_HEIGHT (m): there the
+// lines of sight cross little enough air that they look the same as SAMPLES (by tools/perceptual_diff.py up
+// to 13 km); from higher, and from space, where they cross the whole of it, they did not.
+const LOW_SAMPLES_HEIGHT = 12000
+let lowSamples = SAMPLES
+
 export const AerialPerspective = {
+  // The samples along each line of sight below LOW_SAMPLES_HEIGHT (SAMPLES, or fewer for the lighter
+  // graphics qualities).
+  setLowSamples(n) {
+    lowSamples = n
+  },
+
   // active: the air hazes what is seen through it. atmosphereUniforms: the planet's (Planet.atmosphereUniforms,
   // already updated for this frame).
   update(active, atmosphereUniforms) {
@@ -94,6 +106,9 @@ export const AerialPerspective = {
     Object.assign(pole, { x: u.atmoPole.value.x, y: u.atmoPole.value.y, z: u.atmoPole.value.z, w: u.atmoPole.value.w })
     params.x = u.atmoParams.value.y
     params.z = u.atmoParams.value.z
+    // (The camera's height over the stretched sphere: |C'|^2 - a^2 = atmoParams.x.)
+    const height = Math.sqrt(Math.max(u.atmoParams.value.x + params.z * params.z, 0)) - params.z
+    params.w = height < LOW_SAMPLES_HEIGHT ? lowSamples : SAMPLES
     Object.assign(sun, { x: u.atmoSun.value.x, y: u.atmoSun.value.y, z: u.atmoSun.value.z })
   },
 }

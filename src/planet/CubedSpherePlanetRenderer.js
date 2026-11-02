@@ -462,6 +462,7 @@ export class CubedSpherePlanetRenderer {
     // A sea surface at sea level over terrain below it (planets with oceans; see _buildWaterGeometry).
     this.hasWater = options.water === true;
     this.waterVisible = true;
+    this.seaLite = false; // the sea's lighter shader (SEA_LITE, seaWaves.js), for the lighter graphics qualities
     // 0..1: how strongly ground below sea level is drawn as sea floor (see _configureSeafloor). Set
     // while the camera is under the sea surface; shared by every tile material.
     this.seafloorView = { value: 0 };
@@ -2039,6 +2040,7 @@ ${seaSkyReflectionGlsl}`)
       transparent: true,
       depthWrite: false,
     });
+    material.defines = this.seaLite ? { SEA_LITE: '' } : {};
     const waveOffsets = tileWaveOffsets(tile.center);
     const gustOffsets = noiseOffsets(tile.center, GUST_FREQUENCIES);
     const foamOffsets = noiseOffsets(tile.center, FOAM_FREQUENCIES);
@@ -2263,6 +2265,17 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
   // 1 while the camera is under the sea surface (see _configureSeafloor), 0 otherwise.
   setSeafloorView(amount) {
     this.seafloorView.value = amount;
+  }
+
+  // The sea's lighter shader (SEA_LITE: fewer wave trains and noise octaves) on, or off, on every tile.
+  setSeaLite(on) {
+    if (on === this.seaLite) return;
+    this.seaLite = on;
+    for (const tile of this.tiles.values()) {
+      if (!tile.waterMesh) continue;
+      tile.waterMesh.material.defines = on ? { SEA_LITE: '' } : {};
+      tile.waterMesh.material.needsUpdate = true;
+    }
   }
 
   // Shows or hides the sea surface on every tile.

@@ -19,6 +19,13 @@ uniform vec3 atmoSun;      // direction to the sun (world)
 #ifdef SEA_REFLECTION
 uniform float seaSlopeVariance; // the sea's mean square slope (src/planet/seaWaves.js)
 #endif
+#ifdef SKY_LUT
+// The sky from the camera, worked out once a frame (src/planet/skyLut.js): read rather than marched here.
+uniform sampler2D skyLight;          // rgb: the scattered light; a: the transmittance's luminance
+uniform sampler2D skyTransmittance;  // rgb: the transmittance
+uniform vec2 skyLutSize;
+SKY_LUT_GLSL
+#endif
 varying vec3 vWorldPosition;
 
 const float sunCosRadius = 0.999989;           // cos(0.27 degrees)
@@ -83,7 +90,15 @@ void main() {
   float sunDisc = smoothstep(sunCosRadius - 0.000004, sunCosRadius, sunCos);
 
   vec3 light, transmittance;
+#ifdef SKY_LUT
+  vec2 uv = skyLutUv(ds / sqrt(A), atmoCamera.xyz, atmoSun, atmoParams.z, atmoParams.w);
+  // (Above the horizon's row: the table's lower half is the air in front of the ground.)
+  uv.y = max(uv.y, 0.5 + 0.5 / skyLutSize.y);
+  light = texture2D(skyLight, uv).rgb;
+  transmittance = texture2D(skyTransmittance, uv).rgb;
+#else
   atmoScatter(atmoCamera.xyz, ds, d, t0, t1, atmoSun, atmoParams.z, VIEW_SAMPLES, light, transmittance);
+#endif
   light *= atmoParams.y;
   // The sun's disc seen through the air, reddened by it.
   light += sunDisc * ATMO_SUN_INTENSITY * 4.0 * transmittance;
