@@ -248,6 +248,13 @@ const CUMULUS_DENSITY = 3.0
 // where the billows would be smaller than a pixel (and shimmer as the camera moves).
 const CRISP_FOOTPRINT = [2, 20]
 const FAIR_CUMULUS = [0.012, 0.03]
+// Cumulus are smaller than stratocumulus: their shapes are read CUMULUS_SCALE times finer (an integer, so the
+// tile still divides SHAPE_TILE). They come in fields (CU_FIELD_TILE, m, dividing MACRO_TILE: some kilometres
+// across) with CU_PACKED of the sky inside, edges CU_FIELD_EDGE soft in the field's noise.
+const CUMULUS_SCALE = 2
+const CU_FIELD_TILE = 40000
+const CU_PACKED = 0.2
+const CU_FIELD_EDGE = 0.03
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
 // The sunlight diffused through the cloud to its base (see diffuseSun): cumulus's, a sheet's.
@@ -444,8 +451,8 @@ float fineWeight = 0.0;
 float crispWeight = 0.0;
 
 // flatShift and mask (mid-level only): the vector from local down its vertical to the layer's base, and the
-// 2D mask there (see MID_MASK).
-float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool full, vec3 flatShift, out float mask) {
+// 2D mask there (see MID_MASK). small (low cloud only): the share of the shapes read at CUMULUS_SCALE.
+float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool full, vec3 flatShift, out float mask, float small) {
   float shape = 0.0;
   detail = 0.0;
   mask = 0.0;
@@ -463,6 +470,12 @@ float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool fu
       value = mix(0.5 * (value + remap(t.r, t.g * 0.625 + t.b * 0.25 + t.a * 0.125 - 1.0, 1.0, 0.0, 1.0)), cells, ${MID_CELLS.toFixed(2)});
       // (The 2D mask: Worley cells on MID_MASK_TILE, the same at every height.)
       mask += weight * texture(shapeNoise, (q + flatShift + shapeOffset[i]) / ${MID_MASK_TILE.toFixed(1)}).b;
+    }
+    else if (small > 0.0) {
+      // (Cumulus: the shapes CUMULUS_SCALE times smaller, fixed to the planet as the large ones are, so that
+      // blending between them by the cloud's type does not make them slide.)
+      vec4 c = texture(shapeNoise, (q + shapeOffset[i]) * (${CUMULUS_SCALE.toFixed(1)} / ${SHAPE_TILE.toFixed(1)}) + vec3(0.37, 0.53, 0.19));
+      value = mix(value, remap(c.r, c.g * 0.625 + c.b * 0.25 + c.a * 0.125 - 1.0, 1.0, 0.0, 1.0), small);
     }
     shape += weight * value;
     if (full) {
@@ -637,6 +650,16 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
     col.highCover = highTest.x; col.highOpacity = highTest.y; col.highBase = highTest.z;
     if (lowTest2.y >= 0.0) { col.rain = lowTest2.y; col.humidity = lowTest2.z; }
   }
+  // Fair-weather cumulus in fields (CU_FIELD_TILE, some kilometres across), a few clouds close together
+  // (CU_PACKED of the sky) with clear sky between, as much in fields as keeps the cover (rather than spread
+  // evenly to the horizon, where they stacked up into a wall): where the cover is low and cumuliform.
+  float cumulusShare = (1.0 - col.stratiform) * (1.0 - col.showers) * (1.0 - smoothstep(${(0.6 * CU_PACKED).toFixed(3)}, ${CU_PACKED.toFixed(3)}, col.lowCover));
+  if (cumulusShare > 0.0 && col.lowCover > 0.002) {
+    vec4 fn = texture(shapeNoise, (local + macroOffset) / ${CU_FIELD_TILE.toFixed(1)} + vec3(0.71, 0.29, 0.13));
+    float fieldValue = remap(fn.r, fn.g * 0.625 + fn.b * 0.25 + fn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
+    float fieldThreshold = coverThreshold(min(col.lowCover / ${CU_PACKED.toFixed(3)}, 1.0));
+    col.lowCover = mix(col.lowCover, ${CU_PACKED.toFixed(3)} * smoothstep(fieldThreshold - ${CU_FIELD_EDGE.toFixed(3)}, fieldThreshold + ${CU_FIELD_EDGE.toFixed(3)}, fieldValue), cumulusShare);
+  }
   return col;
 }
 
@@ -704,7 +727,8 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
       // (The mid-level tile divides the low cloud's, and the noise repeats: the same offsets serve, scaled.)
       float mask;
       vec3 flatShift = mid ? -normalize(cameraPlanet + local) * (h - base) : vec3(0.0);
-      float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full, flatShift, mask);
+      float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full, flatShift, mask,
+        mid ? 0.0 : (1.0 - stratiform) * (1.0 - showers));
       // (Altocumulus's cells stay at least MID_EDGE_COVER and fade, rather than shrink, where its cover thins
       // towards a patch's edge: shrunk, they were a wide band of separate dots, which looked sandy.)
       float threshold = mid ? midCoverThreshold(max(lowCover, ${MID_EDGE_COVER.toFixed(2)})) : coverThreshold(lowCover);
@@ -1346,6 +1370,9 @@ void main() {
           for (int k = 0; k < 2 * noUnroll; k++) {
             float age = k == 0 ? drift.x : drift.y;
             bound = max(bound, shapeBound(localM - windM * age + shapeOffset[k], halfLength + windChange * age, ${SHAPE_TILE.toFixed(1)}));
+            // (And the cumulus's smaller shapes, where they may be: see CUMULUS_SCALE.)
+            if (min(colA.stratiform, colB.stratiform) < 1.0)
+              bound = max(bound, shapeBound(localM - windM * age + shapeOffset[k] + vec3(0.37, 0.53, 0.19) * ${(SHAPE_TILE / CUMULUS_SCALE).toFixed(1)}, halfLength + windChange * age, ${(SHAPE_TILE / CUMULUS_SCALE).toFixed(1)}));
           }
           lowCloud = SHAPE_MEAN + (bound - SHAPE_MEAN) / spreadNorm > coverThreshold(max(colA.lowCover, colB.lowCover));
         }

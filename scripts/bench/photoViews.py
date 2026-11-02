@@ -28,15 +28,15 @@ def view(name, photo, when, vfov, pitch, azimuth, sky):
             'parameters': {'sunDayOfYear': day, 'sunTimeOfDayUTC': round(utc, 3)}, 'cloudType': sky}}
 cu = lambda c, top=1500: [c, 0, 0, 600, top]
 views = [
-  view('altocumulus', 'Altocumulus.jpg', '2019-07-26T07:38', 31, 13, 300, {'mid': [0.65, 0, 3500], 'low': cu(0.06)}),
-  view('cumulus+altocumulus', 'Calm Cumulus+Altocumulus.JPG', '2019-07-26T07:36', 25, 11, 300, {'mid': [0.85, 0, 3500], 'low': cu(0.12)}),
-  view('cumulus+altostratus', 'Calm Cumulus+Altostratus.JPG', '2019-07-26T07:40', 29, 13, 300, {'mid': [0.45, 1, 3000], 'low': cu(0.15)}),
+  view('altocumulus', 'Altocumulus.jpg', '2019-07-26T07:38', 31, 13, 300, {'mid': [0.65, 0, 3500], 'low': cu(0.02)}),
+  view('cumulus+altocumulus', 'Calm Cumulus+Altocumulus.JPG', '2019-07-26T07:36', 25, 11, 300, {'mid': [0.85, 0, 3500], 'low': cu(0.04)}),
+  view('cumulus+altostratus', 'Calm Cumulus+Altostratus.JPG', '2019-07-26T07:40', 29, 13, 300, {'mid': [0.45, 1, 3000], 'low': cu(0.05)}),
   view('altocumulus+cumulus', 'Altocumulus+Cumulus.JPG', '2019-06-30T17:28', 26, 6, 60, {'mid': [0.9, 0.6, 3000], 'low': cu(0.25, 1200)}),
   view('nimbostratus-under', 'Nimbostratus under.JPG', '2019-06-30T14:37', 44, 1, 60, {'low': [1, 1, 0, 700, 4500], 'rain': 3, 'humidity': 0.95}),
   view('nimbostratus-edge', 'Nimbostratus edge.JPG', '2019-06-30T14:36', 54, 16, 60, {'low': [0.85, 1, 0, 700, 4500], 'rain': 3, 'humidity': 0.95}),
   view('stratocumulus', 'Stratocumulus+Altocumulus+Cirrostratus.JPG', '2019-08-03T08:38', 30, 6, 300, {'low': [0.9, 0.6, 0, 700, 1500], 'high': [0.8, 0.3, 9000]}),
   view('stratus', 'Stratus.JPG', '2019-08-05T07:26', 30, 5, 300, {'low': [1, 1, 0, 300, 900]}),
-  view('hazy-cumulus', 'hazy horizon cumulus.JPG', '2019-06-19T11:29', 30, 5, 300, {'low': cu(0.2, 1700)}),
+  view('hazy-cumulus', 'hazy horizon cumulus.JPG', '2019-06-19T11:29', 30, 5, 300, {'low': cu(0.04, 1700)}),
   view('cirrus-dusk', 'Cirrocumulus+Cirrus Dusk.JPG', '2019-07-04T19:09', 26, 6, 290, {'high': [0.5, 0.15, 9000], 'cells': 0.5}),
 ]
 json.dump(views, open('tests/bench/photoViews.json', 'w'), indent=1)
