@@ -194,9 +194,12 @@ ${prefix === 'seaGust' ? `#ifdef SEA_LITE
 #endif                          // is for all of theirs)
 ` : ''}    float wavelengthPixels = 1000.0 / (${prefix}Freq[i] * viewDistance);
     float visible = smoothstep(2.0, 6.0, wavelengthPixels);
-    vec3 p = ${prefix}Rotation[i] * local * ${prefix}Freq[i] + ${prefix}Offset[i];
-    a += amplitude * visible * (${prefix}Noise(p + slices[0]) * 2.0 - 1.0);
-    b += amplitude * visible * (${prefix}Noise(p + slices[1]) * 2.0 - 1.0);
+    // (Too fine to see from here: not looked up at all.)
+    if (visible > 0.0) {
+      vec3 p = ${prefix}Rotation[i] * local * ${prefix}Freq[i] + ${prefix}Offset[i];
+      a += amplitude * visible * (${prefix}Noise(p + slices[0]) * 2.0 - 1.0);
+      b += amplitude * visible * (${prefix}Noise(p + slices[1]) * 2.0 - 1.0);
+    }
     weight += amplitude;
     amplitude *= 0.6;
   }
@@ -313,13 +316,15 @@ vec3 seaWaveSlope(vec3 local, vec3 up, float gust, out float unresolved) {
 float seaWhitecaps(vec3 local, float viewDistance, float gust, float footprint) {
   if (seaFoam.y <= 0.0) return 0.0;
   float coverage = clamp(seaFoam.y * gust, 0.0, 0.2);
+  // Too small to see: their average cover (and the pattern not worked out at all).
+  float average = smoothstep(0.5, 3.0, footprint);
+  if (average >= 1.0) return coverage;
   // The noise is close to normal: the threshold that leaves the coverage above it (the normal
   // quantile, Abramowitz and Stegun 26.2.23), with soft, lacy edges below a dense core.
   float t = sqrt(-2.0 * log(coverage));
   float threshold = seaFoam.x * (t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1.0 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t));
   float n = seaFoamSliced(local, viewDistance, seaFoamSlice, seaFoam.z);
   float pattern = smoothstep(threshold - 0.05, threshold + 0.25, n) * 0.85;
-  // Too small to see: their average cover.
-  return mix(pattern, coverage, smoothstep(0.5, 3.0, footprint));
+  return mix(pattern, coverage, average);
 }
 `
