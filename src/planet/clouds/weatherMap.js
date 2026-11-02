@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { weatherClimatologyTable } from '../../physics/weather.js'
+import { LAYER_DRAWS, LAYER_OWN, LAYER_SPREAD, MID_SHEET_BIAS, TYPE_SHIFT, weatherClimatologyTable } from '../../physics/weather.js'
 import { eddyScale, windClimatologyTable } from '../../physics/wind.js'
 import { DAYS_PER_YEAR, PLANET_RADIUS, weatherDraws, weatherNoiseGlsl } from '../../physics/weatherNoise.js'
 
@@ -9,7 +9,12 @@ import { DAYS_PER_YEAR, PLANET_RADIUS, weatherDraws, weatherNoiseGlsl } from '..
 // formulas the GLSL here repeats), so the clouds sit where the CPU's rain and wind say they are:
 //   weather.texture[0]: cover (0..1), rain (mm/h), convective share (0..1), high cloud cover (0..1)
 //   weather.texture[1]: low cloud base and top (km), wind east and north (m/s, at the surface)
-//   weather.texture[2]: relative humidity near the surface (0..1), high cloud base (km)
+//   weather.texture[2]: relative humidity near the surface (0..1), high cloud base (km), middle cloud
+//                       base (km), the low cloud's cumuliform share (cumulus and cumulonimbus, rather than
+//                       stratocumulus and stratus)
+//   weather.texture[3]: the middle cloud's cover and its stratiform share (altostratus and nimbostratus,
+//                       rather than altocumulus), its top (km)
+// (The cloud types: see weather.js's LAYER_OWN; this repeats its formulas.)
 // It is redrawn when the date changes (setDate).
 
 const WIDTH = 1024
@@ -86,7 +91,7 @@ export class WeatherMap {
     const wf = Object.fromEntries(weather.fields.map((n, i) => [n, i]))
     const vf = Object.fromEntries(wind.fields.map((n, i) => [n, i]))
     this.target = new THREE.WebGLRenderTarget(WIDTH, HEIGHT, {
-      count: 3, type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false,
+      count: 4, type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, wrapS: THREE.RepeatWrapping,
     })
     this.uniforms = {
@@ -113,6 +118,7 @@ in vec2 vUv;
 layout(location = 0) out vec4 outWeather;
 layout(location = 1) out vec4 outLayers;
 layout(location = 2) out vec4 outAir;
+layout(location = 3) out vec4 outTypes;
 const float PI = 3.141592653589793;
 ${weatherNoiseGlsl}
 vec4 bSpline(float f) {
@@ -147,6 +153,17 @@ float rainFor(float z, float frequency, float rate) {
   if (z <= threshold) return 0.0;
   return rate * (z - threshold) / (normalPdf(threshold) / normalTail(threshold) - threshold);
 }
+// A layer's cover today from its long-run mean amount, at anomaly z.
+float layerCover(float z, float mean) {
+  float m = clamp(mean, 0.0, 0.98);
+  if (m <= 0.002) return 0.0;
+  return coverFor(z, m, ${LAYER_SPREAD.toFixed(2)} * sqrt(m * (1.0 - m)));
+}
+// A share (0..1) moved by shift in log-odds.
+float shiftShare(float share, float shift) {
+  float s = clamp(share, 0.01, 0.99);
+  return 1.0 / (1.0 + exp(-(log(s / (1.0 - s)) + shift)));
+}
 vec3 unitPoint(float lat, float lon) {
   float phi = radians(lat), lambda = radians(lon);
   return vec3(cos(phi) * sin(lambda), sin(phi), cos(phi) * cos(lambda));
@@ -175,15 +192,25 @@ void main() {
   float z = -weatherAnomaly(lat, unitPoint(lat, lon), d0, d1, fd);
   float cover = coverFor(z, W(${wf.cover}) + W(${wf.coverCos}) * cos(w) + W(${wf.coverSin}) * sin(w), W(${wf.coverSd}));
   float rain = rainFor(z, W(${wf.rainFreq}), W(${wf.rainRate}));
-  float highCover = clamp(W(${wf.highFreq}) * (1.0 + 0.5 * z), 0.0, 1.0);
   float lowBase = W(${wf.lowBase});
   float lowTop = max(W(${wf.lowTop}), lowBase + 0.3);
   vec2 wind = vec2(V(${vf.u}) + V(${vf.uCos}) * cos(w) + V(${vf.uSin}) * sin(w), V(${vf.v}) + V(${vf.vCos}) * cos(w) + V(${vf.vSin}) * sin(w));
   vec2 e = (1.0 - fd) * eddies(lat, lon, d0) + fd * eddies(lat, lon, d1);
   wind += V(${vf.sigma}) / (${eddyScale().toFixed(6)} * length(vec2(1.0 - fd, fd))) * e;
-  outWeather = vec4(cover, rain, clamp(W(${wf.convective}), 0.0, 1.0), highCover);
+  outWeather = vec4(cover, rain, clamp(W(${wf.convective}), 0.0, 1.0), 0.0);  // (a: below)
   outLayers = vec4(lowBase, lowTop, wind);
-  outAir = vec4(clamp(W(${wf.humidity}) + 1.2 * W(${wf.humiditySd}) * z, 0.0, 1.0), W(${wf.highBase}), 0.0, 1.0);
+  outAir = vec4(clamp(W(${wf.humidity}) + 1.2 * W(${wf.humiditySd}) * z, 0.0, 1.0), W(${wf.highBase}), W(${wf.midBase}), 0.0);
+  // The cloud types (see TYPES). (The layers' own fields: the same weather, other draws.)
+  vec3 here = unitPoint(lat, lon);
+  float zMid = ${Math.sqrt(1 - LAYER_OWN * LAYER_OWN).toFixed(4)} * z - ${LAYER_OWN.toFixed(4)} * weatherAnomaly(lat, here, d0 + ${LAYER_DRAWS[0]}, d1 + ${LAYER_DRAWS[0]}, fd);
+  float zHigh = ${Math.sqrt(1 - LAYER_OWN * LAYER_OWN).toFixed(4)} * z - ${LAYER_OWN.toFixed(4)} * weatherAnomaly(lat, here, d0 + ${LAYER_DRAWS[1]}, d1 + ${LAYER_DRAWS[1]}, fd);
+  float lowSum = W(${wf.st}) + W(${wf.sc}) + W(${wf.cu}) + W(${wf.cb});
+  float cumuliform = shiftShare((W(${wf.cu}) + W(${wf.cb})) / max(lowSum, 1e-3), -${TYPE_SHIFT.toFixed(2)} * z);  // (z > 0 in a low)
+  float midMean = W(${wf.ac}) + W(${wf.as_}) + W(${wf.ns});
+  float midStratiform = shiftShare((W(${wf.as_}) + W(${wf.ns})) / max(midMean, 1e-3), ${TYPE_SHIFT.toFixed(2)} * zMid + ${MID_SHEET_BIAS.toFixed(2)});
+  outAir.a = cumuliform;
+  outTypes = vec4(layerCover(zMid, midMean), midStratiform, max(W(${wf.midTop}), W(${wf.midBase}) + 0.5), 1.0);
+  outWeather.a = layerCover(zHigh, W(${wf.hi}));  // (the high cloud's cover)
 }
 `,
       depthTest: false,

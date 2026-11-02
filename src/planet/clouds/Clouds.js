@@ -121,6 +121,10 @@ const MID_SHEET_TEXTURE = 0.35
 // together, as it does, rather than packing its cells (and the noise's repetition) into rows of texture.
 const MID_LOD_FOOTPRINT = [25, 100]
 const MID_SHEET_DENSITY = 1.0
+// The mid-level layer's opacity seen from space per unit of its cover, from altocumulus's to altostratus's,
+// and the most of the cloudy share of the sky (after the high cloud) it may take.
+const MID_OPACITY = [0.5, 0.85]
+const MID_SHARE = 0.9
 // Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
 // erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
 const FINE_TILE = 750
@@ -131,23 +135,26 @@ const FINE_SHARE = 0.5
 // small to see (from orbit).
 const MACRO_TILE = 400000
 // The clouds' types. The cover, where the satellite imagery is (realClouds.js; otherwise the weather's),
-// is shared between two layers:
-// - High cloud (cirrus, cirrostratus) takes the thin part of the opacity, up to HIGH_SHARE, where the
-//   reanalysis has high cloud often (over HIGH_FREQUENCY; thin cirrus is what the faint brightening of
-//   the imagery over clear sea mostly is); it is thin (opacity HIGH_OPACITY where it is, an optical depth of about
-//   0.3), so it covers a good deal more of the sky than its opacity; HIGH_THICKNESS (m) deep from the high
-//   cloud base, drawn out into streaks along the wind (which is CIRRUS_WIND times the surface's aloft).
-// - Low cloud for the rest of the imagery's opacity, less LOW_FLOOR of it (the imagery's opacity varies
-//   about the blurred share the high cloud takes, and a thin sky would otherwise always have some low
-//   cloud under its cirrus): a few fair-weather cumulus where there is little
-//   (FAIR_CUMULUS of the sky, more with convection, in fields a few hundred kilometres across covering
-//   about FAIR_FIELDS of the clear sky, the rest clear), turning into stratocumulus and then a stratus
-//   sheet as it rises over STRATUS_ONSET; towers in showers (the weather's, where the imagery has cloud:
+// is shared between three layers, as much of each as the weather has today (weatherMap.js's cloud types:
+// the real world's mix of types from surface observations, moved by the day's highs and lows), the higher
+// first:
+// - High cloud (cirrus, cirrostratus): the weather's high cover, thin (opacity HIGH_OPACITY where it is, an
+//   optical depth of about 0.3, so it covers a good deal more of the sky than its opacity; thin cirrus is
+//   what the faint brightening of the imagery over clear sea mostly is), up to HIGH_SHARE of the opacity;
+//   HIGH_THICKNESS (m) deep from the high cloud base, drawn out into streaks along the wind (which is
+//   CIRRUS_WIND times the surface's aloft).
+// - Mid-level cloud (altocumulus, altostratus; not in the lighter qualities, whose low cloud takes its
+//   share): the weather's mid cover and type, as opaque as MID_OPACITY, up to MID_SHARE of what is left.
+// - Low cloud for the rest of the opacity, less LOW_FLOOR of it (the imagery's opacity varies about the
+//   blurred share the high cloud takes, and a thin sky would otherwise always have some low cloud under its
+//   cirrus): a few fair-weather cumulus where there is little (FAIR_CUMULUS of the sky, more with
+//   convection, in fields a few hundred kilometres across covering about FAIR_FIELDS of the clear sky, the
+//   rest clear); stratocumulus and stratus as the weather's mix has them, and a stratus sheet wherever the
+//   cover rises over STRATUS_ONSET; towers in showers (the weather's, where the imagery has cloud:
 //   SHOWER_OPACITY).
 const HIGH_SHARE = 0.45
 // The noon sun's elevations (degrees) over which the imagery's cover gives way to the weather's (see realShare).
 const NOON_SUN_FADE = [15, 25]
-const HIGH_FREQUENCY = [0.1, 0.5]
 const LOW_FLOOR = 0.12
 const HIGH_BLUR = 60000 // m
 const SHOWER_OPACITY = [0.3, 0.7]
@@ -298,6 +305,7 @@ uniform sampler2D distanceMap;
 uniform sampler2D weatherA;
 uniform sampler2D weatherB;
 uniform sampler2D weatherC;
+uniform sampler2D weatherD;
 uniform sampler3D shapeNoise;
 uniform sampler3D detailNoise;
 uniform sampler3D occupancy;      // bounds on the shape noise (cloudNoise.js)
@@ -483,6 +491,7 @@ struct CloudColumn {
   float base, top, highBase;
   vec3 wind;
   float humidity, rain;
+  vec3 mid;  // the mid-level layer: cover, stratiform share, base (m) (see midLayer)
 };
 
 CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
@@ -517,20 +526,39 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   // (The high cloud's share follows the opacity blurred over HIGH_BLUR, so that only the low cloud carries
   // the imagery's edges: with both layers following them, from orbit the same pattern showed at both
   // heights, apart by parallax, as double vision.)
-  float highOpacity = min(opacitySmooth, ${HIGH_SHARE.toFixed(3)}) * smoothstep(${HIGH_FREQUENCY[0].toFixed(2)}, ${HIGH_FREQUENCY[1].toFixed(2)}, a.a);
+  // The weather's high cloud (its cover today, a.a; see weatherMap.js's cloud types), as opaque as HIGH_OPACITY
+  // where it covers the sky, but no more than the opacity seen from space leaves it.
+  float highOpacity = min(min(opacitySmooth, ${HIGH_SHARE.toFixed(3)}), a.a * ${HIGH_OPACITY.toFixed(3)});
   float highCover = clamp(highOpacity / ${HIGH_OPACITY.toFixed(3)}, 0.0, 1.0);
-  float lowRaw = clamp((1.0 - (1.0 - opacity) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
+  vec4 c = texture2D(weatherC, uv);
+  // The mid-level layer the same way, from what the high cloud leaves (as opaque as MID_OPACITY, by its
+  // stratiform share: altocumulus has gaps, altostratus is a sheet). (The lighter qualities have none: the
+  // low cloud takes its share, so that from space the sky is as cloudy.)
+  vec3 mid = vec3(0.0, 0.0, c.b * 1000.0);
+  float above = 1.0 - highOpacity;  // (the share of the sky the layers above leave clear)
+  float lowShare = (1.0 - opacity) / above;  // (the clear share the low cloud must leave)
+#ifndef CLOUD_NO_MID
+  vec4 dm = texture2D(weatherD, uv);
+  float midPerCover = mix(${MID_OPACITY[0].toFixed(2)}, ${MID_OPACITY[1].toFixed(2)}, dm.g);
+  float midOpacity = min(dm.r * midPerCover, max(1.0 - lowShare, 0.0) * ${MID_SHARE.toFixed(2)});
+  mid.xy = vec2(midOpacity / midPerCover, dm.g);
+  above *= 1.0 - midOpacity;
+  lowShare = (1.0 - opacity) / above;
+#endif
+  float lowRaw = clamp((1.0 - lowShare - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
   float convective = a.b;
   float showers = convective * clamp(showerRain(a) / 3.0, 0.0, 1.0) * smoothstep(${SHOWER_OPACITY[0].toFixed(2)}, ${SHOWER_OPACITY[1].toFixed(2)}, opacity);
   // (Not faded in showers: their towers are solid clouds, and thinned they were tall, translucent wisps.)
   float lowOpacity = mix(sharpenLow(lowRaw,
-    clamp((1.0 - (1.0 - opacitySoft) / (1.0 - highOpacity) - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0), footprint), lowRaw, showers);
+    clamp((1.0 - (1.0 - opacitySoft) / above - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0), footprint), lowRaw, showers);
   // (The fair-weather cumulus come in fields: the large-scale noise above its FAIR_FIELDS quantile.)
   float fieldThreshold = coverThreshold(${FAIR_FIELDS.toFixed(2)});
   float fair = mix(${FAIR_CUMULUS[0].toFixed(3)}, ${FAIR_CUMULUS[1].toFixed(3)}, convective) * smoothstep(fieldThreshold - 0.03, fieldThreshold + 0.06, field);
   float lowCover = max(lowOpacity / 0.9, fair);
-  // (The cloud's type from the cover before fading, which changes where there is cloud, not what kind.)
-  float stratiform = smoothstep(${STRATUS_ONSET[0].toFixed(2)}, ${STRATUS_ONSET[1].toFixed(2)}, max(lowRaw / 0.9, fair)) * (1.0 - showers);
+  // (The cloud's type from the cover before fading, which changes where there is cloud, not what kind: a
+  // sheet where it covers the sky, and otherwise the weather's mix of stratocumulus and stratus against
+  // cumulus, c.a.)
+  float stratiform = max(smoothstep(${STRATUS_ONSET[0].toFixed(2)}, ${STRATUS_ONSET[1].toFixed(2)}, max(lowRaw / 0.9, fair)), 1.0 - c.a) * (1.0 - showers);
   vec3 up = normalize(worldToPlanet * p);
   vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), up));
   vec3 north = cross(up, east);
@@ -546,7 +574,6 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   float cumulusTop = base + ${CUMULUS_DEPTH[0].toFixed(1)} + ${CUMULUS_DEPTH[1].toFixed(1)} * lowCover
     + (${SHOWER_DEPTH.toFixed(1)} + ${TOWER_DEPTH.toFixed(1)} * towers) * showers;
   float stratusTop = base + clamp(${STRATUS_DEPTH_SHARE.toFixed(2)} * (b.y * 1000.0 - base), ${STRATUS_DEPTH[0].toFixed(1)}, ${STRATUS_DEPTH[1].toFixed(1)});
-  vec4 c = texture2D(weatherC, uv);
   CloudColumn col;
   col.highCover = highCover;
   col.highOpacity = highOpacity;
@@ -559,6 +586,7 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   col.wind = b.z * east + b.w * north;
   col.humidity = c.r;
   col.rain = showerRain(a);
+  col.mid = mid;
   // (A cloud type filling the sky, for testing: see CLOUD_TYPES.)
   // (From uniforms rather than a branch for each type, which, copied wherever a column is worked out, slowed
   // the whole march.)
@@ -582,7 +610,7 @@ vec3 midLayer(CloudColumn col) {
   return vec3(0.0, 0.0, 3500.0);  // (the lighter qualities have none)
 #endif
   if (cloudTypeTest > 0) return midTest;
-  return vec3(0.0, 0.0, 3500.0);  // (none from the weather yet)
+  return col.mid;
 }
 
 // The optical depth of a column's mid-level layer straight up from height h (m), from its expected density
@@ -878,6 +906,7 @@ CloudColumn mixColumn(CloudColumn a, CloudColumn b, float t) {
   m.wind = mix(a.wind, b.wind, t);
   m.humidity = mix(a.humidity, b.humidity, t);
   m.rain = mix(a.rain, b.rain, t);
+  m.mid = mix(a.mid, b.mid, t);
   return m;
 }
 
@@ -908,7 +937,8 @@ float flatOpacityAt(vec2 uv, float footprint) {
   float soft = softOpacity(uv, opacity, share, footprint);
   if (share > 0.0) opacity = mix(opacity, clamp((textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r - 0.05) / 0.95, 0.0, 1.0), share);
   // (The low cloud's part faded, as the march's: see cloudColumn.)
-  float high = min(opacity, ${HIGH_SHARE.toFixed(3)}) * smoothstep(${HIGH_FREQUENCY[0].toFixed(2)}, ${HIGH_FREQUENCY[1].toFixed(2)}, w.a);
+  // (The mid-level layer is in the low cloud's part here: from this far only the total shows.)
+  float high = min(min(opacity, ${HIGH_SHARE.toFixed(3)}), w.a * ${HIGH_OPACITY.toFixed(3)});
   float low = sharpenLow(clamp(1.0 - (1.0 - opacity) / (1.0 - high), 0.0, 1.0), clamp(1.0 - (1.0 - soft) / (1.0 - high), 0.0, 1.0), footprint);
   return 1.0 - (1.0 - high) * (1.0 - low);
 }
@@ -1554,6 +1584,7 @@ export class Clouds {
       weatherA: { value: this.weatherMap.textures[0] },
       weatherB: { value: this.weatherMap.textures[1] },
       weatherC: { value: this.weatherMap.textures[2] },
+      weatherD: { value: this.weatherMap.textures[3] },
       shapeNoise: { value: noise.shape },
       detailNoise: { value: noise.detail },
       occupancy: { value: noise.occupancy },
