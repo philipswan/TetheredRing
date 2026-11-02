@@ -10,12 +10,13 @@ import { PixelLOD } from '../scene/PixelLOD.js'
 //                  (softer clouds, for much less work: their cost grows with its pixels)
 //   cloudFeatures  the clouds' lighter shader parts (Clouds.setFeatures): a smaller shader, which small
 //                  GPUs (integrated graphics) run several times faster
+//   seaLite        the sea's lighter shader (fewer wave trains and noise octaves; Planet.setSeaLite)
 export const QUALITY_PRESETS = {
-  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [] },
+  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [], seaLite: false },
   balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2, clouds: 0.4,
-    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW'] },
+    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW'], seaLite: true },
   low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.3,
-    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_NO_MID', 'CLOUD_LITE_HIGH'] },
+    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_NO_MID', 'CLOUD_LITE_HIGH'], seaLite: true },
 }
 const TIERS = ['high', 'balanced', 'low']
 
@@ -126,6 +127,7 @@ export class GraphicsQuality {
       this.app.clouds.resolution = this.preset.clouds
       this.app.clouds.setFeatures(this.preset.cloudFeatures)
     }
+    this.app.planet?.setSeaLite(this.preset.seaLite)
     this.app.onResize()
   }
 
@@ -137,6 +139,7 @@ export class GraphicsQuality {
       this.app.clouds.resolution = QUALITY_PRESETS.high.clouds
       this.app.clouds.setFeatures(QUALITY_PRESETS.high.cloudFeatures)
     }
+    this.app.planet?.setSeaLite(false)
   }
 
   // Called once per displayed frame with the frame's timestamp (ms).

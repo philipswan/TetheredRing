@@ -171,7 +171,11 @@ vec3 seaSkyReflection(vec3 r, float rough) {
   float t0, t1;
   if (!atmoRoots(dot(ds, ds), dot(p, ds), dot(p, p) - top * top, t0, t1)) return vec3(0.0);
   vec3 light, transmittance;
+#ifdef SEA_LITE
+  atmoScatter(p, ds, d, max(t0, 0.0), t1, slSun, slParams.z, 3, light, transmittance);  // (lighter qualities)
+#else
   atmoScatter(p, ds, d, max(t0, 0.0), t1, slSun, slParams.z, 6, light, transmittance);
+#endif
   return 1.0 - exp(-light);
 }
 `
@@ -185,7 +189,10 @@ function slicedFbmGlsl(prefix, n) {
 float ${prefix}Sliced(vec3 local, float viewDistance, vec3 slices[2], float fade) {
   float a = 0.0, b = 0.0, weight = 0.0, amplitude = 1.0;
   for (int i = 0; i < ${n}; i++) {
-    float wavelengthPixels = 1000.0 / (${prefix}Freq[i] * viewDistance);
+${prefix === 'seaGust' ? `#ifdef SEA_LITE
+    if (i == ${n - 1}) break;  // (the lighter qualities: an octave fewer of the gusts; the whitecaps' threshold
+#endif                          // is for all of theirs)
+` : ''}    float wavelengthPixels = 1000.0 / (${prefix}Freq[i] * viewDistance);
     float visible = smoothstep(2.0, 6.0, wavelengthPixels);
     vec3 p = ${prefix}Rotation[i] * local * ${prefix}Freq[i] + ${prefix}Offset[i];
     a += amplitude * visible * (${prefix}Noise(p + slices[0]) * 2.0 - 1.0);
@@ -268,14 +275,23 @@ vec3 seaWaveSlope(vec3 local, vec3 up, float gust, out float unresolved) {
       float c = max(dot(t, wind), 0.0) / sqrt(max(inPlane, 1e-6));
       along[d] = t;
       weight[d] = (0.3 + c * c) * inPlane;
+#ifdef SEA_LITE
+      // (The lighter qualities: every other direction, the band's slope shared among them, so the sea is
+      // as rough and its glint the same.)
+      if ((d & 1) == 1) weight[d] = 0.0;
+#endif
       sum += weight[d] * weight[d] * inPlane;
     }
     // Two group envelopes, for alternate trains (so no two trains keep the same weight everywhere and
     // beat into a lattice). Shifted by whole lattice cells, so they stay seamless across tiles.
     vec3 g = seaGroupRotation[b] * local * seaGroupFreq[b] + seaGroupOffset[b];
+    // (Kept by the lighter qualities too: without them their fewer trains beat into a lattice.)
     vec2 group = clamp(1.0 + 1.3 * (vec2(seaGroupNoise(g), seaGroupNoise(g + vec3(17.0, 41.0, 5.0))) * 2.0 - 1.0), 0.25, 2.0);
     float band = seaBandSlope[b] * gusted * 1.41421 / sqrt(max(sum, 1e-8));
     for (int d = 0; d < ${WAVE_DIRECTIONS}; d++) {
+#ifdef SEA_LITE
+      if ((d & 1) == 1) continue;
+#endif
       int j = b * ${WAVE_DIRECTIONS} + d;
       float phase = SEA_WAVE_K[j] * dot(SEA_WAVE_DIR[j], local) + seaWaveOffset[j] - seaWavePhase[j];
       float amplitude = band * weight[d];                          // slope amplitude, a k

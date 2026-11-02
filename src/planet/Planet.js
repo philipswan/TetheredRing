@@ -379,6 +379,11 @@ export class Planet {
   }
 
   // Sea surface over terrain below sea level (planets with oceans).
+  // The sea's lighter shader, for the lighter graphics qualities (see CubedSpherePlanetRenderer.setSeaLite).
+  setSeaLite(on) {
+    this._setOnRenderers('setSeaLite', on)
+  }
+
   setWaterVisible(visible) {
     this._setOnRenderers('setWaterVisible', visible)
   }
