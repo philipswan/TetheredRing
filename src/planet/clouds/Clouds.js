@@ -152,6 +152,14 @@ const SHARPEN_BLUR = 1.5
 const CUMULUS_DEPTH = [500, 900]
 const STRATUS_DEPTH_SHARE = 0.5
 const STRATUS_DEPTH = [500, 1200]
+// Showers: cumulus congestus SHOWER_DEPTH (m) deep in heavy showers, towering a further TOWER_DEPTH (m) into
+// cumulonimbus only in scattered cells: where the shape noise on TOWER_TILE (m) is above its quantile
+// leaving TOWER_SHARE of the area. (Every heavy shower was a 9 km tower, a wall of them over the whole
+// rainy area, which also cost the most to draw.)
+const SHOWER_DEPTH = 3000
+const TOWER_DEPTH = 6000
+const TOWER_TILE = 80000
+const TOWER_SHARE = 0.25
 const FAIR_CUMULUS = [0.012, 0.03]
 const FAIR_FIELDS = 0.35
 const STRATUS_ONSET = [0.4, 0.85]
@@ -221,6 +229,7 @@ uniform vec3 cameraGrid;        // the camera's planet position modulo CELL_MAX 
 uniform vec3 cameraPlanet;      // the camera's planet position (m; float32, for the high cloud's streaks)
 uniform vec3 driftShift[2];     // each drift copy's own shift (m)
 uniform vec3 macroOffset;        // the camera's planet position modulo the large-scale tile (m)
+uniform vec3 towerOffset;        // the camera's planet position modulo TOWER_TILE (m)
 uniform sampler2D realClouds;    // the real clouds' opacity (realClouds.js)
 uniform float realBlend;         // 1 where the real clouds' opacity sets the cover (it has loaded), else 0
 uniform float realDeclination;   // the sun's declination (degrees) on the snapshot's day
@@ -403,7 +412,16 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), up));
   vec3 north = cross(up, east);
   float base = b.x * 1000.0;
-  float cumulusTop = base + ${CUMULUS_DEPTH[0].toFixed(1)} + ${CUMULUS_DEPTH[1].toFixed(1)} * lowCover + 9000.0 * showers;
+  // (Only in showers heavy enough to matter: the read is costly, and the towers fade in from there.)
+  float towers = 0.0;
+  if (showers > 0.02) {
+    vec4 tn = texture(shapeNoise, (local + towerOffset) / ${TOWER_TILE.toFixed(1)});
+    float towerField = remap(tn.r, tn.g * 0.625 + tn.b * 0.25 + tn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
+    float towerThreshold = coverThreshold(${TOWER_SHARE.toFixed(2)});
+    towers = smoothstep(towerThreshold - 0.02, towerThreshold + 0.08, towerField) * smoothstep(0.02, 0.1, showers);
+  }
+  float cumulusTop = base + ${CUMULUS_DEPTH[0].toFixed(1)} + ${CUMULUS_DEPTH[1].toFixed(1)} * lowCover
+    + (${SHOWER_DEPTH.toFixed(1)} + ${TOWER_DEPTH.toFixed(1)} * towers) * showers;
   float stratusTop = base + clamp(${STRATUS_DEPTH_SHARE.toFixed(2)} * (b.y * 1000.0 - base), ${STRATUS_DEPTH[0].toFixed(1)}, ${STRATUS_DEPTH[1].toFixed(1)});
   vec4 c = texture2D(weatherC, uv);
   CloudColumn col;
@@ -982,6 +1000,11 @@ void main() {
         rL1 = -1.0;
       }
       else {
+        // The rain shaft under the cloud, sampled once for the coarse cell (at its middle, as if below the
+        // base) and used in each of its fine cells below the base: smooth enough, and costly per fine cell.
+        CloudColumn colRain = mixColumn(colA, colB, 0.5);
+        vec3 pRain = c + d * (rcm * stretch);
+        float rainCell = rainShaft(colRain, pRain, D * rcm, min(length(pRain) - a, colRain.base - 1.0));
         if (!d0Known) {
           float unused;
           d0 = columnDensity(colA, D * r, hA, true, r * pixelAngle, unused);
@@ -1012,7 +1035,7 @@ void main() {
           float footprint = rm * pixelAngle;
           CloudColumn col = mixColumn(colA, colB, (rm - r) / max(rc1 - r, 1e-3));
           CloudColumn col1 = mixColumn(colA, colB, (r1 - r) / max(rc1 - r, 1e-3));
-          float murk = airMurk(col, h) + rainShaft(col, p, local, h);
+          float murk = airMurk(col, h) + (h <= col.base ? rainCell : 0.0);
           if (murk > 1e-7) {
             float murkT = exp(-murk * dt);
             light += transmittance * murkLight * (1.0 - murkT);
@@ -1209,6 +1232,7 @@ export class Clouds {
       worldToPlanet: { value: new THREE.Matrix3() },
       shapeOffset: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       macroOffset: { value: new THREE.Vector3() },
+      towerOffset: { value: new THREE.Vector3() },
       cameraPlanet: { value: new THREE.Vector3() },
       cameraGrid: { value: new THREE.Vector3() },
       driftShift: { value: [new THREE.Vector3(), new THREE.Vector3()] },
@@ -1330,6 +1354,9 @@ export class Clouds {
     u.cameraGrid.value.set(...['x', 'y', 'z'].map(k => ((_cameraPlanet[k] % CELL_MAX) + CELL_MAX) % CELL_MAX))
     const mt = MACRO_TILE
     u.macroOffset.value.set(((_cameraPlanet.x % mt) + mt) % mt, ((_cameraPlanet.y % mt) + mt) % mt, ((_cameraPlanet.z % mt) + mt) % mt)
+    const tt = TOWER_TILE
+    // (Offset from the other uses of the noise, so the towers are unrelated to them.)
+    u.towerOffset.value.set(((_cameraPlanet.x + 31337) % tt + tt) % tt, ((_cameraPlanet.y + 17011) % tt + tt) % tt, ((_cameraPlanet.z + 7919) % tt + tt) % tt)
     u.inverseProjection.value.copy(camera.projectionMatrixInverse)
     u.cameraWorld.value.copy(camera.matrixWorld)
     u.exposure.value.set(skyExposure, sunIntensity)
