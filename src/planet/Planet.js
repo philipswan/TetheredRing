@@ -5,6 +5,7 @@ import atmosphereVertexShader from '../shaders/atmosphere.vert.glsl?raw';
 import atmosphereFragmentShader from '../shaders/atmosphere.frag.glsl?raw';
 import './aerialPerspective.js'; // registers <atmosphere_common>
 import { seaWaveUniforms, updateSeaWaves } from './seaWaves.js';
+import { SkyLut, SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js';
 
 // Top of the atmosphere shell above sea level (m), where the sky's scattering stops. High enough that
 // the air left above it would not show: a line of sight grazing the top crosses ~1100 km of air at
@@ -243,10 +244,13 @@ export class Planet {
       new THREE.ShaderMaterial({
         // (The sea it draws near the horizon reflects the sky as the sea surface does: seaWaves.js.)
         // (The sea it draws near the horizon reflects the sky as the sea surface does: seaWaves.js.)
-        uniforms: { ...this.atmosphereUniforms, seaSlopeVariance: seaWaveUniforms.seaSlopeVariance },
+        uniforms: {
+          ...this.atmosphereUniforms, seaSlopeVariance: seaWaveUniforms.seaSlopeVariance,
+          skyLight: { value: null }, skyTransmittance: { value: null }, skyLutSize: { value: new THREE.Vector2(...SKY_LUT_SIZE) },
+        },
         defines: planetSpec.hasOcean === true ? { SEA_REFLECTION: '' } : {},
         vertexShader: atmosphereVertexShader,
-        fragmentShader: atmosphereFragmentShader,
+        fragmentShader: atmosphereFragmentShader.replace('SKY_LUT_GLSL', skyLutGlsl),
         side: THREE.BackSide,
         depthWrite: false,
         transparent: true,
@@ -260,6 +264,25 @@ export class Planet {
     this.atmosphere.scale.set(a + ATMOSPHERE_HEIGHT, b + ATMOSPHERE_HEIGHT, a + ATMOSPHERE_HEIGHT);
     this.atmosphere.frustumCulled = false; // also the sky around the camera when it is inside the shell
     this.atmosphere.visible = showAtmosphere;
+    this.skyLut = null;
+    this.setSkyLut(true);
+  }
+
+  // The sky read from a table worked out once a frame (skyLut.js) rather than marched at every pixel.
+  setSkyLut(on) {
+    if (on === !!this.skyLut) return;
+    const material = this.atmosphere.material;
+    if (on) {
+      this.skyLut = new SkyLut(this.atmosphereUniforms);
+      material.uniforms.skyLight.value = this.skyLut.light;
+      material.uniforms.skyTransmittance.value = this.skyLut.transmittance;
+      material.defines.SKY_LUT = '';
+    } else {
+      this.skyLut.dispose();
+      this.skyLut = null;
+      delete material.defines.SKY_LUT;
+    }
+    material.needsUpdate = true;
   }
 
   /**
@@ -302,6 +325,7 @@ export class Planet {
     const fade = THREE.MathUtils.smoothstep(Math.sqrt(c2) - a, EXPOSURE_FADE[0], EXPOSURE_FADE[1]);
     u.atmoParams.value.y = THREE.MathUtils.lerp(1, SPACE_EXPOSURE, fade);
     u.atmoSun.value.copy(sunDirection).normalize();
+    if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
   }
 
   _createRenderer(assetNames) {
