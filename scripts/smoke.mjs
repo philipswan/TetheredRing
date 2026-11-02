@@ -70,7 +70,9 @@ if (remote) {
   const chrome = process.env.SMOKE_REMOTE_CHROME ?? 'chromium-browser'
   tunnel = spawn('ssh', [...(process.env.SMOKE_SSH_ARGS?.split(' ').filter(Boolean) ?? []), '-o', 'ExitOnForwardFailure=yes',
     '-R', `${port}:localhost:${port}`, '-L', `${debugPort}:localhost:${debugPort}`, remote,
-    `dir=$(mktemp -d); ${chrome} --headless=new --remote-debugging-port=${debugPort} --user-data-dir=$dir ${chromeArgs.join(' ')} about:blank >/dev/null 2>&1 & pid=$!; cat >/dev/null; kill $pid; sleep 1; rm -rf $dir`],
+    // (SMOKE_REMOTE_ENV: environment for the remote browser, e.g. a driver's debug options; SMOKE_REMOTE_LOG: a
+    // file there for its output.)
+    `dir=$(mktemp -d); ${process.env.SMOKE_REMOTE_ENV ?? ''} ${chrome} --headless=new --remote-debugging-port=${debugPort} --user-data-dir=$dir ${chromeArgs.join(' ')} about:blank >${process.env.SMOKE_REMOTE_LOG ?? '/dev/null'} 2>&1 & pid=$!; cat >/dev/null; kill $pid; sleep 1; rm -rf $dir`],
   { stdio: ['pipe', 'inherit', 'inherit'] })
   for (let i = 0; i < 150; i++) {
     try { if ((await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok) break } catch { /* not yet */ }
