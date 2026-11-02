@@ -905,7 +905,10 @@ void main() {
   t1 = min(t1, sceneDistance * stretch);
   vec3 sunDirS = normalize(slSun + slPole.w * dot(slSun, slPole.xyz) * slPole.xyz);
   // The scene's dimming by the clouds, at the end of the line of sight (the ground or the scene).
-  float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance * stretch);
+  // (Where nothing was drawn the distance pass leaves 1e9 m: the sky, not a scene point out in space, which
+  // the clouds never shade; taken as one, the murk against the sky was lit by the full sun, even under
+  // nimbostratus.)
+  float tScene = min(ground.x > 0.0 ? ground.x : 1e30, sceneDistance < 1e8 ? sceneDistance * stretch : 1e30);
   float sceneSun = 1.0, shade = 1.0;
   if (tScene < 1e20 && slParams.x > 0.5) {
     vec3 ps = c + d * tScene;
@@ -929,8 +932,10 @@ void main() {
     shade = mix(1.0, lit, airSeen);
   }
   else if (slParams.x > 0.5) {
-    // (Sky: the murk's sunlight as at the camera.)
-    sceneSun = cloudShadow(c, vec3(0.0), sunDirS, 400.0);
+    // (Sky: the murk's sunlight as at the camera, through the clouds' expected density (a footprint past
+    // LOD_FOOTPRINT, short of FLAT_FOOTPRINT): the murk against the sky reaches kilometres away, lit through
+    // the cover on average, not darkened all over as one cumulus's shadow passes over the camera.)
+    sceneSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
   }
   float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
