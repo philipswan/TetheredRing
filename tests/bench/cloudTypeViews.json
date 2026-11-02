@@ -368,5 +368,42 @@
    },
    "cloudType": "cirrostratus"
   }
+ },
+ {
+  "name": "altostratus-sun",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 251,
+   "sunTimeOfDayUTC": 22,
+   "camera": {
+    "position": [
+     -2179334.606,
+     2229997.382,
+     -5561006.473
+    ],
+    "target": [
+     -2180041.923,
+     2229499.874,
+     -5562809.855
+    ],
+    "up": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "orbitUp": [
+     -0.342,
+     0.352,
+     -0.872
+    ],
+    "fov": 75
+   },
+   "parameters": {
+    "sunDayOfYear": 251,
+    "sunTimeOfDayUTC": 22
+   },
+   "cloudType": "altostratus"
+  }
  }
 ]

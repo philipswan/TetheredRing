@@ -102,7 +102,12 @@ const RATIO_TILE = MID_TILE / MID_RATIO
 // The mid-level cloud's shape is MID_CELLS Worley noise (rounded cells, as altocumulus are in), and the rest
 // the billowy noise the low cloud uses; its thresholds are its own distribution's (midShapeStats).
 const MID_CELLS = 0.6
-const MID_SHEET_DENSITY = 0.25
+// Altostratus (the stratiform mid-level cloud) is a fairly even sheet, the sun showing dimly through it as
+// through ground glass (an optical depth of about 3): its shapes fade to their expected density as its
+// stratiform share rises over MID_SHEET_EVEN (with the altocumulus's cells it was a field of soft blobs), at
+// MID_SHEET_DENSITY of that.
+const MID_SHEET_EVEN = [0.5, 1.0]
+const MID_SHEET_DENSITY = 1.0
 // Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
 // erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
 const FINE_TILE = 750
@@ -198,6 +203,9 @@ const DRIFT_PERIOD = 2400 // s
 const PHASE_OCTAVES = [0.6, 0.3]
 // Extinction (1/m) of a cloud at full density.
 const EXTINCTION = 0.03
+// (The sheet's expected density before MID_SHEET_DENSITY: the far density's (see lowCloudDensity) for a full
+// cover, times the stratiform profile's mean.)
+const MID_SHEET_MEAN = -Math.log(0.05) / (EXTINCTION * MID_DEPTH[1] * 0.5) * 0.8
 // The air's murk (airMurk): the visibility (m) for the surface humidity, clear up to 88% (typical over
 // the sea) and falling to fog near saturation: about 40 km at 90%, 10 km at 95%, 400 m at 99%.
 const CLEAR_VISIBILITY = 60000
@@ -562,6 +570,7 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
     float hf = (h - base) / (top - base);
     if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) return 0.0;
     layer = hf;
+    if (mid) lod = max(lod, smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, stratiform));
     // Height profiles: cumulus rounded at the top, stratus flat.
     float cumulus = smoothstep(0.0, 0.08, hf) * smoothstep(1.0, 0.45, hf);
     float stratus = smoothstep(0.0, 0.2, hf) * smoothstep(1.0, 0.75, hf);
@@ -866,13 +875,21 @@ float airMurk(CloudColumn col, float h) {
 }
 
 // The share of the light from above (the sky's, and the sun's scattered on its way through) that reaches
-// height h (m) through a column's low cloud: its clear share, and through the cloud the diffuse transmission
-// of a thick scattering layer (two-stream: 1 / (1 + 0.75 tau (1 - g)), g about 0.85) for the optical depth of
-// the cloud above (at half its full density). About a seventh under 4 km of nimbostratus, a half under a
-// thin stratus: under thick overcast the day is dim, and the murk and the cloud's base with it.
+// height h (m) through a column's low and mid-level cloud: for each, its clear share, and through the cloud
+// the diffuse transmission of a thick scattering layer (two-stream: 1 / (1 + 0.75 tau (1 - g)), g about 0.85)
+// for the optical depth of the cloud above (at half its full density; an even sheet of altostratus at its
+// own). About a seventh under 4 km of nimbostratus, a half under a thin stratus: under thick overcast the day
+// is dim, and the murk and the cloud's base with it.
 float overcastShare(CloudColumn col, float h) {
   float tau = EXTINCTION * 0.5 * max(col.top - max(h, col.base), 0.0);
-  return 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
+  float share = 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
+  vec3 midL = midLayer(col);
+  if (midL.x > 0.0) {
+    float midTop = midL.z + mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
+    float midTau = EXTINCTION * mix(0.5, ${MID_SHEET_MEAN.toFixed(4)} * ${MID_SHEET_DENSITY.toFixed(2)}, midL.y) * max(midTop - max(h, midL.z), 0.0);
+    share *= 1.0 - min(midL.x, 1.0) + min(midL.x, 1.0) / (1.0 + 0.1125 * midTau);
+  }
+  return share;
 }
 
 // The share of the sunlight (times overcastShare) diffused down through the cloud to its depths and base:
@@ -1305,14 +1322,14 @@ void main() {
       atmoScatter(c, d, dirWorld, max(at0, 0.0), min(at1, tc), slSun, a, 8, airLight, airTransmittance);
       vec3 cloudTransmittance = mix(airTransmittance, vec3(dot(airTransmittance, vec3(0.2126, 0.7152, 0.0722))), 0.5);
       vec3 inScatter = max((1.0 - exp(-airLight)) * exposure.x, airLight * ATMO_HAZE_THIN * ${MULTIPLE_SCATTERING.toFixed(2)});
-      // (That is the clear sky's air. Under a thick overcast the air in front of its base is in the clouds'
-      // shade, lit only by what comes through them, and the clear sky's blue over it made nimbostratus a pale
-      // blue-grey. Under broken cloud the sun lights the air through the gaps around, so this only dims it
-      // where the camera's sun through the clouds' expected density is below about a half; the planet's own
-      // shadow is the air light's.)
-      if (length(c) - a < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
+      // (That is the clear sky's air. Under an overcast the air in front of its base is in the clouds'
+      // shade, lit only by what comes through them (overcastShare at the camera), and the clear sky's blue over
+      // it made nimbostratus a pale blue-grey; under broken cloud the sun lights it through the gaps (the
+      // camera's sun through the clouds' expected density). The planet's own shadow is the air light's.)
+      float hc = length(c) - a;
+      if (hc < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
         if (cameraSun < 0.0) cameraSun = cloudShadow(c, vec3(0.0), sunDirS, ${(0.5 * (LOD_FOOTPRINT[1] + FLAT_FOOTPRINT[0])).toFixed(1)});
-        inScatter *= mix(0.2, 1.0, smoothstep(0.0, 0.5, cameraSun));
+        inScatter *= mix(overcastShare(cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0), hc), 1.0, cameraSun);
       }
       // (Over the clouds' share of the opacity (depthWeight), not the murk's, whose light is the air's own:
       // where rain or mist hid all but a trace of the clouds beyond, the haze over the whole of it began
