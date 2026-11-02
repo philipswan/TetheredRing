@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { standInScene } from '../../scene/precompile.js'
 import '../../scene/sunAndSkyLight.js' // registers <sun_and_sky_light> (and <atmosphere_common>)
 import { SunAndSkyLight } from '../../scene/sunAndSkyLight.js'
-import { cloudNoiseTextures, smearStats } from './cloudNoise.js'
+import { cloudNoiseTextures, smearStats, midShapeStats } from './cloudNoise.js'
 import { WeatherMap } from './weatherMap.js'
 import { RealClouds } from './realClouds.js'
 import { RAIN_AREA } from '../../physics/weather.js'
@@ -86,6 +86,23 @@ const LIGHT_FOOTPRINT = 1
 // The noise tiles (m): shape and detail.
 const SHAPE_TILE = 8000
 const DETAIL_TILE = 3000
+// The mid-level layer's shapes are on MID_TILE (m, dividing SHAPE_TILE), smaller than the low cloud's, and
+// move with the wind aloft (MID_WIND times the surface's).
+const MID_TILE = 4000
+const MID_WIND = 2.5
+// Its depth (m), from altocumulus's to altostratus's (by its stratiform share), and altostratus's density (a
+// deep but thin sheet, through which the sun shows dimly).
+const MID_DEPTH = [600, 1500]
+// Its smaller tile repeated visibly (rows of the same shapes towards the horizon): its noise is averaged
+// with the noise again on a tile MID_RATIO (the golden ratio) times smaller, so that the two have no period
+// in common and the pattern does not repeat. (A turned copy did the same, but its matrix slowed the whole
+// march.)
+const MID_RATIO = (1 + Math.sqrt(5)) / 2
+const RATIO_TILE = MID_TILE / MID_RATIO
+// The mid-level cloud's shape is MID_CELLS Worley noise (rounded cells, as altocumulus are in), and the rest
+// the billowy noise the low cloud uses; its thresholds are its own distribution's (midShapeStats).
+const MID_CELLS = 0.6
+const MID_SHEET_DENSITY = 0.25
 // Near the camera, a finer octave of the detail noise (on FINE_TILE, m, which divides DETAIL_TILE) in the
 // erosion, fading out over pixel footprints of FINE_FOOTPRINT (m): without it, close clouds were smooth blobs.
 const FINE_TILE = 750
@@ -188,13 +205,17 @@ const SHADOW_HIGH_STEPS = 4
 
 // Cloud types, for testing and tuning one at a time (Clouds.setCloudTypeTest): each sets the columns'
 // fields everywhere, over whatever the weather gives. low: [cover, stratiform, showers, base (m), top (m)];
-// high: [cover, opacity, base (m)]. Unset layers are clear.
+// high: [cover, opacity, base (m)]; mid: [cover, stratiform, base (m)]; rain (mm/h) and
+// humidity. Unset layers are clear.
 export const CLOUD_TYPES = [
   { name: 'cumulus', low: [0.3, 0, 0, 900, 1900] },
   { name: 'cumulus congestus', low: [0.45, 0, 0.6, 800, 4500] },
   { name: 'cumulonimbus', low: [0.5, 0, 1, 700, 11000] },
   { name: 'stratocumulus', low: [0.85, 0.6, 0, 700, 1500] },
   { name: 'stratus', low: [1, 1, 0, 300, 900] },
+  { name: 'nimbostratus', low: [1, 1, 0, 700, 4500], rain: 3, humidity: 0.95 },
+  { name: 'altocumulus', mid: [0.6, 0, 3500] },
+  { name: 'altostratus', mid: [1, 1, 3000] },
   { name: 'cirrus', high: [0.6, 0.15, 9000] },
   { name: 'cirrostratus', high: [1, 0.45, 9000] },
 ]
@@ -232,7 +253,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, fibre = smearStats(FIBRE_TAPS, FIBRE_LENGTH / FIBRE_TILE, FIBRE_WEIGHTS, FIBRE_EDGES)) => `
+const marchFragment = (stats, fibre = smearStats(FIBRE_TAPS, FIBRE_LENGTH / FIBRE_TILE, FIBRE_WEIGHTS, FIBRE_EDGES), mid = midShapeStats(MID_CELLS)) => `
 #include <common>
 #include <sun_and_sky_light>
 precision highp sampler3D;
@@ -253,6 +274,7 @@ uniform vec3 cameraPlanet;      // the camera's planet position (m; float32, for
 uniform vec3 driftShift[2];     // each drift copy's own shift (m)
 uniform vec3 macroOffset;        // the camera's planet position modulo the large-scale tile (m)
 uniform vec3 towerOffset;        // the camera's planet position modulo TOWER_TILE (m)
+uniform vec3 ratioOffset[2];     // shapeOffset's position (each drift copy's) modulo RATIO_TILE (m)
 uniform sampler2D realClouds;    // the real clouds' opacity (realClouds.js)
 uniform float realBlend;         // 1 where the real clouds' opacity sets the cover (it has loaded), else 0
 uniform float realDeclination;   // the sun's declination (degrees) on the snapshot's day
@@ -267,6 +289,7 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 // memory busy.
 uniform int noUnroll;
 uniform int cloudTypeTest;      // 0, or a cloud type to fill the sky with (1 + its index in CLOUD_TYPES)
+uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stratiform share, base), if any
 uniform float pixelAngle;       // radians per pixel of the cloud target
 varying vec2 vUv;
 layout(location = 0) out vec4 outClouds;
@@ -297,6 +320,9 @@ float showerRain(vec4 weather) {
 const float SHAPE_QUANTILE[${stats.quantiles.length}] = float[](${stats.quantiles.map(q => q.toFixed(5)).join(', ')});
 const float SHAPE_MEAN = ${stats.mean.toFixed(5)};
 const float SHAPE_TOP = ${stats.quantiles[stats.quantiles.length - 2].toFixed(5)};
+const float MID_QUANTILE[${mid.quantiles.length}] = float[](${mid.quantiles.map(q => q.toFixed(5)).join(', ')});
+const float MID_MEAN = ${mid.mean.toFixed(5)};
+const float MID_TOP = ${mid.quantiles[mid.quantiles.length - 2].toFixed(5)};
 float normalCdf(float x) {
   float t = 1.0 / (1.0 + 0.2316419 * abs(x));
   float tail = exp(-0.5 * x * x) * 0.3989422804 * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
@@ -312,6 +338,12 @@ float coverThreshold(float cover) {
   float x = clamp(1.0 - cover, 0.0, 1.0) * ${(stats.quantiles.length - 1).toFixed(1)};
   int i = int(min(floor(x), ${(stats.quantiles.length - 2).toFixed(1)}));
   return mix(SHAPE_QUANTILE[i], SHAPE_QUANTILE[i + 1], x - float(i));
+}
+// The same for the mid-level cloud's shape (midShapeStats).
+float midCoverThreshold(float cover) {
+  float x = clamp(1.0 - cover, 0.0, 1.0) * ${(stats.quantiles.length - 1).toFixed(1)};
+  int i = int(min(floor(x), ${(stats.quantiles.length - 2).toFixed(1)}));
+  return mix(MID_QUANTILE[i], MID_QUANTILE[i + 1], x - float(i));
 }
 
 // The planet frame position (m, relative to the camera) and its latitude/longitude (degrees) for a
@@ -330,15 +362,23 @@ float fineWeight = 0.0;
 // How crisp cumulus are (1 near, 0 far: see CRISP_FOOTPRINT; set by columnDensity).
 float crispWeight = 0.0;
 
-float driftedShape(vec3 local, vec3 wind, float tile, vec3 offsets[2], out float detail, bool full) {
+float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool full) {
   float shape = 0.0;
   detail = 0.0;
   for (int i = 0; i < 2; i++) {
     float weight = i == 0 ? 1.0 - drift.z : drift.z;
     vec3 q = local - wind * (i == 0 ? drift.x : drift.y);
-    vec4 s = texture(shapeNoise, (q + offsets[i]) / tile);
+    vec4 s = texture(shapeNoise, (q + shapeOffset[i]) * (scale / ${SHAPE_TILE.toFixed(1)}));
     float fbm = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
-    shape += weight * remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0);
+    float value = remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0);
+    if (scale > 1.5) {
+      // (Mid-level: rounded cells, from the Worley noise more than the billowy (see MID_CELLS); averaged with
+      // the same on a second tile (see MID_RATIO), its spread restored.)
+      vec4 t = texture(shapeNoise, (ratioOffset[i] + q) / ${RATIO_TILE.toFixed(3)});
+      float cells = 0.5 * (s.b * 0.6 + s.a * 0.4 + t.b * 0.6 + t.a * 0.4);
+      value = mix(0.5 * (value + remap(t.r, t.g * 0.625 + t.b * 0.25 + t.a * 0.125 - 1.0, 1.0, 0.0, 1.0)), cells, ${MID_CELLS.toFixed(2)});
+    }
+    shape += weight * value;
     if (full) {
       vec4 dn = texture(detailNoise, (q + detailOffset[i]) / ${DETAIL_TILE.toFixed(1)});
       float fbm = dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125;
@@ -350,7 +390,8 @@ float driftedShape(vec3 local, vec3 wind, float tile, vec3 offsets[2], out float
     }
   }
   // (Cross-fading two copies narrows the spread: restore it, so the cover stays the same.)
-  return SHAPE_MEAN + (shape - SHAPE_MEAN) / length(vec2(1.0 - drift.z, drift.z));
+  float mean = scale > 1.5 ? MID_MEAN : SHAPE_MEAN;
+  return mean + (shape - mean) / length(vec2(1.0 - drift.z, drift.z));
 }
 
 // Density (0..1) of thresholded noise for a cover: from 0 at the threshold to 1 near the noise's top
@@ -479,7 +520,8 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
 ${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
       col.lowCover = ${t.low[0].toFixed(3)}; col.stratiform = ${t.low[1].toFixed(3)}; col.showers = ${t.low[2].toFixed(3)};
       col.base = ${t.low[3].toFixed(1)}; col.top = ${t.low[4].toFixed(1)};` : ''}${t.high ? `
-      col.highCover = ${t.high[0].toFixed(3)}; col.highOpacity = ${t.high[1].toFixed(3)}; col.highBase = ${t.high[2].toFixed(1)};` : ''}
+      col.highCover = ${t.high[0].toFixed(3)}; col.highOpacity = ${t.high[1].toFixed(3)}; col.highBase = ${t.high[2].toFixed(1)};` : ''}${t.rain !== undefined ? `
+      col.rain = ${t.rain.toFixed(2)}; col.humidity = ${t.humidity.toFixed(2)};` : ''}
     }`).join('\n')}
   }
   return col;
@@ -490,12 +532,30 @@ ${CLOUD_TYPES.map((t, i) => `    if (cloudTypeTest == ${i + 1}) {${t.low ? `
 // layer: the height within the layer (0 at the base, 1 at the top), if in it. (Apart from columnDensity, for
 // the light marches: thin as it is, the high cloud is left out of them, and so is its code, which, copied
 // into each of their samples, made the shader too large to run quickly.)
+// A column's mid-level layer: its cover, stratiform share (altocumulus 0, altostratus 1) and base (m).
+// Worked out when needed rather than kept with the column: the columns are many and live in registers.
+vec3 midLayer(CloudColumn col) {
+  if (cloudTypeTest > 0) return midTest;
+  return vec3(0.0, 0.0, 3500.0);  // (none from the weather yet)
+}
+
 float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod, inout float layer) {
-  float lowCover = col.lowCover, stratiform = col.stratiform, showers = col.showers, base = col.base, top = col.top;
-  vec3 surfaceWind = col.wind;
+  vec3 midL = midLayer(col);
   float density = 0.0;
-  float hf = (h - base) / (top - base);
-  if (hf > 0.0 && hf < 1.0) {
+  // The low layer, or the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), whichever
+  // the height is in (they do not overlap; the low cloud's if they do): the same code for both, once in
+  // the shader. (Looping over both made the whole march slower, mid-level cloud or not.)
+  float midTop = midL.z + mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
+  bool inLow = col.lowCover > 0.0 && h > col.base && h < col.top;
+  bool mid = !inLow && midL.x > 0.0 && h > midL.z && h < midTop;
+  {
+    float lowCover = mid ? midL.x : col.lowCover;
+    float stratiform = mid ? midL.y : col.stratiform;
+    float showers = mid ? 0.0 : col.showers;
+    float base = mid ? midL.z : col.base;
+    float top = mid ? midTop : col.top;
+    float hf = (h - base) / (top - base);
+    if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) return 0.0;
     layer = hf;
     // Height profiles: cumulus rounded at the top, stratus flat.
     float cumulus = smoothstep(0.0, 0.08, hf) * smoothstep(1.0, 0.45, hf);
@@ -503,8 +563,10 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
     float profile = mix(cumulus, stratus, stratiform);
     float d = 0.0, detail = 0.0;
     if (lod < 1.0) {
-      float shape = driftedShape(local, surfaceWind * 1.5, ${SHAPE_TILE.toFixed(1)}, shapeOffset, detail, full);
-      d = thresholdDensity(shape, lowCover) * profile;
+      // (The mid-level tile divides the low cloud's, and the noise repeats: the same offsets serve, scaled.)
+      float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full);
+      float threshold = mid ? midCoverThreshold(lowCover) : coverThreshold(lowCover);
+      d = clamp((shape - threshold) / max((mid ? MID_TOP : SHAPE_TOP) - threshold, 0.02), 0.0, 1.0) * profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
       // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
       // of its surface: their outlines are the detail's billows (crisp, as cauliflower), not the shape's
@@ -516,9 +578,8 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, float lod
     // Too far for the clouds to be told apart: a density giving the column the transmittance of a cover
     // of opaque clouds (spreading the clouds' own density out evenly would make any cover of them opaque).
     float far = -log(1.0 - 0.95 * min(lowCover, 1.0)) / (EXTINCTION * (top - base) * 0.5) * profile;
-    density = mix(d, far, lod) * mix(1.0, 1.6, showers);
+    density += mix(d, far, lod) * mix(1.0, 1.6, showers) * (mid ? mix(1.0, ${MID_SHEET_DENSITY.toFixed(2)}, stratiform) : 1.0);
   }
-
   return density;
 }
 
@@ -765,6 +826,9 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
   for (int layerIndex = 0; layerIndex < 2; layerIndex++) {
     bool low = layerIndex == 0;
     float bottom = low ? col.base : col.highBase, top = low ? col.top : col.highBase + ${HIGH_THICKNESS.toFixed(1)};
+    // (The mid-level layer with the low cloud's.)
+    vec3 midL = midLayer(col);
+    if (low && midL.x > 0.002) { bottom = min(bottom, midL.z); top = max(top, midL.z + ${MID_DEPTH[1].toFixed(1)}); }
     if (!low && col.highCover <= 0.005) continue;
     float ta = max((bottom - ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu, 0.0), tb = (top + ${HEIGHT_MARGIN.toFixed(1)} - hp) / mu;
     if (tb <= ta) continue;
@@ -790,6 +854,16 @@ float airMurk(CloudColumn col, float h) {
   float extinction = max(3.912 / visibility - 3.912 / ${CLEAR_VISIBILITY.toFixed(1)}, 0.0);
   float height = mix(1200.0, 200.0, smoothstep(0.93, 0.99, rh));
   return extinction * exp(-max(h, 0.0) / height);
+}
+
+// The share of the light from above (the sky's, and the sun's scattered on its way through) that reaches
+// height h (m) through a column's low cloud: its clear share, and through the cloud the diffuse transmission
+// of a thick scattering layer (two-stream: 1 / (1 + 0.75 tau (1 - g)), g about 0.85) for the optical depth of
+// the cloud above (at half its full density). About a seventh under 4 km of nimbostratus, a half under a
+// thin stratus: under thick overcast the day is dim, and the murk and the cloud's base with it.
+float overcastShare(CloudColumn col, float h) {
+  float tau = EXTINCTION * 0.5 * max(col.top - max(h, col.base), 0.0);
+  return 1.0 - min(col.lowCover, 1.0) + min(col.lowCover, 1.0) / (1.0 + 0.1125 * tau);
 }
 
 // Rain below the clouds (extinction, 1/m): under the cloud bases that are raining, a shaft as wide as
@@ -945,7 +1019,7 @@ void main() {
         if (murk > 1e-7) {
           vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
           slLightAt(dirWorld * rm, stepDirect, stepSkyDown, stepGroundUp, upW);
-          vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
+          vec3 murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(col, h)) * white;
           float murkT = exp(-murk * (r1 - r) * stretch);
           light += transmittance * murkLight * (1.0 - murkT);
           transmittance *= murkT;
@@ -993,6 +1067,10 @@ void main() {
       float hHigh = max(hA, hB);
       bool lowCloud = max(colA.lowCover, colB.lowCover) > 0.002
         && hHigh > min(colA.base, colB.base) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.top, colB.top) + ${HEIGHT_MARGIN.toFixed(1)};
+      // (The mid-level layer is drawn with the low cloud.)
+      vec3 midA = midLayer(colA), midB = midLayer(colB);
+      bool midCloud = max(midA.x, midB.x) > 0.002
+        && hHigh > min(midA.z, midB.z) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(midA.z, midB.z) + ${(MID_DEPTH[1] + HEIGHT_MARGIN).toFixed(1)};
       bool highCloud = max(colA.highCover, colB.highCover) > 0.005
         && hHigh > min(colA.highBase, colB.highBase) - ${HEIGHT_MARGIN.toFixed(1)} && hLow < max(colA.highBase, colB.highBase) + ${(HIGH_THICKNESS + HEIGHT_MARGIN).toFixed(1)};
       // Near enough for the noise's shapes everywhere along it (no expected density): whether the noise
@@ -1025,6 +1103,7 @@ void main() {
           highCloud = SHAPE_MEAN + (bound - SHAPE_MEAN) / spreadNorm > coverThreshold(max(colA.highCover, colB.highCover));
         }
       }
+      lowCloud = lowCloud || midCloud;
       // Without cloud, only the murk (often none).
       float murk = 0.0;
       if (!lowCloud && !highCloud) {
@@ -1038,7 +1117,8 @@ void main() {
       if (lowCloud || highCloud || murk > 1e-7) {
         vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
         slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
-        murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25 + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5) * white;
+        murkLight = (stepDirect * sceneSun * murkPhase * 4.0 * PI * 0.25
+          + (stepSkyDown + stepGroundUp) * RECIPROCAL_PI * 0.5 * overcastShare(colA, length(c + d * (rcm * stretch)) - a)) * white;
         sunlight = stepDirect * sunIntensity;
         skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
         groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
@@ -1146,8 +1226,9 @@ void main() {
           vec2 ambientShare = mix(exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od1.yz), exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od0.yz), share0);
           vec3 ambient = skyAmbient * ambientShare.x + groundAmbient * ambientShare.y;
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
-          // more higher up, nearer the sunlit top. (Sky and ground light: ambient, from above and below.)
-          vec3 diffuse = sunlight * 0.05 * mix(0.35, 1.0, layer);
+          // less the more cloud there is above (overcastShare's diffuse transmission; the base of a deep cloud
+          // is dark). (Sky and ground light: ambient, from above and below.)
+          vec3 diffuse = sunlight * 0.05 * overcastShare(col, h);
           vec3 sourceLight = sunlight * scatter * 4.0 + ambient + diffuse;
           // Energy-conserving integration across the stretch.
           float stepT = exp(-sigma * dt);
@@ -1287,6 +1368,7 @@ export class Clouds {
       shapeOffset: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       macroOffset: { value: new THREE.Vector3() },
       towerOffset: { value: new THREE.Vector3() },
+      ratioOffset: { value: [new THREE.Vector3(), new THREE.Vector3()] },
       cameraPlanet: { value: new THREE.Vector3() },
       cameraGrid: { value: new THREE.Vector3() },
       driftShift: { value: [new THREE.Vector3(), new THREE.Vector3()] },
@@ -1300,6 +1382,7 @@ export class Clouds {
       lightSteps: { value: [LIGHT_STEPS, VERTICAL_STEPS] },
       noUnroll: { value: 1 },
       cloudTypeTest: { value: 0 },
+      midTest: { value: new THREE.Vector3() },
       pixelAngle: { value: 0.001 },
     }
     const quad = (material) => {
@@ -1404,6 +1487,9 @@ export class Clouds {
         _offset.set(_cameraPlanet.x + shift, _cameraPlanet.y + shift * 0.61, _cameraPlanet.z + shift * 1.37)
         target.set(((_offset.x % tile) + tile) % tile, ((_offset.y % tile) + tile) % tile, ((_offset.z % tile) + tile) % tile)
       }
+      // (And modulo the mid-level cloud's second tile, which does not divide the others.)
+      const t = RATIO_TILE
+      u.ratioOffset.value[i].set(((_offset.x % t) + t) % t, ((_offset.y % t) + t) % t, ((_offset.z % t) + t) % t)
     })
     u.cameraPlanet.value.copy(_cameraPlanet)
     u.cameraGrid.value.set(...['x', 'y', 'z'].map(k => ((_cameraPlanet[k] % CELL_MAX) + CELL_MAX) % CELL_MAX))
@@ -1454,7 +1540,9 @@ export class Clouds {
 
   // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.
   setCloudTypeTest(name) {
-    this.uniforms.cloudTypeTest.value = name ? CLOUD_TYPES.findIndex((t) => t.name === name) + 1 : 0
+    const index = name ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
+    this.uniforms.cloudTypeTest.value = index + 1
+    this.uniforms.midTest.value.fromArray(CLOUD_TYPES[index]?.mid ?? [0, 0, 3500])
   }
 
   // Draws (into the cloud target, not the screen) how much work each pixel took, for profiling: see
