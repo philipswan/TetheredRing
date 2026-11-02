@@ -358,7 +358,7 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 // instruction cache). Such loops are unrolled by hand in groups of a few reads, enough to keep the GPU's
 // memory busy.
 uniform int noUnroll;
-uniform int cloudTypeTest;      // 0, or a cloud type to fill the sky with (1 + its index in CLOUD_TYPES)
+uniform int cloudTypeTest;      // 1: the sky filled with a test type (setCloudTypeTest)
 uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stratiform share, base), if any
 uniform vec4 lowTest;           // its low cloud's cover, stratiform share, showers and base (m)
 uniform vec3 lowTest2;          // its low cloud's top (m), and the rain (mm/h) and humidity (if rain >= 0)
@@ -1854,10 +1854,11 @@ export class Clouds {
   }
 
   // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.
+  // Or a sky of its own: an object of CLOUD_TYPES's form (layers of several types together, as in a photograph).
   setCloudTypeTest(name) {
-    const index = name ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
-    this.uniforms.cloudTypeTest.value = index + 1
-    const type = CLOUD_TYPES[index]
+    const index = typeof name === 'string' ? CLOUD_TYPES.findIndex((t) => t.name === name) : -1
+    const type = name && typeof name === 'object' ? name : CLOUD_TYPES[index]
+    this.uniforms.cloudTypeTest.value = type ? 1 : 0
     this.uniforms.midTest.value.fromArray(type?.mid ?? [0, 0, 3500])
     const low = type?.low ?? [0, 0, 0, 1000, 2000]
     this.uniforms.lowTest.value.fromArray(low)
