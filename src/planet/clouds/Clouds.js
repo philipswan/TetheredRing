@@ -712,7 +712,7 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
       // (Altocumulus's cells filled, falling off only in the narrow lanes between them: rising across the
       // whole cell, only their cores showed, as speckles.)
       if (mid) d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d) * min(lowCover / ${MID_PACKED.toFixed(2)}, 1.0)
-        * mix(mix(1.0 - ${MID_MASK_DEPTH.toFixed(2)}, 1.0, smoothstep(${MID_MASK_EDGE[0].toFixed(2)}, ${MID_MASK_EDGE[1].toFixed(2)}, mask)), 1.0, smoothstep(0.0, 0.3, lod));
+        * mix(mix(1.0 - ${MID_MASK_DEPTH.toFixed(2)}, 1.0, smoothstep(${MID_MASK_EDGE[0].toFixed(2)}, ${MID_MASK_EDGE[1].toFixed(2)}, mask)), 1.0, max(smoothstep(0.0, 0.3, lod), stratiform));  // (altocumulus's cells, not altostratus's)
       d *= profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
       // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
