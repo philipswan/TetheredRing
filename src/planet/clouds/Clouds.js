@@ -143,17 +143,21 @@ const HIGH_THICKNESS = 1500
 const HIGH_TILE = 30000
 const HIGH_DENSITY = 0.012
 // Its fibres (cirrus): the shape noise on FIBRE_TILE (m) (its channels by FIBRE_WEIGHTS, favouring the
-// finer octaves, for narrow streaks), averaged over FIBRE_TAPS points along FIBRE_LENGTH (m) of the
-// wind, so it is drawn out into hair-like streaks a few hundred metres across and kilometres long; the
-// cloud is where that rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser
-// there, so the streaks gather some of the cloud the layer would have spread evenly.
+// finer octaves, for narrow streaks), stretched FIBRE_STRETCH times along the east-west lines of the
+// planet's latitude and longitude, into hair-like streaks a few hundred metres across and kilometres long,
+// bent by the patches' noise (FIBRE_BEND, m per tenth of it) into curls and hooks; the cloud is where that
+// rises over FIBRE_EDGES (in standard deviations of it, see smearStats), and denser there, so the streaks
+// gather some of the cloud the layer would have spread evenly. (Averaged instead along the wind over a
+// dozen points, a few hundred metres apart, as far apart as the noise's finest cells, the fibres were
+// grains: cirrocumulus. Stretched along latitude and longitude, they are fixed to the planet wherever the
+// camera is, from one point; stretched along the wind, they would need a point to stretch about, and
+// about the camera they slid and jumped. The upper winds are mostly zonal.)
 // Where the high cloud's opacity rises over VEIL_OPACITY it thickens into an even veil (cirrostratus);
 // below that it is streaks. (By the opacity: the cover saturates wherever there is much cirrus at all.)
 const FIBRE_TILE = 4000
-const FIBRE_LENGTH = 3000
-const FIBRE_WEIGHTS = [0.3, 0.1, 0.3, 0.3]
-const FIBRE_TAPS = 12
-const FIBRE_GROUP = 4 // (taps read together: see noUnroll)
+const FIBRE_STRETCH = 16
+const FIBRE_BEND = 1500
+const FIBRE_WEIGHTS = [0.4, 0.3, 0.3, 0.0]
 const FIBRE_EDGES = [0.3, 1.5]
 const VEIL_OPACITY = [0.35, 0.45]
 // The streaks: the shape noise averaged over STREAK_TAPS points along HIGH_STREAK_LENGTH (m) of the wind
@@ -266,7 +270,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, fibre = smearStats(FIBRE_TAPS, FIBRE_LENGTH / FIBRE_TILE, FIBRE_WEIGHTS, FIBRE_EDGES), mid = midShapeStats(MID_CELLS)) => `
+const marchFragment = (stats, fibre = smearStats(2, 0, FIBRE_WEIGHTS, FIBRE_EDGES), mid = midShapeStats(MID_CELLS)) => `
 #include <common>
 #include <sun_and_sky_light>
 precision highp sampler3D;
@@ -655,20 +659,22 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
       float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
       if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
       else if (full && d > 0.0) {
+        // (The point's east and north (m) on the sphere of the planet's equatorial radius, and the wind aloft's
+        // east and north; the east period divides the equator, so there is no seam at the date line.)
+        float ar = slParams.z;
+        vec2 en = vec2(atan(planetPoint.x, planetPoint.z), atan(planetPoint.y, length(planetPoint.xz))) * ar;
+        vec3 upP = normalize(planetPoint), eastP = normalize(cross(vec3(0.0, 1.0, 0.0), upP));
+        vec2 windEN = vec2(dot(windAloft, eastP), dot(windAloft, cross(upP, eastP)));
+        float eastTile = 2.0 * PI * ar / round(2.0 * PI * ar / ${(FIBRE_STRETCH * FIBRE_TILE).toFixed(1)});
+        float bend = (shape - SHAPE_MEAN) * ${(FIBRE_BEND / 0.1).toFixed(1)};
         for (int i = 0; i < 2; i++) {
           float weight = i == 0 ? 1.0 - drift.z : drift.z;
           if (weight < 0.002) continue;
           COST(cost2.x)
           float age = i == 0 ? drift.x : drift.y;
-          vec3 qf = planetPoint - windAloft * age + driftShift[i];
-          float f = 0.0;
-          for (int k0 = 0; k0 < ${FIBRE_TAPS} * noUnroll; k0 += ${FIBRE_GROUP}) {
-            for (int j = 0; j < ${FIBRE_GROUP}; j++) {
-              float k = float(k0 + j);
-              f += dot(texture(shapeNoise, (qf + along * ${FIBRE_LENGTH.toFixed(1)} * (k / ${(FIBRE_TAPS - 1).toFixed(1)} - 0.5)) / ${FIBRE_TILE.toFixed(1)}), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
-            }
-          }
-          fibre += weight * (f / ${FIBRE_TAPS.toFixed(1)} - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
+          vec2 g = en - windEN * age + driftShift[i].xy;
+          float f = dot(texture(shapeNoise, vec3(g.x / eastTile, (g.y + bend) / ${FIBRE_TILE.toFixed(1)}, h / ${FIBRE_TILE.toFixed(1)})), vec4(${FIBRE_WEIGHTS.map(w => w.toFixed(2)).join(', ')}));
+          fibre += weight * (f - ${fibre.mean.toFixed(5)}) / ${fibre.sd.toFixed(5)};
         }
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
