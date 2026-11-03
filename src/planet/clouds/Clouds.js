@@ -65,6 +65,8 @@ const CELL_MIN = 16
 const CELL_MAX = 8192
 const CELL_SHARE = 0.004
 const COARSE = 8
+// (CLOUD_LITE_COLUMNS: coarse cells twice as long where a pixel's footprint is under this, m.)
+const LITE_COLUMNS_FOOTPRINT = 100
 const MAX_COARSE = 1500
 const HEIGHT_MARGIN = 100
 const HIGH_CELLS = 8
@@ -1339,7 +1341,15 @@ void main() {
       float climb = abs(dot(D, normalize(cameraPlanet + D * r)));
       float steepest = exp2(max(floor(log2(${VERTICAL_CELL.toFixed(1)} / max(climb, 1e-4))), log2(${CELL_MIN.toFixed(1)})));
       fine = min(fine, steepest);
+      // (CLOUD_LITE_COLUMNS: coarse cells twice as many fine ones across, for the lighter qualities: half the
+      // columns, whose weather is read and worked out once a coarse cell.)
+#ifdef CLOUD_LITE_COLUMNS
+      // (Only near, where a pixel is under LITE_COLUMNS_FOOTPRINT: farther, the columns follow the satellite
+      // imagery's edges, and longer cells showed; from orbit they gained nothing.)
+      float coarse = fine * (r * pixelAngle < ${LITE_COLUMNS_FOOTPRINT.toFixed(1)} ? ${(2 * COARSE).toFixed(1)} : ${COARSE.toFixed(1)});
+#else
       float coarse = fine * ${COARSE.toFixed(1)};
+#endif
       // (Far enough for only the expected density, which is smooth across: the coarse cell is one fine
       // cell, unless it would climb too far.)
       if (r * pixelAngle >= ${LOD_FOOTPRINT[1].toFixed(1)}) fine = min(coarse, steepest);
@@ -1446,7 +1456,7 @@ void main() {
         rL1 = min(r + cellExit(r, lightCell, D, safeD), rc1);
         odL1Known = false;
         float rf = r;
-        for (int j = 0; j < ${3 * COARSE + 3}; j++) {
+        for (int j = 0; j < ${6 * COARSE + 3}; j++) {
           if (rf >= rc1) break;
           float r1 = min(rf + cellExit(rf, fine, D, safeD), rc1);
           COST(cost.w)
