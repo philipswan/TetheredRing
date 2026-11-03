@@ -60,6 +60,7 @@ vec3 skyLutDirection(vec2 uv, vec3 c, vec3 sun, float a, float top) {
 `
 
 const lutFragment = `
+#define ATMO_SKY_AEROSOL
 #include <common>
 #include <atmosphere_common>
 uniform vec4 atmoCamera;

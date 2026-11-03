@@ -16,7 +16,15 @@
 
 // Scattering coefficients at sea level (1/m) and scale heights (m).
 const vec3 ATMO_BETA_R = vec3(5.8e-6, 13.5e-6, 33.1e-6);
-const float ATMO_BETA_M = 40e-6;  // marine air (an aerosol optical depth of about 0.05; 8e-6 is a clean day over land): distant clouds and the horizon hazy
+// The aerosol: for the sky and the clouds (shaders that define ATMO_SKY_AEROSOL: the sky, its table, the cloud
+// march), marine air's (an aerosol optical depth of about 0.1), so that distant clouds and the horizon fade
+// into haze as at sea; for the ground's own haze and light (terrain, sea, the ring: three.js's materials, by
+// the fog and light chunks), a clean day's, so that hills and coasts seen from the air stay clear.
+#ifdef ATMO_SKY_AEROSOL
+const float ATMO_BETA_M = 80e-6;
+#else
+const float ATMO_BETA_M = 8e-6;
+#endif
 const float ATMO_HEIGHT_R = 8000.0;
 const float ATMO_HEIGHT_M = 1200.0;
 const float ATMO_MIE_G = 0.76;

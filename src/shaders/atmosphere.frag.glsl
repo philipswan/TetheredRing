@@ -8,6 +8,7 @@
 // a/b - 1), which turns it into a sphere of radius a; relative to the camera, with |C'|^2 - r^2 (small
 // differences of huge numbers) computed in float64 on the CPU (Planet.updateAtmosphere), and with
 // numerically stable roots. The output is premultiplied: colour + background * (1 - alpha).
+#define ATMO_SKY_AEROSOL
 #include <common>
 #include <logdepthbuf_pars_fragment>
 #include <atmosphere_common>
