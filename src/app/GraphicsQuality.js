@@ -13,11 +13,12 @@ import { AerialPerspective } from '../planet/aerialPerspective.js'
 //                  GPUs (integrated graphics) run several times faster
 //   seaLite        the sea's lighter shader (fewer wave trains and noise octaves; Planet.setSeaLite)
 //   hazeSamples    samples of the air along each line of sight for the haze over everything, from below
-//                  12 km (aerialPerspective.js: from higher, always 8)
+//                  12 km (aerialPerspective.js: from higher, always 8). (4 at High too: by tools/perceptual_diff.py
+//                  no different from 8 in any of the bench's cloud, mountain or photo views.)
 //   hazeLut        from higher, the haze read from a table of lines of sight worked out once a frame
 //                  (Planet.setGroundHazeLut) rather than marched
 export const QUALITY_PRESETS = {
-  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [], seaLite: false, hazeSamples: 8, hazeLut: false },
+  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [], seaLite: false, hazeSamples: 4, hazeLut: false },
   balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2, clouds: 0.4,
     cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_COLUMNS'], seaLite: true, hazeSamples: 4, hazeLut: false },
   low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.25,

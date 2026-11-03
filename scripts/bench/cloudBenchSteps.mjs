@@ -23,6 +23,10 @@ export default async function ({ page }) {
   await page.evaluate((mode) => window.tetheredRing.app.quality.setMode(mode), process.env.BENCH_QUALITY || 'high')
   // BENCH_SKY_LUT=0: the sky marched at every pixel rather than read from its table (Planet.setSkyLut).
   if (process.env.BENCH_SKY_LUT === '0') await page.evaluate(() => window.tetheredRing.app.planet.setSkyLut(false))
+  // BENCH_SEA_LITE=0|1 and BENCH_HAZE_LUT=0|1: the sea's lighter shader and the haze from a table from above (Planet.setSeaLite,
+  // Planet.setGroundHazeLut), whatever the quality.
+  if (process.env.BENCH_SEA_LITE) await page.evaluate((on) => window.tetheredRing.app.planet.setSeaLite(on), process.env.BENCH_SEA_LITE === '1')
+  if (process.env.BENCH_HAZE_LUT) await page.evaluate((on) => window.tetheredRing.app.planet.setGroundHazeLut(on), process.env.BENCH_HAZE_LUT === '1')
   // BENCH_HAZE_SAMPLES=n: the haze's samples (aerialPerspective.js), whatever the quality.
   if (process.env.BENCH_HAZE_SAMPLES) await page.evaluate(async (n) => (await import('/src/planet/aerialPerspective.js')).AerialPerspective.setLowSamples(n), Number(process.env.BENCH_HAZE_SAMPLES))
   // BENCH_CLOUD_DEFINES=A,B: the clouds' optional shader parts (Clouds.setFeatures).
