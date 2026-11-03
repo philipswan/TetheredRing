@@ -69,6 +69,8 @@ const CELL_SHARE = 0.004
 const COARSE = 8
 // (CLOUD_LITE_COLUMNS: coarse cells twice as long where a pixel's footprint is under this, m.)
 const LITE_COLUMNS_FOOTPRINT = 100
+// (CLOUD_LITE_CELLS: fine cells twice as long for every this many a line of sight has been through.)
+const LITE_CELL_BUDGET = 48
 const MAX_COARSE = 1500
 const HEIGHT_MARGIN = 100
 const HIGH_CELLS = 8
@@ -1345,12 +1347,16 @@ void main() {
     float rL0 = -1.0, rL1 = -1.0;
     vec3 odL0 = vec3(0.0), odL1 = vec3(0.0);
     bool odL0Known = false, odL1Known = false;
+    float fineDone = 0.0;  // (fine cells so far, for CLOUD_LITE_CELLS)
     for (int i = 0; i < ${MAX_COARSE}; i++) {
       if (r >= rEnd) break;
       // (CLOUD_LITE_CELLS: twice as long, for the lightest graphics quality, whose pixels are larger: the clouds'
       // edges a little chunkier, for a third fewer density samples.)
 #ifdef CLOUD_LITE_CELLS
       float fine = exp2(ceil(log2(clamp(r * ${(2 * CELL_SHARE).toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
+      // (And twice as long again for every LITE_CELL_BUDGET fine cells the line of sight has already been
+      // through, so that long stretches of thin cloud, where it is not stopped early, cost a bounded number.)
+      fine = min(fine * exp2(floor(fineDone / ${LITE_CELL_BUDGET.toFixed(1)})), ${(CELL_MAX / COARSE).toFixed(1)});
 #else
       float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
 #endif
@@ -1479,6 +1485,7 @@ void main() {
           if (rf >= rc1) break;
           float r1 = min(rf + cellExit(rf, fine, D, safeD), rc1);
           COST(cost.w)
+          fineDone += 1.0;
           float rm = 0.5 * (rf + r1);
           float dt = (r1 - rf) * stretch;
           vec3 p = c + d * (rm * stretch);
