@@ -1591,6 +1591,11 @@ void main() {
 }
 `
 
+// The clouds' highlights (linear): rolled off above HIGHLIGHT_KNEE, towards HIGHLIGHT_PEAK (a Reinhard curve,
+// which keeps more of the spread of the brightest tops than an exponential one, which flattened them).
+const HIGHLIGHT_KNEE = 0.5
+const HIGHLIGHT_PEAK = 0.85
+
 const compositeFragment = `
 uniform sampler2D clouds;
 uniform sampler2D shade;
@@ -1632,6 +1637,15 @@ void main() {
   float opacity = 1.0 - c.a;
   // Premultiplied, linear: unpremultiply to encode for the (sRGB) canvas, then premultiply again.
   vec3 color = opacity > 1e-4 ? c.rgb / opacity : vec3(0.0);
+  // (Their highlights rolled off above HIGHLIGHT_KNEE towards HIGHLIGHT_PEAK, by luminance, keeping the
+  // colour: sunlit tops are far brighter than a screen can show, and clipped they were flat white, without
+  // detail.)
+  float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  if (luminance > ${HIGHLIGHT_KNEE.toFixed(2)}) {
+    float range = ${(HIGHLIGHT_PEAK - HIGHLIGHT_KNEE).toFixed(3)};
+    float over = luminance - ${HIGHLIGHT_KNEE.toFixed(2)};
+    color *= (${HIGHLIGHT_KNEE.toFixed(2)} + range * over / (over + range)) / luminance;
+  }
   vec3 encoded = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2)) * opacity;
   // The scene's dimming by the clouds (linear: as a factor on the sRGB canvas, its gamma root).
   float dim = pow(clamp(texture2D(shade, vUv).r, 0.0, 1.0), 1.0 / 2.2);
