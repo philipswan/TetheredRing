@@ -40,6 +40,8 @@ const WAVELENGTH_MAX = 300 // m
 const WAVELENGTH_MIN = 0.1
 // Bands shorter than this (m) are roughened by gusts.
 const GUSTED_WAVELENGTH = 2
+// The lighter qualities draw no waves shorter than this (m): their slope goes into the roughness.
+const SEA_LITE_MIN_WAVELENGTH = 0.6
 const SWELL_SLOPE = 0.02 // RMS slope of the swell
 // Gust and whitecap patches: noise frequencies (1/m), and how long each pattern lasts (s).
 export const GUST_FREQUENCIES = [1 / 400, 1 / 150]
@@ -295,7 +297,12 @@ vec3 seaWaveSlope(vec3 local, vec3 up, float gust, out float unresolved) {
   float pixel = min(length(dFdx(local)), length(dFdy(local)));
   for (int b = 0; b < ${WAVE_BANDS}; b++) {
     float gusted = SEA_WAVE_K[b * ${WAVE_DIRECTIONS}] > SEA_GUSTED_K ? shortWaves : 1.0;
+#ifdef SEA_LITE
+    // (The lighter qualities: waves shorter than SEA_LITE_MIN_WAVELENGTH are roughness, as if under a pixel.)
+    if (0.6 * SEA_WAVE_K[b * ${WAVE_DIRECTIONS}] * pixel > 2.0 || SEA_WAVE_K[b * ${WAVE_DIRECTIONS}] > ${(2 * Math.PI / SEA_LITE_MIN_WAVELENGTH).toFixed(3)}) {
+#else
     if (0.6 * SEA_WAVE_K[b * ${WAVE_DIRECTIONS}] * pixel > 2.0) {
+#endif
       unresolved += seaBandSlope[b] * seaBandSlope[b] * gusted * gusted;
       continue;
     }
