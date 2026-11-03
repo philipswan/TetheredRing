@@ -53,6 +53,8 @@ const FLAT_FOOTPRINT = [1500, 5000]
 const FLAT_HEIGHT = 2000
 // The lightest quality's (CLOUD_LITE_FLAT): from nearer.
 const LITE_FLAT_FOOTPRINT = [250, 800]
+// (CLOUD_LITE_MID: the mid-level layer's shapes out as far as High draws them on the same screen.)
+const LITE_MID_DETAIL = 0.5
 // The flat layer's light: shares of the sunlight on it (by the sun's height) and of the sky's.
 const FLAT_SUN = 0.55
 const FLAT_SKY = 1.0
@@ -589,16 +591,9 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   }
   float opacitySmooth = opacity;
   float share = realShare(uv);
-#ifdef CLOUD_LITE_IMAGERY
-  // (The lightest quality: the high cloud's share follows the imagery unblurred too, from the one read: the
-  // double vision that blurring avoided is seen from orbit, where this quality draws the flat layer instead.)
-  float opacitySoft = softOpacity(uv, opacity, share, footprint);
-  if (share > 0.0) {
-    float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
-    opacity = mix(opacity, clamp((real - 0.05) / 0.95, 0.0, 1.0), share);
-    opacitySmooth = opacity;
-  }
-#else
+  // (The same for every quality, as is the split between the layers below: the lightest once took the upper
+  // layers' share from the imagery unblurred, from one read fewer, and its clouds, low ones too, were not where
+  // the other qualities had them.)
   float opacitySoft = softOpacity(uv, opacity, share, footprint);
   if (share > 0.0) {
     float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
@@ -607,7 +602,6 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
     float smoothReal = textureLod(realClouds, uv, max(log2(max(footprint, 1.0) / realTexel), log2(${HIGH_BLUR.toFixed(1)} / realTexel))).r;
     opacitySmooth = mix(opacitySmooth, clamp((smoothReal - 0.05) / 0.95, 0.0, 1.0), share);
   }
-#endif
   // Shared between the layers (weatherMap.js's cloud types: each layer's cover today). The high cloud, thin
   // (its opacity per cover HIGH_OPACITY), as much as the weather has (it barely shows from space, so the
   // imagery hardly says where it is), but no more opaque than the sky seen from space. The rest between the
@@ -616,15 +610,14 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   // opaque as it is seen from space, so each keeps its share of the optical depth, and where the imagery is
   // clear, both are. (The upper layers follow the opacity blurred over HIGH_BLUR, so that only the low cloud
   // carries the imagery's edges: with more layers following them, from orbit the same pattern showed at
-  // several heights, apart by parallax, as double vision. The low cloud takes the rest. The lighter
-  // qualities have no mid-level layer: the low cloud takes its share too, so that from space the sky is as
-  // cloudy.)
+  // several heights, apart by parallax, as double vision. The low cloud takes the rest. The same for every
+  // quality, so that the lightest, which draws the mid-level layer as an even band (CLOUD_LITE_MID), has its
+  // clouds where the others do: a shot set up in it shows the same clouds, in the same places, in any other.)
   vec4 c = texture2D(weatherC, uv);
   float highOpacity = min(a.a * ${HIGH_OPACITY.toFixed(3)}, opacitySmooth);
   float highCover = clamp(highOpacity / ${HIGH_OPACITY.toFixed(3)}, 0.0, 1.0);
   float above = 1.0 - highOpacity;  // (the share of the sky the layers above leave clear)
   vec3 mid = vec3(0.0, 0.0, c.b * 1000.0);
-#ifndef CLOUD_NO_MID
   vec4 dm = texture2D(weatherD, uv);
   float midPerCover = mix(${MID_OPACITY[0].toFixed(2)}, ${MID_OPACITY[1].toFixed(2)}, dm.g);
   vec2 depths = -log(1.0 - min(vec2(dm.r * midPerCover, dm.a * ${LOW_OPACITY.toFixed(2)}), 0.99));
@@ -641,7 +634,6 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
     mid.x = ${MID_PACKED.toFixed(2)} * smoothstep(patchThreshold - ${MID_PATCH_EDGE.toFixed(3)}, patchThreshold + ${MID_PATCH_EDGE.toFixed(3)}, patchField);
   }
   above *= 1.0 - midOpacity;
-#endif
   float lowShare = clamp((1.0 - opacity) / above, 0.0, 1.0);  // (the clear share the low cloud must leave)
   float lowRaw = clamp((1.0 - lowShare - ${LOW_FLOOR.toFixed(2)}) / ${(1 - LOW_FLOOR).toFixed(2)}, 0.0, 1.0);
   float convective = a.b;
@@ -713,12 +705,16 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
 // into each of their samples, made the shader too large to run quickly.)
 // A column's mid-level layer: its cover, stratiform share (altocumulus 0, altostratus 1) and base (m).
 // Worked out when needed rather than kept with the column: the columns are many and live in registers.
-vec3 midLayer(CloudColumn col) {
-#ifdef CLOUD_NO_MID
-  return vec3(0.0, 0.0, 3500.0);  // (the lighter qualities have none)
-#endif
+// (midSky: the column's own, which the lightest quality draws as an even band instead: see the march.)
+vec3 midSky(CloudColumn col) {
   if (cloudTypeTest > 0) return midTest;
   return col.mid;
+}
+vec3 midLayer(CloudColumn col) {
+#ifdef CLOUD_LITE_MID
+  return vec3(0.0, 0.0, 3500.0);
+#endif
+  return midSky(col);
 }
 
 // The optical depth of a column's mid-level layer straight up from height h (m), from its expected density
@@ -731,6 +727,48 @@ float midDepthAbove(CloudColumn col, float h) {
   return -log(1.0 - 0.95 * min(midL.x, 1.0)) * 2.0 * mix(0.68, 0.78, midL.y) * mix(${MID_THIN.toFixed(2)}, ${MID_SHEET_DENSITY.toFixed(2)}, midL.y)
     * clamp((midL.z + midDepth - max(h, midL.z)) / midDepth, 0.0, 1.0);
 }
+
+#ifdef CLOUD_LITE_MID
+// The optical depth straight through a mid-level layer mid (cover, stratiform share, base), from its expected
+// density (as midDepthAbove from below its base).
+float midOpticalDepth(vec3 mid) {
+  return -log(1.0 - 0.95 * min(mid.x, 1.0)) * 2.0 * mix(0.68, 0.78, mid.y) * mix(${MID_THIN.toFixed(2)}, ${MID_SHEET_DENSITY.toFixed(2)}, mid.y);
+}
+
+// Within the stretch u0..u1 of a coarse cell (fractions of its length), where the line of sight's height above
+// the layer's base runs evenly from x0 to x1, and its height above the layer's top from y0 to y1: how much of it
+// is in the layer (x >= 0, y <= 0), and the middle of that part.
+vec2 bandPiece(float u0, float u1, float x0, float x1, float y0, float y1) {
+  if (u1 - u0 < 1e-6 || (x0 < 0.0 && x1 < 0.0) || (y0 > 0.0 && y1 > 0.0)) return vec2(0.0);
+  float a = u0, b = u1;
+  if (x0 < 0.0) a = max(a, u0 + (u1 - u0) * x0 / (x0 - x1));
+  else if (x1 < 0.0) b = min(b, u0 + (u1 - u0) * x0 / (x0 - x1));
+  if (y0 > 0.0) a = max(a, u0 + (u1 - u0) * y0 / (y0 - y1));
+  else if (y1 > 0.0) b = min(b, u0 + (u1 - u0) * y0 / (y0 - y1));
+  return b > a ? vec2(b - a, 0.5 * (a + b)) : vec2(0.0);
+}
+
+// The mid-level layer's density at a point local (planet-frame offset from the camera), height h, for a layer
+// mid (cover, stratiform share, base) and wind, as the other qualities draw it (lowCloudDensity's mid-level
+// branch, as for the light through it: without its mask's cells), for a pixel footprint (m): near enough, its
+// shapes, so that where the others have a streak of altocumulus this has one too.
+float midBandDensity(vec3 mid, vec3 wind, vec3 local, float h, float footprint) {
+  float depth = mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, mid.y);
+  float hf = clamp((h - mid.z) / depth, 0.0, 1.0);
+  float profile = smoothstep(0.0, 0.2, hf) * smoothstep(1.0, 0.75, hf);
+  float lod = max(smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint), smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, mid.y));
+  float d = 0.0;
+  if (lod < 1.0) {
+    float detail, mask;
+    float shape = driftedShape(local, wind * ${MID_WIND.toFixed(1)}, ${(SHAPE_TILE / MID_TILE).toFixed(1)}, detail, false, vec3(0.0), mask, 0.0, false);
+    float threshold = midCoverThreshold(max(mid.x, ${MID_EDGE_COVER.toFixed(2)}));
+    d = clamp((shape - threshold) / max(MID_TOP - threshold, 0.02), 0.0, 1.0);
+    d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d) * min(mid.x / ${MID_PACKED.toFixed(2)}, 1.0) * mix(${maskMean.toFixed(4)}, 1.0, max(smoothstep(0.0, 0.3, lod), mid.y)) * profile;
+  }
+  float far = -log(1.0 - 0.95 * min(mid.x, 1.0)) / (EXTINCTION * depth * 0.5) * profile;
+  return mix(d, far, lod) * mix(${MID_THIN.toFixed(2)}, ${MID_SHEET_DENSITY.toFixed(2)}, mid.y);
+}
+#endif
 
 // The levels of detail (0: the noise's shapes, 1: their expected value) for a pixel footprint (m): the low
 // cloud's (LOD_FOOTPRINT) and the mid-level cloud's (MID_LOD_FOOTPRINT), worked out once for many samples.
@@ -1474,10 +1512,39 @@ void main() {
       // Without cloud, only the murk (often none).
       float murk = 0.0;
       if (!lowCloud && !highCloud) murk = airMurk(colMid, hMid) + rainMid;
+      // (CLOUD_LITE_MID: the lightest quality's mid-level layer, an even band of its expected density from the same
+      // columns as the other qualities' (so it is where theirs is, as much of it), across the coarse cell by the
+      // share of its line of sight in the band (its height taken as running evenly from hA to the lowest point
+      // and on to hB), with no shapes and no fine cells. Before the cell's other cloud where the line of sight
+      // descends, after it where it climbs.)
+      float midTau = 0.0;
+#ifdef CLOUD_LITE_MID
+      vec3 midM = vec3(0.0);
+      vec3 skyA = midSky(colA), skyB = midSky(colB);
+      if (max(skyA.x, skyB.x) > 0.002) {
+        // (The layer's base and depth run evenly between the cell's ends too, so the band is continuous from one
+        // cell to the next: taken from the cell's middle, its edges stepped at the cells' planes, in lines.)
+        float depthA = mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, skyA.y), depthB = mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, skyB.y);
+        float s1 = clamp((rLow - r) / max(rc1 - r, 1e-3), 0.0, 1.0);
+        vec3 x = vec3(hA - skyA.z, hLow - mix(skyA.z, skyB.z, s1), hB - skyB.z);
+        vec3 y = x - vec3(depthA, mix(depthA, depthB, s1), depthB);
+        vec2 band0 = bandPiece(0.0, s1, x.x, x.y, y.x, y.y), band1 = bandPiece(s1, 1.0, x.y, x.z, y.y, y.z);
+        float inBand = band0.x + band1.x;
+        if (inBand > 0.0) {
+          // (Its density where the line of sight is in it; its shapes out as far as the other qualities draw them
+          // on the same screen, whose clouds' pixels are half as wide (LITE_MID_DETAIL).)
+          float u = (band0.x * band0.y + band1.x * band1.y) / inBand;
+          float rb = mix(r, rc1, u);
+          midM = mix(skyA, skyB, u);
+          vec3 pb = c + d * (rb * stretch);
+          midTau = midBandDensity(midM, mix(colA.wind, colB.wind, u), D * rb, length(pb) - a, rb * pixelAngle * ${LITE_MID_DETAIL.toFixed(2)}) * EXTINCTION * inBand * (rc1 - r) * stretch;
+        }
+      }
+#endif
       // The light at the middle (only where something is lit: it is costly). The sun's through the air (the
       // direct light from slLightAt, as at the same point), the sky's and the ground's, and the murk's.
       vec3 murkLight = vec3(0.0), sunlight = vec3(0.0), skyAmbient = vec3(0.0), groundAmbient = vec3(0.0);
-      if (lowCloud || highCloud || murk > 1e-7) {
+      if (lowCloud || highCloud || murk > 1e-7 || midTau > 1e-4) {
         vec3 stepDirect, stepSkyDown, stepGroundUp, upW;
         slLightAt(dirWorld * rcm, stepDirect, stepSkyDown, stepGroundUp, upW);
         murkLight = murkLighting(stepDirect, stepSkyDown, stepGroundUp, sceneSun, overcastShare(colA, length(c + d * (rcm * stretch)) - a), colA.stratiform, murkPhase) * white;
@@ -1485,6 +1552,26 @@ void main() {
         skyAmbient = stepSkyDown * 1.6 * sunIntensity * RECIPROCAL_PI * 0.5;
         groundAmbient = stepGroundUp * 0.6 * sunIntensity * RECIPROCAL_PI * 0.5;
       }
+#ifdef CLOUD_LITE_MID
+      // (Lit as a sheet: the sun through half of it, scattered as in the clouds, the sky's light from above and
+      // the ground's from below through half of it each.)
+      vec3 midLight = vec3(0.0);
+      float midT = 1.0;
+      if (midTau > 1e-4) {
+        float halfTau = 0.5 * midOpticalDepth(midM);
+        float muSun = max(dot(normalize(pMid), sunDirS), 0.05);
+        midT = exp(-midTau);
+        midLight = (sunlight * (cloudScatter(halfTau / muSun, phase) * 4.0 + diffuseSun(midM.y) / (1.0 + 0.1125 * halfTau))
+          + (skyAmbient + groundAmbient) * exp(-${AMBIENT_EXTINCTION.toFixed(3)} * halfTau)) * (1.0 - midT);
+      }
+      bool midFirst = hB < hA;
+      if (midFirst) {
+        light += transmittance * midLight;
+        depthSum += transmittance * (1.0 - midT) * rcm * stretch;
+        depthWeight += transmittance * (1.0 - midT);
+        transmittance *= midT;
+      }
+#endif
       if (!lowCloud && !highCloud) {
         if (murk > 1e-7) {
           float murkT = exp(-murk * (rc1 - r) * stretch);
@@ -1591,6 +1678,14 @@ void main() {
         }
         d0Known = true;
       }
+#ifdef CLOUD_LITE_MID
+      if (!midFirst) {
+        light += transmittance * midLight;
+        depthSum += transmittance * (1.0 - midT) * rcm * stretch;
+        depthWeight += transmittance * (1.0 - midT);
+        transmittance *= midT;
+      }
+#endif
       r = rc1;
       pA = pB;
       colA = colB;

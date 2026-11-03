@@ -21,8 +21,8 @@ export const QUALITY_PRESETS = {
   balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2, clouds: 0.4,
     cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_COLUMNS'], seaLite: true, hazeSamples: 4, hazeLut: false },
   low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.25,
-    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_NO_MID', 'CLOUD_LITE_HIGH', 'CLOUD_LITE_CELLS', 'CLOUD_LITE_COLUMNS',
-      'CLOUD_LITE_IMAGERY', 'CLOUD_LITE_FLAT'],
+    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_MID', 'CLOUD_LITE_HIGH', 'CLOUD_LITE_CELLS', 'CLOUD_LITE_COLUMNS',
+      'CLOUD_LITE_FLAT'],
     seaLite: true, hazeSamples: 4, hazeLut: true },
 }
 const TIERS = ['high', 'balanced', 'low']
