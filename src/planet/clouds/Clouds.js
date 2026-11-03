@@ -1464,13 +1464,16 @@ void main() {
         }
       }
       lowCloud = lowCloud || midCloud;
+      // The rain shaft under the cloud, sampled once for the coarse cell (at its middle; where there is cloud,
+      // as if below the base, and used in each of its fine cells below the base: smooth enough, and costly per
+      // fine cell). (From one place in the shader for both.)
+      CloudColumn colMid = mixColumn(colA, colB, 0.5);
+      vec3 pMid = c + d * (rcm * stretch);
+      float hMid = length(pMid) - a;
+      float rainMid = rainShaft(colMid, pMid, D * rcm, lowCloud || highCloud ? min(hMid, colMid.base - 1.0) : hMid);
       // Without cloud, only the murk (often none).
       float murk = 0.0;
-      if (!lowCloud && !highCloud) {
-        vec3 pm = c + d * (rcm * stretch);
-        CloudColumn colM = mixColumn(colA, colB, 0.5);
-        murk = airMurk(colM, length(pm) - a) + rainShaft(colM, pm, D * rcm, length(pm) - a);
-      }
+      if (!lowCloud && !highCloud) murk = airMurk(colMid, hMid) + rainMid;
       // The light at the middle (only where something is lit: it is costly). The sun's through the air (the
       // direct light from slLightAt, as at the same point), the sky's and the ground's, and the murk's.
       vec3 murkLight = vec3(0.0), sunlight = vec3(0.0), skyAmbient = vec3(0.0), groundAmbient = vec3(0.0);
@@ -1492,11 +1495,7 @@ void main() {
         d0Known = true;
       }
       else {
-        // The rain shaft under the cloud, sampled once for the coarse cell (at its middle, as if below the
-        // base) and used in each of its fine cells below the base: smooth enough, and costly per fine cell.
-        CloudColumn colRain = mixColumn(colA, colB, 0.5);
-        vec3 pRain = c + d * (rcm * stretch);
-        float rainCell = rainShaft(colRain, pRain, D * rcm, min(length(pRain) - a, colRain.base - 1.0));
+        float rainCell = rainMid;
         bool needD0 = !d0Known;
         // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
         // cells HIGH_CELLS times the low cloud's.)
