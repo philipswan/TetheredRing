@@ -430,5 +430,77 @@
     "sunTimeOfDayUTC": 1.12
    }
   }
+ },
+ {
+  "name": "ring-from-1500km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 21.2,
+   "camera": {
+    "position": [
+     -1390124.669,
+     4155310.33,
+     -6540022.373
+    ],
+    "target": [
+     -2327610.802,
+     2271395.019,
+     -5483507.414
+    ],
+    "up": [
+     -0.176,
+     0.53,
+     -0.83
+    ],
+    "orbitUp": [
+     -0.176,
+     0.53,
+     -0.83
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 21.2
+   }
+  }
+ },
+ {
+  "name": "full-earth-15000km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 20.533,
+   "camera": {
+    "position": [
+     -7526305.615,
+     7297998.938,
+     -18628260.083
+    ],
+    "target": [
+     0,
+     0,
+     0
+    ],
+    "up": [
+     -0.352,
+     0.342,
+     -0.871
+    ],
+    "orbitUp": [
+     -0.352,
+     0.342,
+     -0.871
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 20.533
+   }
+  }
  }
 ]
