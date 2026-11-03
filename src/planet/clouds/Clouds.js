@@ -73,6 +73,10 @@ const COARSE = 8
 const LITE_COLUMNS_FOOTPRINT = 100
 // (CLOUD_LITE_CELLS: fine cells twice as long for every this many a line of sight has been through.)
 const LITE_CELL_BUDGET = 48
+// (The other qualities: twice as long again for every CELL_BUDGET fine cells. From inside a thin cloud (a camera
+// in a deck of altostratus) a line of sight went through over 10,000, and the frame took 160 ms on the B70 at
+// High; at 1024 it is a quarter less, and no other view in the bench changes.)
+const CELL_BUDGET = 1024
 const MAX_COARSE = 1500
 const HEIGHT_MARGIN = 100
 const HIGH_CELLS = 8
@@ -1432,6 +1436,10 @@ void main() {
       fine = min(fine * exp2(floor(fineDone / ${LITE_CELL_BUDGET.toFixed(1)})), ${(CELL_MAX / COARSE).toFixed(1)});
 #else
       float fine = exp2(ceil(log2(clamp(r * ${CELL_SHARE.toFixed(4)}, ${CELL_MIN.toFixed(1)}, ${(CELL_MAX / COARSE).toFixed(1)}))));
+      // (And twice as long again for every CELL_BUDGET fine cells, as the lightest quality's but much later: from
+      // inside a long stretch of thin cloud, the cells far along it, behind the cloud already passed, are a great
+      // many and add little.)
+      fine = min(fine * exp2(floor(fineDone / ${CELL_BUDGET.toFixed(1)})), ${(CELL_MAX / COARSE).toFixed(1)});
 #endif
       // (And short enough to climb or fall no more than VERTICAL_CELL across one, for the layers' height
       // profiles: looking down from orbit, cells as long as the distance asks for would each span the
