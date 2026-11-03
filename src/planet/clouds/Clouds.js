@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { standInScene } from '../../scene/precompile.js'
 import '../../scene/sunAndSkyLight.js' // registers <sun_and_sky_light> (and <atmosphere_common>)
 import { SunAndSkyLight } from '../../scene/sunAndSkyLight.js'
-import { cloudNoiseTextures, smearStats, midShapeStats } from './cloudNoise.js'
+import { cloudNoiseTextures, smearStats, midShapeStats, SHAPE_SIZE, DETAIL_SIZE } from './cloudNoise.js'
 import { WeatherMap } from './weatherMap.js'
 import { RealClouds } from './realClouds.js'
 import { RAIN_AREA } from '../../physics/weather.js'
@@ -91,13 +91,11 @@ const LITE_AMBIENT = 0.5
 // rather than lost; VERTICAL_STEPS samples each way (see verticalDepth).
 const AMBIENT_EXTINCTION = 0.5
 const VERTICAL_STEPS = 4
-// Where pixels are larger than the fine cells, the light (the light marches above) is worked out only at
-// the planes of a coarser grid, of cells about LIGHT_FOOTPRINT pixel footprints across, and blended
-// between them along the line of sight.
-const LIGHT_FOOTPRINT = 1
 // The noise tiles (m): shape and detail.
 const SHAPE_TILE = 8000
 const DETAIL_TILE = 3000
+// The detail noise fades to its average over these pixel footprints, in its texels (DETAIL_TILE / DETAIL_SIZE).
+const DETAIL_FADE = [1.5, 4]
 // The mid-level layer's shapes are on MID_TILE (m, dividing SHAPE_TILE), smaller than the low cloud's, and
 // move with the wind aloft (MID_WIND times the surface's).
 const MID_TILE = 2000
@@ -338,7 +336,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, mid = midShapeStats(MID_CELLS)) => `
+const marchFragment = (stats, detailMean, mid = midShapeStats(MID_CELLS)) => `
 #define ATMO_SKY_AEROSOL
 #include <common>
 #include <sun_and_sky_light>
@@ -465,6 +463,9 @@ vec2 mapUv(vec2 ll) { return vec2(ll.y / 360.0 + 0.5, (ll.x + 90.0) / 180.0); }
 float fineWeight = 0.0;
 // How crisp cumulus are (1 near, 0 far: see CRISP_FOOTPRINT; set by columnDensity).
 float crispWeight = 0.0;
+// log2 of the footprint (m) of the samples being taken (set by columnDensity and levelsOfDetail): the detail
+// noise and the high cloud's fibres fade to their averages, unread, where they are too fine to see.
+float noiseLevel = 0.0;
 
 // flatShift and mask (mid-level only): the vector from local down its vertical to the layer's base, and the
 // 2D mask there (see MID_MASK). small (low cloud only): the share of the shapes read at CUMULUS_SCALE.
@@ -495,8 +496,14 @@ float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool fu
     }
     shape += weight * value;
     if (full) {
-      vec4 dn = texture(detailNoise, (q + detailOffset[i]) / ${DETAIL_TILE.toFixed(1)});
-      float fbm = dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125;
+      // (Its average where a pixel spans several of its texels (DETAIL_FADE), unread: there it only aliased into
+      // speckle and moire.)
+      float detailFade = smoothstep(${(DETAIL_FADE[0] * DETAIL_TILE / DETAIL_SIZE).toFixed(1)}, ${(DETAIL_FADE[1] * DETAIL_TILE / DETAIL_SIZE).toFixed(1)}, exp2(noiseLevel));
+      float fbm = ${detailMean.toFixed(5)};
+      if (detailFade < 1.0) {
+        vec4 dn = texture(detailNoise, (q + detailOffset[i]) / ${DETAIL_TILE.toFixed(1)});
+        fbm = mix(dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125, fbm, detailFade);
+      }
       if (fineWeight > 0.0) {
         vec4 fn = texture(detailNoise, (q + mod(detailOffset[i], ${FINE_TILE.toFixed(1)})) / ${FINE_TILE.toFixed(1)});
         fbm = mix(fbm, mix(fbm, fn.r * 0.625 + fn.g * 0.25 + fn.b * 0.125, ${FINE_SHARE.toFixed(2)}), fineWeight);
@@ -719,6 +726,7 @@ float midDepthAbove(CloudColumn col, float h) {
 // The levels of detail (0: the noise's shapes, 1: their expected value) for a pixel footprint (m): the low
 // cloud's (LOD_FOOTPRINT) and the mid-level cloud's (MID_LOD_FOOTPRINT), worked out once for many samples.
 vec2 levelsOfDetail(float footprint) {
+  noiseLevel = log2(max(footprint, 1.0));
   return vec2(smoothstep(${LOD_FOOTPRINT[0].toFixed(1)}, ${LOD_FOOTPRINT[1].toFixed(1)}, footprint),
     smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint));
 }
@@ -797,6 +805,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   float density = 0.0;
   if (full) COST(cost.y)
   fineWeight = full ? 1.0 - smoothstep(${FINE_FOOTPRINT[0].toFixed(1)}, ${FINE_FOOTPRINT[1].toFixed(1)}, footprint) : 0.0;
+  noiseLevel = log2(max(footprint, 1.0));
   crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
   // Low cloud.
@@ -842,14 +851,15 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
       // where there is cloud to draw them in, and the veil has not filled them in: they are the most costly
       // part of the march.)
       float veil = smoothstep(${VEIL_OPACITY[0].toFixed(2)}, ${VEIL_OPACITY[1].toFixed(2)}, highOpacity);
+      // (Farther than a pixel to about one of the fibres' texels across them, filled in to their average, as the
+      // lighter qualities always draw them: smaller than a pixel, they aliased into a fine hatching.)
+      float fibreTexel = 1.0 / (${SHAPE_SIZE.toFixed(1)} * fibreTiles.y);
+      float fibreFade = smoothstep(1.0, 2.0, exp2(noiseLevel) / fibreTexel);
 #ifdef CLOUD_LITE_HIGH
-      // (The lighter qualities draw the streaks without their fibres, filled in to their average.)
-      if (full && d > 0.0) d = min(d, 1.0) * mix(1.0 / fibreStats.z, 1.0, veil);
-      if (false) {
-#else
-      if (full && d > 0.0 && veil >= 1.0) d = min(d, 1.0);
-      else if (full && d > 0.0) {
+      fibreFade = 1.0;
 #endif
+      if (full && d > 0.0 && (veil >= 1.0 || fibreFade >= 1.0)) d = min(d, 1.0) * mix(mix(1.0, 1.0 / fibreStats.z, fibreFade), 1.0, veil);
+      else if (full && d > 0.0) {
         // (The point's east and north (m) on the sphere of the planet's equatorial radius, and the wind aloft's
         // east and north; the east period divides the equator, so there is no seam at the date line.)
         float ar = slParams.z;
@@ -866,13 +876,13 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
           // (Through the noise's tile on a slant, at irrational slopes, so that its pattern never repeats
           // across the sky: on the level, the cirrocumulus's small cells repeated in rows towards the horizon.)
           vec2 t = vec2(g.x * fibreTiles.x, (g.y + bend) * fibreTiles.y);
-          float f = dot(texture(shapeNoise, vec3(t, h * fibreTiles.y + dot(t, vec2(${(MID_RATIO - 1).toFixed(6)}, ${(Math.SQRT2 - 1).toFixed(6)})))), fibreWeights);
+          float f = dot(textureLod(shapeNoise, vec3(t, h * fibreTiles.y + dot(t, vec2(${(MID_RATIO - 1).toFixed(6)}, ${(Math.SQRT2 - 1).toFixed(6)}))), 0.0), fibreWeights);
           fibre += weight * (f - fibreStats.x) * fibreStats.y;
         }
         fibre /= length(vec2(1.0 - drift.z, drift.z));
         // (Gathered into the streaks, though not all of it: cirrus stays thin and translucent.)
         float streaks = smoothstep(${FIBRE_EDGES[0].toFixed(2)}, ${FIBRE_EDGES[1].toFixed(2)}, fibre) * fibreStats.z;
-        d = min(d, 1.0) * mix(streaks, 1.0, veil);
+        d = min(d, 1.0) * mix(mix(streaks, 1.0 / fibreStats.z, fibreFade), 1.0, veil);
       }
     }
     float far = -log(1.0 - highOpacity) / (EXTINCTION * ${HIGH_THICKNESS.toFixed(1)} * 0.5) * profile;
@@ -1342,11 +1352,6 @@ void main() {
     CloudColumn colA = cloudColumn(mapUv(latLon(pA)), pA, D * r, r * pixelAngle);
     float d0 = 0.0;          // the density where the next fine cell starts
     bool d0Known = false;
-    // The light grid's points (see LIGHT_FOOTPRINT): the last one passed and the next, and the optical
-    // depths there towards the sun, up and down (worked out when first needed).
-    float rL0 = -1.0, rL1 = -1.0;
-    vec3 odL0 = vec3(0.0), odL1 = vec3(0.0);
-    bool odL0Known = false, odL1Known = false;
     float fineDone = 0.0;  // (fine cells so far, for CLOUD_LITE_CELLS)
     for (int i = 0; i < ${MAX_COARSE}; i++) {
       if (r >= rEnd) break;
@@ -1455,7 +1460,6 @@ void main() {
         }
         d0 = 0.0;
         d0Known = true;
-        rL1 = -1.0;
       }
       else {
         // The rain shaft under the cloud, sampled once for the coarse cell (at its middle, as if below the
@@ -1470,16 +1474,6 @@ void main() {
         // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
         // cells HIGH_CELLS times the low cloud's.)
         if (!lowCloud) fine = min(fine * ${HIGH_CELLS.toFixed(1)}, min(coarse, steepest * 4.0));
-        // The light grid across it: cells of about a pixel's footprint (LIGHT_FOOTPRINT), from the fine
-        // cells' size to the coarse's, whose planes are some of the fine cells' (the grids are aligned).
-        // (No longer than the low cloud's cells may climb across one, so the light is worked out through a
-        // thin layer's height: otherwise how bright its top was depended on where the planes cut it.)
-        float lightCell = clamp(exp2(ceil(log2(max(rcm * pixelAngle * ${LIGHT_FOOTPRINT.toFixed(2)}, 1.0)))), fine, max(min(coarse, steepest), fine));
-        if (rL1 >= 0.0 && abs(rL1 - r) < 1e-3 * fine) { odL0 = odL1; odL0Known = odL1Known; }
-        else odL0Known = false;
-        rL0 = r;
-        rL1 = min(r + cellExit(r, lightCell, D, safeD), rc1);
-        odL1Known = false;
         float rf = r;
         for (int j = 0; j < ${6 * COARSE + 3}; j++) {
           if (rf >= rc1) break;
@@ -1514,49 +1508,37 @@ void main() {
           rf = r1;
           if (density <= 0.0005) continue;
           float sigma = EXTINCTION * density;
-          // Light towards the sun through the cloud, from the cell's stretch's ends (shared with the cells
-          // beside it, so the light is continuous from cell to cell; from the middle alone, each cell was lit
-          // evenly, and the cells showed as steps), and the light scattered towards the eye.
+          // The light towards the sun through the cloud, and through the cloud above and below (which the sky's
+          // and the ground's light come through), worked out once for the cell, where the light the eye gets
+          // from it comes from: weighted by the cloud at each end (where a cell crosses a cloud's edge, the
+          // cloud's light, not the clear air's beside it) and by how much of each end's light reaches the eye
+          // through the cell (for a cell of optical depth tau, the far end's share is ((1 - e^-tau) / tau -
+          // e^-tau) / (1 - e^-tau): a half through a thin cell, about 1 / tau through a thick one). Exact for
+          // light varying evenly across the cell. (It was worked out where the planes of a grid crossed the
+          // line of sight, and blended between them: inside a deck the light varies unevenly with depth, and the
+          // blending's error followed the planes, as moire and lines criss-crossing the deck from afar; and
+          // through the thick cells of a deck the eye sees only the near end's light. In the middle of the cell
+          // alone, cells crossing a cloud's edge were lit as the clear air and showed as steps.)
           // (High cloud alone is too thin to shade itself much: lit as if clear.)
-          // The same for the cloud above and below, which the sky's and the ground's light come through.
-          // Worked out at the light grid's points and blended between them along the line of sight.
-          vec3 od0 = vec3(0.0), od1 = vec3(0.0);
+          float cellTau = max(sigma * dt, 1e-4);
+          float cellT = exp(-cellTau);
+          float farShare = cellTau < 0.01 ? 0.5 - cellTau / 12.0 : ((1.0 - cellT) / cellTau - cellT) / (1.0 - cellT);
+          float nearWeight = share0 * (1.0 - farShare), farWeight = (1.0 - share0) * farShare;
+          float xl = mix(rf0, r1, farWeight / max(nearWeight + farWeight, 1e-6));
+          vec3 od = vec3(0.0);
+          if (lowCloud) {
+            CloudColumn colL = mixColumn(colA, colB, (xl - r) / max(rc1 - r, 1e-3));
+            vec3 pL = c + d * (xl * stretch);
+            float hL = length(pL) - a;
 #ifdef CLOUD_LITE_LIGHT
-          if (lowCloud) {
-            vec3 p0 = c + d * (rf0 * stretch);
-            od0 = liteDepths(col, p0, D * rf0, length(p0) - a, sunDirS, rf0 * pixelAngle);
-            od1 = liteDepths(col1, p1, D * r1, length(p1) - a, sunDirS, r1 * pixelAngle);
-          }
+            od = liteDepths(colL, pL, D * xl, hL, sunDirS, xl * pixelAngle);
 #else
-          if (lowCloud) {
-            for (int e = 0; e < 2; e++) {
-              float x = e == 0 ? rf0 : r1;
-              for (int k = 0; k < 64; k++) {
-                if (x <= rL1 + 1e-3 * fine) break;
-                rL0 = rL1; odL0 = odL1; odL0Known = odL1Known;
-                rL1 = min(rL1 + cellExit(rL1, lightCell, D, safeD), rc1);
-                odL1Known = false;
-              }
-              for (int k = 0; k < 2; k++) {
-                if (k == 0 ? odL0Known : odL1Known) continue;
-                float xr = k == 0 ? rL0 : rL1;
-                CloudColumn colL = mixColumn(colA, colB, (xr - r) / max(rc1 - r, 1e-3));
-                vec3 pL = c + d * (xr * stretch);
-                float hL = length(pL) - a;
-                vec3 odL = vec3(sunwardDepth(colL, pL, D * xr, sunDirS, xr * pixelAngle),
-                  verticalDepth(colL, D * xr, hL, 1.0, xr * pixelAngle), verticalDepth(colL, D * xr, hL, -1.0, xr * pixelAngle));
-                if (k == 0) { odL0 = odL; odL0Known = true; } else { odL1 = odL; odL1Known = true; }
-              }
-              vec3 od = mix(odL0, odL1, clamp((x - rL0) / max(rL1 - rL0, 1e-6), 0.0, 1.0));
-              if (e == 0) od0 = od; else od1 = od;
-            }
-          }
+            od = vec3(sunwardDepth(colL, pL, D * xl, sunDirS, xl * pixelAngle),
+              verticalDepth(colL, D * xl, hL, 1.0, xl * pixelAngle), verticalDepth(colL, D * xl, hL, -1.0, xl * pixelAngle));
 #endif
-          // The light at the ends, weighted by the cloud there: where a cell crosses a cloud's edge, the light
-          // is the cloud's, not the clear air's beside it (averaged evenly, how bright a cell at a cloud's top
-          // was depended on where the grid's planes cut it, and the planes showed as ripples and a lattice).
-          float scatter = mix(cloudScatter(od1.x, phase), cloudScatter(od0.x, phase), share0);
-          vec2 ambientShare = mix(exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od1.yz), exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od0.yz), share0);
+          }
+          float scatter = cloudScatter(od.x, phase);
+          vec2 ambientShare = exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od.yz);
           vec3 ambient = skyAmbient * ambientShare.x + groundAmbient * ambientShare.y;
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
           // less the more cloud there is above (overcastShare's diffuse transmission; the base of a deep cloud
@@ -1758,7 +1740,7 @@ export class Clouds {
       mesh.frustumCulled = false
       return new THREE.Scene().add(mesh)
     }
-    this.marchScene = quad(new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: fullscreenVertex, fragmentShader: marchFragment(noise.shapeStats), glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false }))
+    this.marchScene = quad(new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: fullscreenVertex, fragmentShader: marchFragment(noise.shapeStats, noise.detailMean), glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false }))
     this.compositeScene = quad(new THREE.ShaderMaterial({
       uniforms: { clouds: { value: this.cloudTarget.textures[0] }, shade: { value: this.cloudTarget.textures[1] }, texel: { value: new THREE.Vector2() }, rainTime: { value: 0 }, aspect: { value: 1 } },
       vertexShader: fullscreenVertex,

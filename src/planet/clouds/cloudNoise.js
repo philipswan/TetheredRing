@@ -10,8 +10,8 @@ import { hash } from '../../physics/weatherNoise.js'
 // Worley noise here is 1 - the distance to the nearest of one random point per cell (so it is high in
 // the cells' middles: puffs, not cracks). Both wrap, so the renderer tiles them over the planet.
 
-const SHAPE_SIZE = 64
-const DETAIL_SIZE = 32
+export const SHAPE_SIZE = 64
+export const DETAIL_SIZE = 32
 const QUANTILES = 32
 
 // Worley noise (1 - nearest distance, in cell units, clamped) with `cells` cells across the tile.
@@ -245,6 +245,11 @@ export function cloudNoiseTextures() {
   values.sort()
   const mean = values.reduce((s, v) => s + v, 0) / values.length
   const quantiles = Array.from({ length: QUANTILES + 1 }, (_, i) => values[Math.min(values.length - 1, Math.round(i / QUANTILES * (values.length - 1)))])
-  cached = { shape, detail, occupancy: occupancyTexture(shape), shapeStats: { mean, quantiles } }
+  // (The detail's fbm (as the renderer combines its octaves) averaged over the whole texture: what the clouds
+  // use where it is too fine to see, DETAIL_FADE.)
+  const dd = detail.image.data
+  let detailSum = 0
+  for (let i = 0; i < dd.length; i += 4) detailSum += (dd[i] * 0.625 + dd[i + 1] * 0.25 + dd[i + 2] * 0.125) / 255
+  cached = { shape, detail, occupancy: occupancyTexture(shape), shapeStats: { mean, quantiles }, detailMean: detailSum / (dd.length / 4) }
   return cached
 }
