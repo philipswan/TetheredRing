@@ -8,7 +8,7 @@
 //   preset: 'default',                      // preset id (see src/presets/presets.js)
 //   parameters: { name: value, ... },       // full parameter snapshot at the start of the shot
 //   simulation: { startTime, animationState },
-//   camera: { interpolation: 'smooth' | 'linear', keyframes: [keyframe, ...] },
+//   camera: { interpolation: 'smooth' | 'linear' | 'linearEased', cornerSeconds, keyframes: [keyframe, ...] },
 //   parameterTracks: { name: [{ time, value }] },   // optional, times relative to the shot start
 //   output: { width, height, fps, duration, codec, container, bitrateMbps, waitForTerrain,
 //             motionBlur,            // 'off' | 'fixed' | 'adaptive' (see src/capture/MotionBlur.js)
@@ -53,6 +53,9 @@ export const ANCHOR_TYPES = {
 // local horizon (level), or not at all (translate: world axes, moving with the object).
 export const ANCHOR_ORIENTS = ['follow', 'level', 'translate']
 export const MOTIONS = ['auto', 'direct', 'orbit']
+// How the camera moves between keyframes. 'linearEased' is straight lines with short eased corners
+// (see CameraPath.js); the corner length is the shot's camera.cornerSeconds.
+export const CAMERA_INTERPOLATIONS = ['smooth', 'linear', 'linearEased']
 export const SHOT_FILE_EXTENSION = '.shot.json'
 
 export const DEFAULT_OUTPUT = {
@@ -138,8 +141,9 @@ export function validateShot(shot) {
     if (k.speed !== undefined && !(Number.isFinite(k.speed) && k.speed >= 0)) fail(`keyframe ${i} "speed" must be a number >= 0`)
     if (k.motion !== undefined && !MOTIONS.includes(k.motion)) fail(`keyframe ${i} "motion" must be one of ${MOTIONS.join(', ')}`)
   })
-  if (!['smooth', 'linear'].includes(shot.camera.interpolation ?? 'smooth')) fail('"camera.interpolation" must be "smooth" or "linear"')
+  if (!CAMERA_INTERPOLATIONS.includes(shot.camera.interpolation ?? 'smooth')) fail(`"camera.interpolation" must be one of ${CAMERA_INTERPOLATIONS.join(', ')}`)
   shot.camera.interpolation ??= 'smooth'
+  if (shot.camera.cornerSeconds !== undefined && !(Number.isFinite(shot.camera.cornerSeconds) && shot.camera.cornerSeconds >= 0)) fail('"camera.cornerSeconds" must be a number >= 0')
   shot.parameterTracks ??= {}
   for (const [name, track] of Object.entries(shot.parameterTracks)) {
     if (!Array.isArray(track) || track.some(s => !Number.isFinite(s.time))) fail(`parameter track "${name}" is malformed`)

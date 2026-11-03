@@ -18,6 +18,8 @@ import { StructureLines } from '../scene/structureLines.js'
 import { RenderQueueRunner } from './RenderQueueRunner.js'
 
 const PENDING_SHOT_KEY = 'tetheredRing.pendingShot'
+const AUTOSAVE_KEY = 'tetheredRing.shotAutosave'
+const AUTOSAVE_DELAY_MS = 1000 // coalesce bursts of edits into one write
 const TERRAIN_WAIT_TIMEOUT_MS = 15000
 const MAX_REAL_STEP = 0.1 // s of wall-clock time per displayed frame (a backgrounded tab does not jump)
 const PICK_RADIUS_PX = 30
@@ -80,6 +82,11 @@ export class ShotController {
     app.scene.add(this.overlay.group)
     this.shot = this.createShotNow()
     this.queue = new RenderQueueRunner(app, this)
+    this._autosaveTimer = null
+    // A reload can happen before the debounce timer fires, so flush any pending autosave on the way out.
+    this._flushAutosaveOnExit = () => this.flushAutosave()
+    window.addEventListener('pagehide', this._flushAutosaveOnExit)
+    window.addEventListener('beforeunload', this._flushAutosaveOnExit)
   }
 
   // ---- Change notification ---------------------------------------------------------------------
@@ -97,6 +104,7 @@ export class ShotController {
 
   changed() {
     this.revision++
+    this.autosave()
     this.emit('shot')
   }
 
@@ -533,6 +541,11 @@ export class ShotController {
 
   setInterpolation(interpolation) {
     this.shot.camera.interpolation = interpolation
+    this.changed()
+  }
+
+  setCornerSeconds(seconds) {
+    this.shot.camera.cornerSeconds = Math.max(0, seconds)
     this.changed()
   }
 
@@ -987,6 +1000,47 @@ export class ShotController {
 
   // ---- Files ----------------------------------------------------------------------------------
 
+  // Autosave keeps the working shot in localStorage so keyframing work survives a browser reload. It is
+  // a recovery copy, not a substitute for exporting: writes are debounced so a burst of edits (dragging
+  // a keyframe, a live take) costs one write, and it is flushed when the page is about to unload.
+  autosave() {
+    if (this._autosaveTimer) return
+    this._autosaveTimer = setTimeout(() => {
+      this._autosaveTimer = null
+      this.writeAutosave()
+    }, AUTOSAVE_DELAY_MS)
+  }
+
+  flushAutosave() {
+    if (!this._autosaveTimer) return
+    clearTimeout(this._autosaveTimer)
+    this._autosaveTimer = null
+    this.writeAutosave()
+  }
+
+  writeAutosave() {
+    try {
+      localStorage.setItem(AUTOSAVE_KEY, serializeShot(this.shot))
+    }
+    catch { /* storage full or unavailable: the recovery copy is best-effort */ }
+  }
+
+  // Restores the autosaved working shot after a reload, when it belongs to the current preset and has
+  // keyframes worth recovering. Corrupt or empty autosaves are ignored.
+  restoreAutosave() {
+    let text
+    try { text = localStorage.getItem(AUTOSAVE_KEY) }
+    catch { return false }
+    if (!text) return false
+    let shot
+    try { shot = parseShot(text) }
+    catch { return false }
+    if (shot.preset !== this.app.presetId || !shot.camera.keyframes.length) return false
+    this.loadShot(shot)
+    this.setStatus('Recovered your unsaved shot from the previous session. Export it to keep it, or start a new shot.')
+    return true
+  }
+
   exportShot() {
     this.syncShotFromApp()
     downloadText(serializeShot(this.shot), slug(this.shot.name) + SHOT_FILE_EXTENSION, 'application/json')
@@ -1049,7 +1103,10 @@ export class ShotController {
   async resumePendingShot() {
     this.queue.resumeSoon()
     const text = sessionStorage.getItem(PENDING_SHOT_KEY)
-    if (!text) return
+    if (!text) {
+      this.restoreAutosave()
+      return
+    }
     sessionStorage.removeItem(PENDING_SHOT_KEY)
     try {
       this.loadShot(parseShot(text))

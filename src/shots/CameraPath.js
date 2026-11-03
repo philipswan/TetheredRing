@@ -31,6 +31,8 @@
 // sub-millimetre precision.
 export const ORBIT_RATIO = 3
 export const ORBIT_ANGLE = Math.PI / 3
+// Default half-width (seconds) of the eased corner at each keyframe in the 'linearEased' mode.
+export const DEFAULT_CORNER_SECONDS = 1
 
 import { sameAnchor } from './ShotFormat.js'
 
@@ -56,6 +58,80 @@ function length3(v) {
 function normalize3(v, fallback = v) {
   const l = length3(v)
   return l > 1e-12 ? [v[0] / l, v[1] / l, v[2] / l] : fallback
+}
+
+// Smooth 0..1 ramp with zero first and second derivative at both ends (Ken Perlin's smootherstep).
+function smootherstep(x) {
+  const c = Math.min(1, Math.max(0, x))
+  return c * c * c * (c * (c * 6 - 15) + 10)
+}
+
+// 'linearEased' sampling: straight lines between keyframes, with a short eased corner (half-width `w`
+// seconds, clamped so neighbouring corners never overlap) that blends the incoming and outgoing
+// straight-line motion at each keyframe. Each corner only mixes the two segments it joins, so the path
+// cannot bow toward a distant neighbour the way a spline tangent can; it passes through every keyframe
+// exactly and reaches each keyframe's own velocity by the time the corner ends. `motion` and per-key
+// `ease` are not used in this mode (the corner does the easing). `resolve`, r1 and r2 are as in
+// sampleCameraPath; i is the segment [keys[i], keys[i+1]] containing t.
+function sampleLinearEased(keys, i, t, resolve, r1, r2, w) {
+  const cache = new Map([[i, r1], [i + 1, r2]])
+  const resolved = (idx) => {
+    if (!cache.has(idx)) cache.set(idx, resolve(keys[idx]))
+    return cache.get(idx)
+  }
+  // Straight-line pose of segment [a, a+1], extrapolated to time `at`.
+  const segment = (a, at) => {
+    const kA = keys[a], kB = keys[a + 1]
+    const rA = resolved(a), rB = resolved(a + 1)
+    const span = kB.time - kA.time
+    const s = span > 0 ? (at - kA.time) / span : 0
+    const fA = kA.fov ?? kB.fov, fB = kB.fov ?? kA.fov
+    return {
+      position: lerp3(rA.position, rB.position, s),
+      target: lerp3(rA.target, rB.target, s),
+      up: lerp3(rA.up, rB.up, s),
+      orbitUp: lerp3(rA.orbitUp ?? rA.up, rB.orbitUp ?? rB.up, s),
+      fov: fA + (fB - fA) * s,
+    }
+  }
+  const finish = (p) => ({
+    time: t,
+    position: p.position,
+    target: p.target,
+    up: normalize3(p.up, r1.up),
+    orbitUp: normalize3(p.orbitUp, r1.orbitUp ?? r1.up),
+    fov: Math.min(170, Math.max(0.01, p.fov)),
+  })
+  const mix = (pA, pB, s) => finish({
+    position: lerp3(pA.position, pB.position, s),
+    target: lerp3(pA.target, pB.target, s),
+    up: lerp3(pA.up, pB.up, s),
+    orbitUp: lerp3(pA.orbitUp, pB.orbitUp, s),
+    fov: pA.fov + (pB.fov - pA.fov) * s,
+  })
+  const k1 = keys[i], k2 = keys[i + 1]
+  // Corner half-width on one side, never more than half the gap it reaches into (so corners meet but
+  // never overlap, leaving a straight middle whenever the gaps are longer than 2w).
+  const half = (ta, tb) => Math.min(w, (tb - ta) / 2)
+
+  // Eased corner at k1, blending the previous segment with this one (only if a previous segment exists).
+  if (i >= 1) {
+    const back = half(keys[i - 1].time, k1.time)
+    const fwd = half(k1.time, k2.time)
+    if (back + fwd > 0 && t < k1.time + fwd) {
+      return mix(segment(i - 1, t), segment(i, t), smootherstep((t - (k1.time - back)) / (back + fwd)))
+    }
+  }
+  // Eased corner at k2, blending this segment with the next one (only if a next segment exists).
+  if (i + 2 < keys.length) {
+    const back = half(k1.time, k2.time)
+    const fwd = half(k2.time, keys[i + 2].time)
+    if (back + fwd > 0 && t > k2.time - back) {
+      return mix(segment(i, t), segment(i + 1, t), smootherstep((t - (k2.time - back)) / (back + fwd)))
+    }
+  }
+  // Straight middle of the segment.
+  return finish(segment(i, t))
 }
 
 // Tangent (per second) at the middle of three values with times ta, tb, tc. Missing neighbours
@@ -158,6 +234,10 @@ export function sampleCameraPath(camera, t, resolve = identity) {
       orbitUp,
       fov: fov1 + (fov2 - fov1) * u,
     }
+  }
+
+  if (camera.interpolation === 'linearEased') {
+    return sampleLinearEased(keys, i, t, resolve, r1, r2, Math.max(0, camera.cornerSeconds ?? DEFAULT_CORNER_SECONDS))
   }
 
   const k0 = keys[i - 1] ?? null

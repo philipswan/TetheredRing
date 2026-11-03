@@ -178,3 +178,52 @@ test('adaptive motion blur takes enough sub-frames for the camera to move a step
   const far = [0, 100, 200, 300].map(x => ({ position: [x, 1e6, 0], target: [x, 0, 0] }))
   assert.equal(adaptiveSubFrames(far, { ...options, planetRadius: 1 }), 4)
 })
+
+test('linearEased passes through every keyframe exactly', () => {
+  const camera = { interpolation: 'linearEased', cornerSeconds: 1, keyframes: [key(0, 0), key(5, 10), key(5.5, 80), key(8, 20)] }
+  for (const k of camera.keyframes) assert.deepEqual(sampleCameraPath(camera, k.time).position, k.position)
+})
+
+test('linearEased stays on the straight line between keyframes and does not overshoot', () => {
+  // A near-in-time, far neighbour gives a smooth spline a huge tangent at keyframe 1; linearEased,
+  // which only ever blends the two adjacent segments, must stay on the straight line instead.
+  const keys = [
+    { time: 0, position: [0, 0, 0], target: [0, 0, 0], up: [0, 1, 0], fov: 45 },
+    { time: 45, position: [0, 0, -1400], target: [0, 0, 0], up: [0, 1, 0], fov: 45 },
+    { time: 47, position: [0, 0, -5000], target: [0, 0, 0], up: [0, 1, 0], fov: 45 },
+  ]
+  const eased = { interpolation: 'linearEased', cornerSeconds: 1, keyframes: keys }
+  // The middle of the long first segment is exactly the straight blend.
+  assert.deepEqual(sampleCameraPath(eased, 22.5).position, [0, 0, -700])
+  let max = 0
+  for (let t = 0; t <= 45; t += 0.1) max = Math.max(max, Math.hypot(...sampleCameraPath(eased, t).position))
+  assert.ok(max < 1401, `linearEased max |pos| ${max.toFixed(1)} should not exceed the 1400 endpoint`)
+  // The smooth spline, by contrast, swings far past both endpoints over the same segment.
+  const smooth = { interpolation: 'smooth', keyframes: keys.map(k => ({ ...k, motion: 'direct' })) }
+  let smoothMax = 0
+  for (let t = 0; t <= 45; t += 0.1) smoothMax = Math.max(smoothMax, Math.hypot(...sampleCameraPath(smooth, t).position))
+  assert.ok(smoothMax > 3000, `smooth max |pos| ${smoothMax.toFixed(1)} (expected a large overshoot)`)
+})
+
+test('linearEased velocity matches each straight segment outside the corners', () => {
+  const keys = [key(0, 0), key(10, 100), key(12, 60)]
+  const eased = { interpolation: 'linearEased', cornerSeconds: 1, keyframes: keys }
+  const speed = (t) => (sampleCameraPath(eased, t + 1e-4).position[0] - sampleCameraPath(eased, t - 1e-4).position[0]) / 2e-4
+  assert.ok(Math.abs(speed(5) - 10) < 1e-2, `mid-segment speed ${speed(5)}`)   // 100 m over 10 s
+  assert.ok(Math.abs(speed(11) - (-20)) < 1e-2, `next-segment speed ${speed(11)}`) // -40 m over 2 s
+})
+
+test('linearEased interpolation and cornerSeconds validate and round-trip', () => {
+  const shot = createShot({ preset: 'default', parameters: {}, startTime: 0 })
+  shot.camera.interpolation = 'linearEased'
+  shot.camera.cornerSeconds = 0.5
+  shot.camera.keyframes.push(key(0, 0), key(1, 1))
+  const copy = parseShot(serializeShot(shot))
+  assert.equal(copy.camera.interpolation, 'linearEased')
+  assert.equal(copy.camera.cornerSeconds, 0.5)
+  shot.camera.cornerSeconds = -1
+  assert.throws(() => validateShot(shot), /cornerSeconds/)
+  shot.camera.cornerSeconds = 0.5
+  shot.camera.interpolation = 'wobbly'
+  assert.throws(() => validateShot(shot), /interpolation/)
+})
