@@ -6,6 +6,7 @@ import atmosphereFragmentShader from '../shaders/atmosphere.frag.glsl?raw';
 import './aerialPerspective.js'; // registers <atmosphere_common>
 import { seaWaveUniforms, updateSeaWaves } from './seaWaves.js';
 import { SkyLut, SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js';
+import { SeaSkyTable } from './seaSkyTable.js';
 
 // Top of the atmosphere shell above sea level (m), where the sky's scattering stops. High enough that
 // the air left above it would not show: a line of sight grazing the top crosses ~1100 km of air at
@@ -334,6 +335,12 @@ export class Planet {
     u.atmoParams.value.y = THREE.MathUtils.lerp(1, SPACE_EXPOSURE, fade);
     u.atmoSun.value.copy(sunDirection).normalize();
     if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
+    // The sky from sea level, for the lighter qualities' sea (worked out once).
+    if (this.rendererOptions.renderer) {
+      this.seaSkyTable ??= new SeaSkyTable();
+      this.seaSkyTable.update(this.rendererOptions.renderer, a);
+      seaWaveUniforms.seaSkyTable.value = this.seaSkyTable.texture;
+    }
   }
 
   _createRenderer(assetNames) {

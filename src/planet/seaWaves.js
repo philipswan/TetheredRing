@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { fbmGlsl } from './seaNoise.js'
+import { seaSkyTableGlsl } from './seaSkyTable.js'
 
 // Wind-driven waves on the sea surface (CubedSpherePlanetRenderer._createWaterMaterial): the slopes
 // that set where the sun glints and what the water reflects, gusts, and whitecaps. Only the shading
@@ -97,6 +98,7 @@ export const seaWaveUniforms = {
   seaWindMapActive: { value: 0 },
   // The clouds' cover (Planet.setSeaClouds): the weather map's (weatherMap.js) and the real clouds' (realClouds.js),
   // with the clouds' blend between them (Clouds.js realShare: blend, declination (degrees), active).
+  seaSkyTable: { value: null },                             // the sky from sea level (seaSkyTable.js; SEA_LITE)
   seaCoverMap: { value: null },
   seaRealClouds: { value: null },
   seaCloudBlend: { value: new THREE.Vector3() },
@@ -163,6 +165,9 @@ float seaReflectance(float facing) {
 // seaSkyReflection(r, rough), the sky seen in direction r (view space), tilted up by rough (the RMS
 // slope of the waves not drawn there), and seaReflectance (above).
 export const seaSkyReflectionGlsl = seaReflectanceGlsl + `
+#ifdef SEA_LITE
+${seaSkyTableGlsl}
+#endif
 // The sky seen from this point in direction r (view space), as the sky is drawn (atmosphereCommon.glsl,
 // with sunAndSkyLight.js's uniforms). Reflections that dip below the horizon (off the back of a wave)
 // see the sky just above it.
@@ -173,17 +178,20 @@ vec3 seaSkyReflection(vec3 r, float rough) {
   vec3 up = normalize(p);
   vec3 d = normalize((vec4(r, 0.0) * viewMatrix).xyz + 2.0 * rough * up);
   d = normalize(d + max(0.02 - dot(d, up), 0.0) * up);
+#ifdef SEA_LITE
+  // (The lighter qualities: from the table of the sky from sea level, seaSkyTable.js.)
+  vec3 sunAcross = slSun - dot(slSun, up) * up, dAcross = d - dot(d, up) * up;
+  float across = sqrt(dot(sunAcross, sunAcross) * dot(dAcross, dAcross));
+  return 1.0 - exp(-seaSkyTableLight(dot(d, up), dot(slSun, up), across > 1e-6 ? dot(sunAcross, dAcross) / across : 1.0));
+#else
   vec3 ds = d + slPole.w * dot(d, slPole.xyz) * slPole.xyz;
   float top = slParams.z + 100000.0;
   float t0, t1;
   if (!atmoRoots(dot(ds, ds), dot(p, ds), dot(p, p) - top * top, t0, t1)) return vec3(0.0);
   vec3 light, transmittance;
-#ifdef SEA_LITE
-  atmoScatter(p, ds, d, max(t0, 0.0), t1, slSun, slParams.z, 3, light, transmittance);  // (lighter qualities)
-#else
   atmoScatter(p, ds, d, max(t0, 0.0), t1, slSun, slParams.z, 6, light, transmittance);
-#endif
   return 1.0 - exp(-light);
+#endif
 }
 `
 
