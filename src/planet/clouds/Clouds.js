@@ -1195,9 +1195,10 @@ float rainShaft(CloudColumn col, vec3 p, vec3 local, float h) {
   return smoothstep(0.02, 0.25, cloud) * 3.912 / (${RAIN_VISIBILITY.toFixed(1)} * pow(rate, -0.63));
 }
 
-// The rain at the camera (mm/h), with the same shaft as rainShaft (0 above the cloud base).
-float cameraRain(vec3 c, vec3 cameraLocal) {
-  float shaft = rainShaft(cloudColumn(mapUv(latLon(c)), c, cameraLocal, 400.0), c, cameraLocal, length(c) - slParams.z);
+// The rain at the camera c (mm/h), with the same shaft as rainShaft (0 above the cloud base), in the column
+// over it col.
+float cameraRain(CloudColumn col, vec3 c) {
+  float shaft = rainShaft(col, c, vec3(0.0), length(c) - slParams.z);
   return shaft > 0.0 ? pow(shaft * ${RAIN_VISIBILITY.toFixed(1)} / 3.912, 1.0 / 0.63) : 0.0;
 }
 
@@ -1218,6 +1219,16 @@ void main() {
   if (ground.x > 0.0) t1 = min(t1, ground.x);
   t1 = min(t1, sceneDistance * stretch);
   vec3 sunDirS = normalize(slSun + slPole.w * dot(slSun, slPole.xyz) * slPole.xyz);
+  // The column over the camera, for the rain there, the murk's light against the sky and the haze's in front of
+  // the clouds: worked out once, and only what they need of it kept. (It was in the shader three times.)
+  float cameraSun, cameraOvercast, rainHere;
+  {
+    CloudColumn colCamera = cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0);
+    float hc = length(c) - a;
+    cameraSun = expectedSun(colCamera, hc, dot(normalize(c), sunDirS));
+    cameraOvercast = overcastShare(colCamera, hc);
+    rainHere = cameraRain(colCamera, c);
+  }
   // The scene's dimming by the clouds, at the end of the line of sight (the ground or the scene).
   // (Where nothing was drawn the distance pass leaves 1e9 m: the sky, not a scene point out in space, which
   // the clouds never shade; taken as one, the murk against the sky was lit by the full sun, even under
@@ -1249,9 +1260,8 @@ void main() {
     // (Sky: the murk's sunlight as at the camera, through the clouds' expected density (expectedSun): the
     // murk against the sky reaches kilometres away, lit through the cover on average, not darkened all over
     // as one cumulus's shadow passes over the camera.)
-    sceneSun = sphere(c, sunDirS, a).x > 0.0 ? 0.0 : expectedSun(cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0), length(c) - a, dot(normalize(c), sunDirS));
+    sceneSun = sphere(c, sunDirS, a).x > 0.0 ? 0.0 : cameraSun;
   }
-  float rainHere = cameraRain(c, vec3(0.0));
   outShade = vec4(shade, rainHere, 0.0, 1.0);
   if (outer.y <= 0.0 || t1 <= t0) {
     outClouds = vec4(0.0, 0.0, 0.0, 1.0);
@@ -1360,7 +1370,7 @@ void main() {
     // (and blended between), its light at the middle. Where neither end's column can hold cloud at the
     // stretch's heights, only the murk is added; otherwise the fine cells across it are integrated.
     vec3 pA = c + d * (r * stretch);
-    CloudColumn colA = cloudColumn(mapUv(latLon(pA)), pA, D * r, r * pixelAngle);
+    CloudColumn colA;  // (the first cell's, with the cells' ends, below)
     float d0 = 0.0;          // the density where the next fine cell starts
     bool d0Known = false;
     float fineDone = 0.0;  // (fine cells so far, for CLOUD_LITE_CELLS)
@@ -1397,7 +1407,16 @@ void main() {
       float rc1 = min(r + cellExit(r, coarse, D, safeD), rEnd);
       float rcm = 0.5 * (r + rc1);
       vec3 pB = c + d * (rc1 * stretch);
-      CloudColumn colB = cloudColumn(mapUv(latLon(pB)), pB, D * rc1, rc1 * pixelAngle);
+      // (The first cell's start column from the same place in the shader as each cell's end column, in a loop
+      // the compiler does not unroll: the column is large.)
+      CloudColumn colB;
+      for (int k = i == 0 ? 0 : 1; k < 2 * noUnroll; k++) {
+        float rk = k == 0 ? r : rc1;
+        vec3 pk = k == 0 ? pA : pB;
+        CloudColumn ck = cloudColumn(mapUv(latLon(pk)), pk, D * rk, rk * pixelAngle);
+        if (k == 0) colA = ck;
+        else colB = ck;
+      }
       // The stretch's heights (the lowest where the line of sight passes closest to the centre).
       float hA = length(pA) - a, hB = length(pB) - a;
       float rLow = clamp(-dot(c, d) / stretch, r, rc1);
@@ -1609,8 +1628,7 @@ void main() {
       // camera's sun through the clouds' expected density). The planet's own shadow is the air light's.)
       float hc = length(c) - a;
       if (hc < SHELL_TOP && sphere(c, sunDirS, a).x <= 0.0) {
-        CloudColumn colC = cloudColumn(mapUv(latLon(c)), c, vec3(0.0), 400.0);
-        inScatter *= mix(overcastShare(colC, hc), 1.0, expectedSun(colC, hc, dot(normalize(c), sunDirS)));
+        inScatter *= mix(cameraOvercast, 1.0, cameraSun);
       }
       // (Over the clouds' share of the opacity (depthWeight), not the murk's, whose light is the air's own:
       // where rain or mist hid all but a trace of the clouds beyond, the haze over the whole of it began
