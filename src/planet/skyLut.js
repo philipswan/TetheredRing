@@ -19,6 +19,8 @@ export const SKY_LUT_SIZE = [256, 192]
 // round) from the camera at c (stretched, planet centre at the origin), with the sun's direction sun, the
 // ground's radius a and the air's top's; and the line of sight at the table's coordinates uv.
 export const skyLutGlsl = `
+#ifndef SKY_LUT_FUNCTIONS
+#define SKY_LUT_FUNCTIONS
 void skyLutFrame(vec3 c, vec3 sun, out vec3 up, out vec3 toSun, out vec3 across) {
   up = normalize(c);
   toSun = sun - dot(sun, up) * up;
@@ -57,10 +59,11 @@ vec3 skyLutDirection(vec2 uv, vec3 c, vec3 sun, float a, float top) {
   float azimuth = uv.x * PI;
   return cos(elevation) * (cos(azimuth) * toSun + sin(azimuth) * across) + sin(elevation) * up;
 }
+#endif
 `
 
-const lutFragment = `
-#define ATMO_SKY_AEROSOL
+const lutFragment = (skyAerosol) => `
+${skyAerosol ? '#define ATMO_SKY_AEROSOL' : ''}
 #include <common>
 #include <atmosphere_common>
 uniform vec4 atmoCamera;
@@ -105,14 +108,16 @@ void main() {
 
 export class SkyLut {
   // uniforms: the planet's atmosphere uniforms (Planet.atmosphereUniforms), updated each frame before update().
-  constructor(uniforms) {
+  // skyAerosol: the sky's aerosol (atmosphereCommon.glsl's ATMO_SKY_AEROSOL), or the ground's (a table of the
+  // haze in front of the ground, for aerialPerspective.js).
+  constructor(uniforms, { skyAerosol = true } = {}) {
     this.target = new THREE.WebGLRenderTarget(SKY_LUT_SIZE[0], SKY_LUT_SIZE[1], {
       type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false, count: 2,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
       wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping,
     })
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-      uniforms, vertexShader: lutVertex, fragmentShader: lutFragment, glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
+      uniforms, vertexShader: lutVertex, fragmentShader: lutFragment(skyAerosol), glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
     }))
     mesh.frustumCulled = false
     this.scene = new THREE.Scene().add(mesh)

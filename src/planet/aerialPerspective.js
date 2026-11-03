@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import atmosphereCommon from '../shaders/atmosphereCommon.glsl?raw'
 import './seaDarkening.js' // its fog code first: see below
+import { SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js'
 
 // Aerial perspective: everything seen through the air (terrain, sea, the ring, vehicles) is dimmed by
 // the air's transmittance along the line of sight and has the light the air scatters into it added,
@@ -29,6 +30,14 @@ const camera = { x: 0, y: 0, z: 0, w: 0 }   // xyz: stretched camera (planet cen
 const pole = { x: 0, y: 1, z: 0, w: 0 }     // xyz: polar axis (world); w: a/b - 1
 const params = { x: 1, y: 0, z: 1, w: SAMPLES } // x: exposure (see Planet.js); y: active; z: a (m); w: samples
 const sun = { x: 0, y: 1, z: 0 }            // direction to the sun (world)
+// The haze in front of the ground as a table of lines of sight from the camera (skyLut.js, with the ground's
+// aerosol; Planet.setGroundHazeLut), read from above LOW_SAMPLES_HEIGHT instead of marching (params.w < 0:
+// -SAMPLES, the samples for the materials that do not read it), by the materials that define AP_HAZE_LUT and
+// share these uniforms (apHazeUniforms: the planet's terrain and sea, which add them as they compile; three.js
+// cannot give a render target's texture to every material by its libraries' uniforms, which it clones).
+const hazeLight = { value: null }
+const hazeTransmittance = { value: null }
+export const apHazeUniforms = { apHazeLight: hazeLight, apHazeTransmittance: hazeTransmittance }
 
 const LIBRARIES = ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite']
 for (const name of LIBRARIES) {
@@ -59,6 +68,11 @@ THREE.ShaderChunk.fog_pars_fragment += `
   uniform vec3 apSun;
   varying vec3 vApOffset;
   #include <atmosphere_common>
+  #ifdef AP_HAZE_LUT
+    uniform sampler2D apHazeLight;
+    uniform sampler2D apHazeTransmittance;
+    ${skyLutGlsl}
+  #endif
 #endif
 `
 THREE.ShaderChunk.fog_fragment += `
@@ -73,7 +87,18 @@ THREE.ShaderChunk.fog_fragment += `
       apT1 = min(apT1, apDistance - vSeaPath);
       if (apT1 > apT0) {
         vec3 apLight, apTransmittance;
-        atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, int(apParams.w), apLight, apTransmittance);
+#ifdef AP_HAZE_LUT
+        if (apParams.w < 0.0) {
+          // (From the table: the line of sight to sea level, its lower half.)
+          float apTop = sqrt(max(dot(apCamera.xyz, apCamera.xyz) - apCamera.w, 0.0));
+          vec2 apUv = skyLutUv(normalize(apDirStretched), apCamera.xyz, apSun, apParams.z, apTop);
+          apUv.y = min(apUv.y, 0.5 - 0.5 / ${SKY_LUT_SIZE[1].toFixed(1)});
+          apLight = texture2D(apHazeLight, apUv).rgb;
+          apTransmittance = texture2D(apHazeTransmittance, apUv).rgb;
+        }
+        else
+#endif
+        atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, int(abs(apParams.w)), apLight, apTransmittance);
         apLight *= atmoHazeScale(apTransmittance, apParams.x);
         vec3 apColor = sRGBTransferEOTF(vec4(gl_FragColor.rgb, 1.0)).rgb * apTransmittance + (1.0 - exp(-apLight));
         gl_FragColor.rgb = sRGBTransferOETF(vec4(apColor, 1.0)).rgb;
@@ -96,6 +121,13 @@ export const AerialPerspective = {
     lowSamples = n
   },
 
+  // The table of the haze in front of the ground (Planet.setGroundHazeLut), read from above
+  // LOW_SAMPLES_HEIGHT when set; null: marched.
+  setHazeLut(lut) {
+    hazeLight.value = lut?.light ?? null
+    hazeTransmittance.value = lut?.transmittance ?? null
+  },
+
   // active: the air hazes what is seen through it. atmosphereUniforms: the planet's (Planet.atmosphereUniforms,
   // already updated for this frame).
   update(active, atmosphereUniforms) {
@@ -108,7 +140,7 @@ export const AerialPerspective = {
     params.z = u.atmoParams.value.z
     // (The camera's height over the stretched sphere: |C'|^2 - a^2 = atmoParams.x.)
     const height = Math.sqrt(Math.max(u.atmoParams.value.x + params.z * params.z, 0)) - params.z
-    params.w = height < LOW_SAMPLES_HEIGHT ? lowSamples : SAMPLES
+    params.w = height < LOW_SAMPLES_HEIGHT ? lowSamples : hazeLight.value ? -SAMPLES : SAMPLES
     Object.assign(sun, { x: u.atmoSun.value.x, y: u.atmoSun.value.y, z: u.atmoSun.value.z })
   },
 }

@@ -4,6 +4,7 @@ import { fbmGlsl, noiseOffsets } from './seaNoise.js';
 import '../scene/sunAndSkyLight.js'; // registers <sun_and_sky_light>, which the sea surface uses
 import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, seaSkyReflectionGlsl, seaWaveUniforms, seaWavesGlsl, tileWaveOffsets } from './seaWaves.js';
 import { SEA_ICE_FREQUENCIES, seaIceGlsl, seaIceUniforms } from './seaIce.js';
+import { apHazeUniforms } from './aerialPerspective.js';
 import { PixelLOD } from '../scene/PixelLOD.js';
 
 // Milliseconds per frame for uploading newly loaded tiles to the GPU (at least one tile per frame;
@@ -2051,7 +2052,8 @@ ${seaSkyReflectionGlsl}`)
     const invA2 = (1 / (this.a * this.a)).toExponential(10);
     const invB2 = (1 / (this.b * this.b)).toExponential(10);
     material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, seaWaveUniforms, seaIceUniforms);
+      Object.assign(shader.uniforms, seaWaveUniforms, seaIceUniforms, apHazeUniforms);
+      shader.fragmentShader = '#define AP_HAZE_LUT\n' + shader.fragmentShader;  // (aerialPerspective.js)
       shader.uniforms.seaWaveOffset = { value: waveOffsets };
       shader.uniforms.seaGustOffset = { value: gustOffsets };
       shader.uniforms.seaFoamOffset = { value: foamOffsets };
@@ -2222,7 +2224,8 @@ material.specularShininess = clamp(2.0 / (seaUnresolved + 2e-4) - 2.0, 4.0, 8000
       shader.uniforms.seafloorTileCenter = { value: tile.center };
       shader.uniforms.seafloorOffset = { value: offsets };
       shader.uniforms.seaIceOffset = { value: iceOffsets };
-      Object.assign(shader.uniforms, seaIceUniforms);
+      Object.assign(shader.uniforms, seaIceUniforms, apHazeUniforms);
+      shader.fragmentShader = '#define AP_HAZE_LUT\n' + shader.fragmentShader;  // (aerialPerspective.js)
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
 uniform vec3 seafloorTileCenter;

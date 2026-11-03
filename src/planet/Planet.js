@@ -3,7 +3,7 @@ import { CubedSpherePlanetRenderer, PLANET_YAW } from './CubedSpherePlanetRender
 import { loadSeaIce, setSeaIceDayOfYear, setSeaIceVisible } from './seaIce.js';
 import atmosphereVertexShader from '../shaders/atmosphere.vert.glsl?raw';
 import atmosphereFragmentShader from '../shaders/atmosphere.frag.glsl?raw';
-import './aerialPerspective.js'; // registers <atmosphere_common>
+import { AerialPerspective } from './aerialPerspective.js'; // (and registers <atmosphere_common>)
 import { seaWaveUniforms, updateSeaWaves } from './seaWaves.js';
 import { SkyLut, SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js';
 import { SeaSkyTable } from './seaSkyTable.js';
@@ -269,6 +269,15 @@ export class Planet {
     this.setSkyLut(true);
   }
 
+  // The haze in front of the ground read from a table worked out once a frame (skyLut.js, with the ground's
+  // aerosol) rather than marched at every pixel, from high up (aerialPerspective.js), for the lightest quality.
+  setGroundHazeLut(on) {
+    if (on === !!this.groundHazeLut) return;
+    if (on) this.groundHazeLut = new SkyLut(this.atmosphereUniforms, { skyAerosol: false });
+    else { this.groundHazeLut.dispose(); this.groundHazeLut = null; }
+    AerialPerspective.setHazeLut(this.groundHazeLut);
+  }
+
   // The sky read from a table worked out once a frame (skyLut.js) rather than marched at every pixel.
   setSkyLut(on) {
     if (on === !!this.skyLut) return;
@@ -335,6 +344,8 @@ export class Planet {
     u.atmoParams.value.y = THREE.MathUtils.lerp(1, SPACE_EXPOSURE, fade);
     u.atmoSun.value.copy(sunDirection).normalize();
     if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
+    // (The ground's haze table, only from where aerialPerspective.js reads it.)
+    if (this.groundHazeLut && this.rendererOptions.renderer && Math.sqrt(c2) - a > 11000) this.groundHazeLut.update(this.rendererOptions.renderer);
     // The sky from sea level, for the lighter qualities' sea (worked out once).
     if (this.rendererOptions.renderer) {
       this.seaSkyTable ??= new SeaSkyTable();
