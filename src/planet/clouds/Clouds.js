@@ -51,6 +51,8 @@ const RESOLUTION = 0.5
 // march's cells are too few to show them steadily).
 const FLAT_FOOTPRINT = [1500, 5000]
 const FLAT_HEIGHT = 2000
+// The lightest quality's (CLOUD_LITE_FLAT): from nearer.
+const LITE_FLAT_FOOTPRINT = [250, 800]
 // The flat layer's light: shares of the sunlight on it (by the sun's height) and of the sky's.
 const FLAT_SUN = 0.55
 const FLAT_SKY = 1.0
@@ -391,6 +393,12 @@ layout(location = 1) out vec4 outShade;  // r: the scene's dimming by the clouds
 
 const float SHELL_TOP = ${SHELL_TOP.toFixed(1)};
 const int MURK_STEPS = ${MURK_STEPS};
+// (CLOUD_LITE_FLAT: the flat layer from nearer, for the lightest quality: from orbit, the imagery alone.)
+#ifdef CLOUD_LITE_FLAT
+const float FLAT_FOOTPRINT0 = ${LITE_FLAT_FOOTPRINT[0].toFixed(1)}, FLAT_FOOTPRINT1 = ${LITE_FLAT_FOOTPRINT[1].toFixed(1)};
+#else
+const float FLAT_FOOTPRINT0 = ${FLAT_FOOTPRINT[0].toFixed(1)}, FLAT_FOOTPRINT1 = ${FLAT_FOOTPRINT[1].toFixed(1)};
+#endif
 const float LAYER_BOTTOM = ${LAYER_BOTTOM.toFixed(1)};
 const float EXTINCTION = ${EXTINCTION.toFixed(4)};
 
@@ -563,6 +571,16 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   }
   float opacitySmooth = opacity;
   float share = realShare(uv);
+#ifdef CLOUD_LITE_IMAGERY
+  // (The lightest quality: the high cloud's share follows the imagery unblurred too, from the one read: the
+  // double vision that blurring avoided is seen from orbit, where this quality draws the flat layer instead.)
+  float opacitySoft = softOpacity(uv, opacity, share, footprint);
+  if (share > 0.0) {
+    float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
+    opacity = mix(opacity, clamp((real - 0.05) / 0.95, 0.0, 1.0), share);
+    opacitySmooth = opacity;
+  }
+#else
   float opacitySoft = softOpacity(uv, opacity, share, footprint);
   if (share > 0.0) {
     float real = textureLod(realClouds, uv, log2(max(footprint, 1.0) / realTexel)).r;
@@ -571,6 +589,7 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
     float smoothReal = textureLod(realClouds, uv, max(log2(max(footprint, 1.0) / realTexel), log2(${HIGH_BLUR.toFixed(1)} / realTexel))).r;
     opacitySmooth = mix(opacitySmooth, clamp((smoothReal - 0.05) / 0.95, 0.0, 1.0), share);
   }
+#endif
   // Shared between the layers (weatherMap.js's cloud types: each layer's cover today). The high cloud, thin
   // (its opacity per cover HIGH_OPACITY), as much as the weather has (it barely shows from space, so the
   // imagery hardly says where it is), but no more opaque than the sky seen from space. The rest between the
@@ -1039,7 +1058,7 @@ float cloudShadow(vec3 p, vec3 local, vec3 sunS, float footprint) {
   if (floorHit.x > 0.0) return 0.0;  // (the planet's own shadow is the light model's)
   float hp = length(p) - a;
   float mu = max(dot(normalize(p), sunS), 0.02);
-  float flatShare = smoothstep(${FLAT_FOOTPRINT[0].toFixed(1)}, ${FLAT_FOOTPRINT[1].toFixed(1)}, footprint);
+  float flatShare = smoothstep(FLAT_FOOTPRINT0, FLAT_FOOTPRINT1, footprint);
   float flatLit = 1.0;
   if (flatShare > 0.0) {
     vec3 q = p + sunS * max((${FLAT_HEIGHT.toFixed(1)} - hp) / mu, 0.0);
@@ -1262,7 +1281,7 @@ void main() {
   if (flatHit.y > 0.0) {
     tFlat = flatHit.x > 0.0 ? flatHit.x : flatHit.y;
     float footprint = tFlat / stretch * pixelAngle;
-    flatShare = smoothstep(${FLAT_FOOTPRINT[0].toFixed(1)}, ${FLAT_FOOTPRINT[1].toFixed(1)}, footprint);
+    flatShare = smoothstep(FLAT_FOOTPRINT0, FLAT_FOOTPRINT1, footprint);
     if (flatShare > 0.0 && tFlat >= t0 && tFlat <= t1) {
       vec3 pf = c + d * tFlat;
       vec2 uv = mapUv(latLon(pf));
