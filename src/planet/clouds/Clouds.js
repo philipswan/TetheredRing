@@ -127,6 +127,14 @@ const MID_EDGE_COVER = 0.7
 const MID_MASK_TILE = 1000
 const MID_MASK_DEPTH = 0.95
 const MID_MASK_EDGE = [0.25, 0.6]
+// (MID_MASK_MEAN: the mask's thinning averaged over the noise, for the light through the layer, which does not
+// read the mask.)
+function midMaskMean(shape) {
+  const d = shape.image.data, smooth = (e0, e1, x) => { const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1); return t * t * (3 - 2 * t) }
+  let sum = 0
+  for (let i = 0; i < d.length; i += 4) sum += 1 - MID_MASK_DEPTH + MID_MASK_DEPTH * smooth(MID_MASK_EDGE[0], MID_MASK_EDGE[1], d[i + 2] / 255)
+  return sum / (d.length / 4)
+}
 // Its smaller tile repeated visibly (rows of the same shapes towards the horizon): its noise is averaged
 // with the noise again on a tile MID_RATIO (the golden ratio) times smaller, so that the two have no period
 // in common and the pattern does not repeat. (A turned copy did the same, but its matrix slowed the whole
@@ -336,7 +344,7 @@ void main() {
 })
 
 // The cloud march's fragment shader, for the shape noise's statistics (cloudNoise.js).
-const marchFragment = (stats, detailMean, mid = midShapeStats(MID_CELLS)) => `
+const marchFragment = (stats, detailMean, maskMean, mid = midShapeStats(MID_CELLS)) => `
 #define ATMO_SKY_AEROSOL
 #include <common>
 #include <sun_and_sky_light>
@@ -468,8 +476,9 @@ float crispWeight = 0.0;
 float noiseLevel = 0.0;
 
 // flatShift and mask (mid-level only): the vector from local down its vertical to the layer's base, and the
-// 2D mask there (see MID_MASK). small (low cloud only): the share of the shapes read at CUMULUS_SCALE.
-float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool full, vec3 flatShift, out float mask, float small) {
+// 2D mask there (see MID_MASK; read only withMask). small (low cloud only): the share of the shapes read at
+// CUMULUS_SCALE. full: the detail noise too.
+float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool full, vec3 flatShift, out float mask, float small, bool withMask) {
   float shape = 0.0;
   detail = 0.0;
   mask = 0.0;
@@ -486,7 +495,7 @@ float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool fu
       float cells = s.b * 0.75 + t.b * 0.25;  // (one octave of cells, mostly one tile: averaging blurred them away)
       value = mix(0.5 * (value + remap(t.r, t.g * 0.625 + t.b * 0.25 + t.a * 0.125 - 1.0, 1.0, 0.0, 1.0)), cells, ${MID_CELLS.toFixed(2)});
       // (The 2D mask: Worley cells on MID_MASK_TILE, the same at every height.)
-      mask += weight * texture(shapeNoise, (q + flatShift + shapeOffset[i]) / ${MID_MASK_TILE.toFixed(1)}).b;
+      if (withMask) mask += weight * texture(shapeNoise, (q + flatShift + shapeOffset[i]) / ${MID_MASK_TILE.toFixed(1)}).b;
     }
     else if (small > 0.0) {
       // (Cumulus: the shapes CUMULUS_SCALE times smaller, fixed to the planet as the large ones are, so that
@@ -762,8 +771,10 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
       // (The mid-level tile divides the low cloud's, and the noise repeats: the same offsets serve, scaled.)
       float mask;
       vec3 flatShift = mid ? -normalize(cameraPlanet + local) * (h - base) : vec3(0.0);
-      float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full, flatShift, mask,
-        mid ? 0.0 : (1.0 - stratiform) * (1.0 - showers));
+      // (Altocumulus: no detail noise, which it has no erosion to use; and its mask only where it is seen, not
+      // for the light through it, MID_MASK_MEAN.)
+      float shape = driftedShape(local, col.wind * (mid ? ${MID_WIND.toFixed(1)} : 1.5), mid ? ${(SHAPE_TILE / MID_TILE).toFixed(1)} : 1.0, detail, full && !mid, flatShift, mask,
+        mid ? 0.0 : (1.0 - stratiform) * (1.0 - showers), full);
       // (Altocumulus's cells stay at least MID_EDGE_COVER and fade, rather than shrink, where its cover thins
       // towards a patch's edge: shrunk, they were a wide band of separate dots, which looked sandy.)
       float threshold = mid ? midCoverThreshold(max(lowCover, ${MID_EDGE_COVER.toFixed(2)})) : coverThreshold(lowCover);
@@ -771,7 +782,7 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
       // (Altocumulus's cells filled, falling off only in the narrow lanes between them: rising across the
       // whole cell, only their cores showed, as speckles.)
       if (mid) d = smoothstep(0.0, ${MID_FILL.toFixed(2)}, d) * min(lowCover / ${MID_PACKED.toFixed(2)}, 1.0)
-        * mix(mix(1.0 - ${MID_MASK_DEPTH.toFixed(2)}, 1.0, smoothstep(${MID_MASK_EDGE[0].toFixed(2)}, ${MID_MASK_EDGE[1].toFixed(2)}, mask)), 1.0, max(smoothstep(0.0, 0.3, lod), stratiform));  // (altocumulus's cells, not altostratus's)
+        * mix(full ? mix(1.0 - ${MID_MASK_DEPTH.toFixed(2)}, 1.0, smoothstep(${MID_MASK_EDGE[0].toFixed(2)}, ${MID_MASK_EDGE[1].toFixed(2)}, mask)) : ${maskMean.toFixed(4)}, 1.0, max(smoothstep(0.0, 0.3, lod), stratiform));  // (altocumulus's cells, not altostratus's)
       d *= profile;
       // Edges eroded by the detail noise (wispy below, billowy above); less on stratus.
       // (Cumulus strongly, and denser along the line of sight, so what is left is opaque within a few metres
@@ -1740,7 +1751,7 @@ export class Clouds {
       mesh.frustumCulled = false
       return new THREE.Scene().add(mesh)
     }
-    this.marchScene = quad(new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: fullscreenVertex, fragmentShader: marchFragment(noise.shapeStats, noise.detailMean), glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false }))
+    this.marchScene = quad(new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: fullscreenVertex, fragmentShader: marchFragment(noise.shapeStats, noise.detailMean, midMaskMean(noise.shape)), glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false }))
     this.compositeScene = quad(new THREE.ShaderMaterial({
       uniforms: { clouds: { value: this.cloudTarget.textures[0] }, shade: { value: this.cloudTarget.textures[1] }, texel: { value: new THREE.Vector2() }, rainTime: { value: 0 }, aspect: { value: 1 } },
       vertexShader: fullscreenVertex,
