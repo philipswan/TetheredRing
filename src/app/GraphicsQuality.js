@@ -22,7 +22,7 @@ export const QUALITY_PRESETS = {
     cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_COLUMNS'], seaLite: true, hazeSamples: 4, hazeLut: false },
   low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.25,
     cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_MID', 'CLOUD_LITE_HIGH', 'CLOUD_LITE_CELLS', 'CLOUD_LITE_COLUMNS',
-      'CLOUD_LITE_FLAT'],
+      'CLOUD_LITE_FLAT', 'CLOUD_LITE_DETAIL'],
     seaLite: true, hazeSamples: 4, hazeLut: true },
 }
 const TIERS = ['high', 'balanced', 'low']

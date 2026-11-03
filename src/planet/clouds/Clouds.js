@@ -510,6 +510,12 @@ float driftedShape(vec3 local, vec3 wind, float scale, out float detail, bool fu
       // (Its average where a pixel spans several of its texels (DETAIL_FADE), unread: there it only aliased into
       // speckle and moire.)
       float detailFade = smoothstep(${(DETAIL_FADE[0] * DETAIL_TILE / DETAIL_SIZE).toFixed(1)}, ${(DETAIL_FADE[1] * DETAIL_TILE / DETAIL_SIZE).toFixed(1)}, exp2(noiseLevel));
+#ifdef CLOUD_LITE_DETAIL
+      // (The lightest quality: the detail noise's average everywhere, as the others have it far off: the edges
+      // eroded as much, but evenly. A quarter less work in its march; reading none at all left the cumulus
+      // without their dense cores, and towers of showers washed out into the cloud around them.)
+      detailFade = 1.0;
+#endif
       float fbm = ${detailMean.toFixed(5)};
       if (detailFade < 1.0) {
         vec4 dn = texture(detailNoise, (q + detailOffset[i]) / ${DETAIL_TILE.toFixed(1)});
@@ -854,6 +860,9 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   float density = 0.0;
   if (full) COST(cost.y)
   fineWeight = full ? 1.0 - smoothstep(${FINE_FOOTPRINT[0].toFixed(1)}, ${FINE_FOOTPRINT[1].toFixed(1)}, footprint) : 0.0;
+#ifdef CLOUD_LITE_DETAIL
+  fineWeight = 0.0;  // (and none of the finest noise: see driftedShape)
+#endif
   noiseLevel = log2(max(footprint, 1.0));
   crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
