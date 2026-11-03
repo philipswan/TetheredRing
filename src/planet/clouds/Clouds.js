@@ -1478,10 +1478,7 @@ void main() {
         CloudColumn colRain = mixColumn(colA, colB, 0.5);
         vec3 pRain = c + d * (rcm * stretch);
         float rainCell = rainShaft(colRain, pRain, D * rcm, min(length(pRain) - a, colRain.base - 1.0));
-        if (!d0Known) {
-          float unused;
-          d0 = columnDensity(colA, D * r, hA, true, r * pixelAngle, unused);
-        }
+        bool needD0 = !d0Known;
         // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
         // cells HIGH_CELLS times the low cloud's.)
         if (!lowCloud) fine = min(fine * ${HIGH_CELLS.toFixed(1)}, min(coarse, steepest * 4.0));
@@ -1498,18 +1495,28 @@ void main() {
           vec3 local = D * rm;
           float footprint = rm * pixelAngle;
           CloudColumn col = mixColumn(colA, colB, (rm - r) / max(rc1 - r, 1e-3));
-          CloudColumn col1 = mixColumn(colA, colB, (r1 - r) / max(rc1 - r, 1e-3));
           float murk = airMurk(col, h) + (h <= col.base ? rainCell : 0.0);
           if (murk > 1e-7) {
             float murkT = exp(-murk * dt);
             light += transmittance * murkLight * (1.0 - murkT);
             transmittance *= murkT;
           }
-          // The density across the fine cell's stretch (Simpson's rule).
-          float layer, unused;
-          float dm = columnDensity(col, local, h, true, footprint, layer);
-          vec3 p1 = c + d * (r1 * stretch);
-          float d1 = columnDensity(col1, D * r1, length(p1) - a, true, r1 * pixelAngle, unused);
+          // The density across the fine cell's stretch (Simpson's rule): at its start (the first cell only; then
+          // the cell before's end), middle and end. (From one place in the shader, in a loop it does not unroll:
+          // the density, with its mid-level and high cloud, is large, and its copies held so many registers that
+          // they spilled.)
+          float dm = 0.0, d1 = 0.0, layer = 0.0;
+          for (int e = 0; e < 3 * noUnroll; e++) {
+            if (e == 0 && !needD0) continue;
+            float re = e == 0 ? rf : e == 1 ? rm : r1;
+            CloudColumn ce = mixColumn(colA, colB, (re - r) / max(rc1 - r, 1e-3));
+            float le;
+            float de = columnDensity(ce, D * re, length(c + d * (re * stretch)) - a, true, re * pixelAngle, le);
+            if (e == 0) d0 = de;
+            else if (e == 1) { dm = de; layer = le; }
+            else d1 = de;
+          }
+          needD0 = false;
           float density = (d0 + 4.0 * dm + d1) / 6.0;
           // (Each end's share of the cell's cloud, for its light: the middle's split between them.)
           float end0 = d0 + 2.0 * dm, end1 = d1 + 2.0 * dm;
