@@ -16,7 +16,7 @@
 
 // Scattering coefficients at sea level (1/m) and scale heights (m).
 const vec3 ATMO_BETA_R = vec3(5.8e-6, 13.5e-6, 33.1e-6);
-const float ATMO_BETA_M = 80e-6;  // marine air (an aerosol optical depth of about 0.1; 8e-6 is a clean day over land): distant clouds and the horizon hazy
+const float ATMO_BETA_M = 40e-6;  // marine air (an aerosol optical depth of about 0.05; 8e-6 is a clean day over land): distant clouds and the horizon hazy
 const float ATMO_HEIGHT_R = 8000.0;
 const float ATMO_HEIGHT_M = 1200.0;
 const float ATMO_MIE_G = 0.76;
