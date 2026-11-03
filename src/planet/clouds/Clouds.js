@@ -5,6 +5,7 @@ import { SunAndSkyLight } from '../../scene/sunAndSkyLight.js'
 import { cloudNoiseTextures, smearStats, midShapeStats } from './cloudNoise.js'
 import { WeatherMap } from './weatherMap.js'
 import { RealClouds } from './realClouds.js'
+import { CloudGround, HEIGHT_RANGE, SLOPE_RANGE } from './cloudGround.js'
 import { RAIN_AREA } from '../../physics/weather.js'
 import { MULTIPLE_SCATTERING } from '../../scene/skyIrradiance.js'
 
@@ -252,6 +253,13 @@ const FAIR_CUMULUS = [0.012, 0.03]
 // tile still divides SHAPE_TILE). They come in fields (CU_FIELD_TILE, m, dividing MACRO_TILE: some kilometres
 // across) with CU_PACKED of the sky inside, edges CU_FIELD_EDGE soft in the field's noise.
 const CUMULUS_SCALE = 2
+// The ground (cloudGround.js): the low cloud's base keeps GROUND_MARGIN (m) above it; where the surface wind
+// is lifted up its slopes at OROGRAPHIC_LIFT (m/s), the low cover takes up to OROGRAPHIC_GAIN of the clear
+// sky (in humid air); where it sinks down them as fast, up to OROGRAPHIC_LEE of the cover clears.
+const GROUND_MARGIN = 300
+const OROGRAPHIC_LIFT = 1.0
+const OROGRAPHIC_GAIN = 0.6
+const OROGRAPHIC_LEE = 0.7
 const CU_FIELD_TILE = 40000
 const CU_PACKED = 0.2
 const CU_FIELD_EDGE = 0.03
@@ -341,6 +349,7 @@ uniform sampler2D weatherA;
 uniform sampler2D weatherB;
 uniform sampler2D weatherC;
 uniform sampler2D weatherD;
+uniform sampler2D cloudGround;   // the ground's height and slope (cloudGround.js)
 uniform sampler3D shapeNoise;
 uniform sampler3D detailNoise;
 uniform sampler3D occupancy;      // bounds on the shape noise (cloudNoise.js)
@@ -653,6 +662,26 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
     col.highCover = highTest.x; col.highOpacity = highTest.y; col.highBase = highTest.z;
     if (lowTest2.y >= 0.0) { col.rain = lowTest2.y; col.humidity = lowTest2.z; }
   }
+  // The ground (cloudGround.js, finer than the weather's). Cumulus's base keeps GROUND_MARGIN above it (lifted
+  // whole: their base is the height to which the air from the ground rises before it condenses); a stratiform
+  // layer, capped by an inversion, stays where it is, and the ground rises into it (hill fog) and through it.
+  // Below the layer's top the low cloud builds where the surface wind blows up the slopes, the more the faster
+  // the air is lifted (OROGRAPHIC_LIFT, m/s) and the more humid it is, as a cap of cloud over the windward
+  // slopes (not above the layer: the trade inversion keeps Mauna Kea's summit clear); in the lee, where the
+  // air sinks, it clears (OROGRAPHIC_LEE).
+  vec4 groundMap = texture(cloudGround, uv);
+  float groundHeight = groundMap.r * ${HEIGHT_RANGE.toFixed(1)};
+  float upslope = dot(b.zw, (groundMap.gb - 0.5) * ${(2 * SLOPE_RANGE).toFixed(3)});
+  float orographic = clamp(upslope / ${OROGRAPHIC_LIFT.toFixed(2)}, -1.0, 1.0);
+  if (orographic > 0.0) {
+    float build = ${OROGRAPHIC_GAIN.toFixed(2)} * orographic * smoothstep(0.5, 0.85, col.humidity) * (1.0 - smoothstep(col.top - 500.0, col.top, groundHeight));
+    col.lowCover = 1.0 - (1.0 - col.lowCover) * (1.0 - build);
+    col.stratiform = max(col.stratiform, build);
+  }
+  else col.lowCover *= 1.0 + ${OROGRAPHIC_LEE.toFixed(2)} * orographic;
+  float groundLift = max(groundHeight + ${GROUND_MARGIN.toFixed(1)} - col.base, 0.0) * (1.0 - col.stratiform);
+  col.base += groundLift;
+  col.top += groundLift;
   // Fair-weather cumulus in fields (CU_FIELD_TILE, some kilometres across), a few clouds close together
   // (CU_PACKED of the sky) with clear sky between, as much in fields as keeps the cover (rather than spread
   // evenly to the horizon, where they stacked up into a wall): where the cover is low and cumuliform.
@@ -1657,6 +1686,7 @@ export class Clouds {
     this.resolution = RESOLUTION
     this.weatherMap = new WeatherMap()
     this.realClouds = new RealClouds()
+    this.ground = new CloudGround()
     this.enabled = true
     const noise = cloudNoiseTextures()
     const targetOptions = { type: THREE.FloatType, format: THREE.RGBAFormat, depthBuffer: true, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }
@@ -1669,6 +1699,7 @@ export class Clouds {
       weatherB: { value: this.weatherMap.textures[1] },
       weatherC: { value: this.weatherMap.textures[2] },
       weatherD: { value: this.weatherMap.textures[3] },
+      cloudGround: { value: null },
       shapeNoise: { value: noise.shape },
       detailNoise: { value: noise.detail },
       occupancy: { value: noise.occupancy },
@@ -1822,6 +1853,7 @@ export class Clouds {
     u.pixelAngle.value = 2 / (camera.projectionMatrix.elements[5] * h) * this.pixelScale
     this.updateFibres()
     u.realClouds.value = this.realClouds.texture
+    u.cloudGround.value = this.ground.texture
     u.realTexel.value = 2 * Math.PI * 6378137 / (this.realClouds.texture.image?.width ?? 10240)
     u.realBlend.value = this.realClouds.ready ? 1 : 0
     const snapshot = this.realClouds.textureDate
