@@ -26,7 +26,10 @@ For each month, over YEARS, at every source cell:
                           unstable (cumulus, showers), positive where it is stable (stratus, stratocumulus);
   st, sc, cu, cb, ns, as_, ac, hi   the real world's mean amount (0..1 of the sky) of each cloud type, from
                           surface observations (tools/sources/cloud_types.py; stratus includes fog);
-  scWhen, cuWhen, cbWhen, acWhen, asWhen, hiWhen   how much of the sky each covers when it is there.
+  scWhen, cuWhen, cbWhen, acWhen, asWhen, hiWhen   how much of the sky each covers when it is there;
+  ground                  the mean height (km) of the ground (0 over the sea) over the cell, from the land
+                          elevation (tools/sources/build_land_elevation.py's GeoTIFF): the clouds keep above it
+                          (the reanalysis's cloud heights, averaged over cells, put low cloud under plateaus).
   rainFreq, rainRate      how often it rains (over 0.1 mm/h) and the mean rate then (mm/h);
   convective              the convective share of the rain;
   humidity, humiditySd    mean relative humidity near the surface (0..1) and its standard deviation.
@@ -66,7 +69,7 @@ FIELDS = [
     ('midFreq', 1 / 125), ('midBase', 0.1), ('midTop', 0.1), ('highTop', 0.125), ('stability', 0.3),
     ('st', 1 / 125), ('sc', 1 / 125), ('cu', 1 / 125), ('cb', 1 / 125),
     ('ns', 1 / 125), ('as_', 1 / 125), ('ac', 1 / 125), ('hi', 1 / 125),
-    ('scWhen', 1 / 125), ('cuWhen', 1 / 125), ('cbWhen', 1 / 125), ('acWhen', 1 / 125), ('asWhen', 1 / 125), ('hiWhen', 1 / 125),
+    ('ground', 0.05), ('scWhen', 1 / 125), ('cuWhen', 1 / 125), ('cbWhen', 1 / 125), ('acWhen', 1 / 125), ('asWhen', 1 / 125), ('hiWhen', 1 / 125),
 ]
 # (The fields from surface observations of cloud types, filled in separately: see cloud_type_fields.)
 CLOUD_TYPE_FIELDS = ['st', 'sc', 'cu', 'cb', 'ns', 'as_', 'ac', 'hi', 'scWhen', 'cuWhen', 'cbWhen', 'acWhen', 'asWhen', 'hiWhen']
@@ -142,6 +145,7 @@ def month_stats(d, hours):
         }
         for name in CLOUD_TYPE_FIELDS:
             fields[name] = np.zeros_like(mean)  # (filled in from surface observations later: see main)
+        fields['ground'] = np.zeros_like(mean)  # (and from the land elevation)
         rh = relative_humidity(d['shum'], d['air'], d['pres'])
         fields['humidity'] = rh.mean(axis=0)
         fields['humiditySd'] = rh.var(axis=0)
@@ -181,6 +185,33 @@ def regrid(fields, weights, lats, lons):
         missing = np.isnan(out[..., f])
         if missing.any():
             out[..., f][missing] = np.nanmedian(out[..., f]) if not missing.all() else 0
+    return out
+
+
+ELEVATION = ROOT / 'additional_earth_imagery' / 'sources' / 'land_elevation_gmted_7.5s.tif'
+
+
+def ground_field():
+    """(rows, cols): the mean ground height (km; 0 over the sea) over GRID_DEG cells around the output grid's
+    nodes (cos(latitude) weighted), from the land elevation read at 0.25 degrees."""
+    import rasterio
+    with rasterio.open(ELEVATION) as ds:
+        elev = ds.read(1, out_shape=(720, 1440), resampling=rasterio.enums.Resampling.average).astype(np.float64)
+        top = ds.bounds.top
+    elev = np.maximum(np.nan_to_num(elev), 0) / 1000
+    lats = top - 0.125 - 0.25 * np.arange(elev.shape[0])
+    lons = -179.875 + 0.25 * np.arange(1440)
+    rows, cols = 180 // GRID_DEG + 1, 360 // GRID_DEG
+    out = np.zeros((rows, cols))
+    weight_lat = np.cos(np.radians(lats))
+    for r in range(rows):
+        in_lat = np.abs(lats - (-90 + GRID_DEG * r)) <= GRID_DEG / 2
+        if not in_lat.any():
+            continue
+        for col in range(cols):
+            in_lon = np.abs((lons - GRID_DEG * col + 180) % 360 - 180) <= GRID_DEG / 2
+            w = weight_lat[in_lat][:, None] * np.ones(in_lon.sum())
+            out[r, col] = (elev[in_lat][:, in_lon] * w).sum() / w.sum()
     return out
 
 
@@ -232,6 +263,7 @@ def main():
         grids.append(regrid(fields, weights, lats, lons))
         print(f'month {month}: {sel.sum()} samples')
     grid = np.stack(grids)
+    grid[..., [n for n, _ in FIELDS].index('ground')] = ground_field()[None]
     types = cloud_type_fields()
     for f, name in enumerate(CLOUD_TYPE_FIELDS):
         grid[..., [n for n, _ in FIELDS].index(name)] = types[..., f]

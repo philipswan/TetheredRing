@@ -117,6 +117,10 @@ export const LAYER_OWN = 0.6
 export const TYPE_SHIFT = 0.8
 export const LAYER_SPREAD = 0.8
 export const LAYER_DRAWS = [3001, 6007]
+// The clouds' layers keep at least this far (km) above the ground's mean height (the climatology's ground):
+// low, mid-level and high. (The reanalysis's cloud heights, averaged over its cells, put low cloud under
+// plateaus such as Tibet's; the low layer is lifted whole, keeping its depth.)
+export const GROUND_CLEARANCE = [0.5, 1.5, 3.0]
 // (The middle cloud's stratiform share is the more where its cover is the more, both being moved by the
 // same lows: MID_SHEET_BIAS, in log-odds, keeps its mean amount the observations'.)
 export const MID_SHEET_BIAS = -0.8
@@ -155,18 +159,19 @@ export function weatherAt(lat, lon, dayOfYear, utcHours) {
   const zMid = own * z - LAYER_OWN * pressureAnomaly(lat, lon, dayOfYear, utcHours, LAYER_DRAWS[0])
   const zHigh = own * z - LAYER_OWN * pressureAnomaly(lat, lon, dayOfYear, utcHours, LAYER_DRAWS[1])
   const lowSum = c[F.st] + c[F.sc] + c[F.cu] + c[F.cb]
+  const lift = Math.max(c[F.ground] + GROUND_CLEARANCE[0] - c[F.lowBase], 0)
   const midMean = c[F.ac] + c[F.as_] + c[F.ns]
   return {
     cover,
-    lowBase: 1000 * c[F.lowBase],
-    lowTop: 1000 * Math.max(c[F.lowTop], c[F.lowBase] + 0.3),
+    lowBase: 1000 * (c[F.lowBase] + lift),
+    lowTop: 1000 * (Math.max(c[F.lowTop], c[F.lowBase] + 0.3) + lift),
     lowCover: layerCover(z, lowSum),
     cumuliform: shiftShare((c[F.cu] + c[F.cb]) / Math.max(lowSum, 1e-3), -TYPE_SHIFT * z),
     midCover: layerCover(zMid, midMean),
     midStratiform: shiftShare((c[F.as_] + c[F.ns]) / Math.max(midMean, 1e-3), TYPE_SHIFT * zMid + MID_SHEET_BIAS),
-    midBase: 1000 * c[F.midBase],
+    midBase: 1000 * Math.max(c[F.midBase], c[F.ground] + GROUND_CLEARANCE[1]),
     highCover: layerCover(zHigh, c[F.hi]),
-    highBase: 1000 * c[F.highBase],
+    highBase: 1000 * Math.max(c[F.highBase], c[F.ground] + GROUND_CLEARANCE[2]),
     rain: rainFor(z, c[F.rainFreq], c[F.rainRate]),
     convective: clamp(c[F.convective]),
     get showerRain() { return this.rain / (RAIN_AREA[0] + (RAIN_AREA[1] - RAIN_AREA[0]) * this.convective) },

@@ -1,0 +1,456 @@
+[
+ {
+  "name": "mauna-kea-from-sea",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 20.343,
+   "camera": {
+    "position": [
+     -2515724.917,
+     2193693.806,
+     -5432073.051
+    ],
+    "target": [
+     -2493919.964,
+     2150460.664,
+     -5464343.61
+    ],
+    "up": [
+     -0.394,
+     0.346,
+     -0.851
+    ],
+    "orbitUp": [
+     -0.394,
+     0.346,
+     -0.851
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 20.343
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-from-sea-trade-deck",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 20.343,
+   "camera": {
+    "position": [
+     -2515724.917,
+     2193693.806,
+     -5432073.051
+    ],
+    "target": [
+     -2493919.964,
+     2150460.664,
+     -5464343.61
+    ],
+    "up": [
+     -0.394,
+     0.346,
+     -0.851
+    ],
+    "orbitUp": [
+     -0.394,
+     0.346,
+     -0.851
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 20.343
+   },
+   "cloudType": {
+    "low": [
+     0.85,
+     0.6,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.8
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-summit-trade-deck",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 20.365,
+   "camera": {
+    "position": [
+     -2493928.947,
+     2150468.462,
+     -5464363.294
+    ],
+    "target": [
+     -2535344.956,
+     2163006.377,
+     -5437064.805
+    ],
+    "up": [
+     -0.391,
+     0.339,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.391,
+     0.339,
+     -0.856
+    ],
+    "fov": 70
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 20.365
+   },
+   "cloudType": {
+    "low": [
+     0.85,
+     0.6,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.8
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-aerial",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 20.307,
+   "camera": {
+    "position": [
+     -2565553.63,
+     2233162.197,
+     -5403043.396
+    ],
+    "target": [
+     -2493919.964,
+     2150460.664,
+     -5464343.61
+    ],
+    "up": [
+     -0.402,
+     0.352,
+     -0.846
+    ],
+    "orbitUp": [
+     -0.402,
+     0.352,
+     -0.846
+    ],
+    "fov": 50
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 20.307
+   }
+  }
+ },
+ {
+  "name": "luzon-cordillera",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 1.987,
+   "camera": {
+    "position": [
+     5302760.065,
+     1747554.916,
+     -3086280.057
+    ],
+    "target": [
+     5248579.08,
+     1811284.481,
+     -3141209.778
+    ],
+    "up": [
+     0.831,
+     0.276,
+     -0.484
+    ],
+    "orbitUp": [
+     0.831,
+     0.276,
+     -0.484
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 1.987
+   }
+  }
+ },
+ {
+  "name": "mount-rainier",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 18.14,
+   "camera": {
+    "position": [
+     -3682012.904,
+     4654221.416,
+     -2309722.341
+    ],
+    "target": [
+     -3717872.88,
+     4633808.728,
+     -2301587.02
+    ],
+    "up": [
+     -0.576,
+     0.733,
+     -0.361
+    ],
+    "orbitUp": [
+     -0.576,
+     0.733,
+     -0.361
+    ],
+    "fov": 45
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 18.14
+   }
+  }
+ },
+ {
+  "name": "sierra-nevada",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 17.84,
+   "camera": {
+    "position": [
+     -4559175.437,
+     3767569.118,
+     -2383479.319
+    ],
+    "target": [
+     -4518587.489,
+     3782523.439,
+     -2432194.919
+    ],
+    "up": [
+     -0.713,
+     0.593,
+     -0.373
+    ],
+    "orbitUp": [
+     -0.713,
+     0.593,
+     -0.373
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 17.84
+   }
+  }
+ },
+ {
+  "name": "himalaya-everest",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 4.233,
+   "camera": {
+    "position": [
+     5653803.786,
+     2941464.648,
+     345801.453
+    ],
+    "target": [
+     5636031.549,
+     2979483.757,
+     302770.22
+    ],
+    "up": [
+     0.885,
+     0.463,
+     0.054
+    ],
+    "orbitUp": [
+     0.885,
+     0.463,
+     0.054
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 4.233
+   }
+  }
+ },
+ {
+  "name": "andes-aconcagua",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 196,
+   "sunTimeOfDayUTC": 14.64,
+   "camera": {
+    "position": [
+     -5057885.012,
+     -3401715.996,
+     1881010.575
+    ],
+    "target": [
+     -5057024.356,
+     -3425376.805,
+     1839506.921
+    ],
+    "up": [
+     -0.791,
+     -0.536,
+     0.294
+    ],
+    "orbitUp": [
+     -0.791,
+     -0.536,
+     0.294
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 196,
+    "sunTimeOfDayUTC": 14.64
+   }
+  }
+ },
+ {
+  "name": "nz-aoraki",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 195,
+   "sunTimeOfDayUTC": 22.683,
+   "camera": {
+    "position": [
+     827256.678,
+     -4359290.554,
+     -4574789.36
+    ],
+    "target": [
+     792571.255,
+     -4378179.845,
+     -4560966.119
+    ],
+    "up": [
+     0.129,
+     -0.686,
+     -0.716
+    ],
+    "orbitUp": [
+     0.129,
+     -0.686,
+     -0.716
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 195,
+    "sunTimeOfDayUTC": 22.683
+   }
+  }
+ },
+ {
+  "name": "nz-ruapehu",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 195,
+   "sunTimeOfDayUTC": 22.313,
+   "camera": {
+    "position": [
+     406725.847,
+     -3992694.615,
+     -4947102.308
+    ],
+    "target": [
+     382449.261,
+     -4018283.558,
+     -4930991.435
+    ],
+    "up": [
+     0.064,
+     -0.629,
+     -0.775
+    ],
+    "orbitUp": [
+     0.064,
+     -0.629,
+     -0.775
+    ],
+    "fov": 50
+   },
+   "parameters": {
+    "sunDayOfYear": 195,
+    "sunTimeOfDayUTC": 22.313
+   }
+  }
+ },
+ {
+  "name": "nz-ruapehu-above-deck",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 195,
+   "sunTimeOfDayUTC": 22.313,
+   "camera": {
+    "position": [
+     406974.192,
+     -3995148.965,
+     -4950122.986
+    ],
+    "target": [
+     382449.261,
+     -4018283.558,
+     -4930991.435
+    ],
+    "up": [
+     0.064,
+     -0.629,
+     -0.775
+    ],
+    "orbitUp": [
+     0.064,
+     -0.629,
+     -0.775
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 195,
+    "sunTimeOfDayUTC": 22.313
+   }
+  }
+ }
+]
