@@ -74,6 +74,13 @@ function trains() {
   return list
 }
 const TRAINS = trains()
+// The far sea (SEA_FAR: CubedSpherePlanetRenderer picks it for tiles wholly beyond where any of this shows,
+// and there it draws the same): a pixel (the smaller side of its footprint, m) over which every band is left
+// out of the normal (seaWaveSlope's test, on each band's first train), and the distance (m) beyond which the
+// gusts' octaves have all faded out (seaGustSliced's test, at its ~1000 pixels per radian).
+export const SEA_WAVES_UNRESOLVED_PIXEL = Math.max(...Array.from({ length: WAVE_BANDS }, (_, b) => 2 / (0.6 * TRAINS[b * WAVE_DIRECTIONS].k)))
+export const SEA_GUSTS_UNSEEN_DISTANCE = 1000 / (2 * GUST_FREQUENCIES[0])
+
 // Wave groups: each band's amplitude varies over about GROUP_WAVELENGTHS of its wavelength.
 const GROUP_WAVELENGTHS = 5
 export const GROUP_FREQUENCIES = Array.from({ length: WAVE_BANDS }, (_, b) => TRAINS[b * WAVE_DIRECTIONS].bandK / (2 * Math.PI * GROUP_WAVELENGTHS))
@@ -96,6 +103,7 @@ export const seaWaveUniforms = {
   seaGust: { value: new THREE.Vector4(0, 0, 0, 0) },        // z: pattern cross-fade
   seaGustSlice: { value: [new THREE.Vector3(), new THREE.Vector3()] },
   seaSlopeVariance: { value: 0.03 },                        // the sea's mean square slope (see seaReflectanceGlsl)
+  seaUnresolvedFar: { value: 0.03 },                        // (SEA_FAR) seaWaveSlope's unresolved with every band left out, before the place's roughness
   seaWindMap: { value: null },                              // the weather map's wind (weatherMap.js), if any
   seaWindMapActive: { value: 0 },
   // The clouds' cover (Planet.setSeaClouds): the weather map's (weatherMap.js) and the real clouds' (realClouds.js),
@@ -131,6 +139,13 @@ export function updateSeaWaves(t, direction, speed) {
     u.seaBandSlope.value[b] = Math.sqrt(mss * w / total + swell)
   })
   u.seaSlopeVariance.value = mss + SWELL_SLOPE * SWELL_SLOPE
+  // (As seaWaveSlope sums it where every band is left out and the gusts have faded out (a gust factor of 1).)
+  const smoothstep = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t) }
+  const shortWaves = smoothstep(0.3, 3.0, speed)
+  u.seaUnresolvedFar.value = u.seaBandSlope.value.reduce((sum, slope, b) => {
+    const gusted = TRAINS[b * WAVE_DIRECTIONS].k > 2 * Math.PI / GUSTED_WAVELENGTH ? shortWaves : 1
+    return sum + slope * slope * gusted * gusted
+  }, 0)
   u.seaWind.value.set(direction.x, direction.y, direction.z, speed)
   const coverage = speed > 3.5 ? Math.min(0.2, 3.84e-6 * Math.pow(speed, 3.41)) : 0
   u.seaFoam.value.set(FOAM_NOISE_SD, coverage, 0, 0)
@@ -230,6 +245,7 @@ ${prefix === 'seaGust' ? `#ifdef SEA_LITE
 export const seaWavesGlsl = `
 uniform float seaWaveOffset[${WAVE_COUNT}];
 uniform float seaWavePhase[${WAVE_COUNT}];
+uniform float seaUnresolvedFar;
 uniform float seaBandSlope[${WAVE_BANDS}];
 uniform vec4 seaWind;
 uniform sampler2D seaWindMap;

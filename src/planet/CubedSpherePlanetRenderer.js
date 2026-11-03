@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { fbmGlsl, noiseOffsets } from './seaNoise.js';
 import '../scene/sunAndSkyLight.js'; // registers <sun_and_sky_light>, which the sea surface uses
-import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, seaSkyReflectionGlsl, seaWaveUniforms, seaWavesGlsl, tileWaveOffsets } from './seaWaves.js';
+import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, SEA_GUSTS_UNSEEN_DISTANCE, SEA_WAVES_UNRESOLVED_PIXEL, seaSkyReflectionGlsl, seaWaveUniforms, seaWavesGlsl, tileWaveOffsets } from './seaWaves.js';
 import { SEA_ICE_FREQUENCIES, seaIceGlsl, seaIceUniforms } from './seaIce.js';
 import { apHazeUniforms } from './aerialPerspective.js';
 import { PixelLOD } from '../scene/PixelLOD.js';
@@ -1411,6 +1411,7 @@ export class CubedSpherePlanetRenderer {
     }
 
     this._applyVisibility();
+    this._updateSeaFar(camera);
     this._updateEdgeMorph();
     this._processQueue();
     this._evictLRU();
@@ -2043,7 +2044,8 @@ ${seaSkyReflectionGlsl}`)
       transparent: true,
       depthWrite: false,
     });
-    material.defines = this.seaLite ? { SEA_LITE: '' } : {};
+    material.defines = this._seaDefines(false);
+    tile.seaFar = false;
     const waveOffsets = tileWaveOffsets(tile.center);
     const gustOffsets = noiseOffsets(tile.center, GUST_FREQUENCIES);
     const foamOffsets = noiseOffsets(tile.center, FOAM_FREQUENCIES);
@@ -2133,11 +2135,19 @@ float seaIce = 0.0;
 #include <alphatest_fragment>`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 float seaUnresolved;
-float seaGustNow = seaGustFactor(vSeaLocal, seaViewDistance);
 vec3 seaUp = seaPlanetNormal();
+#ifdef SEA_FAR
+// (The far sea, _updateSeaFar: what the rest draws there. Every band too fine for its pixel, so all of the
+// waves' slope is roughness; the gusts faded out, so a gust factor of 1; the whitecaps' average cover.)
+seaUnresolved = seaUnresolvedFar * seaRoughnessHere(seaUp) / seaSlopeVariance;
+normal = seaToView(seaUp);
+float seaFoamCover = (seaFoam.y > 0.0 ? clamp(seaFoam.y, 0.0, 0.2) : 0.0) * (1.0 - seaIce);
+#else
+float seaGustNow = seaGustFactor(vSeaLocal, seaViewDistance);
 vec3 seaSlope = seaWaveSlope(vSeaLocal, seaUp, seaGustNow, seaUnresolved);
 normal = seaToView(normalize(seaUp - seaSlope * (1.0 - seaIce)));
-float seaFoamCover = seaWhitecaps(vSeaLocal, seaViewDistance, seaGustNow, length(fwidth(vSeaLocal))) * (1.0 - seaIce);`)
+float seaFoamCover = seaWhitecaps(vSeaLocal, seaViewDistance, seaGustNow, length(fwidth(vSeaLocal))) * (1.0 - seaIce);
+#endif`)
         .replace('#include <lights_phong_fragment>', `#include <lights_phong_fragment>
 material.specularStrength *= 1.0 - seaIce; // ice is matte: no sun glint
 // Blinn-Phong's exponent for the slopes too fine to draw (Beckmann roughness m^2 = their mean square
@@ -2151,8 +2161,14 @@ material.specularShininess = clamp(2.0 / (seaUnresolved + 2e-4) - 2.0, 4.0, 8000
   // typical breeze leaves the sea everywhere (GLINT_FAR_SLOPE_VARIANCE; Beckmann's distribution, Fresnel
   // reflectance), whatever the waves, gusts, whitecaps or each place's wind (which made it a patchwork,
   // with rings around the camera where the gusts' noise changed scale).
+#ifdef SEA_FAR
+  // (The far sea is beyond GLINT_FAR: the generic sunspot alone.)
+  vec3 glint = vec3(0.0);
+  float glintFar = 1.0;
+#else
   vec3 glint = reflectedLight.directSpecular;
   float glintFar = smoothstep(${GLINT_FAR[0].toFixed(1)}, ${GLINT_FAR[1].toFixed(1)}, seaViewDistance);
+#endif
   #if NUM_DIR_LIGHTS > 0
   if (glintFar > 0.0) {
     vec3 n = seaToView(seaUp), l = directionalLights[0].direction;
@@ -2285,7 +2301,37 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     this.seaLite = on;
     for (const tile of this.tiles.values()) {
       if (!tile.waterMesh) continue;
-      tile.waterMesh.material.defines = on ? { SEA_LITE: '' } : {};
+      tile.waterMesh.material.defines = this._seaDefines(tile.seaFar);
+      tile.waterMesh.material.needsUpdate = true;
+    }
+  }
+
+  _seaDefines(far) {
+    const defines = this.seaLite ? { SEA_LITE: '' } : {};
+    if (far) defines.SEA_FAR = '';
+    return defines;
+  }
+
+  // The far sea (SEA_FAR): a smaller shader for the tiles wholly beyond where the waves, gusts, whitecaps and
+  // the glint off the waves show (every wave band under a pixel, the gusts' octaves faded out, past
+  // GLINT_FAR), which draws there exactly what the full one does. Its many parts held so many registers that
+  // on Intel's integrated GPUs the sea ran at half width everywhere, even where they were all skipped: from
+  // space, as much as the waves' own cost close up. Per tile, from its nearest point to the camera, with a
+  // margin; the pixel the narrowest of the view (towards its corners, cos^2 of the angle off its axis).
+  _updateSeaFar(camera) {
+    const p = camera.projectionMatrix.elements;
+    const tanDiagonal2 = 1 / (p[0] * p[0]) + 1 / (p[5] * p[5]);
+    const pixelAngle = 1 / (this._sseScale * (1 + tanDiagonal2));
+    const margin = 1.25;
+    const scale = this._groupScale || 1;
+    const farFrom = Math.max(SEA_GUSTS_UNSEEN_DISTANCE, GLINT_FAR[1], SEA_WAVES_UNRESOLVED_PIXEL / pixelAngle) * margin;
+    for (const tile of this.visibleList) {
+      if (!tile.waterMesh) continue;
+      const nearest = (tile.center.distanceTo(this._camLocal) - tile.boundingRadius) * scale;
+      const far = nearest > farFrom;
+      if (far === tile.seaFar) continue;
+      tile.seaFar = far;
+      tile.waterMesh.material.defines = this._seaDefines(far);
       tile.waterMesh.material.needsUpdate = true;
     }
   }
