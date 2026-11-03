@@ -344,8 +344,8 @@ export class Planet {
     u.atmoParams.value.y = THREE.MathUtils.lerp(1, SPACE_EXPOSURE, fade);
     u.atmoSun.value.copy(sunDirection).normalize();
     if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
-    // (The ground's haze table, only from where aerialPerspective.js reads it.)
-    if (this.groundHazeLut && this.rendererOptions.renderer && Math.sqrt(c2) - a > 11000) this.groundHazeLut.update(this.rendererOptions.renderer);
+    // (The ground's haze table: the sea reads it from any height, aerialPerspective.js.)
+    if (this.groundHazeLut && this.rendererOptions.renderer) this.groundHazeLut.update(this.rendererOptions.renderer);
     // The sky from sea level, for the lighter qualities' sea (worked out once).
     if (this.rendererOptions.renderer) {
       this.seaSkyTable ??= new SeaSkyTable();

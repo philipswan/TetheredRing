@@ -2053,7 +2053,7 @@ ${seaSkyReflectionGlsl}`)
     const invB2 = (1 / (this.b * this.b)).toExponential(10);
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, seaWaveUniforms, seaIceUniforms, apHazeUniforms);
-      shader.fragmentShader = '#define AP_HAZE_LUT\n' + shader.fragmentShader;  // (aerialPerspective.js)
+      shader.fragmentShader = '#define AP_HAZE_LUT\n#define AP_HAZE_LUT_SEA\n' + shader.fragmentShader;  // (aerialPerspective.js)
       shader.uniforms.seaWaveOffset = { value: waveOffsets };
       shader.uniforms.seaGustOffset = { value: gustOffsets };
       shader.uniforms.seaFoamOffset = { value: foamOffsets };

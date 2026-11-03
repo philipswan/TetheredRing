@@ -37,7 +37,10 @@ const sun = { x: 0, y: 1, z: 0 }            // direction to the sun (world)
 // cannot give a render target's texture to every material by its libraries' uniforms, which it clones).
 const hazeLight = { value: null }
 const hazeTransmittance = { value: null }
-export const apHazeUniforms = { apHazeLight: hazeLight, apHazeTransmittance: hazeTransmittance }
+// (apHazeOn: 1 while the table is there. The sea, whose every point is at sea level, which is where the
+// table's lines of sight end, reads it from any height: AP_HAZE_LUT_SEA.)
+const hazeOn = { value: 0 }
+export const apHazeUniforms = { apHazeLight: hazeLight, apHazeTransmittance: hazeTransmittance, apHazeOn: hazeOn }
 
 const LIBRARIES = ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite']
 for (const name of LIBRARIES) {
@@ -71,6 +74,7 @@ THREE.ShaderChunk.fog_pars_fragment += `
   #ifdef AP_HAZE_LUT
     uniform sampler2D apHazeLight;
     uniform sampler2D apHazeTransmittance;
+    uniform float apHazeOn;
     ${skyLutGlsl}
   #endif
 #endif
@@ -88,7 +92,11 @@ THREE.ShaderChunk.fog_fragment += `
       if (apT1 > apT0) {
         vec3 apLight, apTransmittance;
 #ifdef AP_HAZE_LUT
+  #ifdef AP_HAZE_LUT_SEA
+        if (apHazeOn > 0.5) {
+  #else
         if (apParams.w < 0.0) {
+  #endif
           // (From the table: the line of sight to sea level, its lower half.)
           float apTop = sqrt(max(dot(apCamera.xyz, apCamera.xyz) - apCamera.w, 0.0));
           vec2 apUv = skyLutUv(normalize(apDirStretched), apCamera.xyz, apSun, apParams.z, apTop);
@@ -126,6 +134,7 @@ export const AerialPerspective = {
   setHazeLut(lut) {
     hazeLight.value = lut?.light ?? null
     hazeTransmittance.value = lut?.transmittance ?? null
+    hazeOn.value = lut ? 1 : 0
   },
 
   // active: the air hazes what is seen through it. atmosphereUniforms: the planet's (Planet.atmosphereUniforms,
