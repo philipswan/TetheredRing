@@ -90,6 +90,11 @@ const MURK_SPACING = 200
 const MURK_STEPS_MAX = 64
 // The rain shafts' cells (m; see rainShaft, whose shafts follow the cloud above at a footprint of 400 m).
 const RAIN_CELL = 128
+// Rain shafts fade out as the camera rises from RAIN_HEIGHT[0] to [1] (m), and above it the march is compiled
+// without them (CLOUD_LITE_MURK, as the lighter qualities' always is: Clouds.render). From there they are a
+// trace of grey through gaps in the cloud, and their code alone, raining or not, made the whole march a tenth
+// slower (from the ring, from orbit).
+const RAIN_HEIGHT = [15000, 20000]
 const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
@@ -413,6 +418,7 @@ uniform ivec2 lightSteps;       // LIGHT_STEPS, VERTICAL_STEPS (a uniform, so th
 // instruction cache). Such loops are unrolled by hand in groups of a few reads, enough to keep the GPU's
 // memory busy.
 uniform int noUnroll;
+uniform float rainShare;       // the rain shafts' share, fading out with the camera's height (RAIN_HEIGHT)
 uniform int cloudTypeTest;      // 1: the sky filled with a test type (setCloudTypeTest)
 uniform vec3 midTest;           // the cloud type's mid-level layer (cover, stratiform share, base), if any
 uniform vec4 lowTest;           // its low cloud's cover, stratiform share, showers and base (m)
@@ -818,7 +824,7 @@ vec2 levelsOfDetail(float footprint) {
     smoothstep(${MID_LOD_FOOTPRINT[0].toFixed(1)}, ${MID_LOD_FOOTPRINT[1].toFixed(1)}, footprint));
 }
 
-float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods, inout float layer) {
+float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods, inout float layer, int layers) {
   vec3 midL = midLayer(col);
   float density = 0.0;
   // The low layer and the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), each where
@@ -831,6 +837,7 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
   bool inLow = col.lowCover > 0.0 && h > col.base && h < col.top;
   bool inMid = midL.x > 0.0 && h > midL.z && h < midTop;
   for (int k = 0; k < 2; k++) {
+    if (k >= layers) break;
     bool mid = k == 1;
     if (mid ? !inMid : !inLow) continue;
     float lowCover = mid ? midL.x : col.lowCover;
@@ -908,7 +915,7 @@ float columnDensity(CloudColumn col, vec3 local, float h, bool full, float footp
   crispWeight = 1.0 - smoothstep(${CRISP_FOOTPRINT[0].toFixed(1)}, ${CRISP_FOOTPRINT[1].toFixed(1)}, footprint);
 
   // Low cloud.
-  density += lowCloudDensity(col, local, h, full, vec2(lod, midLod), layer);
+  density += lowCloudDensity(col, local, h, full, vec2(lod, midLod), layer, 2);
   fineWeight = 0.0;
 
   // High cloud: streaks along the wind aloft.
@@ -1038,7 +1045,7 @@ float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float foot
     float lightAt = lightStep * 1.5 - 60.0;
     vec3 q = p + sunDirS * lightAt;
     vec3 ql = local + worldToPlanet * (slSun * lightAt);
-    od += lowCloudDensity(col, ql, length(q) - a, false, lod, unused) * lightStep;
+    od += lowCloudDensity(col, ql, length(q) - a, false, lod, unused, 2) * lightStep;
     COST(cost.z)
     lightStep *= 2.0;
   }
@@ -1063,7 +1070,7 @@ vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, floa
   for (int k = 0; k < 2; k++) {
     float at = k == 0 ? ${LITE_SUN_STEPS[0].toFixed(1)} : ${LITE_SUN_STEPS[1].toFixed(1)};
     float stepLength = k == 0 ? ${(2 * LITE_SUN_STEPS[0]).toFixed(1)} : ${(LITE_SUN_STEPS[1] - LITE_SUN_STEPS[0]).toFixed(1)};
-    sun += lowCloudDensity(col, local + worldToPlanet * (slSun * at), length(p + sunDirS * at) - a, false, lod, unused) * stepLength;
+    sun += lowCloudDensity(col, local + worldToPlanet * (slSun * at), length(p + sunDirS * at) - a, false, lod, unused, 2) * stepLength;
   }
   float mu = max(dot(normalize(p), sunDirS), 0.1);
   float above = clamp(col.top - h, 0.0, min(depth, ${LITE_REACH.toFixed(1)})), below = clamp(h - col.base, 0.0, min(depth, ${LITE_REACH.toFixed(1)}));
@@ -1100,7 +1107,7 @@ float verticalDepth(CloudColumn col, vec3 local, float h, float dir, float footp
   for (int k = 0; k < lightSteps.y; k++) {
     float at = dir * stepLength * (float(k) + 0.5);
     if (h + at < 0.0) break;
-    od += lowCloudDensity(col, local + up * at, h + at, false, lod, unused) * stepLength;
+    od += lowCloudDensity(col, local + up * at, h + at, false, lod, unused, 2) * stepLength;
     COST(cost.z)
     stepLength *= 2.0;
   }
@@ -1276,12 +1283,14 @@ float rainShaft(CloudColumn col, vec3 p, vec3 local, float h) {
   if (rate < 0.1) return 0.0;
   float base = col.base;
   if (h > base) return 0.0;
-  // The cloud a little above its base, straight up from here.
+  // The cloud a little above its base, straight up from here: the low layer's alone (at the level of detail of a
+  // 400 m footprint), from one copy of its code. (The whole column's density, three times over, was a fifth
+  // of the cost of the rain shafts' code.)
   vec3 up = normalize(p);
   float lift = base + 0.25 * (col.top - base) - h;
   float unused;
-  float cloud = columnDensity(col, local + worldToPlanet * (up * lift), h + lift, false, 400.0, unused);
-  return smoothstep(0.02, 0.25, cloud) * 3.912 / (${RAIN_VISIBILITY.toFixed(1)} * pow(rate, -0.63));
+  float cloud = lowCloudDensity(col, local + worldToPlanet * (up * lift), h + lift, false, vec2(${(() => { const t = Math.min(Math.max((400 - LOD_FOOTPRINT[0]) / (LOD_FOOTPRINT[1] - LOD_FOOTPRINT[0]), 0), 1); return (t * t * (3 - 2 * t)).toFixed(5) })()}, 1.0), unused, 1);
+  return rainShare * smoothstep(0.02, 0.25, cloud) * 3.912 / (${RAIN_VISIBILITY.toFixed(1)} * pow(rate, -0.63));
 }
 
 // The rain at the camera c (mm/h), with the same shaft as rainShaft (0 above the cloud base), in the column
@@ -1959,6 +1968,7 @@ export class Clouds {
       exposure: { value: new THREE.Vector2(1, Math.PI) },
       lightSteps: { value: [LIGHT_STEPS, VERTICAL_STEPS] },
       noUnroll: { value: 1 },
+      rainShare: { value: 1 },
       cloudTypeTest: { value: 0 },
       midTest: { value: new THREE.Vector3() },
       lowTest: { value: new THREE.Vector4() },
@@ -2029,11 +2039,23 @@ export class Clouds {
     }
     if (!this._compiledPasses) {
       this._compiledPasses = true
-      renderer.setRenderTarget(this.cloudTarget)
-      compiled.push(renderer.compileAsync(this.marchScene, this.quadCamera))
       renderer.setRenderTarget(previousTarget)
       compiled.push(renderer.compileAsync(this.compositeScene, this.quadCamera))
     }
+    // (The march with and without rain shafts, for the camera above and below RAIN_HEIGHT, for the quality's
+    // features: each once.)
+    this._compiledMarch ??= new Set()
+    const noRain = this._noRain
+    for (const variant of [noRain, !noRain]) {
+      this._noRain = variant
+      const key = this.applyFeatures()
+      if (this._compiledMarch.has(key)) continue
+      this._compiledMarch.add(key)
+      renderer.setRenderTarget(this.cloudTarget)
+      compiled.push(renderer.compileAsync(this.marchScene, this.quadCamera))
+    }
+    this._noRain = noRain
+    this.applyFeatures()
     renderer.setRenderTarget(previousTarget)
     return Promise.all(compiled)
   }
@@ -2045,6 +2067,14 @@ export class Clouds {
     this.planetCoordSys.updateWorldMatrix(true, false)
     camera.getWorldPosition(_cameraPlanet)
     this.planetCoordSys.worldToLocal(_cameraPlanet)
+    // The rain shafts by the camera's height over the ellipsoid (the stretched camera's over the sphere it makes).
+    const sl = this.uniforms.slCamera.value
+    const height = Math.hypot(sl.x, sl.y, sl.z) - this.uniforms.slParams.value.z
+    this.uniforms.rainShare.value = 1 - THREE.MathUtils.smoothstep(height, RAIN_HEIGHT[0], RAIN_HEIGHT[1])
+    if ((height > RAIN_HEIGHT[1]) !== !!this._noRain) {
+      this._noRain = height > RAIN_HEIGHT[1]
+      this.applyFeatures()
+    }
     const resolution = this.resolution
     const w = Math.max(1, Math.round(size.x * resolution)), h = Math.max(1, Math.round(size.y * resolution))
     if (this.distanceTarget.width !== w || this.distanceTarget.height !== h) {
@@ -2143,12 +2173,23 @@ export class Clouds {
   // The shader's optional parts, for the graphics quality (names of its defines: CLOUD_LITE_LIGHT,
   // CLOUD_LITE_MURK, ...); a change recompiles it.
   setFeatures(defines) {
+    this._features = [...defines]
+    this.applyFeatures()
+  }
+
+  // The march's defines: the quality's features, and without rain shafts (CLOUD_LITE_MURK) while the camera is
+  // above RAIN_HEIGHT. Returns them (sorted, joined).
+  applyFeatures() {
+    const defines = new Set(this._features ?? [])
+    if (this._noRain) defines.add('CLOUD_LITE_MURK')
+    const key = [...defines].sort().join(',')
     const material = this.marchScene.children[0].material
     const current = Object.keys(material.defines).filter((k) => k.startsWith('CLOUD_LITE') || k.startsWith('CLOUD_NO_')).sort().join(',')
-    if (current === [...defines].sort().join(',')) return
+    if (current === key) return key
     for (const k of Object.keys(material.defines)) if (k.startsWith('CLOUD_LITE') || k.startsWith('CLOUD_NO_')) delete material.defines[k]
     for (const k of defines) material.defines[k] = ''
     material.needsUpdate = true
+    return key
   }
 
   // Fills the sky with one cloud type (its name in CLOUD_TYPES), for testing; null: the weather's clouds.
