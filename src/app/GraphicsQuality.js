@@ -17,14 +17,18 @@ import { AerialPerspective } from '../planet/aerialPerspective.js'
 //                  no different from 8 in any of the bench's cloud, mountain or photo views.)
 //   hazeLut        from higher, the haze read from a table of lines of sight worked out once a frame
 //                  (Planet.setGroundHazeLut) rather than marched
+//   hazeVolume     from higher, the haze over the ground and the sea read from a table of lines of sight
+//                  down to the ground, by where along them each point is (Planet.setHazeVolume; in place of
+//                  hazeLut's there): closer than 8 samples to the haze marched with many, and faster (not
+//                  for Low, whose cheaper table was faster still on the i7-1355U)
 export const QUALITY_PRESETS = {
-  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [], seaLite: false, hazeSamples: 4, hazeLut: false },
+  high: { label: 'High', maxPixelRatio: 2, lodBias: 1, terrainSse: 1.5, clouds: 0.5, cloudFeatures: [], seaLite: false, hazeSamples: 4, hazeLut: false, hazeVolume: true },
   balanced: { label: 'Balanced', maxPixelRatio: 1.5, lodBias: 1.5, terrainSse: 2, clouds: 0.4,
-    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_COLUMNS'], seaLite: true, hazeSamples: 4, hazeLut: false },
+    cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_COLUMNS'], seaLite: true, hazeSamples: 4, hazeLut: false, hazeVolume: true },
   low: { label: 'Low', maxPixelRatio: 1, lodBias: 2.5, terrainSse: 3, clouds: 0.25,
     cloudFeatures: ['CLOUD_LITE_LIGHT', 'CLOUD_LITE_MURK', 'CLOUD_LITE_SHADOW', 'CLOUD_LITE_MID', 'CLOUD_LITE_HIGH', 'CLOUD_LITE_CELLS', 'CLOUD_LITE_COLUMNS',
       'CLOUD_LITE_FLAT', 'CLOUD_LITE_DETAIL'],
-    seaLite: true, hazeSamples: 4, hazeLut: true },
+    seaLite: true, hazeSamples: 4, hazeLut: true, hazeVolume: false },
 }
 const TIERS = ['high', 'balanced', 'low']
 
@@ -138,6 +142,7 @@ export class GraphicsQuality {
     this.app.planet?.setSeaLite(this.preset.seaLite)
     AerialPerspective.setLowSamples(this.preset.hazeSamples)
     this.app.planet?.setGroundHazeLut?.(this.preset.hazeLut)
+    this.app.planet?.setHazeVolume?.(this.preset.hazeVolume)
     this.app.onResize()
   }
 
@@ -152,6 +157,7 @@ export class GraphicsQuality {
     this.app.planet?.setSeaLite(false)
     AerialPerspective.setLowSamples(QUALITY_PRESETS.high.hazeSamples)
     this.app.planet?.setGroundHazeLut?.(false)
+    this.app.planet?.setHazeVolume?.(QUALITY_PRESETS.high.hazeVolume)
   }
 
   // Called once per displayed frame with the frame's timestamp (ms).

@@ -27,6 +27,10 @@ export default async function ({ page }) {
   // Planet.setGroundHazeLut), whatever the quality.
   if (process.env.BENCH_SEA_LITE) await page.evaluate((on) => window.tetheredRing.app.planet.setSeaLite(on), process.env.BENCH_SEA_LITE === '1')
   if (process.env.BENCH_HAZE_LUT) await page.evaluate((on) => window.tetheredRing.app.planet.setGroundHazeLut(on), process.env.BENCH_HAZE_LUT === '1')
+  // BENCH_HAZE_VOLUME=0|1: the haze from above from its table down to the ground (Planet.setHazeVolume); BENCH_HAZE_HIGH_SAMPLES=n:
+  // the samples it is marched in from above otherwise (a reference, with many).
+  if (process.env.BENCH_HAZE_VOLUME) await page.evaluate((on) => window.tetheredRing.app.planet.setHazeVolume(on), process.env.BENCH_HAZE_VOLUME === '1')
+  if (process.env.BENCH_HAZE_HIGH_SAMPLES) await page.evaluate(async (n) => (await import('/src/planet/aerialPerspective.js')).AerialPerspective.setHighSamples(n), Number(process.env.BENCH_HAZE_HIGH_SAMPLES))
   // BENCH_HAZE_SAMPLES=n: the haze's samples (aerialPerspective.js), whatever the quality.
   if (process.env.BENCH_HAZE_SAMPLES) await page.evaluate(async (n) => (await import('/src/planet/aerialPerspective.js')).AerialPerspective.setLowSamples(n), Number(process.env.BENCH_HAZE_SAMPLES))
   // BENCH_CLOUD_DEFINES=A,B: the clouds' optional shader parts (Clouds.setFeatures).

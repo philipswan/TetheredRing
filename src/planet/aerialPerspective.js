@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import atmosphereCommon from '../shaders/atmosphereCommon.glsl?raw'
 import './seaDarkening.js' // its fog code first: see below
 import { SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js'
+import { hazeVolumeGlsl } from './hazeVolume.js'
 
 // Aerial perspective: everything seen through the air (terrain, sea, the ring, vehicles) is dimmed by
 // the air's transmittance along the line of sight and has the light the air scatters into it added,
@@ -40,7 +41,14 @@ const hazeTransmittance = { value: null }
 // (apHazeOn: 1 while the table is there. The sea, whose every point is at sea level, which is where the
 // table's lines of sight end, reads it from any height: AP_HAZE_LUT_SEA.)
 const hazeOn = { value: 0 }
-export const apHazeUniforms = { apHazeLight: hazeLight, apHazeTransmittance: hazeTransmittance, apHazeOn: hazeOn }
+// The haze from a table of lines of sight down to the ground, by where along them a point is (hazeVolume.js;
+// Planet.setHazeVolume): read from above LOW_SAMPLES_HEIGHT by the same materials, in place of the table above.
+const volume0 = { value: null }
+const volume1 = { value: null }
+const volumeOn = { value: 0 }
+export const apVolumeTop = { value: 1 }
+export const apHazeUniforms = { apHazeLight: hazeLight, apHazeTransmittance: hazeTransmittance, apHazeOn: hazeOn,
+  apVolume0: volume0, apVolume1: volume1, apVolumeTop, apVolumeOn: volumeOn }
 
 const LIBRARIES = ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite']
 for (const name of LIBRARIES) {
@@ -75,7 +83,9 @@ THREE.ShaderChunk.fog_pars_fragment += `
     uniform sampler2D apHazeLight;
     uniform sampler2D apHazeTransmittance;
     uniform float apHazeOn;
+    uniform float apVolumeOn;
     ${skyLutGlsl}
+    ${hazeVolumeGlsl}
   #endif
 #endif
 `
@@ -91,22 +101,27 @@ THREE.ShaderChunk.fog_fragment += `
       apT1 = min(apT1, apDistance - vSeaPath);
       if (apT1 > apT0) {
         vec3 apLight, apTransmittance;
+        bool apDone = false;
 #ifdef AP_HAZE_LUT
+        float apTop = sqrt(max(dot(apCamera.xyz, apCamera.xyz) - apCamera.w, 0.0));
+        if (apVolumeOn > 0.5 && apParams.w < 0.0) {
+          // (From the table of lines of sight down to the ground, by where along it this is: hazeVolume.js.)
+          apDone = hazeVolume(apCamera.xyz, apDirStretched, apDir, apT1, apSun, apParams.z, apTop, apLight, apTransmittance);
+        }
   #ifdef AP_HAZE_LUT_SEA
-        if (apHazeOn > 0.5) {
+        else if (apHazeOn > 0.5) {
   #else
-        if (apParams.w < 0.0) {
+        else if (apParams.w < 0.0) {
   #endif
           // (From the table: the line of sight to sea level, its lower half.)
-          float apTop = sqrt(max(dot(apCamera.xyz, apCamera.xyz) - apCamera.w, 0.0));
           vec2 apUv = skyLutUv(normalize(apDirStretched), apCamera.xyz, apSun, apParams.z, apTop);
           apUv.y = min(apUv.y, 0.5 - 0.5 / ${SKY_LUT_SIZE[1].toFixed(1)});
           apLight = texture2D(apHazeLight, apUv).rgb;
           apTransmittance = texture2D(apHazeTransmittance, apUv).rgb;
+          apDone = true;
         }
-        else
 #endif
-        atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, int(abs(apParams.w)), apLight, apTransmittance);
+        if (!apDone) atmoScatter(apCamera.xyz, apDirStretched, apDir, apT0, apT1, apSun, apParams.z, int(abs(apParams.w)), apLight, apTransmittance);
         apLight *= atmoHazeScale(apTransmittance, apParams.x);
         vec3 apColor = sRGBTransferEOTF(vec4(gl_FragColor.rgb, 1.0)).rgb * apTransmittance + (1.0 - exp(-apLight));
         gl_FragColor.rgb = sRGBTransferOETF(vec4(apColor, 1.0)).rgb;
@@ -120,7 +135,10 @@ THREE.ShaderChunk.fog_fragment += `
 // lines of sight cross little enough air that they look the same as SAMPLES (by tools/perceptual_diff.py up
 // to 13 km); from higher, and from space, where they cross the whole of it, they did not.
 const LOW_SAMPLES_HEIGHT = 12000
+// (From there up, the haze is read from its tables where the materials have them.)
+export const AP_HIGH_HEIGHT = LOW_SAMPLES_HEIGHT
 let lowSamples = SAMPLES
+let highSamples = SAMPLES
 
 export const AerialPerspective = {
   // The samples along each line of sight below LOW_SAMPLES_HEIGHT (SAMPLES, or fewer for the lighter
@@ -137,6 +155,19 @@ export const AerialPerspective = {
     hazeOn.value = lut ? 1 : 0
   },
 
+  // The table of the haze down to the ground (Planet.setHazeVolume), read from above LOW_SAMPLES_HEIGHT when
+  // set, in place of the table above; null: not.
+  setHazeVolume(volume) {
+    volume0.value = volume?.rayleigh ?? null
+    volume1.value = volume?.mie ?? null
+    volumeOn.value = volume ? 1 : 0
+  },
+
+  // (For comparisons: the samples from above LOW_SAMPLES_HEIGHT, where the haze is marched.)
+  setHighSamples(n) {
+    highSamples = n
+  },
+
   // active: the air hazes what is seen through it. atmosphereUniforms: the planet's (Planet.atmosphereUniforms,
   // already updated for this frame).
   update(active, atmosphereUniforms) {
@@ -149,7 +180,7 @@ export const AerialPerspective = {
     params.z = u.atmoParams.value.z
     // (The camera's height over the stretched sphere: |C'|^2 - a^2 = atmoParams.x.)
     const height = Math.sqrt(Math.max(u.atmoParams.value.x + params.z * params.z, 0)) - params.z
-    params.w = height < LOW_SAMPLES_HEIGHT ? lowSamples : hazeLight.value ? -SAMPLES : SAMPLES
+    params.w = height < LOW_SAMPLES_HEIGHT ? lowSamples : hazeLight.value || volume0.value ? -highSamples : highSamples
     Object.assign(sun, { x: u.atmoSun.value.x, y: u.atmoSun.value.y, z: u.atmoSun.value.z })
   },
 }

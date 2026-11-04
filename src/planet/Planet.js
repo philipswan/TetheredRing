@@ -3,10 +3,11 @@ import { CubedSpherePlanetRenderer, PLANET_YAW } from './CubedSpherePlanetRender
 import { loadSeaIce, setSeaIceDayOfYear, setSeaIceVisible } from './seaIce.js';
 import atmosphereVertexShader from '../shaders/atmosphere.vert.glsl?raw';
 import atmosphereFragmentShader from '../shaders/atmosphere.frag.glsl?raw';
-import { AerialPerspective } from './aerialPerspective.js'; // (and registers <atmosphere_common>)
+import { AerialPerspective, AP_HIGH_HEIGHT, apHazeUniforms } from './aerialPerspective.js'; // (and registers <atmosphere_common>)
 import { seaWaveUniforms, updateSeaWaves } from './seaWaves.js';
 import { SkyLut, SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js';
 import { SeaSkyTable } from './seaSkyTable.js';
+import { HazeVolume } from './hazeVolume.js';
 
 // Top of the atmosphere shell above sea level (m), where the sky's scattering stops. High enough that
 // the air left above it would not show: a line of sight grazing the top crosses ~1100 km of air at
@@ -278,6 +279,15 @@ export class Planet {
     AerialPerspective.setHazeLut(this.groundHazeLut);
   }
 
+  // The haze in front of the ground from above read from a table of lines of sight down to it, by where along
+  // them each point is (hazeVolume.js), rather than marched at every pixel of the ground and the sea.
+  setHazeVolume(on) {
+    if (on === !!this.hazeVolume) return;
+    if (on) this.hazeVolume = new HazeVolume(this.atmosphereUniforms, apHazeUniforms.apVolumeTop);
+    else { this.hazeVolume.dispose(); this.hazeVolume = null; }
+    AerialPerspective.setHazeVolume(this.hazeVolume);
+  }
+
   // The sky read from a table worked out once a frame (skyLut.js) rather than marched at every pixel.
   setSkyLut(on) {
     if (on === !!this.skyLut) return;
@@ -346,6 +356,8 @@ export class Planet {
     if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
     // (The ground's haze table: the sea reads it from any height, aerialPerspective.js.)
     if (this.groundHazeLut && this.rendererOptions.renderer) this.groundHazeLut.update(this.rendererOptions.renderer);
+    // (Only from where the haze reads it: aerialPerspective.js.)
+    if (this.hazeVolume && this.rendererOptions.renderer && Math.sqrt(c2) - a >= AP_HIGH_HEIGHT) this.hazeVolume.update(this.rendererOptions.renderer, Math.sqrt(c2) - a, ATMOSPHERE_HEIGHT);
     // The sky from sea level, for the lighter qualities' sea (worked out once).
     if (this.rendererOptions.renderer) {
       this.seaSkyTable ??= new SeaSkyTable();
