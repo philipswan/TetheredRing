@@ -26,3 +26,7 @@ smoke*.png
 
 # Source data downloaded by tools/sources (large; not in Git or LFS)
 additional_earth_imagery
+
+# Local reference images and Claude worktrees
+Cloud Examples
+.claude

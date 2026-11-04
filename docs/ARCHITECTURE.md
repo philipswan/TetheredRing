@@ -97,7 +97,7 @@ Every animated system receives the simulation time in `animate(time, ...)`. Its 
 
 1. The sky pass: stars and the Moon, drawn with their own camera so the main camera's far plane can stay fitted to the planet
 2. Any background image or Google Earth frame
-3. The main scene (then the clouds over it)
+3. The main scene, then the launch vehicles' glow and the clouds over it (the glow before the clouds with the camera below the clouds' tops, after them from above; see below)
 4. The highlights, if any are on (see below)
 5. The screen-space overlays
 
@@ -255,6 +255,17 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
   - Like the sea fog, it is solved against the ellipsoid relative to the camera, with the large terms in float64 (`Planet.updateAtmosphere`).
 
 **View status.** A readout in the bottom-right corner (`src/ui/ViewStatus.js`, **Rendering → showViewStatus**) shows the camera's latitude, longitude, altitude, heading, pitch and field of view, the date and time of day (UTC and local solar) and the simulated time; its Copy view button copies a link (`?preset=…&view=…`) holding the preset, the start's day of year and time of day (always), the simulated time, the camera in the planet's frame and every parameter changed from the preset's, which reopens exactly that view, paused at that moment. It is for reporting and reproducing what is seen; it is page HTML, so it is never recorded.
+
+## Launch vehicle plasma and exhaust
+
+From the moment a launch vehicle leaves the evacuated tube, the air it flies through glows (`src/launcher/LaunchVehicleGlow.js`, physics in `src/launcher/hypersonicGlow.js`, tested in `tests/launcher`):
+
+- **Plasma.** An envelope of hot gas surrounds the vehicle from the tip of its nose, widening along the body out to 1.2 body radii, and runs on into the wake. Each point of the trail glows as the air was heated when the vehicle passed it (as the radiative heating, density x speed^4), the envelope around the vehicle brightest; the wake cools over `launchVehiclePlasmaCoolingTime` from white-pink through orange to red, and spreads as the hypersonic far wake does (radius ~ (Cd A x)^(1/3)), keeping its light per unit length. So the trail fades by about a hundred times as the vehicle climbs from the tube's exit (32 km) to 65 km.
+- **Exhaust plume.** The hydrolox plume expands round the nozzle's lip by the Prandtl-Meyer angle to the air's pressure (from the nozzle's area ratio and `launchVehicleEngineChamberPressure`), is confined by the oncoming air (its thrust against the dynamic pressure) or by the base's wake, and balloons once the air is too thin to hold it. Its light follows the propellant flow in the trajectory's telemetry and fades over a few Mach-disk distances; near sea level the Mach disk is a bright band.
+
+Nothing is remembered between frames: each frame the plasma of every launch in flight is rebuilt from the vehicle's trajectory at earlier times (`frameAt`), so it is a function of the parameters and the time, and any frame of a shot renders on its own.
+
+The plasma and the plume are tubes of light with a Gaussian cross-section (`src/scene/GlowTube.js`). The mesh is a closed tube bounding the light; only its far side is drawn, and `glowTube.frag.glsl` integrates the light along each line of sight in closed form (with erf), between the tube's ends, so it is right from outside, from inside (a chase camera in the wake) and end on. Tubes narrower than a pixel are widened and dimmed to keep their light, so a distant trail does not break up. All the glow is screen-blended (`src/scene/glowMaterials.js`), so a faint glow over a bright sunlit cloud stays faint. The tubes are in a scene of their own (`launchSystem.glow.scene`), not the main scene: the clouds' distance prepass would treat them as solid, and since they fly above the clouds they are drawn under the clouds from below their tops and over them from above. **Rendering → showLaunchVehiclePlasma / showLaunchVehicleExhaust** turn them off; `launchVehiclePlasmaBrightness` and `launchVehicleExhaustBrightness` scale them.
 
 ## Weather and clouds
 

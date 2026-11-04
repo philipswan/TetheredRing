@@ -58,7 +58,7 @@ const LITE_MID_DETAIL = 0.5
 // The flat layer's light: shares of the sunlight on it (by the sun's height) and of the sky's.
 const FLAT_SUN = 0.55
 const FLAT_SKY = 1.0
-const SHELL_TOP = 13000 // m
+export const SHELL_TOP = 13000 // m
 // The march (see main): the cloud layer, from LAYER_BOTTOM (m) up (below the lowest cloud bases), in the
 // cells of a grid fixed to the planet: fine cells CELL_MIN (m) and up, powers of two at about CELL_SHARE
 // of the distance, climbing or falling no more than VERTICAL_CELL (m) across one (HIGH_CELLS times both
