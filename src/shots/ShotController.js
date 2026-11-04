@@ -12,7 +12,8 @@ import {
 } from '../capture/VideoRecorder.js'
 import { downloadText } from '../app/exports.js'
 import { MotionBlur, subFrameTimes, adaptiveSubFrames } from '../capture/MotionBlur.js'
-import { Supersampler, OpaqueCanvas, clampSupersample, maxRenderSize } from '../capture/Supersampler.js'
+import { Supersampler, clampSupersample, maxRenderSize } from '../capture/Supersampler.js'
+import { FrameCapture } from '../capture/FrameCapture.js'
 import { PixelLOD } from '../scene/PixelLOD.js'
 import { StructureLines } from '../scene/structureLines.js'
 import { RenderQueueRunner } from './RenderQueueRunner.js'
@@ -631,8 +632,8 @@ export class ShotController {
     for (;;) {
       planet.update(this.app.camera3d)
       const stats = planet.getDebugStats()
-      if (!(stats.queue > 0 || stats.inflight > 0)) return
-      if (performance.now() - start > TERRAIN_WAIT_TIMEOUT_MS) return
+      if (!(stats.queue > 0 || stats.inflight > 0 || stats.pendingUploads > 0)) return
+      if (performance.now() - start > TERRAIN_WAIT_TIMEOUT_MS) throw new Error('Timed out waiting for terrain to finish loading and uploading.')
       await sleep(30)
     }
   }
@@ -642,10 +643,8 @@ export class ShotController {
     return clampSupersample(output.supersample ?? 1, output.width, output.height, maxRenderSize(this.app.renderer))
   }
 
-  // The canvas a recording at `output` is encoded from: the renderer's own, or with supersampling the
-  // output-sized canvas the filtered frames are copied to.
+  // A stable, output-sized CPU canvas, never the live WebGL drawing buffer.
   frameCanvas(output) {
-    if (this.supersampleFactor(output) === 1) return this.app.renderer.domElement
     this.outputCanvas ??= document.createElement('canvas')
     this.outputCanvas.width = output.width
     this.outputCanvas.height = output.height
@@ -659,33 +658,30 @@ export class ShotController {
   // afterFrame(i, canvas) is called while frame i is finished on `canvas` (the one to encode).
   async runFixedStep({ width, height, fps, waitForTerrain, perFrame, recorder, progressLabel, subFrames = () => 1, blur: useBlur = false, afterFrame = null, supersample = 1 }) {
     const app = this.app
+    if (this.recordingSize) throw new Error('A fixed-step capture is already running.')
     const factor = clampSupersample(supersample, width, height, maxRenderSize(app.renderer))
-    app.renderer.setAnimationLoop(null)
-    app.setRenderSize(width, height, { pixelRatio: factor })
-    app.clock.setFixedStep(1 / fps)
-    // Every recorded frame gets its intended level of detail (no deferred high-detail builds).
     const previousBuildBudget = PixelLOD.buildBudget
-    PixelLOD.buildBudget = Infinity
-    app.quality.applyForRecording()
-    // Terrain tiles as for the output resolution: the finer ones a larger canvas would ask for add
-    // little once filtered down, and would multiply the tiles to stream.
-    if (factor > 1 && app.planet?.lod) app.planet.lod.sseThreshold *= factor
-    StructureLines.setPixelScale(factor)
-    if (app.clouds) app.clouds.pixelScale = factor
-    // Nothing but the scene goes into the video: no path overlay or tracking markers.
     const markers = [app.camera.trackingMarker, app.camera.targetMarker, app.camera.orbitMarker]
     const markerVisibility = markers.map(m => m.visible)
-    markers.forEach(m => { m.visible = false })
-    const progress = new ProgressOverlay(() => this.stop())
-    const blur = useBlur ? new MotionBlur(app.renderer) : null
-    blur?.begin(width, height)
-    const supersampler = factor > 1 ? new Supersampler(app.renderer, this.frameCanvas({ width, height, supersample: factor })) : null
-    supersampler?.begin(width, height)
-    const canvas = supersampler ? supersampler.canvas : app.renderer.domElement
-    // (The supersampler's filter writes opaque pixels itself.)
-    const opaque = supersampler ? null : new OpaqueCanvas(app.renderer)
+    let progress, blur, supersampler, capture
     let lastYield = performance.now()
+    this.recordingSize = { width, height, pixelRatio: factor }
     try {
+      app.renderer.setAnimationLoop(null)
+      app.setRenderSize(width, height, { pixelRatio: factor })
+      app.clock.setFixedStep(1 / fps)
+      PixelLOD.buildBudget = Infinity
+      app.quality.applyForRecording()
+      StructureLines.setPixelScale(factor)
+      if (app.clouds) app.clouds.pixelScale = factor
+      markers.forEach(m => { m.visible = false })
+      progress = new ProgressOverlay(() => this.stop())
+      blur = useBlur ? new MotionBlur(app.renderer) : null
+      blur?.begin(width, height)
+      const canvas = this.frameCanvas({ width, height })
+      supersampler = factor > 1 ? new Supersampler(app.renderer, canvas) : null
+      supersampler?.begin(width, height)
+      capture = supersampler?.capture ?? new FrameCapture(app.renderer, canvas, width, height)
       frames: for (let i = 0; ; i++) {
         let n = 1
         for (let s = 0; s < n; s++) {
@@ -696,9 +692,19 @@ export class ShotController {
           app.step(i === 0 && s === 0 ? 0 : dt)
           // The sub-frames of one frame are close together; their terrain is the first one's.
           if (waitForTerrain && s === 0) await this.waitForTerrain()
-          app.render()
+          app.prepareRender()
+          let timeout
+          try {
+            await Promise.race([
+              PixelLOD.prepareScene(app.scene, app.camera3d),
+              new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Timed out waiting for scene geometry.')), TERRAIN_WAIT_TIMEOUT_MS) }),
+            ])
+          }
+          finally { clearTimeout(timeout) }
+          if (this.cancelRequested) break frames
+          capture.assertSize()
+          app.render({ prepared: true })
           supersampler?.resolve()
-          opaque?.apply(width, height)
           if (blur) {
             blur.add(s === 0, 1 / n)
             // Keep the page (and the Stop button) responsive through long runs of sub-frames, without
@@ -711,7 +717,7 @@ export class ShotController {
           }
         }
         if (blur) blur.present()
-        supersampler?.publish()
+        capture.capture()
         afterFrame?.(i, canvas)
         if (recorder) await recorder.addFrame()
         progress.update(progressLabel(i))
@@ -723,13 +729,13 @@ export class ShotController {
     finally {
       blur?.dispose()
       supersampler?.dispose()
-      opaque?.dispose()
       StructureLines.setPixelScale(1)
       if (app.clouds) app.clouds.pixelScale = 1
-      progress.remove()
+      progress?.remove()
       markers.forEach((m, i) => { m.visible = markerVisibility[i] })
       PixelLOD.buildBudget = previousBuildBudget
       app.clock.setFixedStep(null)
+      this.recordingSize = null
       app.quality.apply()
       app.onResizeAfterRecording()
       app.renderer.setAnimationLoop(() => app.frame())

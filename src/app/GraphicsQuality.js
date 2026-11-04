@@ -70,6 +70,10 @@ export class GraphicsQuality {
 
   // Pushes the current settings to the renderer, LOD system and terrain.
   apply() {
+    if (this.app.shots?.recordingSize) {
+      this.applyForRecording()
+      return
+    }
     PixelLOD.lodBias = this.preset.lodBias
     if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = this.preset.terrainSse
     this.app.onResize()
@@ -78,7 +82,7 @@ export class GraphicsQuality {
   // Full quality regardless of mode (recording): identical output on every machine.
   applyForRecording() {
     PixelLOD.lodBias = 1
-    if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = QUALITY_PRESETS.high.terrainSse
+    if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = QUALITY_PRESETS.high.terrainSse * (this.app.shots?.recordingSize?.pixelRatio ?? 1)
   }
 
   // Called once per displayed frame with the frame's timestamp (ms).
