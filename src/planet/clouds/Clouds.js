@@ -80,6 +80,7 @@ const CELL_BUDGET = 1024
 const MAX_COARSE = 1500
 const HEIGHT_MARGIN = 100
 const HIGH_CELLS = 8
+const HIGH_FIBRE_CELLS = 2
 const VERTICAL_CELL = 150
 const MURK_STEPS = 10
 const LAYER_BOTTOM = 250
@@ -1602,8 +1603,17 @@ void main() {
         float rainCell = rainMid;
         bool needD0 = !d0Known;
         // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
-        // cells HIGH_CELLS times the low cloud's.)
+        // cells HIGH_CELLS times the low cloud's; but only twice, HIGH_FIBRE_CELLS, as near as its fibres show
+        // (they fade into their average where their texels are under half a pixel). Its fibres are a few hundred
+        // metres across, and with the longer cells along a line of sight through them their sum came out by
+        // where the cells' planes fell, which drew those planes across the cirrus in straight lines,
+        // criss-crossing.)
+#ifdef CLOUD_LITE_HIGH
+        // (The lighter quality's fibres are their average everywhere.)
         if (!lowCloud) fine = min(fine * ${HIGH_CELLS.toFixed(1)}, min(coarse, steepest * 4.0));
+#else
+        if (!lowCloud) fine = min(fine * (r * pixelAngle < 2.0 / (${SHAPE_SIZE.toFixed(1)} * fibreTiles.y) ? ${HIGH_FIBRE_CELLS.toFixed(1)} : ${HIGH_CELLS.toFixed(1)}), min(coarse, steepest * 4.0));
+#endif
         float rf = r;
         for (int j = 0; j < ${6 * COARSE + 3}; j++) {
           if (rf >= rc1) break;
