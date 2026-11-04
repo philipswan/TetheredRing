@@ -862,6 +862,7 @@ export class App {
 
   render() {
     const renderer = this.renderer
+    this.quality.beginGpuFrame()
     this.viewStatus?.update(performance.now())
     this.shots.overlay.update(this.camera3d)
     PixelLOD.beginFrame(renderer.info.render.frame)
@@ -915,6 +916,7 @@ export class App {
     this.highlights.render(renderer, this.scene, this.camera3d)
     renderer.clearDepth()
     this.overlays.render(renderer)
+    this.quality.endGpuFrame()
     if ((this._framesRendered = (this._framesRendered ?? 0) + 1) % PRECOMPILE_INTERVAL === 1) this.precompileShaders()
     warmPrograms(renderer)
   }
