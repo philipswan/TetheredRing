@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 import * as THREE from 'three'
 import { PixelLOD } from '../../src/scene/PixelLOD.js'
 import { InstancedProxyPool } from '../../src/scene/InstancedProxyPool.js'
-import { GraphicsQuality } from '../../src/app/GraphicsQuality.js'
+import '../support/rawImports.mjs'
 import { GoogleEarthCameraPlayback } from '../../src/camera/GoogleEarthCameraPlayback.js'
+// (After the hook above: it imports shaders with ?raw.)
+const { GraphicsQuality } = await import('../../src/app/GraphicsQuality.js')
 
 function sceneWithLOD() {
   const scene = new THREE.Scene()
@@ -76,7 +78,7 @@ test('new and hidden LOD proxies are reflected in the same frame before drawing'
 
 test('quality changes cannot lower recording detail or supersampled terrain quality', () => {
   const bias = PixelLOD.lodBias
-  const app = { shots: { recordingSize: { pixelRatio: 2 } }, planet: { lod: {} }, onResize: () => assert.fail('interactive resize') }
+  const app = { shots: { recordingSize: { pixelRatio: 2 } }, planet: { lod: {}, setSeaLite: () => {} }, onResize: () => assert.fail('interactive resize') }
   const quality = Object.create(GraphicsQuality.prototype)
   quality.app = app
   quality.mode = 'low'
