@@ -22,7 +22,7 @@ import { InstancedProxyPool } from '../scene/InstancedProxyPool.js'
 import { GraphicsQuality, QUALITY_PRESETS } from './GraphicsQuality.js'
 import { Planet, defaultPlanetAssets } from '../planet/Planet.js'
 import { Sailboats } from '../scene/Sailboats.js'
-import { Clouds } from '../planet/clouds/Clouds.js'
+import { Clouds, SHELL_TOP } from '../planet/clouds/Clouds.js'
 import { ViewStatus, applyViewState } from '../ui/ViewStatus.js'
 import { setWeatherDate, windAt } from '../scene/seaPlacement.js'
 import { ContainerShips } from '../scene/ContainerShips.js'
@@ -533,6 +533,7 @@ export class App {
       adjustViewStatus: visibility((p) => this.viewStatus?.setVisible(p.showViewStatus.value)),
       adjustContainerShips: visibility((p) => this.containerShips?.setVisible(p.showContainerShips.value)),
       adjustOceanTerminal: visibility((p) => this.oceanTerminal?.setVisible(p.showLauncherOceanTerminal.value)),
+      adjustLaunchVehicleGlow: visibility((p) => this.launchSystem?.glow.configure(this.launchSystem.effectiveParams(p), this.planetSpec)),
       adjustEarthAtmosphereVisibility: visibility((p) => this.planet.setAtmosphereVisible(p.showEarthsAtmosphere.value)),
       adjustTerrainExaggeration: visibility((p) => this.planet.setDisplacementScale((this.nonGUIParams.planet2DisplacementScaleMultiplier ?? 1) * p.terrainExaggeration.value)),
       adjustBackgroundOpacity: visibility((p) => this.renderer.setClearAlpha(p.enableBackgroundAlpha.value ? 0 : 1)),
@@ -858,6 +859,12 @@ export class App {
     this.rebuildRing()
   }
 
+  // The camera's height above the planet's ellipsoid (m).
+  cameraAltitude() {
+    const p = this.planetCoordSys.worldToLocal(this.camera3d.getWorldPosition(this._cameraPosition ??= new THREE.Vector3()))
+    return tram.ecefToGeodetic(p.x, p.y, p.z, this.planetSpec.ellipsoid).alt
+  }
+
   render() {
     const renderer = this.renderer
     this.viewStatus?.update(performance.now())
@@ -900,10 +907,17 @@ export class App {
     }
     this.lighting.updateSkyLight(true, this.planet, this.planetSpec.hasOcean === true)
     renderer.render(this.scene, this.camera3d)
+    // The launch vehicles' plasma and exhaust (LaunchVehicleGlow.js) are light without a surface, kept out
+    // of the clouds' distance prepass. They fly above the clouds, so the clouds cover them seen from below
+    // the clouds' tops, and they are drawn over the clouds seen from above.
+    const glow = this.launchSystem?.glow
+    const glowOverClouds = glow?.anyVisible && this.cameraAltitude() > SHELL_TOP
+    if (glow && !glowOverClouds) glow.render(renderer, this.camera3d, this.planetCoordSys)
     // (While the sun and sky light is still set up for this camera: the clouds use it.)
     if (!underwater && atmosphereVisible) {
       this.clouds?.render(renderer, this.scene, this.camera3d, this.lighting.sunLight.intensity, this.planet.atmosphereUniforms.atmoParams.value.y)
     }
+    if (glow && glowOverClouds) glow.render(renderer, this.camera3d, this.planetCoordSys)
     this.lighting.updateSkyLight(false)
     if (underwater) {
       renderer.setClearColor(this._clearColor, this._clearAlpha)
@@ -918,17 +932,20 @@ export class App {
   }
 
   // Compiles the shader programs of new objects in the scene (drawn or not: e.g. the sea surface and the
-  // atmosphere while under the sea), the sky's and the clouds' passes' in the background, so that the
-  // first frame that draws them does not stall (see precompile.js).
+  // atmosphere while under the sea), the sky's, the launch vehicles' glow's and the clouds' passes' in the
+  // background, so that the first frame that draws them does not stall (see precompile.js).
   precompileShaders() {
     if (this._precompiling) return
-    const seen = (this._precompiled ??= { scene: new Set(), sky: new Set() })
+    const seen = (this._precompiled ??= { scene: new Set(), sky: new Set(), glow: new Set() })
     const scene = standInScene(this.scene, { seen: seen.scene })
     const sky = standInScene(this.sky.scene, { seen: seen.sky })
+    const glowScene = this.launchSystem?.glow.scene
+    const glow = glowScene && standInScene(glowScene, { seen: seen.glow })
     this._precompiling = true
     Promise.all([
       scene && this.renderer.compileAsync(scene, this.camera3d, this.scene),
       sky && this.renderer.compileAsync(sky, this.sky.camera, this.sky.scene),
+      glow && this.renderer.compileAsync(glow, this.camera3d, glowScene),
       this.clouds?.compileAsync(this.renderer, this.scene, this.camera3d),
     ]).catch((error) => console.warn('[app] precompiling shaders failed', error))
       .finally(() => { this._precompiling = false })

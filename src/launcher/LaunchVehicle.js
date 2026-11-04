@@ -5,7 +5,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacesGeometry } from './FacesGeometry.js'
 import * as tram from '../utils/tram.js'
 import { quaternionFromFrame } from '../curves/SuperCurves.js'
-import { MovingVirtualObject, curveFrameAtTime, hash01, parameterSignature } from './VirtualObject.js'
+import { MovingVirtualObject, curveFrameAtTime, parameterSignature } from './VirtualObject.js'
+import { boundaryLayerThickness, PLASMA_REFERENCE_DENSITY, PLASMA_REFERENCE_SPEED } from './hypersonicGlow.js'
+import { plasmaSheathMaterial } from '../scene/glowMaterials.js'
 
 const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
@@ -14,16 +16,15 @@ export class launchVehicleModel {
   constructor(dParamWithUnits, myScene, unallocatedModelsList, _unusedLegacyFlag, gravityAtLauncherLocation) {
     const radius = dParamWithUnits['launchVehicleRadius'].value
     const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-    const flameLength = dParamWithUnits['launchVehicleFlameLength'].value
     const lengthSegments = 2
     const radialSegments = 32
     const noseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
-    const shockwaveConeLength = dParamWithUnits['launchVehicleShockwaveConeLength'].value
     const objName = 'launchVehicle'
     const launchVehicleNumModels = dParamWithUnits['launchVehicleNumModels'].value
     const isLunarLaunch = dParamWithUnits['launchFromPlanet']?.value === 'Moon'
 
-    // Proceedurally generate the Launch Vehicle body, flame, and point light meshes
+    // Proceedurally generate the Launch Vehicle body and point light meshes. (Its plasma and exhaust
+    // plume are drawn by LaunchVehicleGlow.js.)
 
     const profile = []
     // Move to the starting point which is at the back of the combustion chamber
@@ -140,10 +141,10 @@ export class launchVehicleModel {
     launchVehicleBodyMesh.castShadow = true
     if (isLunarLaunch) addLunarDecals(launchVehicleBodyMesh)
 
-    const launchVehicleFlameMesh = makeFlame()
     const launchVehiclePointLightMesh = makePointLight()
-    const launchVehicleShockwaveConeMesh = makeShockwaveCone()
-    const launchVehicleMesh = assemble(launchVehicleBodyMesh, launchVehicleFlameMesh, launchVehiclePointLightMesh, launchVehicleShockwaveConeMesh)
+    const launchVehicleMesh = assemble(launchVehicleBodyMesh, launchVehiclePointLightMesh)
+    // The hot boundary layer over the hull while it flies through the air (LaunchVehicleGlow.js).
+    if (!isLunarLaunch) launchVehicleMesh.add(makePlasmaSheath())
 
     const scaleFactor = dParamWithUnits['launchVehicleScaleFactor'].value
     const scaleFactorVector = new THREE.Vector3(
@@ -333,17 +334,56 @@ export class launchVehicleModel {
         .catch(err => console.error('Error loading human scale figure:', err))
     }
 
-    function makeFlame() {
-
-      // Create the vehicle's flame
-      const launchVehicleFlameGeometry = new THREE.CylinderGeometry(radius*0.95, radius*0.4, flameLength, radialSegments, lengthSegments, false)
-      launchVehicleFlameGeometry.name = "rocketEngine"
-      const launchVehicleFlameMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, emissive: 0xdfa0df, emissiveIntensity: 1.25, transparent: true, opacity: 0.5})
-      const launchVehicleFlameMesh = new THREE.Mesh(launchVehicleFlameGeometry, launchVehicleFlameMaterial)
-      launchVehicleFlameMesh.position.set(0, -flameLength/2, 0)
-      launchVehicleFlameMesh.name = 'flame'
-      return launchVehicleFlameMesh
-    
+    // A shell over the Haack hull for plasmaSheath.*.glsl: per vertex the hull's point and normal, the
+    // boundary layer's thickness there at the reference conditions (7.6 km/s at 30 km), the distance
+    // from the nose over the length, and the hull's radius. Hidden until LaunchVehicleGlow shows it.
+    function makePlasmaSheath() {
+      const worldScale = dParamWithUnits['launchVehicleScaleFactor'].value * dParamWithUnits['launchSystemForwardScaleFactor'].value
+      const haack = (fromNose) => {
+        const theta = Math.acos(Math.min(1, Math.max(-1, 1 - 2 * fromNose / totalLength)))
+        return radius / Math.sqrt(Math.PI) * Math.sqrt(Math.max(0, theta - Math.sin(2 * theta) / 2 + CValue * Math.sin(theta) ** 3))
+      }
+      const rings = 64, sides = radialSegments
+      const position = [], normal = [], thickness = [], fromNoseAttribute = [], hullRadius = []
+      for (let i = 0; i <= rings; i++) {
+        const fromNose = totalLength * (i / rings) ** 2   // closer together near the nose
+        const r = haack(fromNose)
+        const h = Math.max(1e-3, 0.01 * totalLength)
+        const slope = (haack(Math.min(totalLength, fromNose + h)) - haack(Math.max(0, fromNose - h))) / (Math.min(totalLength, fromNose + h) - Math.max(0, fromNose - h))
+        // Outward normal: radially out, tilted towards the nose by the hull's slope
+        const nl = Math.hypot(1, slope)
+        const nr = 1 / nl, ny = slope / nl
+        const delta = boundaryLayerThickness(fromNose * worldScale, PLASMA_REFERENCE_SPEED, PLASMA_REFERENCE_DENSITY) / worldScale
+        for (let j = 0; j < sides; j++) {
+          const phi = 2 * Math.PI * j / sides
+          position.push(r * Math.sin(phi), totalLength - fromNose, r * Math.cos(phi))
+          normal.push(nr * Math.sin(phi), ny, nr * Math.cos(phi))
+          thickness.push(delta)
+          fromNoseAttribute.push(fromNose / totalLength)
+          hullRadius.push(r)
+        }
+      }
+      const index = []
+      for (let i = 0; i < rings; i++) {
+        for (let j = 0; j < sides; j++) {
+          const a = i * sides + j, b = i * sides + (j + 1) % sides
+          index.push(a, b, a + sides, b, b + sides, a + sides)
+        }
+      }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3))
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
+      geometry.setAttribute('thickness', new THREE.Float32BufferAttribute(thickness, 1))
+      geometry.setAttribute('fromNose', new THREE.Float32BufferAttribute(fromNoseAttribute, 1))
+      geometry.setAttribute('hullRadius', new THREE.Float32BufferAttribute(hullRadius, 1))
+      geometry.setIndex(index)
+      geometry.computeBoundingSphere()
+      geometry.boundingSphere.radius += radius   // room for the layer to thicken in thin air
+      const mesh = new THREE.Mesh(geometry, plasmaSheathMaterial())
+      mesh.name = 'plasmaSheath'
+      mesh.visible = false
+      mesh.renderOrder = 3   // after the hull and its decals
+      return mesh
     }
 
     function makePointLight() {
@@ -356,22 +396,9 @@ export class launchVehicleModel {
     
     }
 
-    function makeShockwaveCone() {
-        
-        // ToDo: *4 factor below should be a parameter or calculated from the launchVehicle's airspeed
-        const launchVehicleShockwaveConeGeometry = new THREE.ConeGeometry(radius*4, shockwaveConeLength, radialSegments, lengthSegments, true)
-        launchVehicleShockwaveConeGeometry.name = "shockwaveCone"
-        const launchVehicleShockwaveConeMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, side: THREE.DoubleSide, emissive: 0x7f7f7f, emissiveIntensity: 1.25, transparent: true, opacity: 0.15})
-        const launchVehicleShockwaveConeMesh = new THREE.Mesh(launchVehicleShockwaveConeGeometry, launchVehicleShockwaveConeMaterial)
-        launchVehicleShockwaveConeMesh.position.set(0, bodyLength + noseconeLength - shockwaveConeLength/2, 0)
-        launchVehicleShockwaveConeMesh.name = 'shockwaveCone'
-        return launchVehicleShockwaveConeMesh
+    function assemble(launchVehicleBodyMesh, launchVehiclePointLightMesh) {
 
-      }
-
-    function assemble(launchVehicleBodyMesh, launchVehicleFlameMesh, launchVehiclePointLightMesh, launchVehicleShockwaveConeMesh) {
-
-      const launchVehicleMesh = new THREE.Group().add(launchVehicleBodyMesh).add(launchVehicleFlameMesh).add(launchVehicleShockwaveConeMesh)
+      const launchVehicleMesh = new THREE.Group().add(launchVehicleBodyMesh)
       launchVehicleMesh.name = 'launchVehicle'
       launchVehiclePointLightMesh.visible = dParamWithUnits['showLaunchVehiclePointLight'].value
       launchVehicleMesh.add(launchVehiclePointLightMesh)
@@ -415,7 +442,7 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
   static signatureOf(dParamWithUnits) {
     return parameterSignature(dParamWithUnits,
       ['launchVehicle', 'launchSystem', 'launchFromPlanet', 'showLaunchVehiclePointLight', 'launcherMassDriverForwardAcceleration'],
-      ['Spacing', 'Offset', 'CameraRange', 'Mass', 'Thrust', 'FlowRate', 'Exhaust', 'Desired', 'Drag', 'TipRadius'])
+      ['Spacing', 'Offset', 'CameraRange', 'Mass', 'Thrust', 'FlowRate', 'Exhaust', 'Desired', 'Drag', 'TipRadius', 'Plasma', 'ChamberPressure'])
   }
 
   static isTeardownRequired(dParamWithUnits) {
@@ -438,14 +465,10 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
     v.forwardsOffset = dParamWithUnits['launchVehicleForwardsOffset'].value
     v.bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     v.noseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
-    v.flameLength = dParamWithUnits['launchVehicleFlameLength'].value
-    v.shockwaveConeLength = dParamWithUnits['launchVehicleShockwaveConeLength'].value
     v.isVisible = dParamWithUnits['showLaunchVehicles'].value
     v.showLaunchVehiclePointLight = dParamWithUnits['showLaunchVehiclePointLight'].value
     v.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     v.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
-    v.launchVehicleAdaptiveThrust = dParamWithUnits['launchVehicleAdaptiveThrust'].value
-    v.maxPropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value
     // Distance (in model units) from the model origin (tail) to the middle of the hull
     const isLunarLaunch = dParamWithUnits['launchFromPlanet']?.value === 'Moon'
     v.hullCentre = (v.bodyLength + v.noseconeLength) / 2 * (isLunarLaunch ? 0.6 : 1)
@@ -456,7 +479,8 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
   }
 
   // Frame of the rendered model `deltaT` seconds after launch.
-  // position: model origin (tail) including offsets; centre: middle of the hull (what trackers aim at).
+  // position: model origin (tail, at the nozzle's exit) including offsets; centre: middle of the hull (what
+  // trackers aim at); modelForward: the direction the nose points.
   frameAt(refFrame, deltaT) {
     const v = virtualLaunchVehicle
     const f = curveFrameAtTime(refFrame.curve, deltaT, v.useT)
@@ -485,15 +509,13 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
       orientation = quaternionFromFrame(forward, upward, MODEL_FORWARD, MODEL_UPWARD)
     }
     const centre = position.clone().addScaledVector(modelForward, v.hullCentre * v.forwardScale)
-    return { f, position, centre, forward, upward, rightward, orientation }
+    return { f, position, centre, forward, upward, rightward, orientation, modelForward }
   }
 
   placeAndOrientModel(om, refFrame) {
     const v = virtualLaunchVehicle
-    const adj = v.adjustedTime(refFrame.timeSinceStart)
     const deltaT = this.clampedDeltaT(refFrame)   // (negative while leaving the terminal)
     const frame = this.frameAt(refFrame, deltaT)
-    const relevantCurve = frame.f.curve
 
     om.position.copy(frame.position)
     om.quaternion.copy(frame.orientation)
@@ -502,62 +524,11 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
     // Cache the sub-meshes (Object3D.clone() does not copy custom properties, so each model caches its own)
     if (!om._parts) {
       om._parts = {
-        flame: om.getObjectByName('launchVehicle_flame'),
         pointLight: om.getObjectByName('launchVehicle_pointLight'),
-        shockwaveCone: om.getObjectByName('launchVehicle_shockwaveCone'),
+        plasmaSheath: om.getObjectByName('launchVehicle_plasmaSheath'),
       }
     }
-    const { flame: flame_model, pointLight: pointlight_model, shockwaveCone: shockwaveCone_model } = om._parts
-
-    if (relevantCurve.name==='freeFlightPositionCurve') {
-      const altitude = frame.f.point.length() - v.planetRadius
-      const airDensity = v.planetSpec.airDensityAtAltitude(altitude)
-      const speedOfSound = (v.planetSpec.speedOfSoundAtAltitude!==undefined) ? v.planetSpec.speedOfSoundAtAltitude(altitude) : 1000
-      let fuelFlowRateFactor
-      let shockwaveConeSizeFactor
-      let shockwaveConeLengthFactor
-      if (v.launchVehicleAdaptiveThrust && relevantCurve.freeFlightTelemetryCurve) {
-        const tc = relevantCurve.freeFlightTelemetryCurve
-        const vehicleTelemetry = frame.f.byT ? tc.getPoint(frame.f.i) : tc.getPointAt(frame.f.d)
-        const vehicleAirSpeed = vehicleTelemetry.x
-        const aerodynamicDrag = vehicleTelemetry.y
-        const fuelFlowRate = vehicleTelemetry.z
-        fuelFlowRateFactor = (v.maxPropellantMassFlowRate > 0) ? fuelFlowRate / v.maxPropellantMassFlowRate : 0
-        shockwaveConeSizeFactor = aerodynamicDrag / 2.279e6   // Using the max thrust of an RS-25 vacuum engine as a baseline
-        shockwaveConeLengthFactor = vehicleAirSpeed / speedOfSound
-        if (flame_model) flame_model.visible = (fuelFlowRateFactor>0.01)
-        if (shockwaveCone_model) shockwaveCone_model.visible = (vehicleAirSpeed>speedOfSound)
-      }
-      else {
-        const airDensityFactor = Math.min(1, airDensity/0.0184)     // 0.0184 kg/m^3 is rougly the air density at 30000m
-        if (flame_model) flame_model.visible = (airDensityFactor>0.1)
-        fuelFlowRateFactor = airDensityFactor
-        if (shockwaveCone_model) shockwaveCone_model.visible = (airDensityFactor>0.01)
-        shockwaveConeSizeFactor = airDensityFactor
-        shockwaveConeLengthFactor = 1
-      }
-
-      if (flame_model && flame_model.visible) {
-        flame_model.position.set(0, -v.flameLength*fuelFlowRateFactor/2, 0)
-        flame_model.scale.set(1, Math.max(1e-6, fuelFlowRateFactor), 1)
-      }
-
-      if (shockwaveCone_model && shockwaveCone_model.visible) {
-        // +/-10% flicker from a deterministic hash of the launch index and a 20 Hz time bucket
-        // (was Math.random(), which made captures irreproducible)
-        const flicker = 0.9 + 0.2 * hash01(this.launchIndex, Math.floor(adj * 20))
-        const shockwaveConeSizeFactorScaled = Math.max(1e-6, shockwaveConeSizeFactor * flicker)
-        const lengthScale = shockwaveConeSizeFactorScaled * shockwaveConeLengthFactor
-        const widthScale = shockwaveConeSizeFactorScaled
-        const yPos = v.bodyLength + v.noseconeLength - v.shockwaveConeLength*lengthScale/2
-        shockwaveCone_model.position.set(0, yPos, 0)
-        shockwaveCone_model.scale.set(widthScale, Math.max(1e-6, lengthScale), widthScale)
-      }
-    }
-    else {
-      if (flame_model) flame_model.visible = false
-      if (shockwaveCone_model) shockwaveCone_model.visible = false
-    }
+    const { pointLight: pointlight_model } = om._parts
 
     if (pointlight_model) pointlight_model.visible = v.showLaunchVehiclePointLight
   }
