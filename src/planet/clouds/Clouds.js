@@ -89,6 +89,14 @@ const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
 const LIGHT_STEPS = 5
+// The light march towards the sun reads the shapes at the level of detail of LIGHT_DETAIL times the pixel's
+// footprint; and the powder effect (cloudScatter) fades out over pixel footprints of POWDER_FOOTPRINT (m).
+// (From afar, looking down on a deck of shower clouds in a high sun, every pixel is a sunlit top: the
+// powder darkened the whole deck, the lumps' slightly deeper sides came out brighter than their tops, and
+// each lump, a few pixels across, shaded its neighbours where light spreading through a deck evens it out:
+// a dark grey carpet, though near and edge-on the same clouds looked right.)
+const LIGHT_DETAIL = 2
+const POWDER_FOOTPRINT = [30, 200]
 // The lighter qualities' light (CLOUD_LITE_LIGHT, liteDepths): the density (0..1) it passes through inside a
 // cloud, less than the cores' (the light finds its way between the shapes).
 const LITE_DENSITY = 0.03
@@ -997,12 +1005,13 @@ float shapeBound(vec3 q, float extent, float tile) {
 }
 
 // The cloud's optical depth from p (stretched; local: its planet-frame offset from the camera) towards the
-// sun (sunDirS stretched), in a column col, over LIGHT_STEPS steps doubling from 60 m.
+// sun (sunDirS stretched), in a column col, over LIGHT_STEPS steps doubling from 60 m. (Its shapes at the level
+// of detail of LIGHT_DETAIL footprints.)
 float sunwardDepth(CloudColumn col, vec3 p, vec3 local, vec3 sunDirS, float footprint) {
   float a = slParams.z;
   float od = 0.0, unused;
   float lightStep = 60.0;
-  vec2 lod = levelsOfDetail(footprint);
+  vec2 lod = levelsOfDetail(footprint * ${LIGHT_DETAIL.toFixed(1)});
   for (int k = 0; k < lightSteps.x; k++) {
     // (The middle of the step, which starts where the steps before it end. At lightStep * (k + 0.5) the
     // samples ran out to 4 km, and the light through a sheet more than a few hundred metres deep, such as
@@ -1050,15 +1059,15 @@ vec3 liteDepths(CloudColumn col, vec3 p, vec3 local, float h, vec3 sunDirS, floa
 // The share of sunlight scattered towards the eye at optical depth od from the sun: multiple scattering,
 // approximately (octaves of weaker extinction and flatter phase: phase holds each octave's lobe, broader as
 // the light is scattered more, see main), less the powder effect (the sunlit side of a cloud's surface is
-// darker than its depths' glow).
-float cloudScatter(float od, vec3 phase) {
+// darker than its depths' glow), which fades out over POWDER_FOOTPRINT (footprint: the pixel's, m).
+float cloudScatter(float od, vec3 phase, float footprint) {
   float scatter = 0.0;
   float att = 1.0, ext = 1.0, ph = 1.0;
   for (int k = 0; k < 3; k++) {
     scatter += att * exp(-od * ext) * mix(1.0 / (4.0 * PI), phase[k], ph);
     att *= 0.5; ext *= 0.5; ph *= 0.5;
   }
-  return scatter * (1.0 - 0.6 * exp(-od * 2.0));
+  return scatter * (1.0 - 0.6 * exp(-od * 2.0) * (1.0 - smoothstep(${POWDER_FOOTPRINT[0].toFixed(1)}, ${POWDER_FOOTPRINT[1].toFixed(1)}, footprint)));
 }
 
 // The cloud's optical depth straight up (dir 1) or down (dir -1) from height h (m) at planet-frame offset
@@ -1610,7 +1619,7 @@ void main() {
         float halfTau = 0.5 * midOpticalDepth(midM);
         float muSun = max(dot(normalize(pMid), sunDirS), 0.05);
         midT = exp(-midTau);
-        midLight = (sunlight * (cloudScatter(halfTau / muSun, phase) * 4.0 + diffuseSun(midM.y) / (1.0 + 0.1125 * halfTau))
+        midLight = (sunlight * (cloudScatter(halfTau / muSun, phase, rcm * pixelAngle) * 4.0 + diffuseSun(midM.y) / (1.0 + 0.1125 * halfTau))
           + (skyAmbient + groundAmbient) * exp(-${AMBIENT_EXTINCTION.toFixed(3)} * halfTau)) * (1.0 - midT);
       }
       bool midFirst = hB < hA;
@@ -1725,7 +1734,7 @@ void main() {
               verticalDepth(colL, D * xl, hL, 1.0, xl * pixelAngle), verticalDepth(colL, D * xl, hL, -1.0, xl * pixelAngle));
 #endif
           }
-          float scatter = cloudScatter(od.x, phase);
+          float scatter = cloudScatter(od.x, phase, xl * pixelAngle);
           vec2 ambientShare = exp(-${AMBIENT_EXTINCTION.toFixed(3)} * od.yz);
           vec3 ambient = skyAmbient * ambientShare.x + groundAmbient * ambientShare.y;
           // Sunlight scattered many times inside the cloud, which lights even its shaded depths and base:
