@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FrameCapture } from './FrameCapture.js'
 
 // Supersampling for recordings: every frame is rendered at `factor` times the output resolution in
 // each direction (on top of the canvas's own MSAA) and filtered down to the output size, which
@@ -186,7 +187,7 @@ export class Supersampler {
     this.scene.add(mesh)
     this.source = null
     this.canvas = canvas
-    this.context = null
+    this.capture = null
     this.width = 0
     this.height = 0
   }
@@ -203,9 +204,7 @@ export class Supersampler {
     u.map.value = this.source
     u.sourceSize.value.copy(size)
     u.factor.value.set(size.x / width, size.y / height)
-    this.canvas.width = width
-    this.canvas.height = height
-    this.context = this.canvas.getContext('2d', { alpha: false })
+    this.capture = new FrameCapture(this.renderer, this.canvas, width, height, size.x, size.y)
   }
 
   // Filters what is on the (enlarged) canvas into its bottom-left output-sized corner.
@@ -217,8 +216,7 @@ export class Supersampler {
   // Copies the output-sized corner into this.canvas (the encoder's source). Call it right after the
   // frame is finished, in the same task: the WebGL canvas is only readable until it is composited.
   publish() {
-    const gl = this.renderer.domElement
-    this.context.drawImage(gl, 0, gl.height - this.height, this.width, this.height, 0, 0, this.width, this.height)
+    this.capture.capture()
   }
 
   disposeBuffers() {

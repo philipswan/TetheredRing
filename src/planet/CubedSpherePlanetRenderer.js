@@ -1238,6 +1238,7 @@ export class CubedSpherePlanetRenderer {
       sourceStats,
       queue: this.wantedTiles.length,
       inflight: this.inflightLoads,
+      pendingUploads: this._uploadQueue.length,
       loadedTiles: this.tiles.size,
       visibleTiles: this.visibleList.length,
       cameraSpeedMps: Math.round(this.cameraSpeedMps),

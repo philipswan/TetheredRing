@@ -46,6 +46,28 @@ export class PixelLOD extends THREE.LOD {
     PixelLOD._buildMsThisFrame = 0
   }
 
+  static updateScene(scene, camera) {
+    scene.updateMatrixWorld(true)
+    camera.updateMatrixWorld(true)
+    scene.traverseVisible(object => {
+      if (object instanceof PixelLOD) object.update(camera)
+    })
+  }
+
+  static async prepareScene(scene, camera) {
+    for (;;) {
+      PixelLOD.updateScene(scene, camera)
+      const pending = []
+      scene.traverseVisible(object => {
+        if (!(object instanceof PixelLOD)) return
+        const wanted = object.pixelLevels.find(level => object.onScreenPixels >= level.minPixels)
+        if (wanted?.pending) pending.push(wanted.pending.promise)
+      })
+      if (!pending.length) return
+      await Promise.all(pending)
+    }
+  }
+
   // size: characteristic size (m) whose projection is compared with the level thresholds.
   // extent: radius (m) of the region the LOD's contents span around its origin. Distance is measured
   // to the nearest point of that region, so a long chunk of objects is judged by its closest member.
@@ -104,7 +126,7 @@ export class PixelLOD extends THREE.LOD {
       this._attach(level, result)
       return true
     }
-    const token = {}
+    const token = { promise: result }
     level.pending = token
     result.then(
       (object) => { if (level.pending === token) { level.pending = null; this._attach(level, object) } },

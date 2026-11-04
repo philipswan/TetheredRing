@@ -413,6 +413,7 @@ export class App {
       planetCoordSys: this.planetCoordSys,
       store: this.store,
       getPlanetObjects: () => [this.planet.surface, this.planet.atmosphere],
+      resize: (width, height) => this.setRenderSize(width, height),
     })
     this.launchTrialSweep = new LaunchTrialSweep(this)
 
@@ -867,14 +868,19 @@ export class App {
     return tram.ecefToGeodetic(p.x, p.y, p.z, this.planetSpec.ellipsoid).alt
   }
 
-  render() {
-    const renderer = this.renderer
-    this.quality.beginGpuFrame()
+  prepareRender() {
     this.viewStatus?.update(performance.now())
     this.shots.overlay.update(this.camera3d)
-    PixelLOD.beginFrame(renderer.info.render.frame)
-    InstancedProxyPool.syncAll(this.camera3d, PixelLOD.viewportHeight)
+    PixelLOD.beginFrame(this.renderer.info.render.frame)
     this.ring.update()
+  }
+
+  render({ prepared = false } = {}) {
+    this.quality.beginGpuFrame()
+    if (!prepared) this.prepareRender()
+    const renderer = this.renderer
+    PixelLOD.updateScene(this.scene, this.camera3d)
+    InstancedProxyPool.syncAll(this.camera3d, PixelLOD.viewportHeight)
     // Tethers and cables: pixel coverage, and haze from the air (not from under the sea).
     StructureLines.update(
       this.planetSpec.hasOcean === true && this.planet.atmosphere.visible && !this.ocean?.cameraUnderSurface)
@@ -958,6 +964,7 @@ export class App {
   // Sets the drawing-buffer size. `css` keeps the canvas filling its container while recording at
   // a different resolution.
   setRenderSize(width, height, { pixelRatio = this.quality.pixelRatio() } = {}) {
+    if (this.shots?.recordingSize) ({ width, height, pixelRatio } = this.shots.recordingSize)
     this.renderer.setPixelRatio(pixelRatio)
     this.renderer.setSize(width, height, false)
     PixelLOD.viewportHeight = height * pixelRatio
