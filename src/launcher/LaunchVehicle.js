@@ -361,7 +361,11 @@ export class launchVehicleModel {
         // ToDo: *4 factor below should be a parameter or calculated from the launchVehicle's airspeed
         const launchVehicleShockwaveConeGeometry = new THREE.ConeGeometry(radius*4, shockwaveConeLength, radialSegments, lengthSegments, true)
         launchVehicleShockwaveConeGeometry.name = "shockwaveCone"
-        const launchVehicleShockwaveConeMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, side: THREE.DoubleSide, emissive: 0x7f7f7f, emissiveIntensity: 1.25, transparent: true, opacity: 0.15})
+        // depthWrite stays off (like the hull and the crew containers) so this translucent cone never
+        // writes to the depth buffer and hides the semi-transparent hull inside it. (See the tube wall,
+        // which instead forces itself last with renderOrder 999; the cone is a sibling of the hull, so
+        // it would otherwise sort in front of the hull and occlude it on the frames it is drawn first.)
+        const launchVehicleShockwaveConeMaterial = new THREE.MeshPhongMaterial( {color: 0x000000, side: THREE.DoubleSide, emissive: 0x7f7f7f, emissiveIntensity: 1.25, transparent: true, opacity: 0.15, depthWrite: false})
         const launchVehicleShockwaveConeMesh = new THREE.Mesh(launchVehicleShockwaveConeGeometry, launchVehicleShockwaveConeMaterial)
         launchVehicleShockwaveConeMesh.position.set(0, bodyLength + noseconeLength - shockwaveConeLength/2, 0)
         launchVehicleShockwaveConeMesh.name = 'shockwaveCone'
