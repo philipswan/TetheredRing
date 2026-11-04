@@ -271,6 +271,16 @@ const SHOWER_DEPTH = 3000
 const TOWER_DEPTH = 6000
 const TOWER_TILE = 80000
 const TOWER_SHARE = 0.25
+// Shower cells: in heavy showers the convection is organised into cells some 10-20 km across (the Worley noise
+// on TOWER_TILE, read with the towers' noise, so the towers are mostly in the cells' middles), deepest in
+// their middles (SHOWER_CELL_DEPTH of SHOWER_DEPTH, rising from where the Worley noise is SHOWER_RISE[0] to
+// [1]) and opening into lanes between them (SHOWER_LANE_COVER of the cover where it is below SHOWER_LANES[0],
+// all of it above [1]: about a quarter of the area). (Without them a wide shower was one even deck of cumulus
+// a kilometre across, which from above looked like a carpet: nothing between the cumulus and the towers.)
+const SHOWER_CELL_DEPTH = [0.4, 1.3]
+const SHOWER_RISE = [0.3, 0.7]
+const SHOWER_LANES = [0.33, 0.47]
+const SHOWER_LANE_COVER = 0.08
 const CUMULUS_EROSION = 0.6
 const CUMULUS_DENSITY = 3.0
 // ...near the camera: they fade to the plain erosion and density over pixel footprints of CRISP_FOOTPRINT (m),
@@ -675,15 +685,19 @@ CloudColumn cloudColumn(vec2 uv, vec3 p, vec3 local, float footprint) {
   vec3 north = cross(up, east);
   float base = b.x * 1000.0;
   // (Only in showers heavy enough to matter: the read is costly, and the towers fade in from there.)
-  float towers = 0.0;
+  float towers = 0.0, cellRise = 1.0, cellCover = 1.0;
   if (showers > 0.02) {
     vec4 tn = texture(shapeNoise, (local + towerOffset) / ${TOWER_TILE.toFixed(1)});
+    float cellField = tn.g * 0.7 + tn.b * 0.3;
+    cellRise = smoothstep(${SHOWER_RISE[0].toFixed(2)}, ${SHOWER_RISE[1].toFixed(2)}, cellField);
+    cellCover = smoothstep(${SHOWER_LANES[0].toFixed(2)}, ${SHOWER_LANES[1].toFixed(2)}, cellField);
     float towerField = remap(tn.r, tn.g * 0.625 + tn.b * 0.25 + tn.a * 0.125 - 1.0, 1.0, 0.0, 1.0);
     float towerThreshold = coverThreshold(${TOWER_SHARE.toFixed(2)});
     towers = smoothstep(towerThreshold - 0.02, towerThreshold + 0.08, towerField) * smoothstep(0.02, 0.1, showers);
   }
+  lowCover *= mix(1.0, mix(${SHOWER_LANE_COVER.toFixed(2)}, 1.0, cellCover), showers);
   float cumulusTop = base + ${CUMULUS_DEPTH[0].toFixed(1)} + ${CUMULUS_DEPTH[1].toFixed(1)} * lowCover
-    + (${SHOWER_DEPTH.toFixed(1)} + ${TOWER_DEPTH.toFixed(1)} * towers) * showers;
+    + (${SHOWER_DEPTH.toFixed(1)} * mix(${SHOWER_CELL_DEPTH[0].toFixed(2)}, ${SHOWER_CELL_DEPTH[1].toFixed(2)}, cellRise) + ${TOWER_DEPTH.toFixed(1)} * towers) * showers;
   float stratusTop = base + clamp(${STRATUS_DEPTH_SHARE.toFixed(2)} * (b.y * 1000.0 - base), ${STRATUS_DEPTH[0].toFixed(1)}, ${STRATUS_DEPTH[1].toFixed(1)});
   CloudColumn col;
   col.highCover = highCover;
