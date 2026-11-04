@@ -1,8 +1,6 @@
 import * as THREE from 'three'
 import glowTubeVertexShader from '../shaders/glowTube.vert.glsl?raw'
 import glowTubeFragmentShader from '../shaders/glowTube.frag.glsl?raw'
-import sheathVertexShader from '../shaders/plasmaSheath.vert.glsl?raw'
-import sheathFragmentShader from '../shaders/plasmaSheath.frag.glsl?raw'
 
 // Materials for light without a surface (the launch vehicles' plasma and exhaust), tested against the
 // scene's depth but not writing it. Shared by every object that uses them.
@@ -19,7 +17,6 @@ const screen = {
 }
 
 let glowTube = null
-let sheath = null
 
 // GlowTube (src/scene/GlowTube.js): drawn on the bounding tube's far side only. Set
 // uniforms.glowPixelAngle (radians per drawing-buffer pixel) before drawing.
@@ -36,25 +33,4 @@ export function glowTubeMaterial() {
   })
   glowTube.userData.keep = true
   return glowTube
-}
-
-// The launch vehicle's plasma sheath (src/shaders/plasmaSheath.*.glsl). Its uniforms differ from one
-// vehicle to the next: each mesh sets them in its onBeforeRender.
-export function plasmaSheathMaterial() {
-  sheath ??= new THREE.ShaderMaterial({
-    name: 'plasmaSheath',
-    uniforms: {
-      sheathEmission: { value: new THREE.Vector3() },
-      sheathThicknessScale: { value: 1 },
-    },
-    vertexShader: sheathVertexShader,
-    fragmentShader: sheathFragmentShader,
-    side: THREE.DoubleSide,
-    transparent: true,
-    depthWrite: false,
-    ...screen,
-  })
-  sheath.userData.keep = true
-  sheath.userData.shared = true
-  return sheath
 }

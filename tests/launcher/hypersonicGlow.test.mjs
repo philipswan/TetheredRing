@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  shockLayerEmission, boundaryLayerThickness, plasmaWakeRadius, plasmaTrailPoint, sheathEmissivity,
+  shockLayerEmission, plasmaRadius, plasmaTrailPoint,
   prandtlMeyer, machFromAreaRatio, isentropicPressureRatio, exhaustPlume,
   PLASMA_REFERENCE_SPEED, PLASMA_REFERENCE_DENSITY,
 } from '../../src/launcher/hypersonicGlow.js'
@@ -30,34 +30,22 @@ test('the plasma fades by about a hundred times between leaving the tube (32 km)
   assert.ok(ratio > 1 / 300 && ratio < 1 / 30, `ratio ${ratio}`)
 })
 
-test('boundary layer: tens of centimetres at the base, thicker in thinner air', () => {
-  const base = boundaryLayerThickness(45, PLASMA_REFERENCE_SPEED, PLASMA_REFERENCE_DENSITY)
-  assert.ok(base > 0.1 && base < 1, `thickness ${base}`)
-  close(boundaryLayerThickness(45, PLASMA_REFERENCE_SPEED, PLASMA_REFERENCE_DENSITY / 32) / base, 2, 1e-9, 'Re^-0.2')
-  assert.ok(boundaryLayerThickness(1, 7600, 0.0184) < base)
-  assert.equal(boundaryLayerThickness(0, 7600, 0.0184), 0)
+test('glow radius: from a point at the nose, out to 1.2 body radii along the body, then a cube-root wake', () => {
+  const shape = { noseToBase: 45, bodyRadius: 1.8, dragArea: 0.36 }
+  assert.ok(plasmaRadius(0, shape) < 0.1 * shape.bodyRadius)
+  close(plasmaRadius(45, shape), 1.2 * shape.bodyRadius, 1e-9, 'at the base')
+  close(plasmaRadius(45 + 1e-6, shape), 1.2 * shape.bodyRadius, 1e-6, 'continuous into the wake')
+  close(plasmaRadius(45 + 8e8, shape) / plasmaRadius(45 + 1e8, shape), 2, 1e-3, 'cube root')
+  for (let s = 0.5; s < 1e5; s *= 2) assert.ok(plasmaRadius(2 * s, shape) >= plasmaRadius(s, shape))
 })
 
-test('wake: starts as a core of the base, grows as the cube root of the distance', () => {
-  const shape = { bodyRadius: 2, dragArea: 0.4 }
-  close(plasmaWakeRadius(0, shape), 0.9, 1e-12)
-  const far = plasmaWakeRadius(1e6, shape), farther = plasmaWakeRadius(8e6, shape)
-  close(farther / far, 2, 1e-3, 'cube root')
-  for (let x = 1; x < 1e5; x *= 3) assert.ok(plasmaWakeRadius(x * 3, shape) > plasmaWakeRadius(x, shape))
-})
-
-test('trail: dark at the base, then fading and reddening with age; scaled by the brightness', () => {
-  const shape = { bodyRadius: 1.8, dragArea: 0.36 }
-  const at = (age, x) => { const rgb = [0, 0, 0]; plasmaTrailPoint(age, x, 1, 1.5, shape, 1, rgb); return rgb }
-  assert.deepEqual(at(0, 0), [0, 0, 0])
-  const young = at(0.002, 15), old = at(3, 23000)
-  assert.ok(young[0] > old[0] * 5)
-  assert.ok(old[0] / old[2] > young[0] / young[2], 'redder when older')
-  const bright = at(0.002, 15)
-  const brighter = [0, 0, 0]
-  plasmaTrailPoint(0.002, 15, 1, 1.5, shape, 2, brighter)
-  close(brighter[0], 2 * bright[0], 1e-12, 'brightness parameter')
-  assert.ok(sheathEmissivity(1, 1, [0, 0, 0])[0] > 0)
+test('trail: brightest around the vehicle, then fading and reddening with age; scaled by the brightness', () => {
+  const shape = { noseToBase: 45, bodyRadius: 1.8, dragArea: 0.36 }
+  const at = (age, s, brightness = 1) => { const rgb = [0, 0, 0]; plasmaTrailPoint(age, s, 1, 1.5, shape, brightness, rgb); return rgb }
+  const head = at(0, 0), base = at(0.006, 45), old = at(3, 23000)
+  assert.ok(head[0] > base[0] && base[0] > old[0] * 5)
+  assert.ok(old[0] / old[2] > base[0] / base[2], 'redder when older')
+  close(at(0.006, 45, 2)[0], 2 * base[0], 1e-12, 'brightness parameter')
 })
 
 test('exhaust plume: none without flow; wider and longer into thinner air; a Mach disk only near sea level', () => {

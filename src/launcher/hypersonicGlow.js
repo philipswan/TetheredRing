@@ -1,5 +1,5 @@
-// The physics behind the launch vehicle's glow (drawn by LaunchVehicleGlow.js): the hot gas over the
-// hull (the plasma sheath), in its wake (the plasma trail), and the hydrolox exhaust plume. Pure
+// The physics behind the launch vehicle's glow (drawn by LaunchVehicleGlow.js): the hot gas around the
+// vehicle and in its wake (the plasma trail), and the hydrolox exhaust plume. Pure
 // functions of SI quantities, so the glow, like everything animated, is a function of the parameters
 // and the time. Light is in display units: the shaders show light L as 1 - exp(-L).
 //
@@ -19,37 +19,27 @@ export function shockLayerEmission(airSpeed, airDensity) {
   return (airSpeed / PLASMA_REFERENCE_SPEED) ** 4 * (airDensity / PLASMA_REFERENCE_DENSITY)
 }
 
-// Line emission (display units x m) of the wake as it leaves the base, and emissivity (display units
-// per metre of path) of the hot boundary layer on the body, at the reference shock-layer emission.
-const PLASMA_LINE_EMISSION = 1.2
-const SHEATH_EMISSIVITY = 0.35
-
-// The hot gas around a slender body at hypersonic speed is not behind its shock, which is attached and
-// weak (at Mach 25 a 3 degree cone's shock has a normal Mach number of about 1.3), but in its boundary
-// layer, heated by friction towards the flow's stagnation temperature (thousands of kelvin). It is a
-// skin over the hull, thinnest and hottest at the nose (turbulent: thickness 0.37 x Re_x^-0.2), which
-// leaves the base as the core of the wake.
-const AIR_VISCOSITY = 1.6e-5   // Pa s, near enough between 30 and 80 km
-
-export function boundaryLayerThickness(x, airSpeed, airDensity) {
-  if (!(x > 0) || !(airSpeed > 0) || !(airDensity > 0)) return 0
-  const reynolds = airDensity * airSpeed * x / AIR_VISCOSITY
-  return 0.37 * x * Math.max(reynolds, 1e3) ** -0.2
-}
+// Line emission (display units x m) of the trail at the reference shock-layer emission, and how much
+// brighter the glow around the vehicle itself is than the start of its wake.
+const PLASMA_LINE_EMISSION = 4
+const PLASMA_HEAD_BOOST = 3
 
 // Spreading of the far wake: its radius grows as the cube root of the distance behind the vehicle times
-// the vehicle's drag area (the classic hypersonic far wake, b ~ k (Cd A x)^(1/3)), from the boundary
-// layer's gas leaving the base, about WAKE_CORE body radii across.
+// the vehicle's drag area (the classic hypersonic far wake, b ~ k (Cd A x)^(1/3)).
 const WAKE_SPREAD = 0.8
-const WAKE_CORE = 0.45
 
-// Radius (sigma, m) of the wake `x` metres behind the base.
-export function plasmaWakeRadius(x, { bodyRadius, dragArea }) {
-  return Math.cbrt((WAKE_CORE * bodyRadius) ** 3 + WAKE_SPREAD ** 3 * dragArea * Math.max(0, x))
+// Radius (sigma, m) of the glow `s` metres behind the nose. Along the body it is an envelope of hot gas
+// from the nose's tip, widening at 1.3 times the body's half-angle (as an attached shock at hypersonic
+// speed does) out to 1.2 body radii. Behind the base it is the wake, growing as above from that radius.
+export function plasmaRadius(s, { noseToBase, bodyRadius, dragArea }) {
+  const halfAngle = 1.3 * Math.atan2(bodyRadius, noseToBase)
+  const envelope = 1.2 * bodyRadius
+  if (s <= noseToBase) return Math.min(envelope, 0.05 * bodyRadius + Math.max(0, s) * Math.tan(halfAngle))
+  return Math.cbrt(envelope ** 3 + WAKE_SPREAD ** 3 * dragArea * (s - noseToBase))
 }
 
-// Colours of the plasma: the boundary layer and the young wake are white-hot with the pink of excited
-// nitrogen and oxygen; the wake cools through orange to a dull red. `u` is the age over the cooling time.
+// Colours of the plasma: the gas around the vehicle is white-hot with the pink of excited nitrogen and
+// oxygen; the wake cools through orange to a dull red. `u` is the age over the cooling time.
 export const PLASMA_HOT = [1.0, 0.78, 0.95]
 const PLASMA_WARM = [1.0, 0.5, 0.25]
 const PLASMA_COOL = [0.85, 0.2, 0.08]
@@ -64,25 +54,19 @@ export function plasmaWakeColour(u, out = [0, 0, 0]) {
   return out
 }
 
-// The wake at one point of the trail. `age` (s) is how long ago the base passed it, `x` (m) how far
-// behind the base it is now, `emission` the shock-layer emission (shockLayerEmission) when the vehicle
-// passed it, `coolingTime` (s) the wake's e-folding time. Writes the line emission (RGB, display units
-// x m) into `rgb` and returns the radius.
-export function plasmaTrailPoint(age, x, emission, coolingTime, shape, brightness, rgb) {
+// The plasma at one point of the trail. `age` (s) is how long ago the nose passed it, `s` (m) how far
+// behind the nose it is now, `emission` the shock-layer emission (shockLayerEmission) when the vehicle
+// passed it, `coolingTime` (s) the wake's e-folding time. The glow around the vehicle (the first
+// noseToBase metres, and a little beyond) is PLASMA_HEAD_BOOST times brighter than the wake. Writes the
+// line emission (RGB, display units x m) into `rgb` and returns the radius.
+export function plasmaTrailPoint(age, s, emission, coolingTime, shape, brightness, rgb) {
+  const sigma = plasmaRadius(s, shape)
+  const head = PLASMA_HEAD_BOOST * Math.exp(-s / shape.noseToBase)
+  const wake = Math.exp(-age / coolingTime)
   plasmaWakeColour(age / coolingTime, rgb)
-  // (The hot gas comes off the edge of the base and meets on the axis about a body radius behind it.)
-  const neck = 1 - Math.exp(-Math.max(0, x) / shape.bodyRadius)
-  const k = PLASMA_LINE_EMISSION * brightness * emission * Math.exp(-age / coolingTime) * neck
-  for (let i = 0; i < 3; i++) rgb[i] *= k
-  return plasmaWakeRadius(x, shape)
-}
-
-// Emissivity (RGB, display units per metre of path) of the boundary layer at the base; it rises towards
-// the nose (see plasmaSheath.frag.glsl).
-export function sheathEmissivity(emission, brightness, rgb) {
-  const k = SHEATH_EMISSIVITY * brightness * emission
-  for (let i = 0; i < 3; i++) rgb[i] = k * PLASMA_HOT[i]
-  return rgb
+  const k = PLASMA_LINE_EMISSION * brightness * emission
+  for (let i = 0; i < 3; i++) rgb[i] = k * (head * PLASMA_HOT[i] + wake * rgb[i])
+  return sigma
 }
 
 // ---- Exhaust plume -------------------------------------------------------------------------------

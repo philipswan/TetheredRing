@@ -6,8 +6,6 @@ import { FacesGeometry } from './FacesGeometry.js'
 import * as tram from '../utils/tram.js'
 import { quaternionFromFrame } from '../curves/SuperCurves.js'
 import { MovingVirtualObject, curveFrameAtTime, parameterSignature } from './VirtualObject.js'
-import { boundaryLayerThickness, PLASMA_REFERENCE_DENSITY, PLASMA_REFERENCE_SPEED } from './hypersonicGlow.js'
-import { plasmaSheathMaterial } from '../scene/glowMaterials.js'
 
 const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
@@ -143,8 +141,6 @@ export class launchVehicleModel {
 
     const launchVehiclePointLightMesh = makePointLight()
     const launchVehicleMesh = assemble(launchVehicleBodyMesh, launchVehiclePointLightMesh)
-    // The hot boundary layer over the hull while it flies through the air (LaunchVehicleGlow.js).
-    if (!isLunarLaunch) launchVehicleMesh.add(makePlasmaSheath())
 
     const scaleFactor = dParamWithUnits['launchVehicleScaleFactor'].value
     const scaleFactorVector = new THREE.Vector3(
@@ -334,58 +330,6 @@ export class launchVehicleModel {
         .catch(err => console.error('Error loading human scale figure:', err))
     }
 
-    // A shell over the Haack hull for plasmaSheath.*.glsl: per vertex the hull's point and normal, the
-    // boundary layer's thickness there at the reference conditions (7.6 km/s at 30 km), the distance
-    // from the nose over the length, and the hull's radius. Hidden until LaunchVehicleGlow shows it.
-    function makePlasmaSheath() {
-      const worldScale = dParamWithUnits['launchVehicleScaleFactor'].value * dParamWithUnits['launchSystemForwardScaleFactor'].value
-      const haack = (fromNose) => {
-        const theta = Math.acos(Math.min(1, Math.max(-1, 1 - 2 * fromNose / totalLength)))
-        return radius / Math.sqrt(Math.PI) * Math.sqrt(Math.max(0, theta - Math.sin(2 * theta) / 2 + CValue * Math.sin(theta) ** 3))
-      }
-      const rings = 64, sides = radialSegments
-      const position = [], normal = [], thickness = [], fromNoseAttribute = [], hullRadius = []
-      for (let i = 0; i <= rings; i++) {
-        const fromNose = totalLength * (i / rings) ** 2   // closer together near the nose
-        const r = haack(fromNose)
-        const h = Math.max(1e-3, 0.01 * totalLength)
-        const slope = (haack(Math.min(totalLength, fromNose + h)) - haack(Math.max(0, fromNose - h))) / (Math.min(totalLength, fromNose + h) - Math.max(0, fromNose - h))
-        // Outward normal: radially out, tilted towards the nose by the hull's slope
-        const nl = Math.hypot(1, slope)
-        const nr = 1 / nl, ny = slope / nl
-        const delta = boundaryLayerThickness(fromNose * worldScale, PLASMA_REFERENCE_SPEED, PLASMA_REFERENCE_DENSITY) / worldScale
-        for (let j = 0; j < sides; j++) {
-          const phi = 2 * Math.PI * j / sides
-          position.push(r * Math.sin(phi), totalLength - fromNose, r * Math.cos(phi))
-          normal.push(nr * Math.sin(phi), ny, nr * Math.cos(phi))
-          thickness.push(delta)
-          fromNoseAttribute.push(fromNose / totalLength)
-          hullRadius.push(r)
-        }
-      }
-      const index = []
-      for (let i = 0; i < rings; i++) {
-        for (let j = 0; j < sides; j++) {
-          const a = i * sides + j, b = i * sides + (j + 1) % sides
-          index.push(a, b, a + sides, b, b + sides, a + sides)
-        }
-      }
-      const geometry = new THREE.BufferGeometry()
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3))
-      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
-      geometry.setAttribute('thickness', new THREE.Float32BufferAttribute(thickness, 1))
-      geometry.setAttribute('fromNose', new THREE.Float32BufferAttribute(fromNoseAttribute, 1))
-      geometry.setAttribute('hullRadius', new THREE.Float32BufferAttribute(hullRadius, 1))
-      geometry.setIndex(index)
-      geometry.computeBoundingSphere()
-      geometry.boundingSphere.radius += radius   // room for the layer to thicken in thin air
-      const mesh = new THREE.Mesh(geometry, plasmaSheathMaterial())
-      mesh.name = 'plasmaSheath'
-      mesh.visible = false
-      mesh.renderOrder = 3   // after the hull and its decals
-      return mesh
-    }
-
     function makePointLight() {
 
       const launchVehiclePointLightMesh = new THREE.Points(
@@ -525,7 +469,6 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
     if (!om._parts) {
       om._parts = {
         pointLight: om.getObjectByName('launchVehicle_pointLight'),
-        plasmaSheath: om.getObjectByName('launchVehicle_plasmaSheath'),
       }
     }
     const { pointLight: pointlight_model } = om._parts

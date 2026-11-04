@@ -2,26 +2,23 @@ import * as THREE from 'three'
 import { GlowTube } from '../scene/GlowTube.js'
 import { glowTubeMaterial } from '../scene/glowMaterials.js'
 import { virtualLaunchVehicle } from './LaunchVehicle.js'
-import { PLASMA_REFERENCE_DENSITY, PLASMA_REFERENCE_SPEED, exhaustPlume, plasmaTrailPoint, sheathEmissivity, shockLayerEmission } from './hypersonicGlow.js'
+import { exhaustPlume, plasmaTrailPoint, shockLayerEmission } from './hypersonicGlow.js'
 
 // The light of the launch vehicles in flight through the air (physics in hypersonicGlow.js), from the
 // moment each leaves the evacuated tube:
-// - the plasma sheath: the boundary layer of hot gas over the hull, a mesh on the vehicle's model
-//   (LaunchVehicle.js, plasmaSheath.*.glsl) whose brightness and thickness are set here;
-// - the plasma trail: the glowing wake that gas leaves behind the base. Each point of the trail shines
-//   as the air was heated when the vehicle passed it (emission ~ density x speed^4) and cools with its
-//   age, so the trail fades out as the vehicle climbs out of the air;
+// - the plasma: an envelope of hot gas around each vehicle from the tip of its nose, and the glowing
+//   wake it leaves behind it. Each point of the trail shines as the air was heated when the vehicle
+//   passed it (emission ~ density x speed^4) and cools with its age, so the trail fades out as the
+//   vehicle climbs out of the air;
 // - the hydrolox exhaust plume behind the nozzle, while the engine is burning.
 //
 // Nothing is remembered from frame to frame: the trail is rebuilt each frame from the vehicle's
 // trajectory at earlier times (frameAt), so it is a function of the parameters and the time, like
 // everything animated, and any moment of a shot can be rendered on its own.
 //
-// The trail and plume are not in the main scene. They are light without a surface, much larger than the
-// vehicle, so the clouds' distance prepass (which draws the main scene) must not see them, and they are
-// drawn over the clouds when the clouds are below them: App.render draws `scene` before the clouds with
-// the camera under the cloud tops and after them above. (The sheath is a skin on the hull, so the
-// prepass may see it as part of the vehicle.)
+// The glow is not in the main scene. It is light without a surface, so the clouds' distance prepass
+// (which draws the main scene) must not see it, and it is drawn over the clouds when they are below it:
+// App.render draws `scene` before the clouds with the camera under the cloud tops and after them above.
 
 const TRAIL_RINGS = 96
 const PLUME_RINGS = 40
@@ -66,11 +63,14 @@ export class LaunchVehicleGlow {
     this.vacuumExhaustVelocity = d['launchVehicleVacuumRocketExhaustVelocity'].value
     const isLunar = d['launchFromPlanet']?.value === 'Moon'
 
-    // The vehicle as drawn (LaunchVehicle.js): its scale factors, radius and drag area.
+    // The vehicle as drawn (LaunchVehicle.js): its scale factors, length, radius and drag area.
     const scale = d['launchVehicleScaleFactor'].value
+    const forwardScale = d['launchSystemForwardScaleFactor'].value * scale
     const radialScale = 0.5 * (d['launchSystemRightwardScaleFactor'].value + d['launchSystemUpwardScaleFactor'].value) * scale
     const bodyRadius = d['launchVehicleRadius'].value * radialScale
+    this.noseToBase = (d['launchVehicleBodyLength'].value + d['launchVehicleNoseconeLength'].value) * forwardScale * (isLunar ? 0.6 : 1)
     this.shape = {
+      noseToBase: this.noseToBase,
       bodyRadius,
       dragArea: d['launchVehicleCoefficientOfDrag'].value * Math.PI * bodyRadius * bodyRadius,
     }
@@ -93,13 +93,10 @@ export class LaunchVehicleGlow {
     this.anyVisible = false
     if (refFrame && v.isVisible && v.numObjects > 0 && this.planetSpec && (this.showPlasma || this.showExhaust)) {
       v.activeObjects.forEach((obj, launchIndex) => {
-        const sheath = obj.model?._parts?.plasmaSheath
-        if (sheath) sheath.visible = false
         const deltaT = obj.deltaTAt(refFrame)
         if (deltaT === null) return
         const now = obj.frameAt(refFrame, deltaT)
         if (now.f.curve.name !== 'freeFlightPositionCurve') return   // still in the tube (or on the ramp)
-        if (sheath && this.showPlasma) this.setSheath(sheath, now, planetRadius)
         const tubes = this.tubesFor(launchIndex)
         const trail = this.showPlasma && this.buildTrail(tubes.trail, obj, refFrame, deltaT, now, planetRadius)
         const plume = this.showExhaust && this.buildPlume(tubes.plume, now, planetRadius)
@@ -151,41 +148,32 @@ export class LaunchVehicleGlow {
     return { altitude, density, airSpeed: telemetry ? telemetry.x : 0, massFlowRate: telemetry ? telemetry.z : 0 }
   }
 
-  // The sheath's brightness and thickness for the air the vehicle is in now, for its onBeforeRender.
-  setSheath(sheath, now, planetRadius) {
-    const air = this.airAt(now, planetRadius)
-    const emission = shockLayerEmission(air.airSpeed, air.density)
-    const rgb = sheathEmissivity(emission, this.plasmaBrightness, sheath.userData.sheathEmission ??= [0, 0, 0])
-    if (!(Math.max(...rgb) >= MIN_EMISSION)) return
-    // Boundary layer thickness goes as Re^-0.2: thicker in thinner air
-    const flux = air.density * air.airSpeed / (PLASMA_REFERENCE_DENSITY * PLASMA_REFERENCE_SPEED)
-    sheath.userData.sheathThicknessScale = Math.min(20, flux > 0 ? flux ** -0.2 : 20)
-    sheath.onBeforeRender = sheathBeforeRender
-    sheath.visible = true
+  nose(frame) {
+    return frame.position.clone().addScaledVector(frame.modelForward, this.noseToBase)
   }
 
-  // The plasma trail: rings from the base back along the path the base has taken, closely spaced near
+  // The plasma trail: rings from the nose back along the path the nose has taken, closely spaced near
   // the vehicle (ages growing as the cube of the ring number) and reaching back TRAIL_COOLING_TIMES
   // cooling times, or to the tube's exit if the vehicle left it more recently.
   buildTrail(tube, obj, refFrame, deltaT, now, planetRadius) {
     const sinceExit = now.f.t
     const span = Math.min(TRAIL_COOLING_TIMES * this.coolingTime, sinceExit)
     if (!(span > 0)) return false
-    const head = now.position
+    const head = this.nose(now)
     tube.begin(head)
     const rgb = this.rgb
-    let x = 0
+    let s = 0
     let previous = head
     let peak = 0
     for (let k = 0; k < TRAIL_RINGS; k++) {
       const age = span * (k / (TRAIL_RINGS - 1)) ** 3
       const frame = k === 0 ? now : obj.frameAt(refFrame, deltaT - age)
-      const p = frame.position
-      x += p.distanceTo(previous)
+      const p = k === 0 ? head : this.nose(frame)
+      s += p.distanceTo(previous)
       previous = p
       const air = this.airAt(frame, planetRadius)
       const emission = shockLayerEmission(air.airSpeed, air.density)
-      const sigma = plasmaTrailPoint(age, x, emission, this.coolingTime, this.shape, this.plasmaBrightness, rgb)
+      const sigma = plasmaTrailPoint(age, s, emission, this.coolingTime, this.shape, this.plasmaBrightness, rgb)
       const area = Math.PI * sigma * sigma
       // At the tube's exit the trail starts: fade its last ring out so it does not end in a disc.
       const end = (k === TRAIL_RINGS - 1 && span >= sinceExit) ? 0 : 1
@@ -249,15 +237,4 @@ export class LaunchVehicleGlow {
     this.spare = []
     this.root.clear()
   }
-}
-
-// Sets the shared sheath material's uniforms to this vehicle's (LaunchVehicleGlow.setSheath). Other
-// passes that draw the scene with their own material (the clouds' prepass, highlights) are left alone.
-function sheathBeforeRender(renderer, scene, camera, geometry, material) {
-  const u = material.uniforms
-  if (!u?.sheathEmission) return
-  const e = this.userData.sheathEmission
-  u.sheathEmission.value.set(e[0], e[1], e[2])
-  u.sheathThicknessScale.value = this.userData.sheathThicknessScale
-  material.uniformsNeedUpdate = true
 }
