@@ -83,6 +83,8 @@ const HIGH_CELLS = 8
 const HIGH_FIBRE_CELLS = 2
 const VERTICAL_CELL = 150
 const MURK_STEPS = 10
+// The rain shafts' cells (m; see rainShaft, whose shafts follow the cloud above at a footprint of 400 m).
+const RAIN_CELL = 128
 const LAYER_BOTTOM = 250
 // The pixel footprints (m) over which the clouds' shapes fade to their expected density.
 const LOD_FOOTPRINT = [150, 900]
@@ -1520,16 +1522,38 @@ void main() {
         }
       }
       lowCloud = lowCloud || midCloud;
-      // The rain shaft under the cloud, sampled once for the coarse cell (at its middle; where there is cloud,
-      // as if below the base, and used in each of its fine cells below the base: smooth enough, and costly per
-      // fine cell). (From one place in the shader for both.)
       CloudColumn colMid = mixColumn(colA, colB, 0.5);
       vec3 pMid = c + d * (rcm * stretch);
       float hMid = length(pMid) - a;
-      float rainMid = rainShaft(colMid, pMid, D * rcm, lowCloud || highCloud ? min(hMid, colMid.base - 1.0) : hMid);
-      // Without cloud, only the murk (often none).
+      // The rain under the clouds that are raining: the rain shafts' optical depth across the coarse cell
+      // (rainShaft), summed over RAIN_CELL cells of the planet's grid (or the fine cells, where those are longer)
+      // by the share of each below the cloud base. (The light is the same across a coarse cell, so the sum is
+      // all it needs. Sampled once a coarse cell, the shafts were slabs a coarse cell deep, their ends on its
+      // planes, beside or short of the clouds they fell from; sampled in each fine cell, they were as here, but
+      // a frame took up to 3 ms more on an Arc B70.) (From one place in the shader, in a loop it does not unroll.)
+      float rainTau = 0.0;
+#ifndef CLOUD_LITE_MURK
+      if (max(colA.rain, colB.rain) >= 0.1 && hLow < max(colA.base, colB.base)) {
+        float rainStep = min(max(fine, ${RAIN_CELL.toFixed(1)}), coarse);
+        float rs = r;
+        for (int k = 0; k < ${COARSE + 1} * noUnroll; k++) {
+          if (rs >= rc1) break;
+          float rn = min(rs + cellExit(rs, rainStep, D, safeD), rc1);
+          float rr = 0.5 * (rs + rn);
+          CloudColumn cr = mixColumn(colA, colB, (rr - r) / max(rc1 - r, 1e-3));
+          float h0 = length(c + d * (rs * stretch)) - a, h1 = length(c + d * (rn * stretch)) - a;
+          float below = clamp((cr.base - min(h0, h1)) / max(abs(h1 - h0), 1e-3), 0.0, 1.0);
+          if (below > 0.0) {
+            vec3 pr = c + d * (rr * stretch);
+            rainTau += below * (rn - rs) * stretch * rainShaft(cr, pr, D * rr, min(length(pr) - a, cr.base - 1.0));
+          }
+          rs = rn;
+        }
+      }
+#endif
+      // Without cloud, only the murk (often none) and the rain.
       float murk = 0.0;
-      if (!lowCloud && !highCloud) murk = airMurk(colMid, hMid) + rainMid;
+      if (!lowCloud && !highCloud) murk = airMurk(colMid, hMid) + rainTau / max((rc1 - r) * stretch, 1e-3);
       // (CLOUD_LITE_MID: the lightest quality's mid-level layer, an even band of its expected density from the same
       // columns as the other qualities' (so it is where theirs is, as much of it), across the coarse cell by the
       // share of its line of sight in the band (its height taken as running evenly from hA to the lowest point
@@ -1600,8 +1624,15 @@ void main() {
         d0Known = true;
       }
       else {
-        float rainCell = rainMid;
         bool needD0 = !d0Known;
+        // (The rain in front of the cloud where the line of sight climbs, behind it where it descends: it is
+        // below the base.)
+        bool rainFirst = hB >= hA;
+        if (rainFirst && rainTau > 0.0) {
+          float rainT = exp(-rainTau);
+          light += transmittance * murkLight * (1.0 - rainT);
+          transmittance *= rainT;
+        }
         // (Only high cloud: drawn out along the wind, and with gentler height profiles, so smooth enough for
         // cells HIGH_CELLS times the low cloud's; but only twice, HIGH_FIBRE_CELLS, as near as its fibres show
         // (they fade into their average where their texels are under half a pixel). Its fibres are a few hundred
@@ -1627,7 +1658,7 @@ void main() {
           vec3 local = D * rm;
           float footprint = rm * pixelAngle;
           CloudColumn col = mixColumn(colA, colB, (rm - r) / max(rc1 - r, 1e-3));
-          float murk = airMurk(col, h) + (h <= col.base ? rainCell : 0.0);
+          float murk = airMurk(col, h);
           if (murk > 1e-7) {
             float murkT = exp(-murk * dt);
             light += transmittance * murkLight * (1.0 - murkT);
@@ -1704,6 +1735,11 @@ void main() {
           if (transmittance < 0.01) break;
         }
         d0Known = true;
+        if (!rainFirst && rainTau > 0.0) {
+          float rainT = exp(-rainTau);
+          light += transmittance * murkLight * (1.0 - rainT);
+          transmittance *= rainT;
+        }
       }
 #ifdef CLOUD_LITE_MID
       if (!midFirst) {
