@@ -83,6 +83,11 @@ const HIGH_CELLS = 8
 const HIGH_FIBRE_CELLS = 2
 const VERTICAL_CELL = 150
 const MURK_STEPS = 10
+// (With rain shafts, which stand on the sea: no more than MURK_SPACING (m) apart, up to MURK_STEPS_MAX. Ten
+// across a long stretch, nearly level from a camera near the sea, were each a kilometre or more long, and
+// sliced the shafts below the horizon into stacked bands, like stripes on the water.)
+const MURK_SPACING = 200
+const MURK_STEPS_MAX = 64
 // The rain shafts' cells (m; see rainShaft, whose shafts follow the cloud above at a footprint of 400 m).
 const RAIN_CELL = 128
 const LAYER_BOTTOM = 250
@@ -1427,8 +1432,15 @@ void main() {
     float r = ta / stretch, rEnd = tb / stretch;   // true metres along the line of sight
     if (stretchIndex != 1) {
       // Below the layer: the murk alone.
+#ifdef CLOUD_LITE_MURK
       for (int i = 0; i < MURK_STEPS; i++) {
         float r1 = min(r + (rEnd - ta / stretch) / float(MURK_STEPS), rEnd);
+#else
+      float murkSteps = clamp(ceil((rEnd - ta / stretch) / ${MURK_SPACING.toFixed(1)}), float(MURK_STEPS), ${MURK_STEPS_MAX.toFixed(1)});
+      for (int i = 0; i < ${MURK_STEPS_MAX} * noUnroll; i++) {
+        if (float(i) >= murkSteps) break;
+        float r1 = min(r + (rEnd - ta / stretch) / murkSteps, rEnd);
+#endif
         float rm = 0.5 * (r + r1);
         vec3 p = c + d * (rm * stretch);
         float h = length(p) - a;
