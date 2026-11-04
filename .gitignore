@@ -23,3 +23,6 @@ __pycache__/
 smoke*.png
 .worktrees/
 .scratch/
+additional_earth_imagery
+Cloud Examples
+.claude
