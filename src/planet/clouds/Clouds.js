@@ -794,21 +794,25 @@ vec2 levelsOfDetail(float footprint) {
 float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods, inout float layer) {
   vec3 midL = midLayer(col);
   float density = 0.0;
-  // The low layer, or the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), whichever
-  // the height is in (they do not overlap; the low cloud's if they do): the same code for both, once in
-  // the shader. (Looping over both made the whole march slower, mid-level cloud or not.)
+  // The low layer and the mid-level one (smaller shapes, on MID_TILE, moving with the wind aloft), each where
+  // the height is in it, added. (Where they overlapped, a shower's towers rising through the mid-level sheet,
+  // only the low cloud was drawn: across the low layer's whole height range, thin or not, the sheet had a hole,
+  // cut along where that range ended, and between the two the sea showed, in long straight dark seams.) (A
+  // loop the compiler unrolls: so, the march was faster than with one layer at a time, by a quarter at Balanced
+  // on an Iris Xe; bounded by noUnroll, a fifth slower on the B70.)
   float midTop = midL.z + mix(${MID_DEPTH[0].toFixed(1)}, ${MID_DEPTH[1].toFixed(1)}, midL.y);
   bool inLow = col.lowCover > 0.0 && h > col.base && h < col.top;
-  bool mid = !inLow && midL.x > 0.0 && h > midL.z && h < midTop;
-  {
+  bool inMid = midL.x > 0.0 && h > midL.z && h < midTop;
+  for (int k = 0; k < 2; k++) {
+    bool mid = k == 1;
+    if (mid ? !inMid : !inLow) continue;
     float lowCover = mid ? midL.x : col.lowCover;
     float stratiform = mid ? midL.y : col.stratiform;
     float showers = mid ? 0.0 : col.showers;
     float base = mid ? midL.z : col.base;
     float top = mid ? midTop : col.top;
     float hf = (h - base) / (top - base);
-    if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) return 0.0;
-    layer = hf;
+    if (lowCover <= 0.0 || hf <= 0.0 || hf >= 1.0) continue;
     // (The mid-level cloud's own level of detail, for its smaller shapes; altostratus mostly even, and fully
     // so for the light through it, MID_SHEET_TEXTURE.)
     float lod = mid ? max(lods.y, smoothstep(${MID_SHEET_EVEN[0].toFixed(2)}, ${MID_SHEET_EVEN[1].toFixed(2)}, stratiform) * (full ? ${(1 - MID_SHEET_TEXTURE).toFixed(2)} : 1.0)) : lods.x;
@@ -848,7 +852,10 @@ float lowCloudDensity(CloudColumn col, vec3 local, float h, bool full, vec2 lods
     // Too far for the clouds to be told apart: a density giving the column the transmittance of a cover
     // of opaque clouds (spreading the clouds' own density out evenly would make any cover of them opaque).
     float far = -log(1.0 - 0.95 * min(lowCover, 1.0)) / (EXTINCTION * (top - base) * 0.5) * profile;
-    density += mix(d, far, lod) * mix(1.0, 1.6, showers) * (mid ? mix(${MID_THIN.toFixed(2)}, ${MID_SHEET_DENSITY.toFixed(2)}, stratiform) : 1.0);
+    float layerDensity = mix(d, far, lod) * mix(1.0, 1.6, showers) * (mid ? mix(${MID_THIN.toFixed(2)}, ${MID_SHEET_DENSITY.toFixed(2)}, stratiform) : 1.0);
+    // (The height within the layer: the denser one's, where both are.)
+    if (layerDensity >= density) layer = hf;
+    density += layerDensity;
   }
   return density;
 }
