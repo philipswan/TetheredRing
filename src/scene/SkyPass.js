@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { stars } from './stars.js'
+import { updateChangedMatrices } from './ChangedMatrices.js'
 
 const MOON_ORBIT_DISTANCE = 384467000 // m
 const SUN_DISTANCE = 5e10 // m (inside the sky camera's far plane; only the direction matters)
@@ -120,7 +121,9 @@ export class SkyPass {
     this.camera.zoom = mainCamera.zoom
     this.camera.updateProjectionMatrix()
     this.camera.updateMatrixWorld()
-    planetCoordSys.updateMatrixWorld()
+    // (Also brings what hangs off it up to date, which what runs between here and the render relies on;
+    // only what moved since the last update is recomputed.)
+    updateChangedMatrices(planetCoordSys)
     this.planetFrame.matrix.copy(planetCoordSys.matrixWorld)
     this.planetFrame.matrixWorldNeedsUpdate = true
     // (Turning about the planet's axis, its local y, against the planet's rotation.)

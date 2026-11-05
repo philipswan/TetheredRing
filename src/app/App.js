@@ -55,6 +55,7 @@ import { ShotSidebar } from '../ui/ShotSidebar.js'
 import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
 import { placeAtHeightInRingPlane } from '../ring/ringGeometry.js'
 import { standInScene, warmPrograms } from '../scene/precompile.js'
+import { installChangedMatrixUpdates } from '../scene/ChangedMatrices.js'
 import mountainList from '../data/mountainList.json' with { type: 'json' }
 import googleEarthProjectFile from '../data/googleEarthStudioSampleProjectFile.json' with { type: 'json' }
 
@@ -156,6 +157,8 @@ export class App {
 
     this.scene = new THREE.Scene()
     this.scene.name = 'scene'
+    // (The scene is updated several times a frame; only what moved is recomputed: ChangedMatrices.js.)
+    installChangedMatrixUpdates(this.scene)
 
     // Everything planet-fixed hangs off planetCoordSys (identity transform except in VR).
     this.planetCoordSys = new THREE.Group()
@@ -936,9 +939,12 @@ export class App {
 
   render({ prepared = false } = {}) {
     this.quality.beginGpuFrame()
-    if (!prepared) this.prepareRender()
     const renderer = this.renderer
-    PixelLOD.updateScene(this.scene, this.camera3d)
+    // (A prepared frame has just been through PixelLOD.prepareScene, which ends with this.)
+    if (!prepared) {
+      this.prepareRender()
+      PixelLOD.updateScene(this.scene, this.camera3d)
+    }
     InstancedProxyPool.syncAll(this.camera3d, PixelLOD.viewportHeight)
     // Tethers and cables: pixel coverage, and haze from the air (not from under the sea).
     StructureLines.update(
