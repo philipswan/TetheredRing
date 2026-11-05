@@ -65,15 +65,14 @@ export class massDriverTubeModel {
         
     this.liftFanHubGeometry = new THREE.SphereGeometry(this.radius * 0.1, 16, 16)
     this.liftFanHubGeometry.scale(1, 1, 3)
-    this.liftFanDiskGeometry = new THREE.SphereGeometry(this.radius * 1.5, 4, 64)
-    this.liftFanDiskGeometry.scale(1, 1, 0.05)
+    // The fan disks are flat circles facing +z (along the fan's axis), so every point on a disk
+    // has the same normal and the disk shades evenly. (They were spheres flattened along z, whose
+    // normals curve towards the rim and shaded them like domes.)
+    this.liftFanDiskGeometry = new THREE.CircleGeometry(this.radius * 1.5, 64)
     // Low-detail versions for fans a few pixels across (see createLiftFans).
     this.liftFanHubGeometryLow = new THREE.SphereGeometry(this.radius * 0.1, 6, 4)
     this.liftFanHubGeometryLow.scale(1, 1, 3)
-    // (The disks are spheres flattened along z: they need a multiple of 2 segments round, or the
-    // meridians miss one side of the disk and it looks cut off.)
-    this.liftFanDiskGeometryLow = new THREE.SphereGeometry(this.radius * 1.5, 4, 16)
-    this.liftFanDiskGeometryLow.scale(1, 1, 0.05)
+    this.liftFanDiskGeometryLow = new THREE.CircleGeometry(this.radius * 1.5, 16)
     // this.liftFanCowlingGeometry = new THREE.TorusGeometry(this.radius*1.6, this.radius/32, 16, 64)
     // this.liftFanCowlingGeometry.scale(1, 1, 4)
     // this.liftFanGeometry = mergeGeometries([this.liftFanHubGeometry, this.liftFanCowlingGeometry])
@@ -292,7 +291,7 @@ export class massDriverTubeModel {
     }
     // Where model coordinates are on the planet (for the wind at a chunk).
     const toPlanet = orientation.clone().invert()
-    const diskScale = new THREE.Vector3(1, 1, 0.05)
+    const diskScale = new THREE.Vector3(1, 1, 1)
     // The hubs and disks of fans start..end, leaning into the wind at `centre` (model coordinates).
     const leanIntoWind = (start, end, centre) => {
       const axes = fans.slice(start, end).map(fan => fan.axis.clone())
@@ -329,6 +328,8 @@ export class massDriverTubeModel {
       this.liftFanFadeDiameter = fanDiameter
       this.liftFanOpaqueMaterial = withSubPixelFade(this.massDriverTubeMaterial3.clone(), { size: fanDiameter })
       this.liftFanDiskMaterial = withSubPixelFade(this.massDriverTubeMaterial4.clone(), { size: fanDiameter })
+      // A flat disk has one face, so it must be drawn from behind too.
+      this.liftFanDiskMaterial.side = THREE.DoubleSide
       ;[this.liftFanOpaqueMaterial, this.liftFanDiskMaterial].forEach(m => { m.userData.shared = true })
     }
     const opaque = this.liftFanOpaqueMaterial
