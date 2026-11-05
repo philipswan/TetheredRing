@@ -2755,6 +2755,14 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     return null;
   }
 
+  // The deepest terrain tile's height (m, unscaled) at a geodetic latitude and longitude (degrees), from a fixed
+  // tile (see fixedHeightSampler); null where there is no terrain data.
+  async fixedTerrainHeight(latDeg, lonDeg) {
+    const direction = latLonToDirection(latDeg * DEG2RAD, lonDeg * DEG2RAD, new THREE.Vector3(), this.planetE2);
+    const sampler = await this.fixedHeightSampler(direction, this.maxAvailableLod);
+    return sampler ? sampler(direction) : null;
+  }
+
   async _fetchFixedHeights(tile, meta) {
     const response = await fetch(this._heightUrl(tile)).catch(() => null);
     if (!response?.ok) return null;

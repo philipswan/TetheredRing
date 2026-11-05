@@ -122,52 +122,71 @@ export function defineAnimate () {
   }
 }
 
+// The shape of the elevated evacuated tube `deploymentAlpha` of the way deployed: `count` points along it, evenly
+// spaced by its length. The tube follows its curve, `tubeCurve`, to fraction "alpha" of its length (point A), after
+// which it spirals around a point that is r0 to the side of A.
+// "alpha" is the extent to which the tube is uncoiled.
+// "alpha2" is the extent to which the coiled tube is lowered onto its landing platform (by the time it is fully
+// coiled up, deploymentAlpha 0), from where it uncoils.
+// "neverCoiledPortion" is the portion of the tube near the base that always remains uncoiled. It is also the split
+// between time spent levitating the coiled tube vertically off its platform and unwinding the coil.
+// Lowered, the coil is also brought `restDrop` metres further down (all of it, and the uncoiled part between it and
+// the tube's fixed start in proportion: weights[i] of it), to rest just clear of the ground (see
+// launcher.findCoilRest).
+// Returns { points, weights, coilCentre, alpha, alpha2 }.
+export function coiledTubeShape(tubeCurve, deploymentAlpha, { restDrop = 0, count = 4096 } = {}) {
+  const originalTubeLength = tubeCurve.getLength()
+  const neverCoiledPortion = 0.05
+  const alpha = Math.max(neverCoiledPortion, Math.min(1, deploymentAlpha))
+  const alpha2 = 1 - Math.min(neverCoiledPortion, Math.max(0, deploymentAlpha)) / neverCoiledPortion
+  const r0 = 2000 // m - inner radius of the coiled elevated evacuated tube
+  const rInc = -50 // m - distance between adjacent turns of the coil
+  const A = tubeCurve.getPointAt(alpha)
+  const tangent = tubeCurve.getTangentAt(alpha)
+  const biNormal = tangent.clone().cross(A.clone().normalize()).normalize()
+  const P0 = tubeCurve.getPointAt(0)
+  const P0Length = P0.length()
+  const points = []
+  const weights = []
+  const coilCentre = A.clone().add(biNormal.clone().multiplyScalar(-r0))
+  // Lowers a point to the ground (by three times its height above the tube's start), and then by its share of restDrop.
+  const lower = (P, weight) => {
+    const PLength = P.length()
+    return P.multiplyScalar((PLength - (3 * (PLength - P0Length) * PLength / P0Length + restDrop * weight) * alpha2) / PLength)
+  }
+
+  for (let i = 0; i<count; i++) {
+    const alphaI = i / (count - 1)
+    let P
+    if (alphaI <= alpha) {
+      P = tubeCurve.getPointAt(alphaI)
+    }
+    else {
+      const spiralPosition = (alphaI - alpha) * originalTubeLength
+      const spiralXY = getSpiralCoordinates(r0, rInc, spiralPosition)
+      P = A.clone()
+        .addScaledVector(biNormal, spiralXY.x)
+        .addScaledVector(tangent, spiralXY.y)
+    }
+    // (Smoothly from none at the tube's start to all of it where the coil begins.)
+    const t = Math.min(1, alphaI / alpha)
+    const weight = t * t * (3 - 2 * t)
+    weights.push(weight)
+    points.push(lower(P, weight))
+  }
+  lower(coilCentre, 1)
+  return { points, weights, coilCentre, alpha, alpha2 }
+}
+
 // Reshapes the coiled elevated evacuated tube for deployment fraction `elevatedEvacuatedTubeDeploymentAlpha`
 // and rebuilds only the visible tube segments that lie on it.
 export function defineUpdateCoiledEvacuatedTube() {
   return function (elevatedEvacuatedTubeDeploymentAlpha) {
-    const originalTubeLength = this.evacuatedTubeCurve.getLength()
-    // The coiled curve follows the original curve to fraction "alpha" of its length (point A), after which it
-    // spirals around a point that is r0 to the side of A.
-    // "alpha" is the extent to which the tube is uncoiled.
-    // "alpha2" is the extent to which the coiled tube is elevated above its landing platform.
-    // "neverCoiledPortion" is the portion of the tube near the base that always remains uncoiled. It is also
-    // the split between time spent levitating the coiled tube vertically off its platform and unwinding the coil.
-    const neverCoiledPortion = 0.05
-    const alpha = Math.max(neverCoiledPortion, Math.min(1, elevatedEvacuatedTubeDeploymentAlpha))
-    const alpha2 = 1 - Math.min(neverCoiledPortion, Math.max(0, elevatedEvacuatedTubeDeploymentAlpha)) / neverCoiledPortion
-    const r0 = 2000 // m - inner radius of the coiled elevated evacuated tube
-    const rInc = -50 // m - distance between adjacent turns of the coil
-    const A = this.evacuatedTubeCurve.getPointAt(alpha)
-    const tangent = this.evacuatedTubeCurve.getTangentAt(alpha)
-    const biNormal = tangent.clone().cross(A.clone().normalize()).normalize()
-    const P0 = this.evacuatedTubeCurve.getPointAt(0)
-    const P0Length = P0.length()
-    const totalNumberOfNewPoints = 4096
-    const points = []
-    const coilCenterPoint = A.clone().add(biNormal.clone().multiplyScalar(-r0))
-    const coilCenterPointLength = coilCenterPoint.length()
-
-    for (let i = 0; i<totalNumberOfNewPoints; i++) {
-      const alphaI = i / (totalNumberOfNewPoints - 1)
-      let P
-      if (alphaI <= alpha) {
-        P = this.evacuatedTubeCurve.getPointAt(alphaI)
-      }
-      else {
-        const spiralPosition = (alphaI - alpha) * originalTubeLength
-        const spiralXY = getSpiralCoordinates(r0, rInc, spiralPosition)
-        P = A.clone()
-          .addScaledVector(biNormal, spiralXY.x)
-          .addScaledVector(tangent, spiralXY.y)
-      }
-      const PLength = P.length()
-      const scaleBy = (P0Length-3*(PLength-P0Length)*alpha2)/P0Length  // lowers the coiled tube to the ground
-      points.push(P.multiplyScalar(scaleBy))
-    }
-
-    const scaleBy = (P0Length-3*(coilCenterPointLength-P0Length)*alpha2)/P0Length
-    this.coilCenterMarker.position.copy(coilCenterPoint.multiplyScalar(scaleBy))
+    const { points, coilCentre, alpha, alpha2 } = coiledTubeShape(this.evacuatedTubeCurve, elevatedEvacuatedTubeDeploymentAlpha, { restDrop: this.coilRestDrop ?? 0 })
+    this.coilCenterMarker.position.copy(coilCentre)
+    // What has changed shape: the coil, and while it is being lowered (or has just been), the tube from its start.
+    const changedFrom = (alpha2 > 0 || this.lastCoilAlpha2 > 0) ? 0 : alpha
+    this.lastCoilAlpha2 = alpha2
 
     this.coiledElevatedEvacuatedTubeCurve.setPoints(points)
     this.coiledElevatedEvacuatedTubeCurve.updateArcLengths()
@@ -178,7 +197,7 @@ export function defineUpdateCoiledEvacuatedTube() {
     // Segments that are not visible have no model; they are built from the current curve when they become visible.
     const path = this.polyCurveForrf3
     const total = path.getLength()
-    const coiledStart = path.findRelevantCurveAt(1).relevantCurveStartPosition + alpha * this.coiledElevatedEvacuatedTubeCurve.getLength()
+    const coiledStart = path.findRelevantCurveAt(1).relevantCurveStartPosition + changedFrom * this.coiledElevatedEvacuatedTubeCurve.getLength()
     const segmentD = 1 / Math.max(1, this.massDriverTubeSegments)
     const minD = (total > 0) ? coiledStart / total - segmentD : 0
     this.updateMassDriverTubes(minD, 1)
@@ -193,7 +212,7 @@ export function defineUpdateCoiledEvacuatedTube() {
       sledPath.updateArcLengths()
       const trackStart = sledPath.findRelevantCurveAt(1).relevantCurveStartPosition
       const railD = 1 / Math.max(1, this.massDriverRailSegments)
-      const railMinD = (trackStart + alpha * this.coiledElevatedEvacuatedTubeCurve.getLength()) / sledPath.getLength() - railD
+      const railMinD = (trackStart + changedFrom * this.coiledElevatedEvacuatedTubeCurve.getLength()) / sledPath.getLength() - railD
       this.updateStaticModels(this.objectClasses.find(c => c.className === 'virtualMassDriverRails'), railMinD, 1)
     }
   }

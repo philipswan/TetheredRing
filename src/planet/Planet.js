@@ -502,6 +502,24 @@ export class Planet {
   }
 
   /**
+   * The ground's height (m, as drawn: with the terrain's exaggeration) at a geodetic latitude and longitude (degrees),
+   * from fixed data, so the same wherever the camera has been: the higher of the deepest terrain tile's and, where
+   * there is any, the generated ground's (what is drawn closest up). For placing things clear of the ground. Resolves
+   * to null where there is no terrain data.
+   */
+  async fixedGroundHeight(lat, lon) {
+    let height = await this.lod.fixedTerrainHeight(lat, lon);
+    for (const g of this.rendererOptions.groundData ?? []) {
+      if (!(await g.ready) || !g.covers(lat, lon)) continue;
+      await g.request(lat - 0.001, lat + 0.001, lon - 0.001, lon + 0.001);
+      const h = g.height(lat, lon);
+      if (h === h) height = Math.max(height ?? -Infinity, h);
+      break;
+    }
+    return height === null ? null : height * this.lod.displacementScaleMultiplier;
+  }
+
+  /**
    * Distance (m) from the generated ground's coastline at a geodetic latitude and longitude (degrees): positive
    * inland, negative at sea (to -256 m and no further). Resolves to null where there is no ground data (groundData.js).
    */

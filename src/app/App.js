@@ -61,7 +61,6 @@ import googleEarthProjectFile from '../data/googleEarthStudioSampleProjectFile.j
 const LOGO_DURATION = 20 // s of simulated time before the logo hides and preset start actions run
 const RING_RAISE_RATE = 0.25 // fraction of full raise per second (R/L keys)
 const TUBE_DEPLOY_RATE = 0.0025 // fraction per second
-const LAUNCHER_TERRAIN_LOD = 10 // terrain tiles for where the launcher's nuts and sleds go underground (launcher.updateFallBacks)
 const PRECOMPILE_INTERVAL = 120 // frames between background compiles of new shader programs (precompileShaders)
 
 // The application: builds the scene from the selected preset, owns the per-frame update, and
@@ -324,13 +323,7 @@ export class App {
     const n = this.nonGUIParams
     this.launchSystem = new Launcher.launcher(this.d, this.clock.time, this.planetCoordSys, this.planetSpec, r.refCoordSys, r.mainRingCurve, r.crv, this.overlays.xyChart, null, this.specs, false, '')
     this.launchSystem.setTerrainSampler((lat, lon) => this.planet.sampleTerrainHeight(lat, lon))
-    this.launchSystem.setFixedTerrainHeight(async (lat, lon) => {
-      // (A direction in the planet renderer's tile frame, as Sailboats.js makes them.)
-      const p = tram.geodeticToECEF(lat, lon, 0, this.planetSpec.ellipsoid)
-      const direction = new THREE.Vector3(p.z, p.y, -p.x).normalize()
-      const sampler = await this.planet.fixedHeightSampler(direction, LAUNCHER_TERRAIN_LOD)
-      return sampler ? sampler(direction) : null
-    })
+    this.launchSystem.setFixedTerrainHeight((lat, lon) => this.planet.fixedGroundHeight(lat, lon))
     this.launchSystem.drawLaunchTrajectoryLine(this.d, this.planetCoordSys)
 
     // A frame aligned with the end of the launch track, used by presets to place the camera

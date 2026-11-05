@@ -692,8 +692,8 @@ export class ShotController {
     let lastYield = performance.now()
     this.recordingSize = { width, height, pixelRatio: factor }
     try {
-      // (Where the launcher's nuts and sleds go out of sight comes from terrain tiles: see launcher.updateFallBacks.)
-      await app.launchSystem?.fallBacksReady
+      // (Parts of the launcher are fitted to the terrain as it loads: see launcher.updateTerrainFits.)
+      await app.launchSystem?.terrainReady
       app.renderer.setAnimationLoop(null)
       app.setRenderSize(width, height, { pixelRatio: factor })
       app.clock.setFixedStep(1 / fps)

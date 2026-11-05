@@ -4,6 +4,7 @@ import { SuperCurvePath } from '../curves/SuperCurves.js'
 import * as tram from '../utils/tram.js'
 import { MovingVirtualObject, disposeModels, pathDuration } from './VirtualObject.js'
 import { fallBackProfile } from './fallBack.js'
+import { coiledTubeShape } from './launcherAnimate.js'
 import { referenceFrame } from '../core/ReferenceFrame.js'
 import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
 import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
@@ -31,6 +32,9 @@ import { LaunchVehicleGlow } from './LaunchVehicleGlow.js'
 
 //import { arrow } from '../ring/markers.js'
 //import { FrontSide } from 'three'
+
+// How far above the ground the elevated evacuated tube rests while it is fully coiled up (see findCoilRest).
+const COIL_REST_CLEARANCE = 10 // m
 
 export class launcher {
 
@@ -203,7 +207,7 @@ export class launcher {
           new referenceFrame(this.polyCurveForrf3, numZones, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame'),
           new referenceFrame(this.polyCurveForrf4, numZones, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame'))
         this.launchTrajectoryLine = this.polyCurveForrf4
-        this.updateFallBacks()
+        this.updateTerrainFits()
 
         // Which reference frame each class of virtual object lives in
         this.classRefFrameIndex = new Map([
@@ -404,31 +408,77 @@ export class launcher {
     })
   }
 
-  // ---- Nuts and sleds falling back down the track ----------------------------------------------
+  // ---- Fitting the launcher to the terrain ------------------------------------------------------
+  // Where the nuts and sleds go out of sight underground (updateFallBacks) and how low the coiled-up tube rests
+  // (updateCoilRest) come from fixed terrain data (setFixedTerrainHeight), which loads asynchronously; until it
+  // has, the nuts and sleds fall back to the bottom of the ramp and the coil rests where it was designed to.
+  // terrainReady resolves once the terrain has been consulted (recordings wait for it).
+
+  updateTerrainFits() {
+    const generation = this.terrainFitGeneration = (this.terrainFitGeneration ?? 0) + 1
+    this.terrainReady = Promise.all([this.updateFallBacks(generation), this.updateCoilRest(generation)])
+      .catch(error => console.warn('Could not fit the launcher to the terrain:', error))
+  }
+
   // Once it has stopped, each adaptive nut and launch sled falls back down its path (fallBack.js) until it is
   // out of sight: it disappears at the first point on the way down where the path is underground (or, on a
-  // planet with an ocean, under the sea), or failing that at the bottom of the ramp. Where that is comes from
-  // fixed terrain tiles (setFixedTerrainHeight), which load asynchronously; until they have, the nuts and
-  // sleds fall back to the bottom of the ramp. fallBacksReady resolves once the terrain has been consulted
-  // (recordings wait for it). The Moon's launcher is still to be redesigned: there they just disappear
-  // when they stop, as before.
-
-  updateFallBacks() {
+  // planet with an ocean, under the sea), or failing that at the bottom of the ramp. The Moon's launcher is
+  // still to be redesigned: there they just disappear when they stop, as before.
+  updateFallBacks(generation) {
     const paths = (this.planetSpec?.name === 'Moon') ? [] : [this.polyCurveForrf1, this.polyCurveForrf2].filter(Boolean)
     paths.forEach(path => { path.fallBack = this.fallBackFor(path, this.rampStartDistance(path)) })
-    const generation = this.fallBackGeneration = (this.fallBackGeneration ?? 0) + 1
-    if (!this.fixedTerrainHeight || paths.length === 0) {
-      this.fallBacksReady = Promise.resolve()
-      return
-    }
-    this.fallBacksReady = Promise.all(paths.map(async path => {
+    if (!this.fixedTerrainHeight || paths.length === 0) return Promise.resolve()
+    return Promise.all(paths.map(async path => {
       const end = await this.groundEntryDistance(path)
-      if (generation === this.fallBackGeneration && end !== null) path.fallBack = this.fallBackFor(path, end)
+      if (generation === this.terrainFitGeneration && end !== null) path.fallBack = this.fallBackFor(path, end)
     })).then(() => {
-      if (generation !== this.fallBackGeneration) return
+      if (generation !== this.terrainFitGeneration) return
       this.updateLaunchStride()
       this.refFrames.forEach(refFrame => { refFrame.forceVisibilityRefresh = true })
-    }).catch(error => console.warn('Could not find where the launcher\'s track goes underground:', error))
+    })
+  }
+
+  // While it is fully coiled up (its deployment is animated), the elevated evacuated tube rests as close to the
+  // ground as it can without touching it: COIL_REST_CLEARANCE above it (see findCoilRest).
+  updateCoilRest(generation) {
+    this.coilRestDrop = 0
+    this.lastElevatedEvacuatedTubeDeploymentAlpha = -1   // (reshape it: see animate)
+    if (!this.fixedTerrainHeight || !this.animateElevatedEvacuatedTubeDeployment || !this.evacuatedTubeCurve) return Promise.resolve()
+    return this.findCoilRest().then(drop => {
+      if (generation !== this.terrainFitGeneration) return
+      this.coilRestDrop = drop
+      this.lastElevatedEvacuatedTubeDeploymentAlpha = -1
+    })
+  }
+
+  // How much further down (negative: up) the fully coiled-up tube must be brought (coiledTubeShape's restDrop) for
+  // the bottom of the tube, wherever there is ground under it or its lift fans, to be COIL_REST_CLEARANCE above it.
+  async findCoilRest() {
+    const tube = this.evacuatedTubeCurve
+    const count = Math.min(60000, Math.max(4096, Math.ceil(tube.getLength() / 15)))   // (every 15 m or so)
+    const { points, weights } = coiledTubeShape(tube, 0, { count })
+    const radius = this.tubeModelObject.radius
+    const halfWidth = 4.5 * radius   // to the rims of the lift fans' disks (see MassDriverTube.createLiftFans)
+    const ellipsoid = this.planetSpec.ellipsoid
+    const along = new THREE.Vector3(), side = new THREE.Vector3(), p = new THREE.Vector3()
+    let drop = Infinity
+    for (let i = 0; i < count; i++) {
+      // (Next to the tube's fixed start, bringing the coil down hardly moves it.)
+      if (weights[i] < 0.05) continue
+      along.subVectors(points[Math.min(count - 1, i + 1)], points[Math.max(0, i - 1)])
+      side.crossVectors(along, points[i]).normalize()
+      let ground = null
+      for (const k of [-1, 0, 1]) {
+        p.copy(points[i]).addScaledVector(side, k * halfWidth)
+        const { lat, lon } = tram.ecefToGeodetic(p.x, p.y, p.z, ellipsoid)
+        const height = await this.fixedTerrainHeight(lat, lon)
+        if (height !== null) ground = Math.max(ground ?? -Infinity, height)
+      }
+      if (ground === null) continue
+      const { alt } = tram.ecefToGeodetic(points[i].x, points[i].y, points[i].z, ellipsoid)
+      drop = Math.min(drop, (alt - radius - ground - COIL_REST_CLEARANCE) / weights[i])
+    }
+    return Number.isFinite(drop) ? drop : 0
   }
 
   // Path distance at which the object on `path` stops: where the motion along its last sub-curve ends.
@@ -493,11 +543,11 @@ export class launcher {
     return null
   }
 
-  // fixedTerrainHeight(latDeg, lonDeg) -> Promise<metres | null>: the terrain's height from fixed tiles (the
-  // same wherever the camera has been), for where the nuts and sleds go out of sight (updateFallBacks).
+  // fixedTerrainHeight(latDeg, lonDeg) -> Promise<metres | null>: the ground's height from fixed data (the same
+  // wherever the camera has been: Planet.fixedGroundHeight), to fit the launcher to (updateTerrainFits).
   setFixedTerrainHeight(fixedTerrainHeight) {
     this.fixedTerrainHeight = fixedTerrainHeight
-    this.updateFallBacks()
+    this.updateTerrainFits()
   }
 
   // sampleTerrainHeight(latDeg, lonDeg) -> { heightMeters, lod } | null: where the tube's mooring cables
