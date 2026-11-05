@@ -12,7 +12,8 @@ const _sphere = new THREE.Sphere()
 // Draws many copies of one object with a single InstancedMesh per detail level, while the code that
 // places them keeps working with ordinary Object3D "proxies" (added to the scene, positioned, shown
 // and hidden as usual). Once per frame, sync() copies every visible proxy's world transform into an
-// instance slot of the level its on-screen size calls for.
+// instance slot of the level its on-screen size calls for (call it after the scene's world matrices
+// have been updated).
 //
 // Precision: the instanced meshes sit at the camera position and each instance matrix is computed
 // relative to it in float64 before being stored as float32, so instances near the camera do not
@@ -97,9 +98,10 @@ export class InstancedProxyPool {
     _toOrigin.copy(this.meshes[0].matrixWorld).invert()
     const visible = this._visible ??= []
     let n = 0
+    // (The proxies' world matrices are current: App.render calls this straight after the scene's matrices have been
+    // brought up to date, by PixelLOD.updateScene or PixelLOD.prepareScene.)
     for (const proxy of this.proxies) {
       if (!proxy.parent || !isShown(proxy)) continue
-      proxy.updateWorldMatrix(true, false)
       _proxyPosition.setFromMatrixPosition(proxy.matrixWorld)
       _sphere.center.copy(_proxyPosition)
       if (!_frustum.intersectsSphere(_sphere)) continue
