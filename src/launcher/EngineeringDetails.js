@@ -4,6 +4,23 @@ import * as tram from '../utils/tram.js'
 import { myFormat } from '../utils/tram.js'
 import * as progCosts from './MarsHumanOutpostProgramCost.js'
 
+// How far before the elevated evacuated tube's exit the exit airlock's doors are (the airlock runs from them to
+// the exit). Air rushes into the tube at the speed of sound when the launched vehicle bursts through the disk at
+// the exit. The doors need to start closing immediately after the vehicle passes them and be finished closing
+// before the ambient air rushing into the tube reaches them, so
+//   exitAirlockDoorCloseTime = distance / vehicleSpeedAtExit + distance / speedOfSoundAtTubeExit
+// (Without an atmosphere no air rushes in, and no airlock is needed.)
+export const exitAirlockDoorCloseTime = 1 // s
+export function exitAirlockDistanceFromTubeExit(dParamWithUnits, planetSpec, vehicleSpeedAtExit) {
+  const adiabaticIndex = 1.4
+  const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
+  const airPressure = planetSpec.airPressureAtAltitude(launcherEvacuatedTubeExitAltitude)
+  const airDensity = planetSpec.airDensityAtAltitude(launcherEvacuatedTubeExitAltitude)
+  if (!(airPressure > 0) || !(airDensity > 0)) return 0
+  const speedOfSoundAtTubeExit = Math.sqrt(adiabaticIndex * airPressure / airDensity) // m/s
+  return (exitAirlockDoorCloseTime * speedOfSoundAtTubeExit * vehicleSpeedAtExit) / (speedOfSoundAtTubeExit + vehicleSpeedAtExit)
+}
+
 export function define_genLauncherSpecs() {
 
   return function (dParamWithUnits, specs, planetSpec) {
@@ -259,9 +276,11 @@ export function define_genLauncherSpecs() {
     console.print("launcherRampTotalCost, ", myFormat(launcherRampTotalCost/1e9, 3), "B USD")
 
     // Elevated Evacuated Tube (EVT) - Aeronautically Supported Case  
-    const breakingGuidwayLength = launcherElevatedEvacuatedTubeLength
+    // The launch sled brakes along the track in the tube from the end of the ramp until it stops short of the
+    // exit airlock (see the trajectory's launchSledBrakingCurve and sledBraking.js; gravity helps as it climbs).
+    const breakingGuidwayLength = this.launchSledBrakingDistance ?? launcherElevatedEvacuatedTubeLength
     const launchSledInitialSpeed = this.launcherRampExitSpeed
-    const launchSledDeceleration = launchSledInitialSpeed**2 / (2 * breakingGuidwayLength)
+    const launchSledDeceleration = this.launchSledBrakingDeceleration ?? launchSledInitialSpeed**2 / (2 * breakingGuidwayLength)
     specs['launchSledDeceleration'] = {value: launchSledDeceleration, units: "m/s²"}
     console.print("launchSledDeceleration, ", myFormat(launchSledDeceleration), "m/s²")
 
@@ -527,19 +546,8 @@ export function define_genLauncherSpecs() {
     // Airlock Evacuation
 
     // After each launch we will need to re-evacuate the airlock portion of the tube
-    const adiabaticIndex = 1.4
     const launcherEvacuatedTubeExitAltitude = dParamWithUnits['launcherEvacuatedTubeExitAltitude'].value
-    const airPressure = planetSpec.airPressureAtAltitude(launcherEvacuatedTubeExitAltitude)
-    const airDensity = planetSpec.airDensityAtAltitude(launcherEvacuatedTubeExitAltitude)
-    const speedOfSoundAtTubeExit = Math.sqrt(adiabaticIndex * airPressure / airDensity) // m/s
-    const airlockDoorCloseTime = 1 // s
-    const vehicleSpeedAtExit = this.launchVehicleAirSpeedAtExit
-    // the air will travel into the tube at the speed of sound when the launched vehicle bursts through the disk. The doors need to start closing
-    // immediately after the vehicle passes them and be finished closing before the ambient air rushing into the tube reaches them.
-    // So, solve this equation...
-    // airlockDoorCloseTime = distanceFromTubeExitToAirlock / speedOfSoundAtTubeExit + distanceFromTubeExitToAirlock / vehicleSpeedAtExit
-    const distanceFromTubeExitToAirlock = (airlockDoorCloseTime * speedOfSoundAtTubeExit * vehicleSpeedAtExit) / (speedOfSoundAtTubeExit + vehicleSpeedAtExit)
-    const exitAirlockLength = distanceFromTubeExitToAirlock
+    const exitAirlockLength = exitAirlockDistanceFromTubeExit(dParamWithUnits, planetSpec, this.launchVehicleAirSpeedAtExit)
     specs['exitAirlockLength'] = {value: exitAirlockLength, units: "m"}
     console.print("exitAirlockLength, ", myFormat(exitAirlockLength), "m")
 

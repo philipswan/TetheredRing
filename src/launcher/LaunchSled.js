@@ -5,6 +5,13 @@ import { MovingVirtualObject, curveFrameAtTime, parameterSignature } from './Vir
 
 const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
+const MODEL_FORWARD_STRETCH = 1.75  // The sled's model is stretched lengthwise by this much
+
+// How far ahead of the point on its path the front of the launch sled is (m).
+export function launchSledFrontReach(dParamWithUnits) {
+  return (dParamWithUnits['launchSledForwardsOffset'].value + dParamWithUnits['launchSledBodyLength'].value)
+    * dParamWithUnits['launchSystemForwardScaleFactor'].value * MODEL_FORWARD_STRETCH
+}
 
 export class launchSledModel {
   constructor(dParamWithUnits, myScene, unallocatedModelsList, _unusedLegacyFlag, massDriverScrewTexture) {
@@ -25,7 +32,7 @@ export class launchSledModel {
     launchSledMesh.name = 'launchSled'
     const scaleFactorVector = new THREE.Vector3(
       dParamWithUnits['launchSystemRightwardScaleFactor'].value,
-      dParamWithUnits['launchSystemForwardScaleFactor'].value*1.75,
+      dParamWithUnits['launchSystemForwardScaleFactor'].value*MODEL_FORWARD_STRETCH,
       dParamWithUnits['launchSystemUpwardScaleFactor'].value)
 
     decorateAndSave(launchSledMesh, unallocatedModelsList, objName, scaleFactorVector, launchSledNumModels, _unusedLegacyFlag)
@@ -120,7 +127,7 @@ export class virtualLaunchSled extends MovingVirtualObject {
     v.forwardsOffset = dParamWithUnits['launchSledForwardsOffset'].value
     v.bodyLength = dParamWithUnits['launchSledBodyLength'].value
     v.rightwardScale = dParamWithUnits['launchSystemRightwardScaleFactor'].value
-    v.forwardScale = dParamWithUnits['launchSystemForwardScaleFactor'].value * 1.75  // matches the model's scale
+    v.forwardScale = dParamWithUnits['launchSystemForwardScaleFactor'].value * MODEL_FORWARD_STRETCH  // matches the model's scale
     v.upwardScale = dParamWithUnits['launchSystemUpwardScaleFactor'].value
     v.isVisible = dParamWithUnits['showLaunchSleds'].value
     v.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value

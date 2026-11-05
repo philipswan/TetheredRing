@@ -189,7 +189,8 @@ export class launcher {
         this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver1Curve, this.massDriver2Curve])
         this.accelerationScrewLength = this.polyCurveForrf0.getLength()
         this.polyCurveForrf1 = makePath("adaptiveNutPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
-        this.polyCurveForrf2 = makePath("launchSledPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), this.launchSledReturnCurve])
+        // The sled stays with the vehicle over the ramp, then brakes on the track in the elevated evacuated tube.
+        this.polyCurveForrf2 = makePath("launchSledPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), this.launchSledBrakingCurve])
         this.polyCurveForrf3 = makePath("launchVehicleInTubePath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), tubeCurve])
         this.polyCurveForrf4 = makePath("launchVehiclePath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), tubeCurve, this.freeFlightPositionCurve])
 

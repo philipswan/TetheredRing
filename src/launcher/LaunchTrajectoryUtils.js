@@ -6,6 +6,9 @@ import * as tram from '../utils/tram.js'
 import { myFormat } from '../utils/tram.js'
 import * as LauncherRamp from './launcherRamp.js'
 import { arrow } from '../ring/markers.js'
+import { exitAirlockDistanceFromTubeExit } from './EngineeringDetails.js'
+import { launchSledFrontReach } from './LaunchSled.js'
+import { sledBrakingProfile } from './sledBraking.js'
 
 export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
@@ -29,7 +32,10 @@ export function defineTrajectoryCurvesParametersHaveChanged() {
       'animateElevatedEvacuatedTubeDeployment',
       'launcherRampExitAltitude',
       'launcherRampUpwardAcceleration',
-      'launcherSledDownwardAcceleration',
+      'launchSledStopClearance',
+      'launchSledForwardsOffset',
+      'launchSledBodyLength',
+      'launchSystemForwardScaleFactor',
       'launcherRampTurningRadius',
       'launcherRampEndLatitude',
       'launcherRampEndLongitude',
@@ -172,7 +178,6 @@ export function defineUpdateTrajectoryCurves () {
     // Clamp the altitude of the ramp to be between the altitude of the launcher and the altitude of the main ring.
     const launcherRampExitAltitude = Math.max(launcherMassDriverAltitude, Math.min(dParamWithUnits['launcherRampExitAltitude'].value, launcherEvacuatedTubeExitAltitude))
     const launcherRampUpwardAcceleration = dParamWithUnits['launcherRampUpwardAcceleration'].value
-    const launcherSledDownwardAcceleration = dParamWithUnits['launcherSledDownwardAcceleration'].value
     const accelerationOfGravity = 9.8 // m/s2 // ToDo: Should make this a function of the selected planet
     // Net acceleration available to bend a path: v^2/(a - g) is negative or infinite when a <= g, so keep
     // at least 0.5 m/s^2 of net acceleration (an unphysically large but finite radius).
@@ -474,19 +479,6 @@ export function defineUpdateTrajectoryCurves () {
     let adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor
     [adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp, this.launcherRampLength)
 
-    // Next design the downward arcing part of the sled's return path
-
-    const allowableDownwardTurningRadius = Math.max(1, launchRampExitVelocity**2 / Math.max(minimumNetTurningAcceleration, launcherSledDownwardAcceleration - accelerationOfGravity))
-    // For the downward arcing part of the sled's return path we need the rampEndPoint from above and
-    // a circle center point that's allowableDownwardTurningRadius further away from the center of the ramp's curve.
-    const sledReturnCircleStartPoint = rampEngineeringParameters.rampEndPoint
-    const sledReturnScaleFactor = (allowableUpwardTurningRadius + allowableDownwardTurningRadius) / allowableUpwardTurningRadius
-    const sledReturnCircleCenter = rampEngineeringParameters.rampCircleCenter.clone().add(rampEngineeringParameters.rampCircleVectorRotated.clone().multiplyScalar(sledReturnScaleFactor))
-    const sledReturnCircleLength = Math.PI * 2 * 0.125 * allowableDownwardTurningRadius // The 0.125 fator is just an rough estimate - we'll need to calculated it later.
-    this.curveDownTime = sledReturnCircleLength / launchRampExitVelocity // ToDo: This is inaccurate as it does not take into account the increase in speed due to coasting down the ramp.
-
-    this.launchTrajectoryMarker6.position.copy(sledReturnCircleCenter)
-
     // ***************************************************************
     // Next we need to capture some curves and data sets for plotting
     // ***************************************************************
@@ -784,7 +776,6 @@ export function defineUpdateTrajectoryCurves () {
     this.peakUpwardAcceleration = upwardAcceleration
 
     //console.log('Creating upward curving ramp part of trajectory.')
-    // ToDo: t5b is the time when the vehicle reaches the end of the evacuated tube. Need a new t? for when teh launch sled reaches the sledReturnCircle
     console.assert(t4<10000)
     for (t = t3; t<Math.min(t4, 10000); t+=tStep) {   // Hack - Min function added to prevent endless loop in case of bug
       vehicleAirSpeed = this.launchRampCurve[1].tTos(t - t3)
@@ -861,72 +852,7 @@ export function defineUpdateTrajectoryCurves () {
     }
 
     const t5a = t4 + this.timeWithinEvacuatedTube
-    const t5b = t4 + this.curveDownTime
     const t6a = t5a + launcherCoastTime
-
-    // ***************************************************************
-    // Create a downward arching curve for the launch sled to travel on after the vehicle detaches.
-    // ***************************************************************
-    if (!this.launchSledReturnCurve) {
-      this.launchSledReturnCurve = new CircleSuperCurve3(sledReturnCircleCenter.clone(), this.axisOfRotation.clone(), sledReturnCircleStartPoint.clone(), sledReturnCircleLength, false)
-    }
-    else {
-      this.launchSledReturnCurve.update(sledReturnCircleCenter.clone(), this.axisOfRotation.clone(), sledReturnCircleStartPoint.clone(), sledReturnCircleLength, false)
-    }
-    const launchSledReturntToiConvertor = function (t) {
-      // Time to "interpolation distance" conversion
-      return t  // ToDo - Incorrect - need to fix
-    }
-    const launchSledReturntTosConvertor = function (t) {
-      // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-      return launchRampExitVelocity
-    }
-    this.launchSledReturnCurve.addtTosConvertor(launchSledReturntTosConvertor)
-    const launchSledReturntTodConvertor = function (t) {
-      // We're ignoring the effect of planet's gravity here so this is a poor approximation at the moment. Need to derive the equation for a pendulum in a gravity field...
-      return launchRampExitVelocity * launchSledReturntToiConvertor(t)
-    }
-    this.launchSledReturnCurve.addtToiConvertor(launchSledReturntToiConvertor)
-    this.launchSledReturnCurve.addtTodConvertor(launchSledReturntTodConvertor)
-    this.launchSledReturnCurve.setDuration(this.curveDownTime)
-    this.launchSledReturnCurve.name = "launchSledReturnCurve"
-
-    forwardAcceleration = 0
-    upwardAcceleration = launcherRampUpwardAcceleration
-
-    //console.log('Creating downward arching sled return part of trajectory.')
-    console.assert(t5b<10000)
-    for (t = t4; t<Math.min(t5b, 10000); t+=tStep) {   // Hack - Min function added to prevent endless loop in case of bug
-      // The sled is on its return curve now (this used to sample the ramp curve with the wrong time base,
-      // overcounting the tube drag energy)
-      vehicleAirSpeed = this.launchSledReturnCurve.tTos(t - t4)
-      distanceTravelled = this.launchSledReturnCurve.tTod(t - t4)
-      vehiclePosition = this.launchSledReturnCurve.getPointAt(Math.min(1, distanceTravelled / sledReturnCircleLength))
-      altitude = vehiclePosition.length() - this.planetRadius
-      airPressureInPascals = evacuatedTubeInteriorPressure
-      // ToDo - Still need to calculate the aerodynamic drag from the adaptive nut and the launch sled.
-      const aerodynamicDrag = aerodnamicDragFactor * vehicleAirSpeed**2
-      const powerUsedToOvercomeAerodynamicDrag = aerodynamicDrag * vehicleAirSpeed
-      this.energyLostToDragWhileInTube += powerUsedToOvercomeAerodynamicDrag * tStep
-
-      // Just to be explicate that we're not including downward arching part of the sled's return path in the launch trajectory curve and telemetry for the xychart
-      // const downrangeAngle = massDriver2ExitPosition.angleTo(vehiclePosition)
-      // const downrangeDistance = launcherMassDriver1Length + launcherMassDriver2Length + downrangeAngle * (this.planetRadius + launcherMassDriverAltitude)
-      // const qConv = 0 // Assume no convective heating while in the mass driver
-      // const qRad = 0 // Assume no radiative heating while in the mass driver
-      //if (t<=launcherXyChartMaxT) {
-      // altitudeVersusTimeData.push(new THREE.Vector3(t, altitude, 0))
-      // airPressureVersusTimeData.push(new THREE.Vector3(t, airPressureInPascals, 0))
-      // downrangeDistanceVersusTimeData.push(new THREE.Vector3(t, downrangeDistance, 0))
-      // airSpeedVersusTimeData.push(new THREE.Vector3(t, vehicleAirSpeed, 0))
-      // forwardAccelerationVersusTimeData.push(new THREE.Vector3(t, forwardAcceleration, 0))
-      // upwardAccelerationVersusTimeData.push(new THREE.Vector3(t, upwardAcceleration, 0))
-      // aerodynamicDragVersusTimeData.push(new THREE.Vector3(t, aerodynamicDrag, 0))
-      // fuelMassFlowRateVersusTimeData.push(new THREE.Vector3(t, 0, 0))
-      // totalMassVersusTimeData.push(new THREE.Vector3(t, m0, 0))
-      //}
-    }
-    //console.log('done')
 
     // Hack!!!!
     // Test the math with no ramp to see if its calculating the C3 value correctly
@@ -1704,6 +1630,61 @@ export function defineUpdateTrajectoryCurves () {
     }
     else {
       this.evacuatedTubeCurve = null
+    }
+
+    // ***************************************************************
+    // The launch sled's braking run. The sled couples the vehicle to the track, so it stays with the vehicle
+    // over the ramp (whose high-g turn it makes possible). From the end of the ramp the vehicle coasts on its
+    // ballistic trajectory, and the sled brakes on the track inside the elevated evacuated tube, which follows
+    // that trajectory. The track ends at the exit airlock's doors (they must be able to close across the
+    // tube), and the sled stops with its front launchSledStopClearance short of them (see sledBraking.js).
+    // ***************************************************************
+    this.exitAirlockDistanceFromTubeExit = this.evacuatedTubeCurve ? exitAirlockDistanceFromTubeExit(dParamWithUnits, planetSpec, this.launchVehicleAirSpeedAtExit) : 0
+    const tubeLength = this.evacuatedTubeCurve ? this.evacuatedTubeCurve.getLength() : 0
+    const sledTrackLength = tubeLength - this.exitAirlockDistanceFromTubeExit
+    if (sledTrackLength > 0) {
+      // The track is the tube's curve up to the airlock: its control points before there, and the point there.
+      const tubePoints = this.evacuatedTubeCurveControlPoints
+      const endT = this.evacuatedTubeCurve.getUtoTmapping(sledTrackLength / tubeLength)
+      const trackPoints = tubePoints.filter((point, i) => (endT - i / (tubePoints.length - 1)) * (tubePoints.length - 1) > 0.25)
+      trackPoints.push(this.evacuatedTubeCurve.getPoint(endT))
+      if (trackPoints.length < 2) trackPoints.unshift(tubePoints[0].clone())
+      if (!this.launchSledBrakingCurve) {
+        this.launchSledBrakingCurve = new CatmullRomSuperCurve3(trackPoints)
+        this.launchSledBrakingCurve.setAlwaysAwayNormalMode()
+        this.launchSledBrakingCurve.curveType = 'centripetal'
+        this.launchSledBrakingCurve.closed = false
+        this.launchSledBrakingCurve.tension = 0
+        this.launchSledBrakingCurve.name = 'launchSledBrakingCurve'
+      }
+      else {
+        this.launchSledBrakingCurve.setPoints(trackPoints)
+        this.launchSledBrakingCurve.updateArcLengths()
+      }
+      const track = this.launchSledBrakingCurve
+      const trackLength = track.getLength()
+      const requestedStopDistance = trackLength - launchSledFrontReach(dParamWithUnits) - dParamWithUnits['launchSledStopClearance'].value
+      if (requestedStopDistance <= 0) console.warn('The elevated evacuated tube is too short for the launch sled to stop before the exit airlock')
+      const braking = sledBrakingProfile({
+        initialSpeed: launchRampExitVelocity,
+        stopDistance: Math.max(Math.min(1, trackLength), requestedStopDistance),
+        radiusAt: (s) => track.getPointAt(Math.max(0, Math.min(1, s / trackLength))).length(),
+        mu: planetSpec.gravitationalParameter,
+      })
+      track.addtTodConvertor(braking.tTod)
+      track.addtTosConvertor(braking.tTos)
+      track.addtToiConvertor((t) => braking.tTod(t) / trackLength)
+      track.setDuration(braking.duration)
+      this.launchSledBrakingDeceleration = braking.deceleration
+      this.launchSledBrakingDistance = braking.stopDistance
+      specs['launchSledBrakingDistance'] = {value: braking.stopDistance, units: 'm'}
+      specs['launchSledBrakingTime'] = {value: braking.duration, units: 's'}
+      this.launchTrajectoryMarker6.position.copy(track.getPointAt(1))  // the exit airlock's doors
+    }
+    else {
+      this.launchSledBrakingCurve = null
+      this.launchSledBrakingDeceleration = undefined
+      this.launchSledBrakingDistance = undefined
     }
 
     // Make a curve for the entire free flight portion of the launch trajectory starting from the end of the evacuated tube

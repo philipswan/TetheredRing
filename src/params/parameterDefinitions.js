@@ -230,7 +230,6 @@ export function createParameterDefinitions() {
   launcherLocationMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampEndLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, onChange: 'updateLauncher', folder: 'Launcher'},
-  launcherSledDownwardAcceleration: {value: 150, units: 'm*s-2', autoMap: true, min: 0, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherAdaptiveNutRampAcceleration: {value: -1500, units: 'm*s-2', autoMap: true, min: -10000, max: 0, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -10000, max: 4000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: -10000, max: 50000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -390,6 +389,7 @@ export function createParameterDefinitions() {
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledForwardsOffset: {value: 13, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchSledStopClearance: {value: 50, units: 'm', autoMap: true, min: 0, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},  // between the front of the stopped sled and the exit airlock's doors
   launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   numVirtualLaunchSleds: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledNumModels: {value: 40, units: '', autoMap: true, min: 0, max: 3600, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},

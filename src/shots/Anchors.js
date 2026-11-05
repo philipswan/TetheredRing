@@ -34,7 +34,7 @@ const STAGE_NAMES = {
   launchRampCurve1: 'Enters the ramp',
   elevatedEvacuatedTube: 'Enters the evacuated tube',
   freeFlightPositionCurve: 'Free flight',
-  launchSledReturnCurve: 'Sled returns',
+  launchSledBrakingCurve: 'Sled starts braking',
   end: 'End of the path',
 }
 
