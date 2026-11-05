@@ -1,6 +1,17 @@
 import * as THREE from 'three'
 import * as tram from '../utils/tram.js'
 
+// A repeatable value in [0, 1) for index i (an integer hash), in place of Math.random().
+function scatter(i) {
+  let x = Math.imul(i + 1, 0x9e3779b9) >>> 0
+  x ^= x >>> 16
+  x = Math.imul(x, 0x7feb352d) >>> 0
+  x ^= x >>> 15
+  x = Math.imul(x, 0x846ca68b) >>> 0
+  x ^= x >>> 16
+  return x / 4294967296
+}
+
 export function multipleRings(guidParamWithUnits, nonGUIParams) {
 
     // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
@@ -74,8 +85,11 @@ export function multipleRings(guidParamWithUnits, nonGUIParams) {
       const coordinates = tram.getDodecahedronFaceCoordinates();
       coordinates.forEach(coord => {
         coord['eqLat'] = guidParamWithUnits['equivalentLatitude'].value
-        const lat = coord.lat*180/Math.PI + Math.random()*10
-        const lon = coord.lon*180/Math.PI + Math.random()*10
+        // (A fixed scatter, not Math.random(): every page, and every worker of a parallel render, must place the
+        // rings in the same places.)
+        const k = tetheredRingSpecs.length
+        const lat = coord.lat*180/Math.PI + scatter(2 * k)*10
+        const lon = coord.lon*180/Math.PI + scatter(2 * k + 1)*10
         tetheredRingSpecs.push(
           {locationSpec: {buildLat: -19.2, buildLon:213.7, finalLat: lat, finalLon: lon}, eqLat: coord.eqLat}
         )
