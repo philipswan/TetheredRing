@@ -1,4 +1,3 @@
-/* global Buffer, Response -- (Node's) */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { deflateSync } from 'node:zlib'

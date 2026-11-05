@@ -2,7 +2,7 @@ import js from '@eslint/js'
 import globals from 'globals'
 
 export default [
-  { ignores: ['.scratch/', 'src/launcher/datasets/', 'dist/', 'node_modules/', 'assets/', 'textures/', 'basis/', 'components/', 'tools/'] },
+  { ignores: ['.scratch/', '.claude/', '.worktrees/', 'src/launcher/datasets/', 'dist/', 'node_modules/', 'assets/', 'textures/', 'basis/', 'components/', 'tools/'] },
   js.configs.recommended,
   {
     files: ['src/**/*.js'],
@@ -24,7 +24,7 @@ export default [
     rules: { 'no-unused-vars': 'off' },
   },
   {
-    files: ['scripts/**/*.mjs', 'eslint.config.js', 'vite.config.js'],
+    files: ['scripts/**/*.mjs', 'tests/**/*.mjs', 'eslint.config.js', 'vite.config.js'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node } },
   },
 ]
