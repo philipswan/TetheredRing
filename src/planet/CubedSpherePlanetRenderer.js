@@ -6,6 +6,7 @@ import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, SEA_GUSTS_UNSEEN
 import { SEA_ICE_FREQUENCIES, seaIceGlsl, seaIceUniforms } from './seaIce.js';
 import { apHazeUniforms } from './aerialPerspective.js';
 import { PixelLOD } from '../scene/PixelLOD.js';
+import { localShadowMatrix, localShadowmapVertex } from '../scene/localShadows.js';
 import { COVER, COVER_COUNT, coastShape, coastSide, groundRelief } from './groundData.js';
 import { FULL_MIN_LOD, GroundTextures } from './groundTextures.js';
 import { groundFragment, groundFragmentPars, groundNormalFragment, groundOffsets, groundRoughnessFragment, groundUniforms, groundVertex, groundVertexPars } from './groundDetail.js';
@@ -501,6 +502,8 @@ export class CubedSpherePlanetRenderer {
 
     this.requireKtx2 = options.requireKtx2 === true;
     this.receiveSurfaceShadows = options.receiveSurfaceShadows === true;
+    // The light whose shadows the tiles receive (the sun), for looking them up from tile-local positions.
+    this.shadowLight = options.shadowLight ?? null;
     // A sea surface at sea level over terrain below it (planets with oceans; see _buildWaterGeometry).
     this.hasWater = options.water === true;
     this.waterVisible = true;
@@ -1958,6 +1961,7 @@ ${groundNormalFragment}`);
     mesh.name = `tile:${tile.id}`;
     mesh.frustumCulled = false; // we do our own conservative culling
     mesh.receiveShadow = this.receiveSurfaceShadows;
+    if (this.receiveSurfaceShadows && this.shadowLight) this._configureLocalShadows(material, mesh);
     mesh.visible = false;
     // Relative-to-centre rendering: vertices are local to the tile centre.
     mesh.position.copy(tile.center);
@@ -1984,6 +1988,24 @@ ${groundNormalFragment}`);
         positiveMod(c.z * f, DETAIL_PERIOD));
     }
     return tile.detailOffsets;
+  }
+
+  // The tile looks its shadow up from its tile-local position (see localShadows.js): world positions in float32
+  // are only good to ~0.1 m on the Moon (~0.5 m on Earth), and close-up shadow edges swim as the shadow camera
+  // moves. The tile's shadow matrix is worked out in float64 each time it is drawn.
+  _configureLocalShadows(material, mesh) {
+    const shadowMatrix = { value: new THREE.Matrix4() };
+    const previous = material.onBeforeCompile;
+    const previousKey = material.customProgramCacheKey;
+    material.onBeforeCompile = (shader, renderer) => {
+      previous.call(material, shader, renderer);
+      shader.uniforms.tileShadowMatrix = shadowMatrix;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform mat4 tileShadowMatrix;')
+        .replace('#include <shadowmap_vertex>', localShadowmapVertex('tileShadowMatrix', 'vec4( transformed, 1.0 )'));
+    };
+    material.customProgramCacheKey = () => (previousKey ? previousKey.call(material) : '') + '|localShadows';
+    mesh.onBeforeRender = () => { localShadowMatrix(this.shadowLight, mesh, shadowMatrix.value); };
   }
 
   // Adds repeat-free synthetic regolith detail in planet-local meters. The real

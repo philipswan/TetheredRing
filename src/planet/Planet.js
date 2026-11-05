@@ -164,6 +164,8 @@ function assetNamesFromUrl() {
  *   requireKtx2           If true, a failed colour tile is tolerated (flat colour)
  *                         instead of being retried (default false).
  *   receiveSurfaceShadows Tile meshes receive shadows (default false).
+ *   shadowLight           The light casting them (the sun), so the tiles can look its shadows up from their
+ *                         local positions (precise at planet scale).
  *   textureAnisotropy     Colour texture anisotropy (default 4).
  *   locationInterests     [{ name, lat, lon, radiusKm = 80, lodBoost = 1 }] areas
  *                         refined and loaded preferentially (default []).

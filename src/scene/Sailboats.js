@@ -3,6 +3,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { ecefToGeodetic, geodeticToECEF } from '../physics/geodesy.js'
 import { seaIceConcentrationAt } from '../planet/seaIce.js'
 import { hash, offsetLatLon, pickWeighted, random, vesselBasis, windAt } from './seaPlacement.js'
+import { localShadowMatrix, localShadowmapVertex } from './localShadows.js'
 
 // Sailboats on the sea near the camera, as references for scale: some at anchor close to the shore (no
 // sails, pointing into the wind, still), the rest sailing, more of them near the shore than offshore.
@@ -109,18 +110,14 @@ function mirrored(geometry) {
 }
 
 const boatShadowMatrix = { value: new THREE.Matrix4() }
-const SHADOW_COORD = 'vDirectionalShadowCoord[ i ] = directionalShadowMatrix[ i ] * shadowWorldPosition;'
-if (!THREE.ShaderChunk.shadowmap_vertex.includes(SHADOW_COORD)) console.warn('[sailboats] three.js shadowmap_vertex changed: boat shadows will be imprecise')
 
-// Has a boat material look its shadow up from its position relative to the boats' origin.
+// Has a boat material look its shadow up from its position relative to the boats' origin (see localShadows.js).
 function withLocalShadows(material) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.boatShadowMatrix = boatShadowMatrix
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform mat4 boatShadowMatrix;')
-      .replace('#include <shadowmap_vertex>', THREE.ShaderChunk.shadowmap_vertex.replace(SHADOW_COORD,
-        'vDirectionalShadowCoord[ i ] = boatShadowMatrix * ( instanceMatrix * vec4( transformed, 1.0 ) )' +
-        ' + directionalShadowMatrix[ i ] * vec4( shadowWorldNormal * directionalLightShadows[ i ].shadowNormalBias, 0.0 );'))
+      .replace('#include <shadowmap_vertex>', localShadowmapVertex('boatShadowMatrix', '( instanceMatrix * vec4( transformed, 1.0 ) )'))
   }
   material.customProgramCacheKey = () => 'sailboatLocalShadows'
   return material
@@ -193,7 +190,7 @@ export class Sailboats {
     const main = withLocalShadows(new THREE.MeshStandardMaterial({ color: 0xf0eee8, roughness: 0.6, side: THREE.DoubleSide }))
     const jib = withLocalShadows(new THREE.MeshStandardMaterial({ color: 0xdedacf, roughness: 0.6, side: THREE.DoubleSide }))
     const setShadowMatrix = () => {
-      if (this.shadowLight) boatShadowMatrix.value.multiplyMatrices(this.shadowLight.shadow.matrix, this.group.matrixWorld)
+      if (this.shadowLight) localShadowMatrix(this.shadowLight, this.group, boatShadowMatrix.value)
     }
     const mesh = (geometry, material, name) => {
       const m = new THREE.InstancedMesh(geometry, material, MAX_BOATS)

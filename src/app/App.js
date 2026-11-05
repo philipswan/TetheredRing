@@ -231,6 +231,7 @@ export class App {
       maxAvailableTileLod: n.maxAvailableTileLod,
       requireKtx2: n.planet2RequireKtx2,
       receiveSurfaceShadows: n.enableSurfaceShadows,
+      shadowLight: this.lighting.sunLight,
       textureAnisotropy: n.planet2TextureAnisotropy,
       locationInterests: n.locationInterests,
       surfaceDetail: n.planet2SurfaceDetail,
