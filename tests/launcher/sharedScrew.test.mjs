@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import * as THREE from 'three'
 import { ScrewGeometry } from '../../src/launcher/ScrewGeometry.js'
-import { sharedScrewBucket } from '../../src/launcher/MassDriverScrew.js'
+import { sharedScrewBucket, sharedScrewGeometry, virtualMassDriverScrew } from '../../src/launcher/MassDriverScrew.js'
 
 // A fast screw (as on the To Mars from Hawaii launcher) and its first thread level.
 const thread = { initialVelocity: 50, initialDistance: 10, acceleration: 80, revolutionsPerSecond: 169, threadStartDistance: 0 }
@@ -40,4 +40,37 @@ test('fast segments share a geometry, rotated onto each to within a couple of mi
 test('slow segments (more than a turn of thread) are not shared', () => {
   // At 100 m/s the lead is ~0.6 m: a 5 m segment holds ~8 turns.
   assert.equal(sharedScrewBucket(70, length, thread), null)
+})
+
+// The largest distance of a vertex from the screw's axis (y): the thread's tip radius.
+function tipRadius(geometry) {
+  const position = geometry.getAttribute('position')
+  let max = 0
+  for (let i = 0; i < position.count; i++) max = Math.max(max, Math.hypot(position.getX(i), position.getZ(i)))
+  return max
+}
+
+test('a rebuilt screw pool does not serve shared geometry built for the old thread', () => {
+  const v = virtualMassDriverScrew
+  Object.assign(v, {
+    launcherMassDriverForwardAcceleration: thread.acceleration, launcherMassDriver1InitialVelocity: thread.initialVelocity,
+    initialDistance: thread.initialDistance, launcherMassDriverScrewRevolutionsPerSecond: thread.revolutionsPerSecond,
+    threadLayout: { threadStartDistance: thread.threadStartDistance },
+    shaftOuterRadius: 0.25, shaftInnerRadius: 0.2, threadRadius: 0.33, threadThickness: 0.05, threadTaperRatio: 0.5,
+  })
+  const segment = { baseDistanceAlongScrew: 400000, screwLength: length, threadStarts: 8, radialSegments: 12 }
+  const level = { segmentsPerMeter: 1, samplesPerTurn: 12, maxSegments: 512 }
+  const first = sharedScrewGeometry(segment, 2, level, true).geometry
+  assert.equal(sharedScrewGeometry(segment, 2, level, true).geometry, first, 'cached')
+  assert.ok(Math.abs(tipRadius(first) - 0.33) < 0.005)
+  let disposed = false
+  first.addEventListener('dispose', () => { disposed = true })
+
+  v.threadRadius = 0.4      // a thread parameter changes, so the launcher rebuilds the screw pool
+  v.disposePool()
+  const second = sharedScrewGeometry(segment, 2, level, true).geometry
+  assert.notEqual(second, first)
+  assert.ok(disposed, 'the old shared geometry is freed')
+  assert.ok(Math.abs(tipRadius(second) - 0.4) < 0.005, `tip radius ${tipRadius(second)}`)
+  v.disposePool()
 })

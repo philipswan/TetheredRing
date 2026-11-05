@@ -176,7 +176,19 @@ export function sharedScrewBucket(distance, length, thread) {
   return { bucket, bucketDistance, rotation: -phase }
 }
 
-function sharedScrewGeometry(segment, levelIndex, level, sync) {
+// The cache's keys (see sharedScrewGeometry) only tell apart segments of one screw design. When the design changes (a thread or
+// trajectory parameter), the screw pool is rebuilt (virtualMassDriverScrew.disposePool), every screw
+// model having been released, and the shared geometries are freed with it so none built for the old
+// design is served again. Queued builds are cancelled.
+export function clearSharedScrewGeometries() {
+  for (const geometry of sharedGeometries.values()) {
+    if (typeof geometry.then === 'function') geometry.cancel?.()
+    else geometry.dispose()
+  }
+  sharedGeometries.clear()
+}
+
+export function sharedScrewGeometry(segment, levelIndex, level, sync) {
   const v = virtualMassDriverScrew
   const a = v.launcherMassDriverForwardAcceleration, v0 = v.launcherMassDriver1InitialVelocity
   const x0 = v.initialDistance, rps = v.launcherMassDriverScrewRevolutionsPerSecond
@@ -286,6 +298,11 @@ export class virtualMassDriverScrew extends VirtualObject {
       ['launcherMassDriverScrew', 'launcherMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity', 'adaptiveNutBodyLength',
         'adaptiveNutGrapplerMagnetThickness', 'adaptiveNutGrapplerPadLiftAwayDistance', 'adaptiveNutShaftToGrapplerPad'],
       ['SidewaysOffset', 'UpwardsOffset', 'Material', 'Density', 'Cost', 'STL'])
+  }
+
+  static disposePool(options) {
+    super.disposePool(options)
+    clearSharedScrewGeometries()
   }
 
   static isTeardownRequired(dParamWithUnits, massDriverAccelerationScrewSegments) {
