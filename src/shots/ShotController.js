@@ -8,7 +8,7 @@ import { createTimeMap, solveSpeedFor } from './ShotTiming.js'
 import { AnchorResolver, anchorKey } from './Anchors.js'
 import { ShotPathOverlay } from './ShotPathOverlay.js'
 import {
-  VideoRecorder, resolveCodec, defaultBitrate, evenDimension, isRecordingSupported, CODEC_LABELS,
+  VideoRecorder, resolveCodec, evenDimension, isRecordingSupported, CODEC_LABELS, CONTAINERS, downloadBlob,
 } from '../capture/VideoRecorder.js'
 import { downloadText } from '../app/exports.js'
 import { MotionBlur, subFrameTimes, adaptiveSubFrames } from '../capture/MotionBlur.js'
@@ -17,6 +17,10 @@ import { FrameCapture } from '../capture/FrameCapture.js'
 import { PixelLOD } from '../scene/PixelLOD.js'
 import { StructureLines } from '../scene/structureLines.js'
 import { RenderQueueRunner } from './RenderQueueRunner.js'
+import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, matchesLegacyRenderShot } from '../capture/RenderJob.js'
+import { SegmentedRecorder, assembleRender } from '../capture/SegmentedRecorder.js'
+import { RenderReview, outputFolderPath, reviewVideoPath, reviewVideoName } from '../capture/RenderReview.js'
+import { RENDER_BUILD_ID } from 'virtual:render-build'
 
 const PENDING_SHOT_KEY = 'tetheredRing.pendingShot'
 const AUTOSAVE_KEY = 'tetheredRing.shotAutosave'
@@ -72,7 +76,7 @@ export class ShotController {
     this.prefs = {
       saveToDisk: typeof window.showSaveFilePicker === 'function',
       encodeLiveTake: true,
-      showPath: true,
+      showPath: false,
     }
     this.status = ''
     this.following = null
@@ -83,6 +87,7 @@ export class ShotController {
     app.scene.add(this.overlay.group)
     this.shot = this.createShotNow()
     this.queue = new RenderQueueRunner(app, this)
+    this.review = new RenderReview()
     this._autosaveTimer = null
     // A reload can happen before the debounce timer fires, so flush any pending autosave on the way out.
     this._flushAutosaveOnExit = () => this.flushAutosave()
@@ -104,6 +109,7 @@ export class ShotController {
   }
 
   changed() {
+    if (this.renderJob && this.renderJob.manifest.shot.project?.id !== this.shot.project?.id) this.clearProjectRender()
     this.revision++
     this.autosave()
     this.emit('shot')
@@ -123,7 +129,84 @@ export class ShotController {
   // ---- State ----------------------------------------------------------------------------------
 
   // True while a fixed-step loop (render or live take) is driving frames instead of App.frame().
-  get busy() { return this.mode === 'render' || this.mode === 'live' }
+  get busy() { return !!this._renderOperation || this.mode === 'render' || this.mode === 'live' }
+  get hasProject() { return !!this.shot.project }
+  get projectRecord() {
+    const records = this.queue.projectRecords
+    const id = this.shot.project?.id
+    return records && Object.hasOwn(records, id) ? records[id] : null
+  }
+  get currentRenderJob() {
+    const id = this.shot.project?.id
+    return id && this.renderJob?.manifest.shot.project?.id === id ? this.renderJob : null
+  }
+  get projectRenderRecord() {
+    return (this._renderDiscovery?.projectId === this.shot.project?.id ? this._renderDiscovery : null) ??
+      this.projectRecord?.lastRender ?? null
+  }
+
+  clearProjectRender() {
+    this.renderJob = null
+    this.renderRoot = null
+    this.renderRootPath = ''
+    this.renderFrame = null
+    this._renderDiscovery = null
+    if (this.review) this.review.requested = false
+  }
+
+  async restoreProjectRender() {
+    const projectId = this.shot.project?.id
+    await this.queue.ready
+    if (!projectId || this.shot.project?.id !== projectId || this.busy) return
+    let record = this.projectRenderRecord
+    const directory = this.projectRecord?.directory
+    const legacy = this.queue.legacyRender
+    if (!record && legacy?.directory) {
+      // The old global pointer is only a candidate. Link it through a known project directory or
+      // a readable manifest with the current project id, then run the normal ownership checks.
+      const sameDirectory = directory && (directory === legacy.directory || await directory.isSameEntry(legacy.directory))
+      if (sameDirectory) record = legacy
+      else if (!legacy.directory.queryPermission || await legacy.directory.queryPermission({ mode: 'readwrite' }) === 'granted') {
+        try {
+          const saved = await RenderJob.read(new DirectoryStorage(legacy.directory))
+          if (saved && (saved.manifest.shot.project?.id === projectId || matchesLegacyRenderShot(saved.manifest.shot, this.shot))) record = legacy
+        }
+        catch {
+          // An unreadable, unassociated legacy pointer provides no evidence of this project's render.
+        }
+      }
+    }
+    if (this.shot.project?.id !== projectId || this.busy) return
+    if (!record && !directory) return
+    record ??= { directory, root: directory, rootPath: this.shot.project.outputPath ?? '', name: this.shot.name }
+    if (record === legacy) record = { ...record, fromLegacySession: true }
+    try { await this.loadRenderRecord(record, false, projectId) }
+    catch (error) {
+      if (['NotAllowedError', 'SecurityError'].includes(error.name) && this.shot.project?.id === projectId && !this.busy) {
+        this.deferRenderDiscovery(record, projectId)
+        return
+      }
+      throw error
+    }
+  }
+
+  deferRenderDiscovery(record, projectId, legacyJob = null) {
+    this._renderDiscovery = {
+      ...record, projectId, name: record.name ?? this.shot.name, needsDiscovery: true,
+      ...(legacyJob ? { needsMigration: true, savedFrames: legacyJob.savedFrames, frames: legacyJob.manifest.frames } : {}),
+    }
+    this.emit('renderJob')
+  }
+
+  async checkPreviousRender() {
+    if (this.busy || this._projectIO || !this.hasProject || !this.queue.legacyRender) return
+    this._projectIO = true
+    this.emit('project')
+    try { await this.loadRenderRecord({ ...this.queue.legacyRender, fromLegacySession: true }) }
+    catch (error) { console.error(error); this.setStatus(`Could not recover the previous render: ${error.message}`) }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
   // True while the camera follows the shot's path.
   get drivesCamera() {
     return this.mode === 'render' || (this.mode === 'idle' && this.viewMode === 'shot' && this.shot.camera.keyframes.length > 0)
@@ -326,14 +409,21 @@ export class ShotController {
 
   // A new, empty shot starting at the current simulated time.
   newShot() {
+    if (this.busy || this._projectIO) return
     const output = this.shot?.output
     this.shot = this.createShotNow(this.shot?.name)
     if (output) Object.assign(this.shot.output, output)
+    this.ensureProject()
+    this.clearProjectRender()
     this.selected = -1
     this.playhead = 0
     this.changed()
     this.setStatus('New shot: it starts at the current simulated time.')
     return this.shot
+  }
+
+  ensureProject() {
+    this.shot.project ??= { id: crypto.randomUUID() }
   }
 
   // Moves the shot's start to `simTime` (keyframes keep their times within the shot).
@@ -395,6 +485,7 @@ export class ShotController {
 
   // Adds a keyframe at the playhead from the current view (or updates the one already there).
   addKeyframe() {
+    this.ensureProject()
     const t = Math.round(this.playhead * this.fps) / this.fps
     const keys = this.keyframes
     const existing = keys.findIndex(k => Math.abs(k.time - t) < 0.5 / this.fps)
@@ -702,7 +793,7 @@ export class ShotController {
       StructureLines.setPixelScale(factor)
       if (app.clouds) app.clouds.pixelScale = factor
       markers.forEach(m => { m.visible = false })
-      progress = new ProgressOverlay(() => this.stop())
+      progress = new ProgressOverlay(this.mode === 'live' ? () => this.stop() : null)
       blur = useBlur ? new MotionBlur(app.renderer) : null
       blur?.begin(width, height)
       const canvas = this.frameCanvas({ width, height })
@@ -734,6 +825,7 @@ export class ShotController {
           supersampler?.resolve()
           if (blur) {
             blur.add(s === 0, 1 / n)
+            supersampler?.restoreDisplay()
             // Keep the page (and the Stop button) responsive through long runs of sub-frames, without
             // waiting for a display frame each time.
             if (performance.now() - lastYield > 100) {
@@ -745,8 +837,13 @@ export class ShotController {
         }
         if (blur) blur.present()
         capture.capture()
+        supersampler?.restoreDisplay()
         afterFrame?.(i, canvas)
         if (recorder) await recorder.addFrame()
+        if (recorder === this.activeRecorder && this.review.requested) {
+          try { await this.review.service(recorder, () => this.presentReviewVideo(recorder.job)) }
+          finally { this.emit('renderJob') }
+        }
         progress.update(progressLabel(i))
         // Yield so the page (and the live-take camera controls) stay responsive.
         await nextFrame()
@@ -771,21 +868,19 @@ export class ShotController {
 
   // `writable` (optional): a WritableStream to write the file to (no save dialog; see VideoRecorder).
   async createRecorder(output, fileName, { canvas = this.frameCanvas(output), writable = null, saveToDisk = this.prefs.saveToDisk } = {}) {
-    const settings = { width: output.width, height: output.height, fps: output.fps }
+    const settings = { width: output.width, height: output.height, fps: output.fps, bitrate: output.bitrateMbps ? output.bitrateMbps * 1e6 : null }
     const recorder = new VideoRecorder({
       canvas,
       ...settings,
       codec: output.codec,
       container: output.container,
-      bitrate: 0,
       fileName,
       saveToDisk,
       writable,
     })
     if (!(await recorder.prepareTarget())) return null
     const codec = await resolveCodec(output.codec, settings)
-    if (!codec) throw new Error('No video encoder is available in this browser for that resolution.')
-    recorder.options.bitrate = output.bitrateMbps ? output.bitrateMbps * 1e6 : defaultBitrate(codec, output.width, output.height, output.fps)
+    if (!codec) throw new Error('No video encoder supports the requested quality at this resolution. Try another codec or a positive bitrate override.')
     if (codec !== output.codec) console.info(`${CODEC_LABELS[output.codec]} encoding is not available here; using ${CODEC_LABELS[codec]}.`)
     await recorder.start(codec)
     return recorder
@@ -805,56 +900,411 @@ export class ShotController {
   }
 
   async renderShot() {
-    if (this.mode !== 'idle') return
-    if (!isRecordingSupported()) { this.setStatus('Recording needs a browser with WebCodecs (Chrome, Edge, Safari 17+, Firefox 130+).'); return }
-    const shot = this.shot
-    if (!shot.camera.keyframes.length) { this.setStatus('Add at least one keyframe before rendering.'); return }
-    this.syncShotFromApp()
-    const output = shot.output
-    let recorder
+    if (this.busy || this._projectIO) return
+    this._projectIO = true
+    this.emit('project')
     try {
-      recorder = await this.createRecorder(output, slug(shot.name))
+      await this.queue.ready
+      const directory = this.projectRecord?.directory
+      if (!this.shot.project?.renderFolder || !directory) {
+        const message = 'Choose a Video Output Folder in Shot settings before rendering video. If this project was opened in another browser, select its parent folder again.'
+        this.setStatus(message)
+        window.alert(message)
+        return
+      }
+      if (!isRecordingSupported()) { this.setStatus('Recording needs a browser with WebCodecs (Chrome, Edge, Safari 17+, Firefox 130+).'); return }
+      const shot = this.shot
+      if (!shot.camera.keyframes.length) { this.setStatus('Add at least one keyframe before rendering.'); return }
+      this.syncShotFromApp()
+      if (directory.requestPermission && await directory.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow access to the project render folder before rendering.')
+      this._projectIO = false
+      await this.renderShotUnattended(clone(shot), { directory, storage: new DirectoryStorage(directory) })
     }
     catch (err) {
-      this.setStatus(`Could not start recording: ${err.message}`)
-      return
+      if (err.name !== 'AbortError') console.error('Rendering failed:', err)
+      this.setStatus(`Rendering stopped: ${err.message}`)
     }
-    if (!recorder) return
-    const failed = await this.renderFrames(recorder)
-    await this.finishRecorder(recorder, failed)
+    finally { this._projectIO = false; this.emit('project') }
   }
 
-  // Renders `shot` without asking anything (the render queue and the command-line renderer): loads it
-  // (its preset must be the current one), lets the scene settle for `settleSeconds`, renders it at the
-  // fixed step and encodes it into `writable` (a WritableStream, see VideoRecorder; null buffers the
-  // file in memory and downloads it). onProgress({ frame, frames }) after each frame. Resolves to
-  // { fileName, frames, codec, bytes }; throws if it fails or is stopped.
-  async renderShotUnattended(shot, { writable = null, fileName = slug(shot.name), settleSeconds = 0, onProgress = null } = {}) {
-    if (this.mode !== 'idle') throw new Error('Another recording is running.')
+  async outputFolder(interactive = false) {
+    await this.queue.ready
+    if (!this.queue.folder) {
+      if (this.queue.supportsFolders) {
+        if (!interactive) throw new Error('Choose an output folder before rendering.')
+        await this.queue.chooseFolder()
+        if (!this.queue.folder) return null
+      }
+      else {
+        if (!navigator.storage?.getDirectory) throw new Error('This browser cannot store resumable render segments.')
+        this.queue.folder = await navigator.storage.getDirectory()
+        this.setStatus('Segments are stored in browser storage. Export the saved video to keep an external copy.')
+      }
+    }
+    if (this.queue.folder.queryPermission && !(await this.queue.ensureFolderAccess(interactive))) {
+      throw new Error('Folder access is required before rendering can continue.')
+    }
+    return this.queue.folder
+  }
+
+  async rememberRender(job, root = this.renderRoot, rootPath) {
+    if (job.manifest.shot.project) assertRenderProject(job.manifest.shot, this.shot)
+    if (rootPath !== undefined) this.renderRootPath = rootPath
+    else if (root !== this.renderRoot) {
+      const sameFolder = root && this.queue.folder && (root === this.queue.folder || await root.isSameEntry(this.queue.folder))
+      this.renderRootPath = sameFolder ? this.queue.folderPath : ''
+    }
+    this.renderJob = job
+    this.renderRoot = root
+    const projectId = job.manifest.shot.project?.id
+    if (projectId && job.storage.directory) {
+      const previous = Object.hasOwn(this.queue.projectRecords, projectId) ? this.queue.projectRecords[projectId] : null
+      const lastRender = { directory: job.storage.directory, root, rootPath: this.renderRootPath ?? '', name: job.manifest.shot.name }
+      this.queue.projectRecords = { ...this.queue.projectRecords, [projectId]: { ...previous, lastRender } }
+      await this.queue.save()
+    }
+    this.emit('renderJob')
+  }
+
+  async openRender() {
+    if (this.busy || this._projectIO || !this.hasProject) return
+    this._projectIO = true
+    this.emit('project')
+    try {
+      if (!window.showDirectoryPicker) throw new Error('Use Resume for renders saved in this browser.')
+      const directory = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'videos' })
+      await this.loadRenderRecord({ directory, root: null })
+    }
+    catch (error) {
+      if (error.name !== 'AbortError') { console.error(error); this.setStatus(`Could not open render: ${error.message}`) }
+    }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
+  async loadRenderRecord(record, ask = true, projectId = this.shot.project?.id) {
+    const directory = record.directory
+    if (directory.queryPermission && await directory.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+      if (!ask) {
+        if (this.shot.project?.id === projectId && !this.busy) this.deferRenderDiscovery(record, projectId)
+        return
+      }
+      if (await directory.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow folder access to resume or review this render.')
+    }
+    const job = await RenderJob.read(new DirectoryStorage(directory))
+    if (this.shot.project?.id !== projectId || (!ask && this.busy)) return
+    if (!job) {
+      this._renderDiscovery = null
+      if (this.projectRecord?.lastRender?.directory === record.directory) {
+        delete this.projectRecord.lastRender
+        await this.queue.save()
+      }
+      this.emit('renderJob')
+      if (ask) this.setStatus('No saved render was found in this project folder. Use Start render to begin.')
+      return
+    }
+    const recoveringLegacy = matchesLegacyRenderShot(job.manifest.shot, this.shot)
+    if (recoveringLegacy) {
+      if (!ask) { this.deferRenderDiscovery(record, projectId, job); return }
+      const recover = async () => {
+        await job.verify()
+        if (this.shot.project?.id !== projectId) throw new Error('The current project changed during render recovery.')
+        await job.adoptProject(this.shot)
+      }
+      if (navigator.locks) {
+        await navigator.locks.request('tetheredRing.render', { ifAvailable: true }, lock => {
+          if (!lock) throw new Error('Another browser tab is rendering. Pause it before recovering this render.')
+          return recover()
+        })
+      }
+      else await recover()
+    }
+    else {
+      assertRenderProject(job.manifest.shot, this.shot)
+      await job.verify()
+    }
+    if (this.shot.project?.id !== projectId || (!ask && this.busy)) return
+    if (recoveringLegacy || record.fromLegacySession) {
+      // Legacy runs exported into a shared parent. Project actions now keep output in this capture folder.
+      const sameRoot = record.root && (record.root === directory || await record.root.isSameEntry(directory))
+      if (this.shot.project?.id !== projectId || (!ask && this.busy)) return
+      const previous = this.projectRecord
+      this.queue.projectRecords = {
+        ...this.queue.projectRecords,
+        [projectId]: { ...previous, directory, ...(!sameRoot && record.root ? { parent: record.root } : {}) },
+      }
+      record = { ...record, root: directory, rootPath: this.shot.project.outputPath ?? '' }
+      this.shot.project.renderFolder ??= directory.name
+      this.changed()
+    }
+    this._renderDiscovery = null
+    await this.rememberRender(job, record.root ?? directory, record.rootPath ?? '')
+    this.setStatus(`${job.manifest.shot.name}: ${job.savedFrames} / ${job.manifest.frames} frames saved. Resume or review the saved segments.`)
+  }
+
+  async restartRender() {
+    return this.resumeRender({ restart: true })
+  }
+
+  async resumeRender({ restart = false } = {}) {
+    if (this.busy || this._projectIO) return
+    this._projectIO = true
+    this.emit('project')
+    try {
+      await this.queue.ready
+      const discoverOnly = this.projectRenderRecord?.needsDiscovery
+      if (!this.currentRenderJob && this.projectRenderRecord) await this.loadRenderRecord(this.projectRenderRecord)
+      if (discoverOnly) return
+      const job = this.currentRenderJob
+      if (!job) throw new Error('Open a saved render subfolder first.')
+      const resumed = { ...clone(job.manifest.shot), output: clone(this.shot.output) }
+      if (!restart && job.manifest.shot.preset !== this.app.presetId) {
+        await this.importShotText(serializeShot(resumed))
+        return
+      }
+      if (restart) {
+        if (!window.confirm(`Restart "${this.shot.name}" from the beginning using the current shot and render settings?\n\nThis permanently deletes the prior video segments for "${job.manifest.shot.name}", including any unfinished segment. Rendering starts again from frame 0 with your current edits. Existing exported videos are not deleted, but the normal output video will be replaced when rendering finishes.\n\nDelete the prior segments and restart?`)) return
+        this.syncShotFromApp()
+      }
+      const shot = restart ? clone(this.shot) : resumed
+      this._projectIO = false
+      await this.renderShotUnattended(shot, { job, directory: this.renderRoot, restart })
+    }
+    catch (error) { if (error.name !== 'AbortError') console.error(error); this.setStatus(error.name === 'AbortError' ? error.message : `Could not ${restart ? 'restart' : 'resume'} rendering: ${error.message}`) }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
+  async exportSavedVideo() {
+    if (this.busy || this._projectIO || !this.currentRenderJob?.savedFrames) return
+    this.mode = 'render'
+    this.cancelRequested = false
+    this.emit('mode')
+    try {
+      await this.assembleJob(this.renderJob)
+    }
+    catch (error) { if (error.name !== 'AbortError') console.error(error); this.setStatus(`Video export stopped: ${error.message}`) }
+    finally { this.mode = 'idle'; this.emit('mode') }
+  }
+
+  async enterOutputFolderPath(root = this.queue.folder) {
+    try {
+      if (!root) throw new Error('Choose an output folder first.')
+      const sameEntry = async other => !!other && (root === other || await root.isSameEntry(other))
+      const queueFolder = await sameEntry(this.queue.folder)
+      const renderFolder = await sameEntry(this.renderRoot)
+      const projectFolder = await sameEntry(this.projectRecord?.directory)
+      const current = projectFolder ? this.shot.project.outputPath : queueFolder ? this.queue.folderPath : renderFolder ? this.renderRootPath : ''
+      const entered = window.prompt(`Enter the absolute path to the output folder "${root.name}". The browser only supplies the folder name, not its parent path, and cannot verify the full path. This location will be remembered.`, current ?? '')
+      if (entered === null) return false
+      const path = outputFolderPath(entered, root.name)
+      if (queueFolder) this.queue.folderPath = path
+      if (renderFolder) this.renderRootPath = path
+      if (projectFolder) { this.shot.project.outputPath = path; this.changed() }
+      if (await sameEntry(this.projectRenderRecord?.root)) this.projectRenderRecord.rootPath = path
+      await this.queue.save({ strict: projectFolder })
+      this.setStatus('Full output-folder path saved.')
+      return true
+    }
+    catch (error) {
+      console.error(error)
+      this.setStatus(`Could not save output-folder path: ${error.message}`)
+      return false
+    }
+  }
+
+  async reviewSavedVideo() {
+    if (this._projectIO || this._reviewPreparing || this.review.requested || this.review.running) return
+    if (!this.currentRenderJob || (this.busy && !this.activeRecorder)) {
+      this.setStatus('Review is available while rendering frames or after a render has stopped.')
+      return
+    }
+    this._reviewPreparing = true
+    this.emit('renderJob')
+    try {
+      if (!this.queue.supportsFolders) throw new Error('Review requires a browser with output-folder access, such as Chrome or Edge. You can still export the saved video.')
+      if (!this.renderRoot) {
+        const directory = this.currentRenderJob.storage.directory
+        if (!directory) throw new Error('This project has no accessible render folder.')
+        await this.rememberRender(this.currentRenderJob, directory)
+      }
+      if (this.busy && !this.activeRecorder) {
+        this.setStatus('The render is finishing. Review the saved video once it has finished.')
+        return
+      }
+      this.review.request()
+      if (this.activeRecorder) {
+        this.setStatus('Review requested: finishing the current frame and saving its segment…')
+      }
+      else {
+        this.mode = 'render'
+        this.cancelRequested = false
+        this.emit('mode')
+        try { await this.review.service(null, () => this.presentReviewVideo(this.renderJob)) }
+        finally { this.mode = 'idle'; this.emit('mode') }
+      }
+    }
+    catch (error) {
+      if (error.name !== 'AbortError') console.error(error)
+      this.setStatus(`Could not prepare review: ${error.message}`)
+    }
+    finally { this._reviewPreparing = false; this.emit('renderJob') }
+  }
+
+  async presentReviewVideo(job) {
+    try {
+      if (!job.savedFrames) throw new Error('No completed frames are available to review.')
+      const fileName = reviewVideoName(job.manifest.fileName, job.savedFrames)
+      await this.assembleJob(job, null, null, { fileName })
+      const isAbsolutePath = !!this.renderRootPath
+      const path = reviewVideoPath(this.renderRootPath || this.renderRoot.name, fileName)
+      await new Promise((resolve, reject) => {
+        this.reviewResult = { path, isAbsolutePath, frames: job.savedFrames, close: error => error ? reject(error) : resolve() }
+        try { this.emit('reviewReady') }
+        catch (error) { reject(error) }
+      })
+      this.setStatus(this.activeRecorder && !this.cancelRequested ? 'Review closed. Continuing rendering from the next frame.' : `Review video saved: ${path}`)
+    }
+    catch (error) {
+      if (error.name !== 'AbortError') console.error(error)
+      this.setStatus(`Review stopped: ${error.message}. Saved segments are retained.`)
+    }
+    finally { this.reviewResult = null }
+  }
+
+  async assembleJob(job, writable = null, outputStorage = null, { fileName } = {}) {
+    if (!this._renderOperation) assertRenderProject(job.manifest.shot, this.shot)
+    // Check the directory again before opening an output file: another session may have replaced its manifest.
+    const latest = await RenderJob.read(job.storage)
+    if (!latest) throw new Error('The render manifest is missing; no output has been written.')
+    assertRenderProject(latest.manifest.shot, job.manifest.shot)
+    job.manifest = latest.manifest
+    const name = fileName ?? (job.complete ? job.manifest.fileName : job.manifest.fileName.replace(/\.(mp4|mkv)$/, '.partial.$1'))
+    if (!writable) {
+      if (outputStorage) writable = await outputStorage.createWritable(name)
+      else if (this.renderRoot) writable = await new DirectoryStorage(this.renderRoot).createWritable(name)
+      else {
+        if (!window.showSaveFilePicker) throw new Error('Exporting a combined video needs a writable output folder. The saved segments are still available for review.')
+        writable = await (await window.showSaveFilePicker({ suggestedName: name })).createWritable()
+      }
+    }
+    this.setStatus('Assembling saved segments without re-encoding…')
+    const result = await assembleRender(job, writable, (frame, frames) => {
+      this.setStatus(`Assembling video: ${frame} / ${frames} frames.`)
+    }, () => this.cancelRequested)
+    if (!outputStorage && this.renderRoot && !this.queue.supportsFolders) {
+      const file = await new DirectoryStorage(this.renderRoot).read(name)
+      if (!file) throw new Error('The assembled video could not be read for downloading. Saved segments are unchanged.')
+      downloadBlob(file, name)
+    }
+    this.setStatus(`Saved ${name}: ${result.frames} frames. Segment files have been retained.`)
+    return { ...result, fileName: name }
+  }
+
+  // Both interactive and unattended rendering use the same durable segment checkpoints.
+  async renderShotUnattended(shot, options = {}) {
+    if (this.busy) throw new Error('Another recording is running.')
+    this._renderOperation = true
+    this.cancelRequested = false
+    this.emit('mode')
+    try {
+      if (navigator.locks) {
+        return await navigator.locks.request('tetheredRing.render', { ifAvailable: true }, lock => {
+          if (!lock) throw new Error('Another browser tab is rendering. Pause it before starting this render.')
+          return this.renderShotSession(shot, options)
+        })
+      }
+      return await this.renderShotSession(shot, options)
+    }
+    finally { this._renderOperation = false; this.emit('mode') }
+  }
+
+  async renderShotSession(shot, { job = null, directory = null, storage = null, outputStorage = null, writable = null, fileName = slug(shot.name), settleSeconds = 0, onProgress = null, restart = false } = {}) {
     if (!isRecordingSupported()) throw new Error('This browser has no WebCodecs video encoder.')
     if (shot.preset !== this.app.presetId) throw new Error(`The shot needs preset "${shot.preset}", but "${this.app.presetId}" is loaded.`)
     if (!shot.camera.keyframes.length) throw new Error('The shot has no keyframes.')
-    this.pause()
-    this.loadShot(clone(shot))
-    this.setViewMode('shot')
-    const output = this.shot.output
-    output.width = evenDimension(output.width)
-    output.height = evenDimension(output.height)
-    // Things that load in the background (the satellite cloud snapshot, models) should be there before
-    // the first frame, so every render of the shot starts the same way.
-    const settleEnd = performance.now() + settleSeconds * 1000
-    while (performance.now() < settleEnd || (this.app.clouds?.enabled && !this.app.clouds.realClouds?.ready && performance.now() < settleEnd + 30000)) await sleep(100)
-    const recorder = await this.createRecorder(output, fileName, { writable, saveToDisk: false })
-    if (!recorder) throw new Error('Could not open the output file.')
-    const frames = Math.max(1, Math.round(shotDuration(this.shot) * output.fps))
-    const failed = await this.renderFrames(recorder, { afterFrame: (i) => onProgress?.({ frame: i + 1, frames }) })
-    if (failed || this.cancelRequested) {
-      await recorder.cancel().catch(() => {})
-      throw failed ?? new Error('Stopped.')
+    if (this.cancelRequested) throw new DOMException('Rendering paused before starting.', 'AbortError')
+    this.mode = 'render'
+    this.emit('mode')
+    let recorder
+    try {
+      this.pause()
+      shot = clone(shot)
+      shot.output.width = evenDimension(shot.output.width)
+      shot.output.height = evenDimension(shot.output.height)
+      const extension = CONTAINERS[shot.output.container].extension
+      const outputName = fileName.endsWith(extension) ? fileName : fileName + extension
+      if (job) {
+        const latest = await RenderJob.open(job.storage, { existingOnly: true })
+        assertRenderProject(latest.manifest.shot, shot)
+        job.manifest = latest.manifest
+      }
+      if (restart) {
+        if (!job) throw new Error('Open a saved render before restarting.')
+        const codec = await resolveCodec(shot.output.codec, shot.output)
+        if (!codec) throw new Error('No video encoder supports the requested quality. Prior segments have not been deleted.')
+        this.setStatus('Deleting prior video segments and restarting from frame 0…')
+        await job.restart({ shot, fileName: outputName, codec, buildId: RENDER_BUILD_ID })
+      }
+      if (!job) {
+        if (!storage) {
+          directory ??= await this.outputFolder()
+          const subfolder = await directory.getDirectoryHandle(renderFolderName(fileName), { create: true })
+          storage = new DirectoryStorage(subfolder)
+        }
+        const codec = await resolveCodec(shot.output.codec, shot.output)
+        if (!codec) throw new Error('No video encoder supports the requested quality at this resolution. Try another codec or a positive bitrate override.')
+        job = await RenderJob.open(storage, {
+          shot, codec, buildId: RENDER_BUILD_ID,
+          fileName: outputName,
+        })
+      }
+      const latest = await RenderJob.open(job.storage, { existingOnly: true })
+      assertRenderProject(latest.manifest.shot, shot)
+      job.manifest = latest.manifest
+      if (!restart) {
+        const preferred = shot.output.codec === job.manifest.shot.output.codec ? job.manifest.codec : shot.output.codec
+        const codec = await resolveCodec(preferred, shot.output)
+        if (!codec) throw new Error('No video encoder supports the requested quality. Saved segments are unchanged.')
+        await job.updateOutput(shot.output, { codec })
+      }
+      this.loadShot({ ...clone(job.manifest.shot), ...(shot.project ? { project: clone(shot.project) } : {}) })
+      await this.rememberRender(job, directory, shot.project?.outputPath)
+      this.setViewMode('shot')
+      const output = this.shot.output
+      const settleEnd = performance.now() + settleSeconds * 1000
+      while (!this.cancelRequested && (performance.now() < settleEnd ||
+        (this.app.clouds?.enabled && !this.app.clouds.realClouds?.ready && performance.now() < settleEnd + 30000))) await sleep(100)
+      if (!job.complete) {
+        recorder = new SegmentedRecorder(job, this.frameCanvas(output), saved => this.rememberRender(saved))
+        this.activeRecorder = recorder
+        let failed
+        try {
+          failed = await this.renderFrames(recorder, {
+            from: job.savedFrames, keepBusy: true,
+            afterFrame: i => { this.renderFrame = i + 1; this.emit('renderProgress'); onProgress?.({ frame: i + 1, frames: job.manifest.frames }) },
+          })
+        }
+        finally { this.activeRecorder = null }
+        if (failed) { await recorder.cancel(); throw failed }
+        this.setStatus('Saving the final completed frames…')
+        await recorder.finish()
+      }
+      if (this.cancelRequested) {
+        this.setStatus(`Rendering paused. ${job.savedFrames} / ${job.manifest.frames} frames saved; Resume continues from the next frame.`)
+        throw new DOMException(`Rendering paused; ${job.savedFrames} frames retained.`, 'AbortError')
+      }
+      return await this.assembleJob(job, writable, outputStorage)
     }
-    const result = await recorder.finish()
-    this.setStatus(`Saved ${result.fileName}: ${recorder.frameCount} frames, ${CODEC_LABELS[recorder.options.codec]}.`)
-    return { ...result, frames: recorder.frameCount, codec: recorder.options.codec }
+    catch (error) {
+      if (recorder?.current) await recorder.cancel()
+      throw error
+    }
+    finally {
+      this.review.requested = false
+      this.mode = 'idle'
+      this.renderFrame = null
+      this.emit('mode')
+      this.emit('renderJob')
+    }
   }
 
   // Sub-frames for video frame i under the shot's motion blur settings (1 without blur).
@@ -890,13 +1340,13 @@ export class ShotController {
 
   // Renders frames [from, to) of the shot through `recorder` (null: render without encoding), calling
   // afterFrame(i) while each finished frame is on the canvas. Returns the error that stopped it, if any.
-  async renderFrames(recorder, { from = 0, to = Infinity, afterFrame = null } = {}) {
+  async renderFrames(recorder, { from = 0, to = Infinity, afterFrame = null, keepBusy = false } = {}) {
     const shot = this.shot
     const output = shot.output
     const playhead = this.playhead
     this.pause()
     this.mode = 'render'
-    this.cancelRequested = false
+    if (!keepBusy) this.cancelRequested = false
     this.emit('mode')
     const frames = Math.min(to, Math.max(1, Math.round(shotDuration(shot) * output.fps)))
     const blurred = (output.motionBlur ?? 'off') !== 'off'
@@ -930,7 +1380,7 @@ export class ShotController {
     catch (err) {
       failed = err
     }
-    this.mode = 'idle'
+    if (!keepBusy) this.mode = 'idle'
     this.setPlayhead(playhead)
     this.emit('mode')
     return failed
@@ -963,7 +1413,7 @@ export class ShotController {
   // ---- Live take ------------------------------------------------------------------------------
 
   async startLiveTake() {
-    if (this.mode !== 'idle') return
+    if (this.busy || this._projectIO || this.mode !== 'idle') return
     this.pause()
     this.setViewMode('free')
     const shot = this.newShot()
@@ -1033,6 +1483,135 @@ export class ShotController {
 
   // ---- Files ----------------------------------------------------------------------------------
 
+  get renderFolderName() { return renderFolderName(slug(this.shot.name)) }
+
+  async chooseProjectExport() {
+    if (!this.hasProject || this.busy || this._projectIO) return
+    this._projectIO = true
+    this.emit('project')
+    try {
+      if (!window.showDirectoryPicker) throw new Error('Selecting a project export folder requires Chrome or Edge with filesystem access.')
+      const parent = await window.showDirectoryPicker({ id: 'tetheredRingShotExport', mode: 'readwrite', startIn: this.projectRecord?.parent ?? 'videos' })
+      await this.queue.ready
+      let renderFolder = this.shot.project.renderFolder || this.renderFolderName
+      let directory = await parent.getDirectoryHandle(renderFolder, { create: true })
+      const belongsElsewhere = async candidate => {
+        const saved = await RenderJob.read(new DirectoryStorage(candidate))
+        if (saved?.manifest.shot.project) return saved.manifest.shot.project.id !== this.shot.project.id
+        if (saved && matchesLegacyRenderShot(saved.manifest.shot, this.shot)) return false
+        for (const [id, record] of Object.entries(this.queue.projectRecords)) {
+          if (id !== this.shot.project.id && record.directory && await candidate.isSameEntry(record.directory)) return true
+        }
+        return !!saved
+      }
+      if (await belongsElsewhere(directory)) {
+        renderFolder = renderFolderName(`${slug(this.shot.name)}-${this.shot.project.id}`)
+        directory = await parent.getDirectoryHandle(renderFolder, { create: true })
+        if (await belongsElsewhere(directory)) throw new Error('That render folder belongs to another shot project.')
+      }
+      const previous = this.projectRecord
+      const same = previous?.directory && await directory.isSameEntry(previous.directory)
+      this.queue.projectRecords = { ...this.queue.projectRecords, [this.shot.project.id]: { ...previous, parent, directory } }
+      this.shot.project.renderFolder = renderFolder
+      if (!same) {
+        this.shot.project.outputPath = ''
+        delete this.projectRecord.lastRender
+        this.clearProjectRender()
+      }
+      this.changed()
+      await this.queue.save({ strict: true })
+      await this.restoreProjectRender()
+      this.setStatus(`Video capture project: ${renderFolder}. Save the shot project to keep its export settings.`)
+      return true
+    }
+    catch (error) {
+      if (error.name !== 'AbortError') console.error('Could not select project export folder:', error)
+      this.setStatus(error.name === 'AbortError' ? 'Export folder selection cancelled.' : `Could not select export folder: ${error.message}`)
+      return false
+    }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
+  async openShotProject() {
+    if (this.busy || this._projectIO) return
+    if (this._nativeOpenBlocked || !window.showOpenFilePicker) { this.chooseShotFile(); return }
+    this._projectIO = true
+    this.emit('project')
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{ description: 'Shot project', accept: { 'application/json': ['.json'] } }],
+      })
+      if (handle.queryPermission && await handle.queryPermission({ mode: 'read' }) !== 'granted' &&
+          (!handle.requestPermission || await handle.requestPermission({ mode: 'read' }) !== 'granted')) {
+        throw new DOMException('The browser denied direct access to the selected file.', 'NotAllowedError')
+      }
+      const file = await handle.getFile()
+      this.setStatus(`Opening "${file.name}"…`)
+      await this.importShotText(await file.text(), { fileHandle: handle, fromFile: true })
+    }
+    catch (error) {
+      if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+        console.warn('Direct shot-file access is unavailable; using the standard file picker:', error)
+        this._nativeOpenBlocked = true
+        this._projectIO = false
+        this.emit('project')
+        this.chooseShotFile('The browser blocked direct file access. Select the shot in the standard picker. If it does not open, click Open again. Save will ask for a destination.')
+        return
+      }
+      if (error.name !== 'AbortError') console.error('Could not open shot project:', error)
+      this.setStatus(error.name === 'AbortError' ? 'Open cancelled.' : `Could not open shot project: ${error.message}`)
+    }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
+  async saveProject(saveAs = false) {
+    if (!this.hasProject || this.busy || this._projectIO) return
+    this._projectIO = true
+    this.emit('project')
+    let writable
+    try {
+      await this.queue.ready
+      this.syncShotFromApp()
+      if (!window.showSaveFilePicker) {
+        if (saveAs) { this.shot.project = { id: crypto.randomUUID() }; this.clearProjectRender(); this.changed() }
+        this.exportShot()
+        this.setStatus('Shot project downloaded. This browser cannot update the original file; each Save downloads a copy.')
+        return
+      }
+      const previous = this.projectRecord
+      let handle = saveAs ? null : previous?.fileHandle
+      if (!handle) handle = await window.showSaveFilePicker({
+        suggestedName: slug(this.shot.name) + SHOT_FILE_EXTENSION,
+        types: [{ description: 'Shot project', accept: { 'application/json': ['.json'] } }],
+      })
+      if (handle.requestPermission && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow write access to save this shot project.')
+      const sameFile = previous?.fileHandle && (handle === previous.fileHandle ||
+        (handle.isSameEntry && await handle.isSameEntry(previous.fileHandle)))
+      const savedShot = clone(this.shot)
+      const fork = saveAs && !sameFile
+      if (fork) savedShot.project = { id: crypto.randomUUID() }
+      writable = await handle.createWritable()
+      await writable.write(serializeShot(savedShot))
+      await writable.close()
+      writable = null
+      if (fork) { this.shot.project = savedShot.project; this.clearProjectRender(); this.changed() }
+      this.queue.projectRecords = { ...this.queue.projectRecords, [this.shot.project.id]: { ...(fork ? {} : previous), fileHandle: handle } }
+      await this.queue.save({ strict: true })
+      this.writeAutosave()
+      this.setStatus(`Saved shot project "${handle.name}".`)
+    }
+    catch (error) {
+      if (writable) {
+        try { await writable.abort() }
+        catch (abortError) { console.error('Could not abort the project write:', abortError) }
+      }
+      if (error.name !== 'AbortError') console.error('Could not save shot project:', error)
+      this.setStatus(error.name === 'AbortError' ? 'Save cancelled.' : `Could not save shot project: ${error.message}`)
+    }
+    finally { this._projectIO = false; this.emit('project') }
+  }
+
   // Autosave keeps the working shot in localStorage so keyframing work survives a browser reload. It is
   // a recovery copy, not a substitute for exporting: writes are debounced so a burst of edits (dragging
   // a keyframe, a live take) costs one write, and it is flushed when the page is about to unload.
@@ -1068,9 +1647,9 @@ export class ShotController {
     let shot
     try { shot = parseShot(text) }
     catch { return false }
-    if (shot.preset !== this.app.presetId || !shot.camera.keyframes.length) return false
+    if (shot.preset !== this.app.presetId || (!shot.camera.keyframes.length && !shot.project)) return false
     this.loadShot(shot)
-    this.setStatus('Recovered your unsaved shot from the previous session. Export it to keep it, or start a new shot.')
+    this.setStatus('Recovered your shot project from the previous session. Save it to keep an external copy.')
     return true
   }
 
@@ -1079,33 +1658,72 @@ export class ShotController {
     downloadText(serializeShot(this.shot), slug(this.shot.name) + SHOT_FILE_EXTENSION, 'application/json')
   }
 
-  chooseShotFile() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json,application/json'
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (file) await this.importShotText(await file.text())
+  chooseShotFile(message = 'Choose a .shot.json file to import.') {
+    if (!this.shotFileInput) {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.json,application/json'
+      input.hidden = true
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file) { this.setStatus('Shot import cancelled.'); return }
+        this.setStatus(`Loading shot "${file.name}"…`)
+        try {
+          const loaded = await this.importShotText(await file.text(), { fromFile: true })
+          if (loaded && this._nativeOpenBlocked) this.setStatus('Shot loaded using the standard file picker. Save will ask for a destination because this browser blocked direct file access.')
+        }
+        catch (error) {
+          console.error('Could not read shot file:', error)
+          this.setStatus(`Could not read shot "${file.name}": ${error.message}`)
+        }
+      }
+      input.addEventListener('cancel', () => this.setStatus('Shot import cancelled.'))
+      document.body.append(input)
+      this.shotFileInput = input
     }
-    input.click()
+    this.shotFileInput.value = ''
+    this.setStatus(message)
+    this.shotFileInput.click()
   }
 
-  async importShotText(text) {
-    let shot
+  async importShotText(text, { fileHandle, fromFile = false } = {}) {
+    if (this.busy) return false
     try {
-      shot = parseShot(text)
+      const shot = parseShot(text)
+      if (!shot.project && fileHandle) {
+        await this.queue.ready
+        for (const [id, record] of Object.entries(this.queue.projectRecords)) {
+          const previous = record.fileHandle
+          if (previous && (previous === fileHandle || (fileHandle.isSameEntry && await fileHandle.isSameEntry(previous)))) {
+            shot.project = { id, ...(record.directory ? { renderFolder: record.directory.name } : {}) }
+            break
+          }
+        }
+      }
+      shot.project ??= { id: crypto.randomUUID() }
+      if (fileHandle || fromFile) {
+        await this.queue.ready
+        const previous = Object.hasOwn(this.queue.projectRecords, shot.project.id) ? this.queue.projectRecords[shot.project.id] : null
+        if (fileHandle || previous?.fileHandle) {
+          this.queue.projectRecords = { ...this.queue.projectRecords, [shot.project.id]: { ...previous, fileHandle } }
+          await this.queue.save({ strict: !!fileHandle })
+        }
+      }
+      if (shot.preset !== this.app.presetId) {
+        // Presets configure construction-time options, so switching needs a reload.
+        sessionStorage.setItem(PENDING_SHOT_KEY, serializeShot(shot))
+        this.setStatus(`Loading shot with preset "${shot.preset}"…`)
+        this.app.switchPreset(shot.preset)
+        return
+      }
+      this.loadShot(shot)
+      return true
     }
     catch (err) {
-      this.setStatus(err.message)
-      return
+      console.error('Could not import shot:', err)
+      this.setStatus(`Could not import shot: ${err.message}`)
+      return false
     }
-    if (shot.preset !== this.app.presetId) {
-      // Presets configure construction-time options, so switching needs a reload.
-      sessionStorage.setItem(PENDING_SHOT_KEY, text)
-      this.app.switchPreset(shot.preset)
-      return
-    }
-    this.loadShot(shot)
   }
 
   // Restores the parameters and simulation state the shot was made with.
@@ -1121,7 +1739,9 @@ export class ShotController {
   }
 
   loadShot(shot) {
+    const previousProject = this.shot?.project?.id
     this.shot = validateShot(shot)
+    this.ensureProject()
     this.selected = -1
     this.restoreStart(this.shot)
     this.changed()
@@ -1129,12 +1749,23 @@ export class ShotController {
     const first = this.poseAt(0)
     if (first) this.app.camera.setState(first)
     this.setStatus('Shot loaded. Play it with the shot camera, or render it.')
+    if (previousProject !== this.shot.project.id) this.clearProjectRender()
+    if (!this.currentRenderJob) {
+      const projectId = this.shot.project.id
+      this.restoreProjectRender().catch(error => {
+        console.error(error)
+        if (this.shot.project?.id === projectId) this.setStatus(`Saved render: ${error.message}`)
+      })
+    }
   }
 
   // Called when the page has started: loads a shot imported across a preset switch, and carries on
   // with a render queue run.
   async resumePendingShot() {
     this.queue.resumeSoon()
+    this.queue.ready.then(async () => {
+      if (!this.queue.running) await this.restoreProjectRender()
+    }).catch(error => { console.error(error); this.setStatus(`Saved render: ${error.message}`) })
     const text = sessionStorage.getItem(PENDING_SHOT_KEY)
     if (!text) {
       this.restoreAutosave()
@@ -1151,14 +1782,17 @@ export class ShotController {
 }
 
 class ProgressOverlay {
-  constructor(onCancel) {
+  constructor(onCancel = null) {
     this.element = document.createElement('div')
     this.element.className = 'recording-overlay'
     this.label = document.createElement('span')
-    const button = document.createElement('button')
-    button.textContent = 'Stop'
-    button.addEventListener('click', onCancel)
-    this.element.append(this.label, button)
+    this.element.append(this.label)
+    if (onCancel) {
+      const button = document.createElement('button')
+      button.textContent = 'Stop live take'
+      button.addEventListener('click', onCancel)
+      this.element.append(button)
+    }
     document.body.appendChild(this.element)
   }
 

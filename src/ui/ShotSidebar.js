@@ -3,8 +3,9 @@ import * as tram from '../utils/tram.js'
 import { advanceDate, sunElevation } from '../physics/solar.js'
 import { CODEC_LABELS, CONTAINERS, isRecordingSupported } from '../capture/VideoRecorder.js'
 import { SUPERSAMPLE_FACTORS } from '../capture/Supersampler.js'
+import { canonical } from '../capture/RenderJob.js'
 import { ANCHOR_KINDS } from '../shots/Anchors.js'
-import { isWorldAnchor, WORLD_ANCHOR, ANCHOR_ORIENTS } from '../shots/ShotFormat.js'
+import { isWorldAnchor, WORLD_ANCHOR, ANCHOR_ORIENTS, shotDuration } from '../shots/ShotFormat.js'
 import { PLAYBACK_SPEEDS } from '../shots/ShotController.js'
 import { formatDuration } from '../shots/RenderQueueRunner.js'
 import { DEFAULT_CORNER_SECONDS } from '../shots/CameraPath.js'
@@ -206,12 +207,14 @@ export class ShotSidebar {
       this.buildSunSection(),
       this.buildViewSection(),
       this.buildKeyframeSection(),
-      this.buildShotSection(),
-      this.buildExportSection(),
+      this.buildRenderSection(),
       this.buildQueueSection())
+    this.projectToolbar = this.buildProjectToolbar()
+    this.settingsDialog = this.buildSettingsDialog()
     this.statusLine = el('div', { class: 'ss-status' })
-    this.root.append(header, this.body, this.statusLine)
-    document.body.append(this.root, this.tab)
+    this.renderCard = this.buildRenderCard()
+    this.root.append(header, this.projectToolbar, this.body, this.renderCard, this.statusLine)
+    document.body.append(this.root, this.tab, this.settingsDialog)
     this.setCollapsed(this.state.collapsed)
   }
 
@@ -221,6 +224,62 @@ export class ShotSidebar {
     this.tab.hidden = !collapsed
     document.body.classList.toggle('shot-sidebar-open', !collapsed)
     this.save()
+  }
+
+  buildProjectToolbar() {
+    const s = this.shots
+    const create = this.button('New', () => {
+      if (s.hasProject && !confirm('Create a new shot project? Save the current project first to keep its changes.')) return
+      s.newShot()
+      s.setName('Untitled shot')
+      this.openSettings()
+    })
+    const open = this.button('Open', () => s.openShotProject())
+    this.projectSave = this.button('Save', () => s.saveProject())
+    this.projectSaveAs = this.button('Save as', () => s.saveProject(true))
+    this.projectEdit = this.button('Edit shot settings', () => this.openSettings())
+    this.projectActions = [create, open, this.projectSave, this.projectSaveAs, this.projectEdit]
+    this.projectName = el('div', { class: 'ss-sub' })
+    return el('div', { class: 'ss-project-toolbar' },
+      el('div', { class: 'ss-line' }, ...this.projectActions),
+      this.projectName)
+  }
+
+  buildSettingsDialog() {
+    const dialog = el('dialog', { class: 'ss-settings-dialog', 'aria-label': 'Shot settings' },
+      el('h2', { textContent: 'Shot settings' }),
+      this.buildShotSection(),
+      this.buildExportSettings(),
+      this.settingsStatus = el('div', { class: 'ss-status', role: 'status' }),
+      el('div', { class: 'ss-line' }, this.button('Done', () => dialog.close(), { cls: 'ss-wide' })))
+    dialog.addEventListener('keydown', event => {
+      event.stopPropagation()
+      if (event.key === 'Escape') { event.preventDefault(); dialog.close() }
+    })
+    return dialog
+  }
+
+  openSettings() {
+    if (!this.shots.hasProject || this.shots.busy || this.shots._projectIO) return
+    for (const sync of this.syncs) sync()
+    this.updateProjectUI()
+    if (!this.settingsDialog.open) this.settingsDialog.showModal()
+  }
+
+  updateProjectUI() {
+    const s = this.shots
+    const busy = s.busy || s._projectIO
+    for (const button of this.projectActions) button.disabled = !!busy
+    this.projectSave.disabled = this.projectSaveAs.disabled = this.projectEdit.disabled = !!busy || !s.hasProject
+    this.projectName.textContent = `Current Shot Name: ${s.hasProject ? s.shot.name : '<none>'}`
+    const p = s.shot.project
+    const record = s.projectRecord
+    this.exportFolder.textContent = record?.parent?.name || 'No folder selected in this browser.'
+    const renderFolder = p?.renderFolder || s.renderFolderName
+    this.projectOutputRow.title = `Browser can only show the selected folder's name, not its full Windows path. Video and recovery files are saved inside a shot-specific subfolder under the Video Output Folder.\nCapture subfolder: "${renderFolder}".`
+    if (p?.renderFolder && !record?.directory) this.projectOutputRow.title += `\nChoose the folder containing "${renderFolder}" to restore this shot's output location.`
+    this.projectExportTo.textContent = record?.parent && record?.directory ? 'Change…' : 'Choose…'
+    this.projectExportTo.disabled = !!busy || !s.hasProject
   }
 
   buildTimeSection() {
@@ -485,7 +544,7 @@ export class ShotSidebar {
     const name = el('input', { type: 'text', class: 'ss-text ss-grow' })
     name.addEventListener('change', () => { s.setName(name.value); name.blur() })
     this.bind(name, () => s.shot.name)
-    return this.section('shot', 'Shot', false,
+    return this.section('settings-shot', 'Shot', true,
       this.row('Name', name),
       this.row('Starts at sim time (s)',
         this.number(() => s.shot.simulation.startTime.toFixed(2), (v) => s.setStartTime(v), { min: 0 }),
@@ -495,14 +554,10 @@ export class ShotSidebar {
         this.button('Fit', () => { const last = s.keyframes.at(-1); if (last) s.setOutput({ duration: Math.max(0.1, last.time) }) }, { title: 'End the shot at the last keyframe' })),
       this.row('Interpolation', this.select([['smooth', 'Smooth spline'], ['linearEased', 'Linear, eased corners'], ['linear', 'Linear (live takes)']], () => s.shot.camera.interpolation, (v) => s.setInterpolation(v))),
       this.cornerRow = this.row('Corner length (s)',
-        this.number(() => s.shot.camera.cornerSeconds ?? DEFAULT_CORNER_SECONDS, (v) => s.setCornerSeconds(v), { min: 0, step: 0.1, title: 'How long (± seconds) the camera eases around each keyframe, blending the straight line in with the straight line out' })),
-      el('div', { class: 'ss-line' },
-        this.button('New shot', () => { if (!s.keyframes.length || confirm('Start a new shot? The current keyframes will be discarded unless you export them.')) s.newShot() }, { title: 'An empty shot starting at the current simulated time' }),
-        this.button('Import…', () => s.chooseShotFile(), { title: 'Load a .shot.json file' }),
-        this.button('Export…', () => s.exportShot(), { title: 'Save the shot (with every parameter) as a .shot.json file' })))
+        this.number(() => s.shot.camera.cornerSeconds ?? DEFAULT_CORNER_SECONDS, (v) => s.setCornerSeconds(v), { min: 0, step: 0.1, title: 'How long (± seconds) the camera eases around each keyframe, blending the straight line in with the straight line out' })))
   }
 
-  buildExportSection() {
+  buildExportSettings() {
     const s = this.shots
     const o = () => s.shot.output
     const resolutionValue = () => {
@@ -516,9 +571,12 @@ export class ShotSidebar {
     })
     const codecs = Object.entries(CODEC_LABELS).map(([k, v]) => [k, v])
     const containers = Object.entries(CONTAINERS).map(([k, v]) => [k, v.label])
-    this.renderButton = this.button('⏺ Render video', () => s.renderShot(), { cls: 'ss-wide ss-primary', title: 'Render the shot frame by frame and save it as a video' })
-    this.liveButton = this.button('Start live take', () => (s.mode === 'live' ? s.stop() : s.startLiveTake()), { title: 'Record the camera as you fly it (replaces the current shot)' })
-    return this.section('export', 'Video export', false,
+    this.projectOutputRow = this.row('Video Output Folder:',
+      this.exportFolder = el('span', { class: 'ss-output-folder' }),
+      this.projectExportTo = this.button('Choose…', () => s.chooseProjectExport(), { title: 'Choose the folder that will contain this shot\'s .render folder' }))
+    this.projectOutputRow.classList.add('ss-project-output')
+    return this.section('settings-video', 'Video export', true,
+      this.projectOutputRow,
       this.row('Resolution', resolution),
       this.row('Width × height',
         this.number(() => o().width, (v) => s.setOutput({ width: Math.round(v) }), { min: 16, step: 2, width: '5.5em' }),
@@ -526,7 +584,7 @@ export class ShotSidebar {
       this.row('Frame rate', this.select(FRAME_RATES.map(f => [f, `${f} fps`]), () => o().fps, (v) => s.setOutput({ fps: Number(v) }))),
       this.row('Codec (preferred)', this.select(codecs, () => o().codec, (v) => s.setOutput({ codec: v }))),
       this.row('Container', this.select(containers, () => o().container, (v) => s.setOutput({ container: v }))),
-      this.row('Bitrate (Mbps, 0 = auto)', this.number(() => o().bitrateMbps ?? 0, (v) => s.setOutput({ bitrateMbps: v > 0 ? v : null }), { min: 0 })),
+      this.row('Bitrate (Mbps, 0 = studio quality)', this.number(() => o().bitrateMbps ?? 0, (v) => s.setOutput({ bitrateMbps: v > 0 ? v : null }), { min: 0, title: 'Leave at 0 for constant high quality from the first frame of every segment. File size varies. A positive value opts into bitrate-targeted encoding instead.' })),
       this.row('Motion blur', this.select([['off', 'Off'], ['adaptive', 'Adaptive (by camera motion)'], ['fixed', 'Fixed sub-frames']], () => o().motionBlur, (v) => s.setOutput({ motionBlur: v }), { title: 'Average several renders per frame, spread over the shutter time, so fast motion past repeated structures blurs instead of strobing. Rendering takes as many times longer as there are sub-frames.' })),
       this.blurRows = el('div', { class: 'ss-editor' },
         this.row('Shutter angle', this.select([[90, '90°'], [180, '180° (film look)'], [270, '270°'], [360, '360° (no gaps)']], () => o().shutterAngle, (v) => s.setOutput({ shutterAngle: Number(v) }), { title: 'How much of each frame\'s time the sub-frames cover. 360° leaves no gaps between frames, which removes the most strobing.' })),
@@ -536,15 +594,18 @@ export class ShotSidebar {
           this.row('Scenery motion per sub-frame (px)', this.number(() => o().motionBlurMaxPixels, (v) => v > 0 && s.setOutput({ motionBlurMaxPixels: v }), { min: 0.1 })),
           this.row('Most sub-frames per frame', this.number(() => o().motionBlurMaxSamples, (v) => s.setOutput({ motionBlurMaxSamples: Math.max(1, Math.round(v)) }), { min: 1, step: 1 }))),
         this.blurHint = el('div', { class: 'ss-hint' }),
-        this.button('Preview this frame', () => this.previewFrame(), { title: 'Render the video frame at the playhead as the recording will (with motion blur) and show it', cls: 'ss-wide' })),
+        this.button('Preview this frame', () => { this.settingsDialog.close(); this.previewFrame() }, { title: 'Render the video frame at the playhead as the recording will (with motion blur) and show it', cls: 'ss-wide' })),
       this.row('Supersampling', this.select(SUPERSAMPLE_OPTIONS, () => o().supersample ?? 1, (v) => s.setOutput({ supersample: Number(v) }), { title: 'Render each frame at a higher resolution and filter it down to the video size: smoother edges, tethers and fine detail than antialiasing alone. 2 × 2 takes about four times as long and much more graphics memory (at 4K, about 1.5 GB more).' })),
       this.supersampleHint = el('div', { class: 'ss-hint' }),
       this.checkbox('Wait for terrain tiles', () => o().waitForTerrain, (v) => s.setOutput({ waitForTerrain: v }), { title: 'Each frame waits for the terrain it shows to load (slower, but no blurry tiles)' }),
-      typeof window.showSaveFilePicker === 'function'
-        ? this.checkbox('Stream to a file (large videos)', () => s.prefs.saveToDisk, (v) => { s.prefs.saveToDisk = v })
-        : null,
-      isRecordingSupported() ? null : el('div', { class: 'ss-hint', textContent: 'This browser has no WebCodecs video encoder, so videos cannot be rendered here. Shots can still be made, previewed and exported.' }),
-      this.renderButton,
+      el('div', { class: 'ss-hint', textContent: 'The .render folder contains the video, manifest and recovery segments. Aborting keeps saved frames for review and resume.' }),
+      isRecordingSupported() ? null : el('div', { class: 'ss-hint', textContent: 'This browser has no WebCodecs video encoder, so videos cannot be rendered here. Shot projects can still be edited and saved.' }))
+  }
+
+  buildRenderSection() {
+    const s = this.shots
+    this.liveButton = this.button('Start live take', () => (s.mode === 'live' ? s.stop() : s.startLiveTake()), { title: 'Record the camera as you fly it (replaces the current shot)' })
+    return this.section('render', 'Video', true,
       el('div', { class: 'ss-line' }, this.liveButton, this.checkbox('Encode the live take', () => s.prefs.encodeLiveTake, (v) => { s.prefs.encodeLiveTake = v })))
   }
 
@@ -554,14 +615,17 @@ export class ShotSidebar {
     this.queueList = el('div', { class: 'ss-queue' })
     this.queueSummary = el('div', { class: 'ss-sub' })
     this.queueProgress = el('div', { class: 'ss-queue-progress' })
-    this.queueFolder = el('span', { class: 'ss-grow ss-queue-folder' })
+    this.queueFolder = el('div', { class: 'ss-output-folder' })
     this.queueStart = this.button('▶ Render the queue', () => (q.running ? q.stop() : q.start()), { cls: 'ss-wide ss-primary', title: 'Render every waiting shot, one after another, and save each video. The page reloads between shots (each shot\'s preset and scene are set up afresh).' })
     this.queueContinue = this.button('Continue (allow folder access)', () => q.continueRun(), { cls: 'ss-wide ss-primary', title: 'The browser needs your permission again to save into the output folder' })
     this.queueLog = el('pre', { class: 'ss-queue-log' })
     const folderRow = q.supportsFolders
-      ? this.row('Save videos in', this.queueFolder,
-        this.button('Choose…', () => q.chooseFolder(), { title: 'Choose the folder the videos are saved in (no dialog per video)' }))
-      : el('div', { class: 'ss-hint', textContent: 'Each video is downloaded when it is finished (this browser cannot write into a folder; Chrome and Edge can). The browser may ask once whether the page can download several files.' })
+      ? el('div', {},
+        this.row('Save videos in',
+          this.button('Choose…', () => q.chooseFolder(), { title: 'Choose the folder the videos are saved in (no dialog per video)' }),
+          this.queueFolderPathButton = this.button('Full path…', () => this.shots.enterOutputFolderPath())),
+        this.queueFolder)
+      : el('div', { class: 'ss-hint', textContent: 'Segments are retained in browser storage. Chrome and Edge can save directly into a chosen output folder.' })
     return this.section('queue', 'Render queue', false,
       el('div', { class: 'ss-line' },
         this.button('+ This shot', () => q.addCurrentShot(), { title: 'Add a copy of the current shot (with its output settings and the scene as it is now) to the queue', cls: 'ss-grow' }),
@@ -621,8 +685,12 @@ export class ShotSidebar {
     this.queueList.replaceChildren(...rows)
     const c = q.counts
     this.queueSummary.textContent = q.items.length ? `${c.pending} waiting, ${c.done} done${c.failed ? `, ${c.failed} failed` : ''}${c.rendering ? ', 1 rendering' : ''}.` : ''
-    if (this.queueFolder) this.queueFolder.textContent = q.folder ? `📁 ${q.folder.name}` : 'Downloads (no folder chosen)'
-    this.queueStart.textContent = q.running ? '■ Stop the queue' : '▶ Render the queue'
+    const folderLabel = q.folderPath || `${q.folder?.name} (folder name only; use Full path to enter the parent path)`
+    if (this.queueFolder) this.queueFolder.textContent = q.folder ? `📁 ${folderLabel}` : 'No folder chosen'
+    this.updateProjectUI()
+    this.updateRenderCard()
+    if (this.queueFolderPathButton) this.queueFolderPathButton.disabled = !q.folder
+    this.queueStart.textContent = q.running ? 'Pause rendering' : '▶ Render the queue'
     this.queueStart.disabled = !q.running && !c.pending
     this.queueContinue.hidden = !q.waitingForPermission
     this.queueLog.textContent = q.log.slice(-40).join('\n')
@@ -664,7 +732,7 @@ export class ShotSidebar {
       this.row('Frame rate', plainSelect(FRAME_RATES.map(f => [f, `${f} fps`]), o.fps, (v) => set({ fps: Number(v) }))),
       this.row('Codec (preferred)', plainSelect(Object.entries(CODEC_LABELS), o.codec, (v) => set({ codec: v }))),
       this.row('Container', plainSelect(Object.entries(CONTAINERS).map(([k, v]) => [k, v.label]), o.container, (v) => set({ container: v }))),
-      this.row('Bitrate (Mbps, 0 = auto)', numberInput(o.bitrateMbps ?? 0, (v) => set({ bitrateMbps: v > 0 ? v : null }), { min: 0 })),
+      this.row('Bitrate (Mbps, 0 = studio quality)', numberInput(o.bitrateMbps ?? 0, (v) => set({ bitrateMbps: v > 0 ? v : null }), { min: 0, title: '0 preserves constant high quality; a positive value opts into bitrate-targeted encoding.' })),
       this.row('Supersampling', plainSelect(SUPERSAMPLE_OPTIONS, o.supersample ?? 1, (v) => set({ supersample: Number(v) }))),
       this.row('Motion blur', plainSelect([['off', 'Off'], ['adaptive', 'Adaptive'], ['fixed', 'Fixed sub-frames']], o.motionBlur, (v) => set({ motionBlur: v }))),
       el('label', { class: 'ss-check' }, terrain, 'Wait for terrain tiles'),
@@ -685,6 +753,122 @@ export class ShotSidebar {
 
   // ---- Updates --------------------------------------------------------------------------------
 
+  buildRenderCard() {
+    this.renderSummary = el('div', { class: 'ss-sub' })
+    this.renderResumeReason = el('div', { class: 'ss-hint', role: 'status', hidden: true })
+    this.renderButton = this.button('Start render', () => this.shots.renderShot(), { cls: 'ss-primary', title: 'Render the shot using the Video Output Folder selected in Shot settings' })
+    this.renderResume = this.button('Resume', () => this.shots.resumeRender())
+    this.renderRestart = this.button('Restart', () => this.shots.restartRender(), { title: 'Delete this render\'s segments and render the current shot with its current settings from frame 0 (confirmation required)' })
+    this.renderAbort = this.button('Pause rendering', () => this.shots.stop())
+    this.renderReview = this.button('Review saved video', () => this.reviewRender())
+    this.renderExport = this.button('Export saved video', () => this.shots.exportSavedVideo())
+    this.renderCheckPrevious = this.button('Check previous render…', () => this.shots.checkPreviousRender(), { title: 'Check the saved render from the earlier browser session; project ownership is verified before attachment' })
+    this.renderOpen = this.button('Open render…', () => this.shots.openRender(), { title: 'Choose a saved .render subfolder' })
+    return el('div', { class: 'ss-render-card' }, this.renderSummary,
+      el('div', { class: 'ss-line' }, this.renderButton, this.renderResume, this.renderRestart, this.renderAbort, this.renderReview),
+      this.renderResumeReason,
+      el('div', { class: 'ss-line' }, this.renderExport, this.renderOpen, this.renderCheckPrevious))
+  }
+
+  updateRenderCard() {
+    const s = this.shots
+    const job = s.currentRenderJob
+    const record = s.projectRenderRecord
+    const saved = job?.savedFrames ?? 0
+    const hasRender = !!(job || record)
+    const busy = s.busy || s._projectIO
+    this.renderButton.hidden = hasRender
+    this.renderButton.disabled = !!busy
+    this.renderResume.hidden = this.renderRestart.hidden = !hasRender
+    this.renderRestart.disabled = !!busy || !!record?.needsDiscovery
+    this.renderResume.textContent = record?.needsMigration ? 'Recover saved render' : record?.needsDiscovery ? 'Check saved render' : 'Resume'
+    this.renderSummary.textContent = job
+      ? `${job.manifest.shot.name}: ${(saved / job.manifest.shot.output.fps).toFixed(2)} / ${(job.manifest.frames / job.manifest.shot.output.fps).toFixed(2)} s saved (${job.manifest.segments.length} segments)${s.renderFrame ? `; rendering frame ${s.renderFrame}` : ''}`
+      : record?.needsMigration ? `${record.name}: ${record.savedFrames} / ${record.frames} frames saved. Recover this legacy render to attach it to the current project.`
+        : record?.needsDiscovery ? `Allow folder access to check saved render state for ${record.name}.`
+        : record ? `Saved render: ${record.name}. Resume grants folder access if needed.` : 'No saved render open.'
+    const extended = job?.complete && Math.round(shotDuration({ ...job.manifest.shot, output: s.shot.output }) * s.shot.output.fps) > job.manifest.frames
+    const resumeReason = s.busy
+      ? 'Resume is unavailable while rendering or recording is active.'
+      : !job && !record
+        ? 'To resume a previous render, use Open render… to select its .render folder.'
+        : job?.complete && !extended
+          ? 'Rendering is complete. Use Review saved video or Export full video.'
+          : ''
+    this.renderResume.disabled = !!busy || !hasRender || !!resumeReason
+    const settingsChanged = job && canonical(s.shot.output) !== canonical(job.manifest.shot.output)
+    const resumeHint = resumeReason || (settingsChanged ? 'Resume will use your current rendering settings for the remaining frames. Previously saved segments are kept unchanged.' : '')
+    this.renderResumeReason.textContent = resumeHint
+    this.renderResumeReason.hidden = !hasRender || !resumeHint
+    this.renderResume.title = resumeHint || 'Continue from the next unsaved frame'
+    this.renderAbort.hidden = !s.busy || s.mode === 'live'
+    this.renderReview.disabled = s._projectIO || s._reviewPreparing || s.review.requested || s.review.running ||
+      (s.busy ? !s.activeRecorder : !saved)
+    this.renderExport.disabled = !!busy || !saved
+    this.renderExport.textContent = job?.complete ? 'Export full video' : 'Export saved video'
+    this.renderOpen.disabled = !!busy || !s.hasProject
+    if (this.renderCheckPrevious) {
+      this.renderCheckPrevious.hidden = hasRender || !s.queue.legacyRender || !s.hasProject
+      this.renderCheckPrevious.disabled = !!busy
+    }
+  }
+
+  reviewRender() {
+    return this.shots.reviewSavedVideo()
+  }
+
+  showReview() {
+    const result = this.shots.reviewResult
+    if (!result) return
+    this.closeReview?.()
+    const locationLabel = result.isAbsolutePath ? 'Full video path' : 'Saved location (folder names only)'
+    const path = el('textarea', { class: 'ss-review-path', readOnly: true, rows: 3, value: result.path, 'aria-label': locationLabel })
+    const status = el('div', { class: 'ss-sub', role: 'status' })
+    const copy = this.button('Copy to clipboard', async () => {
+      try {
+        await navigator.clipboard.writeText(result.path)
+        status.textContent = result.isAbsolutePath ? 'Path copied.' : 'Location copied.'
+      }
+      catch (error) {
+        console.error(error)
+        status.textContent = `Could not copy: ${error.message}. Select the location and copy it manually.`
+        path.focus()
+        path.select()
+      }
+    })
+    const panel = el('dialog', { class: 'ss-render-review', 'aria-label': 'Saved review video' },
+      el('h3', { textContent: 'Review video saved' }),
+      el('p', { textContent: `Includes all ${result.frames} saved frames. Open this file from your output folder in your video player. Active rendering resumes after Close.` }),
+      el('div', { class: 'ss-sub', textContent: locationLabel }),
+      path,
+      el('p', { class: 'ss-sub', textContent: result.isAbsolutePath
+        ? 'The folder path was supplied by you; the browser cannot verify it.'
+        : 'This is a folder-relative location, not a full Windows path. The video is saved in the output folder you selected.' }),
+      status,
+      el('div', { class: 'ss-line' }, copy, this.button('Close', () => panel.close())))
+    let closed = false
+    this.closeReview = (error) => {
+      if (closed) return
+      closed = true
+      panel.remove()
+      this.closeReview = null
+      result.close(error)
+    }
+    panel.addEventListener('close', () => this.closeReview?.())
+    panel.addEventListener('keydown', event => {
+      event.stopPropagation()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        panel.close()
+      }
+    })
+    try {
+      document.body.append(panel)
+      panel.showModal()
+    }
+    catch (error) { this.closeReview(error) }
+  }
+
   onChange(kind) {
     const s = this.shots
     if (kind === 'shot') {
@@ -703,7 +887,13 @@ export class ShotSidebar {
       this.liveButton.textContent = s.mode === 'live' ? 'Stop live take' : 'Start live take'
       for (const sync of this.syncs) sync()
     }
-    if (kind === 'status') this.statusLine.textContent = s.status
+    if (kind === 'status') {
+      this.statusLine.textContent = s.status
+      this.settingsStatus.textContent = s.status
+    }
+    if (['shot', 'mode', 'project'].includes(kind)) this.updateProjectUI()
+    if (['shot', 'mode', 'project', 'renderJob', 'renderProgress'].includes(kind)) this.updateRenderCard()
+    if (kind === 'reviewReady') this.showReview()
   }
 
   async previewFrame() {

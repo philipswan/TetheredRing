@@ -82,16 +82,15 @@ export function resetItem(item) {
   Object.assign(item, { status: 'pending', error: null, outputFile: null, frames: null, startedAt: null, finishedAt: null })
 }
 
-// The next item to render: the first one waiting. An item left 'rendering' (the page was closed or
-// crashed while it rendered) is not retried automatically; see markInterrupted.
+// The next item to render: the first one waiting. Interrupted items return to waiting on reload.
 export function nextPending(queue) {
   return queue.items.find(i => i.status === 'pending') ?? null
 }
 
 // After a reload in the middle of a run: an item still marked 'rendering' did not finish.
-export function markInterrupted(queue, message = 'Interrupted (the page was reloaded or crashed while it rendered).') {
+export function markInterrupted(queue) {
   for (const item of queue.items) {
-    if (item.status === 'rendering') Object.assign(item, { status: 'failed', error: message, finishedAt: new Date().toISOString() })
+    if (item.status === 'rendering') resetItem(item)
   }
 }
 

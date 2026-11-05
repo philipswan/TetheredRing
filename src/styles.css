@@ -98,13 +98,17 @@ html, body {
   cursor: crosshair;
 }
 
-.shot-sidebar {
+.shot-sidebar, .ss-settings-dialog {
   --ss-bg: rgba(18, 20, 26, 0.92);
   --ss-panel: rgba(255, 255, 255, 0.05);
   --ss-border: rgba(255, 255, 255, 0.12);
   --ss-text: #e6e8ee;
   --ss-dim: #9aa3b5;
   --ss-accent: #ff7020;
+  user-select: text;
+}
+
+.shot-sidebar {
   position: fixed;
   top: 8px;
   left: 8px;
@@ -121,16 +125,105 @@ html, body {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   font-size: 12px;
-  user-select: none;
 }
 
-.shot-sidebar[hidden], .shot-sidebar-tab[hidden], .shot-sidebar [hidden] {
+.shot-sidebar[hidden], .shot-sidebar-tab[hidden], .shot-sidebar [hidden], .ss-settings-dialog [hidden] {
   display: none !important;
 }
 
 .shot-sidebar.busy .ss-body {
   pointer-events: none;
   opacity: 0.5;
+}
+
+.ss-render-card {
+  padding: 8px;
+  border-top: 1px solid #555;
+}
+
+.ss-render-review {
+  width: min(620px, 85vw);
+  max-height: 85vh;
+  overflow: auto;
+  z-index: 1002;
+  padding: 12px;
+  background: #222;
+  color: #eee;
+  border: 1px solid #666;
+  border-radius: 6px;
+}
+
+.ss-render-review::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.ss-project-toolbar {
+  padding: 8px;
+  border-bottom: 1px solid var(--ss-border);
+}
+
+.ss-project-toolbar > * + * {
+  margin-top: 6px;
+}
+
+.ss-project-toolbar .ss-line {
+  flex-wrap: wrap;
+}
+
+.ss-project-toolbar .ss-button {
+  padding: 3px 5px;
+}
+
+.ss-settings-dialog {
+  box-sizing: border-box;
+  width: min(820px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 16px;
+  color: var(--ss-text);
+  background: #181c24;
+  border: 1px solid var(--ss-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.ss-settings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.ss-settings-dialog .ss-label {
+  flex-basis: 170px;
+}
+
+.ss-settings-dialog .ss-row.ss-project-output {
+  flex-wrap: nowrap;
+}
+
+.ss-settings-dialog .ss-project-output .ss-label {
+  flex: 0 0 auto;
+}
+
+.ss-project-output .ss-output-folder {
+  flex: 1;
+  width: auto;
+}
+
+.ss-project-output .ss-button {
+  flex-shrink: 0;
+}
+
+@media (max-width: 500px) {
+  .ss-settings-dialog .ss-row { flex-wrap: wrap; }
+  .ss-settings-dialog .ss-label { flex-basis: 100%; }
+}
+
+.ss-review-path {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 8px 0;
+  resize: none;
 }
 
 .shot-sidebar-tab {
@@ -253,8 +346,13 @@ html, body {
   white-space: nowrap;
 }
 
-.ss-button:hover {
+.ss-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.16);
+}
+
+.ss-button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .ss-button.active, .ss-toggle.active {
@@ -435,10 +533,12 @@ html, body {
   color: #ff8080;
 }
 
-.ss-queue-folder {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ss-output-folder {
+  width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 .ss-queue-progress {

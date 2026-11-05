@@ -18,13 +18,11 @@ import {
   canEncodeVideo,
 } from 'mediabunny'
 
-// Bits per pixel per frame used to derive the default bitrate. These are deliberately generous:
-// recordings are intermediate/master files, not streaming deliverables.
-const DEFAULT_BITS_PER_PIXEL = {
-  av1: 0.25,
-  hevc: 0.3,
-  vp9: 0.3,
-  avc: 0.45,
+export const STUDIO_QUANTIZERS = {
+  av1: 32,
+  hevc: 16,
+  vp9: 16,
+  avc: 16,
 }
 
 // Order of preference when the requested codec is not available. AV1 gives the best quality per bit;
@@ -43,8 +41,11 @@ export const CODEC_LABELS = {
   vp9: 'VP9',
 }
 
-export function defaultBitrate(codec, width, height, fps) {
-  return Math.round((DEFAULT_BITS_PER_PIXEL[codec] ?? 0.3) * width * height * fps)
+export function recordingQuality(codec, bitrate) {
+  if (bitrate > 0) return new Quality({ bitrate, bitrateMode: 'variable' })
+  const quantizer = STUDIO_QUANTIZERS[codec]
+  if (!Number.isFinite(quantizer)) throw new Error(`No constant-quality target is defined for codec "${codec}".`)
+  return new Quality({ quantizer })
 }
 
 // Encoders require even dimensions for 4:2:0 chroma subsampling.
@@ -58,10 +59,10 @@ export function isRecordingSupported() {
 }
 
 // Returns the codecs (in fallback order) that this browser can encode at the given settings.
-export async function listEncodableCodecs({ width, height, fps, bitrate }) {
+export async function listEncodableCodecs({ width, height, fps, bitrate, bitrateMbps }) {
   const supported = []
   for (const codec of CODEC_FALLBACK_ORDER) {
-    const quality = new Quality({ bitrate: bitrate ?? defaultBitrate(codec, width, height, fps) })
+    const quality = recordingQuality(codec, bitrate ?? (bitrateMbps ? bitrateMbps * 1e6 : null))
     try {
       if (await canEncodeVideo(codec, { width, height, frameRate: fps, quality })) supported.push(codec)
     } catch {
@@ -89,7 +90,7 @@ async function openFileTarget(suggestedName, container) {
   return { target: new StreamTarget(writable, { chunked: true }), writable, name: handle.name }
 }
 
-function downloadBlob(blob, fileName) {
+export function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -151,7 +152,7 @@ export class VideoRecorder {
     this.output = new Output({ format, target: this.fileTarget ? this.fileTarget.target : this.bufferTarget })
     this.source = new CanvasSource(canvas, {
       codec,
-      quality: new Quality({ bitrate, bitrateMode: 'variable' }),
+      quality: recordingQuality(codec, bitrate),
       keyFrameInterval: 2,
       latencyMode: 'quality',
     })
