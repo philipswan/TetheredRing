@@ -348,10 +348,13 @@ export class massDriverTubeModel {
     const fans = []      // per fan: { hubPos, fanPos (model coordinates), axis (planet coordinates) }
     const centres = []
     const dummy = new THREE.Object3D()
-    const matrixOf = (position, lookTarget, scale) => {
+    // The matrix placing a part at `position` with its +z towards `lookTarget`, its +y as near `up` as that
+    // allows (by default, the model's forward: the tube's direction at the middle of the segment).
+    const matrixOf = (position, lookTarget, scale, up = THREE.Object3D.DEFAULT_UP) => {
       dummy.position.copy(position)
       dummy.scale.copy(scale)
       dummy.quaternion.identity()
+      dummy.up.copy(up)
       dummy.lookAt(lookTarget)
       dummy.updateMatrix()
       return dummy.matrix.clone()
@@ -376,7 +379,10 @@ export class massDriverTubeModel {
         const pylonOrientation = fanDirection.clone().applyAxisAngle(tangent, -lr*Math.PI/32).applyQuaternion(orientation)
         fanDirection.applyAxisAngle(tangent, Math.PI/32) // Rotate the fan direction to be perpendicular to the tube
         fans.push({ hubPos: relHubPos, fanPos: relFanPos, axis: fanDirection, side: lr })
-        parts.pylon.push(matrixOf(relPylonPos, relPylonPos.clone().add(pylonOrientation), new THREE.Vector3(-lr, .25, 1)))
+        // The arm reaches sideways from the tube to the hub: square to the tube where it is, which is not its
+        // direction at the middle of the segment where the tube curves (round the coil, while it deploys).
+        const localForward = tangent.clone().applyQuaternion(orientation)
+        parts.pylon.push(matrixOf(relPylonPos, relPylonPos.clone().add(pylonOrientation), new THREE.Vector3(-lr, .25, 1), localForward))
         centres.push(relFanPos)
       }
     }
