@@ -55,7 +55,6 @@ import { ShotSidebar } from '../ui/ShotSidebar.js'
 import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
 import { placeAtHeightInRingPlane } from '../ring/ringGeometry.js'
 import { standInScene, warmPrograms } from '../scene/precompile.js'
-import { installChangedMatrixUpdates } from '../scene/ChangedMatrices.js'
 import mountainList from '../data/mountainList.json' with { type: 'json' }
 import googleEarthProjectFile from '../data/googleEarthStudioSampleProjectFile.json' with { type: 'json' }
 
@@ -157,8 +156,12 @@ export class App {
 
     this.scene = new THREE.Scene()
     this.scene.name = 'scene'
-    // (The scene is updated several times a frame; only what moved is recomputed: ChangedMatrices.js.)
-    installChangedMatrixUpdates(this.scene)
+    // The scene's world matrices are brought up to date once a frame, by PixelLOD.updateScene (render(), or
+    // PixelLOD.prepareScene for a recorded frame), just before it is drawn. Nothing in render() moves anything after
+    // that (what does, the instanced copies and newly built levels, updates its own matrices), so the renderer does
+    // not do it again for each of its renders of the scene (the main one, the clouds' distances, highlights): a
+    // whole-scene pass is about as long as the rest of a frame's scene work on the mass driver.
+    this.scene.matrixWorldAutoUpdate = false
 
     // Everything planet-fixed hangs off planetCoordSys (identity transform except in VR).
     this.planetCoordSys = new THREE.Group()
