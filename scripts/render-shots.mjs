@@ -123,7 +123,11 @@ const names = outputFileNames(queue)
 
 // ---- The browser --------------------------------------------------------------------------------
 
+// (Vite's dev server exits the process on SIGTERM; this script's own handler below must run instead,
+// to stop the pages and save completed frames, so Vite's listener is taken off again.)
+const sigtermBefore = new Set(process.listeners('SIGTERM'))
 const server = await createServer({ server: { port: 0 }, logLevel: 'error' })
+for (const listener of process.listeners('SIGTERM')) if (!sigtermBefore.has(listener)) process.off('SIGTERM', listener)
 await server.listen()
 const origin = `http://localhost:${server.httpServer.address().port}`
 
