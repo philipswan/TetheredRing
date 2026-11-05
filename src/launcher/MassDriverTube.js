@@ -21,6 +21,98 @@ const LIFT_FAN_MAX_TILT = 20 * Math.PI / 180
 // On-screen tube diameter (px) below which a tube segment is drawn as a line.
 const TUBE_LINE_BELOW_PIXELS = 1
 
+// The lift fans' disks are drawn as the blur of a propeller spinning too fast for its blades to be
+// seen. At each point of the disk the opacity is the fraction of the time a blade is in the line of
+// sight. A blade is a strip pitched at angle phi to the disk, so seen face-on it covers its chord
+// times cos(phi); seen obliquely its chord foreshortens on one side of the disk (down to the blade's
+// thickness, where it is seen edge-on) and lengthens on the other. Radii are fractions of the disk's.
+const PROPELLER = {
+  blades: 4,
+  pitchOverDiameter: 0.5,   // the distance a turn of the blades would screw through still air
+  rootChord: 0.22,          // blade chord at the root (at PROPELLER_RINGS[0]), as a fraction of the radius
+  tipChord: 0.12,           // ... and at the tip
+  thickness: 0.12,          // blade thickness / chord
+  tipRounding: 0.05,        // the blade tips are rounded off over this outermost part of the radius
+}
+// Radii (fractions of the disk's) of the disk geometry's rings. The opacity is worked out at each
+// vertex and interpolated across the disk, so the rings are closest where it changes fastest (the
+// root). The innermost is inside the hub, where the disk passes through it.
+const PROPELLER_RINGS = [0.045, 0.15, 0.4, 0.95, 1]
+
+// A flat disk of `radius` facing +z with `segments` round it, its rings at PROPELLER_RINGS.
+function propellerDiskGeometry(radius, segments) {
+  const geometry = new THREE.RingGeometry(PROPELLER_RINGS[0] * radius, radius, segments, PROPELLER_RINGS.length - 1)
+  // RingGeometry spaces its rings evenly (ring j is vertices j*(segments+1) ...); move them.
+  const position = geometry.attributes.position
+  for (let k = 0; k < position.count; k++) {
+    const r = PROPELLER_RINGS[Math.floor(k / (segments + 1))] * radius
+    const length = Math.hypot(position.getX(k), position.getY(k))
+    position.setXY(k, position.getX(k) * r / length, position.getY(k) * r / length)
+  }
+  geometry.deleteAttribute('uv')
+  return geometry
+}
+
+// Makes `material` draw a propellerDiskGeometry of `radius` as a spinning propeller's blur (see
+// PROPELLER). The opacity is worked out per vertex, so it costs no more per pixel than a plain disk.
+// The propellers spin anticlockwise about +z (their thrust); an instance whose matrix is a mirror
+// image spins the other way (and its blades are mirrored too, as on a counter-rotating propeller).
+function withPropellerBlur(material, radius) {
+  const f = (x) => x.toFixed(6)
+  const previousOnBeforeCompile = material.onBeforeCompile
+  const previousCacheKey = material.customProgramCacheKey
+  material.onBeforeCompile = (shader, renderer) => {
+    previousOnBeforeCompile.call(material, shader, renderer)
+    shader.uniforms.propellerRadius = { value: radius }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float propellerRadius;
+varying float vPropellerCoverage;`)
+      // A mirrored instance's triangles wind the other way, so on a double-sided material it would be
+      // lit from behind; flipping its normal undoes that.
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+#ifdef USE_INSTANCING
+  objectNormal *= sign(determinant(mat3(instanceMatrix)));
+#endif`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+{
+#ifdef USE_INSTANCING
+  mat3 propellerToView = mat3(modelViewMatrix) * mat3(instanceMatrix);
+#else
+  mat3 propellerToView = mat3(modelViewMatrix);
+#endif
+  vec3 view = normalize(mvPosition.xyz);
+  float x = length(transformed.xy) / propellerRadius;
+  // The view direction along the axis and along the blade's motion here.
+  float va = dot(view, normalize(propellerToView * vec3(0.0, 0.0, 1.0)));
+  float vt = dot(view, normalize(propellerToView * vec3(-transformed.y, transformed.x, 0.0)));
+  va = va >= 0.0 ? max(va, 1e-4) : min(va, -1e-4);
+  float q = vt / va;
+  float tanPitch = ${f(PROPELLER.pitchOverDiameter)} / (PI * x);
+  float cosPitch = inversesqrt(1.0 + tanPitch * tanPitch);
+  float sinPitch = tanPitch * cosPitch;
+  float chord = mix(${f(PROPELLER.rootChord)}, ${f(PROPELLER.tipChord)}, (x - ${f(PROPELLER_RINGS[0])}) / ${f(1 - PROPELLER_RINGS[0])});
+  // Seen along the view direction, the blades' chords and thicknesses projected onto the disk, as a
+  // fraction of the circumference here.
+  float projected = abs(cosPitch - sinPitch * q) + ${f(PROPELLER.thickness)} * abs(sinPitch + cosPitch * q);
+  vPropellerCoverage = min(1.0, ${f(PROPELLER.blades)} * chord / (2.0 * PI * x) * projected)
+    * clamp((1.0 - x) / ${f(PROPELLER.tipRounding)}, 0.0, 1.0);
+}`)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vPropellerCoverage;`)
+      .replace('#include <alphatest_fragment>', `diffuseColor.a *= vPropellerCoverage;
+#include <alphatest_fragment>`)
+  }
+  material.customProgramCacheKey = () => `${previousCacheKey.call(material)}:propellerBlur`
+  material.opacity = 1
+  // A flat disk has one face, so it must be drawn from behind too.
+  material.side = THREE.DoubleSide
+  // Most of the disk is nearly clear: it must not hide what is drawn after it (the sky, the haze).
+  material.depthWrite = false
+  return material
+}
+
 export class massDriverTubeModel {
   // Each model along the mass driver curve is unique, since the pitch of the mass driver's drive thread changes along it's length
   // so instead of dynamically allocating models from a pool of identical unallocated models, we need to create a unique model for each portion of the mass driver curve.
@@ -65,14 +157,13 @@ export class massDriverTubeModel {
         
     this.liftFanHubGeometry = new THREE.SphereGeometry(this.radius * 0.1, 16, 16)
     this.liftFanHubGeometry.scale(1, 1, 3)
-    // The fan disks are flat circles facing +z (along the fan's axis), so every point on a disk
-    // has the same normal and the disk shades evenly. (They were spheres flattened along z, whose
-    // normals curve towards the rim and shaded them like domes.)
-    this.liftFanDiskGeometry = new THREE.CircleGeometry(this.radius * 1.5, 64)
+    // The fan disks are flat (the blur of a spinning propeller: see withPropellerBlur), facing +z
+    // along the fan's axis, so they shade evenly.
+    this.liftFanDiskGeometry = propellerDiskGeometry(this.radius * 1.5, 64)
     // Low-detail versions for fans a few pixels across (see createLiftFans).
     this.liftFanHubGeometryLow = new THREE.SphereGeometry(this.radius * 0.1, 6, 4)
     this.liftFanHubGeometryLow.scale(1, 1, 3)
-    this.liftFanDiskGeometryLow = new THREE.CircleGeometry(this.radius * 1.5, 16)
+    this.liftFanDiskGeometryLow = propellerDiskGeometry(this.radius * 1.5, 16)
     // this.liftFanCowlingGeometry = new THREE.TorusGeometry(this.radius*1.6, this.radius/32, 16, 64)
     // this.liftFanCowlingGeometry.scale(1, 1, 4)
     // this.liftFanGeometry = mergeGeometries([this.liftFanHubGeometry, this.liftFanCowlingGeometry])
@@ -284,14 +375,16 @@ export class massDriverTubeModel {
         const fanDirection = fanPos.clone().normalize()
         const pylonOrientation = fanDirection.clone().applyAxisAngle(tangent, -lr*Math.PI/32).applyQuaternion(orientation)
         fanDirection.applyAxisAngle(tangent, Math.PI/32) // Rotate the fan direction to be perpendicular to the tube
-        fans.push({ hubPos: relHubPos, fanPos: relFanPos, axis: fanDirection })
+        fans.push({ hubPos: relHubPos, fanPos: relFanPos, axis: fanDirection, side: lr })
         parts.pylon.push(matrixOf(relPylonPos, relPylonPos.clone().add(pylonOrientation), new THREE.Vector3(-lr, .25, 1)))
         centres.push(relFanPos)
       }
     }
     // Where model coordinates are on the planet (for the wind at a chunk).
     const toPlanet = orientation.clone().invert()
-    const diskScale = new THREE.Vector3(1, 1, 1)
+    // The propellers on one side of the tube spin one way and those on the other side the other
+    // way: one side's disks are mirror images (see withPropellerBlur).
+    const diskScale = { [-1]: new THREE.Vector3(-1, 1, 1), [1]: new THREE.Vector3(1, 1, 1) }
     // The hubs and disks of fans start..end, leaning into the wind at `centre` (model coordinates).
     const leanIntoWind = (start, end, centre) => {
       const axes = fans.slice(start, end).map(fan => fan.axis.clone())
@@ -314,10 +407,10 @@ export class massDriverTubeModel {
       }
       const hub = [], disk = []
       axes.forEach((axis, k) => {
-        const { hubPos, fanPos } = fans[start + k]
+        const { hubPos, fanPos, side } = fans[start + k]
         axis.applyQuaternion(orientation)
         hub.push(matrixOf(hubPos, hubPos.clone().add(axis), unit))
-        disk.push(matrixOf(fanPos, fanPos.clone().add(axis), diskScale))
+        disk.push(matrixOf(fanPos, fanPos.clone().add(axis), diskScale[side]))
       })
       return { hub, disk }
     }
@@ -327,9 +420,7 @@ export class massDriverTubeModel {
     if (this.liftFanFadeDiameter !== fanDiameter) {
       this.liftFanFadeDiameter = fanDiameter
       this.liftFanOpaqueMaterial = withSubPixelFade(this.massDriverTubeMaterial3.clone(), { size: fanDiameter })
-      this.liftFanDiskMaterial = withSubPixelFade(this.massDriverTubeMaterial4.clone(), { size: fanDiameter })
-      // A flat disk has one face, so it must be drawn from behind too.
-      this.liftFanDiskMaterial.side = THREE.DoubleSide
+      this.liftFanDiskMaterial = withPropellerBlur(withSubPixelFade(this.massDriverTubeMaterial4.clone(), { size: fanDiameter }), fanDiameter / 2)
       ;[this.liftFanOpaqueMaterial, this.liftFanDiskMaterial].forEach(m => { m.userData.shared = true })
     }
     const opaque = this.liftFanOpaqueMaterial
