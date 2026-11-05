@@ -17,8 +17,8 @@ import { FrameCapture } from '../capture/FrameCapture.js'
 import { PixelLOD } from '../scene/PixelLOD.js'
 import { StructureLines } from '../scene/structureLines.js'
 import { RenderQueueRunner } from './RenderQueueRunner.js'
-import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, matchesLegacyRenderShot } from '../capture/RenderJob.js'
-import { SegmentedRecorder, assembleRender } from '../capture/SegmentedRecorder.js'
+import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, matchesLegacyRenderShot, canonical } from '../capture/RenderJob.js'
+import { SegmentedRecorder, assembleRender, inspectSegment } from '../capture/SegmentedRecorder.js'
 import { RenderReview, outputFolderPath, reviewVideoPath, reviewVideoName } from '../capture/RenderReview.js'
 import { RENDER_BUILD_ID } from 'virtual:render-build'
 import { randomUUID } from '../utils/randomUUID.js'
@@ -1202,6 +1202,11 @@ export class ShotController {
 
   // Both interactive and unattended rendering use the same durable segment checkpoints.
   async renderShotUnattended(shot, options = {}) {
+    return this.withRenderLock(() => this.renderShotSession(shot, options))
+  }
+
+  // Runs `session` as this tab's one render operation (one per browser, across tabs).
+  async withRenderLock(session) {
     if (this.busy) throw new Error('Another recording is running.')
     this._renderOperation = true
     this.cancelRequested = false
@@ -1210,12 +1215,20 @@ export class ShotController {
       if (navigator.locks) {
         return await navigator.locks.request('tetheredRing.render', { ifAvailable: true }, lock => {
           if (!lock) throw new Error('Another browser tab is rendering. Pause it before starting this render.')
-          return this.renderShotSession(shot, options)
+          return session()
         })
       }
-      return await this.renderShotSession(shot, options)
+      return await session()
     }
     finally { this._renderOperation = false; this.emit('mode') }
+  }
+
+  // Waits `seconds` for the scene to settle after loading a shot, and on for up to 30 s more until the
+  // clouds are ready. Stop ends the wait.
+  async settle(seconds) {
+    const settleEnd = performance.now() + seconds * 1000
+    while (!this.cancelRequested && (performance.now() < settleEnd ||
+      (this.app.clouds?.enabled && !this.app.clouds.realClouds?.ready && performance.now() < settleEnd + 30000))) await sleep(100)
   }
 
   async renderShotSession(shot, { job = null, directory = null, storage = null, outputStorage = null, writable = null, fileName = slug(shot.name), settleSeconds = 0, onProgress = null, restart = false } = {}) {
@@ -1271,9 +1284,7 @@ export class ShotController {
       await this.rememberRender(job, directory, shot.project?.outputPath)
       this.setViewMode('shot')
       const output = this.shot.output
-      const settleEnd = performance.now() + settleSeconds * 1000
-      while (!this.cancelRequested && (performance.now() < settleEnd ||
-        (this.app.clouds?.enabled && !this.app.clouds.realClouds?.ready && performance.now() < settleEnd + 30000))) await sleep(100)
+      await this.settle(settleSeconds)
       if (!job.complete) {
         recorder = new SegmentedRecorder(job, this.frameCanvas(output), saved => this.rememberRender(saved))
         this.activeRecorder = recorder
@@ -1305,6 +1316,95 @@ export class ShotController {
       this.renderFrame = null
       this.emit('mode')
       this.emit('renderJob')
+    }
+  }
+
+  // ---- Rendering in several browsers at once --------------------------------------------------
+  //
+  // One browser renders a frame at a time, and most of each sub-frame's time goes on JavaScript on its
+  // one main thread, so the GPU is mostly idle. `npm run render -- --workers N` (scripts/render-shots.mjs)
+  // runs N browsers on the same shot instead: each renders ranges of frames into files of its own with
+  // renderRangeUnattended, and the script appends finished ranges, in order, to the render's segments
+  // (RenderJob.commit) as one browser's checkpoints would be. A shot is a function of simulated time,
+  // so a range that starts partway through renders the same frames as a render that got there from
+  // the start, just as when a render is resumed.
+
+  // What a render of `shot` uses: { shot (as rendered: even video dimensions), codec, buildId }.
+  async renderSettings(shot) {
+    if (!isRecordingSupported()) throw new Error('This browser has no WebCodecs video encoder.')
+    shot = clone(shot)
+    shot.output.width = evenDimension(shot.output.width)
+    shot.output.height = evenDimension(shot.output.height)
+    const codec = await resolveCodec(shot.output.codec, shot.output)
+    if (!codec) throw new Error('No video encoder supports the requested quality at this resolution. Try another codec or a positive bitrate override.')
+    return { shot, codec, buildId: RENDER_BUILD_ID }
+  }
+
+  // Renders frames [from, to) of `shot` (as returned by renderSettings) into the file `name` in
+  // `storage`, encoded with `codec`, and returns { frames, decoderConfig } once the file is complete
+  // and checked. The shot stays loaded for the next range, so the page settles (`settleSeconds`) only
+  // when it changes. Stop abandons the range and removes its file.
+  async renderRangeUnattended(shot, options) {
+    return this.withRenderLock(() => this.renderRangeSession(shot, options))
+  }
+
+  async renderRangeSession(shot, { from, to, codec, storage, name, settleSeconds = 0, onProgress = null }) {
+    if (!isRecordingSupported()) throw new Error('This browser has no WebCodecs video encoder.')
+    if (shot.preset !== this.app.presetId) throw new Error(`The shot needs preset "${shot.preset}", but "${this.app.presetId}" is loaded.`)
+    if (!shot.camera.keyframes.length) throw new Error('The shot has no keyframes.')
+    if (!(Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to > from)) throw new Error(`Invalid frame range ${from}-${to}.`)
+    if (this.cancelRequested) throw new DOMException('Rendering paused before starting.', 'AbortError')
+    this.mode = 'render'
+    this.emit('mode')
+    let recorder = null
+    try {
+      this.pause()
+      const key = canonical(validateShot(clone(shot)))
+      if (this._rangeShotKey !== key) {
+        this._rangeShotKey = null
+        this.loadShot(clone(shot))
+        this.setViewMode('shot')
+        await this.settle(settleSeconds)
+        if (this.cancelRequested) throw new DOMException('Rendering paused before starting.', 'AbortError')
+        this._rangeShotKey = key
+      }
+      const output = this.shot.output
+      const frames = Math.max(1, Math.round(shotDuration(this.shot) * output.fps))
+      if (to > frames) throw new Error(`The shot has ${frames} frames, so frames ${from}-${to} are outside it.`)
+      const writable = await storage.createWritable(name)
+      recorder = new VideoRecorder({
+        ...output, canvas: this.frameCanvas(output), fileName: name, writable,
+        bitrate: output.bitrateMbps ? output.bitrateMbps * 1e6 : null,
+      })
+      await recorder.prepareTarget()
+      try { await recorder.start(codec) }
+      catch (error) {
+        try { await recorder.output?.cancel(); await writable.abort() }
+        catch (cleanupError) { console.error('Could not release the unfinished range:', cleanupError) }
+        recorder = null
+        throw error
+      }
+      const failed = await this.renderFrames(recorder, {
+        from, to, keepBusy: true,
+        afterFrame: i => { this.renderFrame = i + 1; this.emit('renderProgress'); onProgress?.({ frame: i + 1 - from, frames: to - from }) },
+      })
+      if (failed) throw failed
+      if (this.cancelRequested || recorder.frameCount !== to - from) {
+        throw new DOMException(`Rendering paused; the unfinished frames ${from}-${to} were discarded.`, 'AbortError')
+      }
+      await recorder.finish()
+      recorder = null
+      const decoderConfig = await inspectSegment({ storage, manifest: { shot: this.shot, codec } }, name, to - from)
+      return { frames: to - from, decoderConfig }
+    }
+    catch (error) {
+      if (recorder) await recorder.cancel()
+      throw error
+    }
+    finally {
+      this.mode = 'idle'
+      this.renderFrame = null
+      this.emit('mode')
     }
   }
 

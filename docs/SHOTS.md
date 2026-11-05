@@ -324,9 +324,27 @@ fresh browser. Videos already present are skipped, so re-running carries on wher
 (`--overwrite` re-renders them). Each video is written to `<name>.part` and renamed when finished, so
 a half-written file is never mistaken for a finished one.
 
+One browser renders one frame at a time, and most of each frame's time is JavaScript on a single CPU
+core, so the GPU is mostly idle. `--workers <n>` renders each shot in n browsers at once: each takes
+the next few seconds of the shot (`--chunk-seconds`, default 5) and finished ranges are appended to
+the render's saved segments in order. The result is the same video a single browser would make, and
+an interrupted run resumes the same way (finished ranges are kept, whichever worker made them). Each
+worker needs about 2 GB of memory and one CPU core; on an 8-core CPU, 4 to 8 workers is the useful
+range.
+
+```bash
+# POSIX
+npm run render -- --workers 6 --out renders docs/examples/shots/launch-to-orbit.shot.json
+```
+
+```powershell
+# Windows PowerShell
+npm run render -- --workers 6 --out renders docs\examples\shots\launch-to-orbit.shot.json
+```
+
 Options that apply to every shot: `--width`, `--height`, `--fps`, `--codec av1|avc|hevc|vp9`,
 `--container mp4|mkv`, `--bitrate <Mbps>`, `--supersample 1|1.5|2|3|4`,
-`--motion-blur off|fixed|adaptive`, `--motion-blur-jitter on|off`; `--headful` shows the browser window. The full list is at the top
+`--motion-blur off|fixed|adaptive`, `--motion-blur-jitter on|off`; `--workers <n>`, `--chunk-seconds <s>`; `--headful` shows the browser window. The full list is at the top
 of [`scripts/render-shots.mjs`](../scripts/render-shots.mjs). Set `CHROME_PATH` if Chrome, Chromium
 or Edge is not found automatically. Keep the computer from sleeping during the run (Windows:
 Settings → System → Power; macOS: `caffeinate -i npm run render -- …`).
