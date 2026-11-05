@@ -78,6 +78,13 @@ function tileNumKey(faceIndex, lod, x, y) {
   return ((faceIndex * 32 + lod) * TWO_POW_20 + x) * TWO_POW_20 + y;
 }
 
+// The neighbours a tile's boundary can take its positions from (see _updateEdgeMorph), as tile offsets: edges T, B,
+// L, R, then corners TL, TR, BL, BR.
+const BOUNDARY_OFFSETS = [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+// Coarser tiles first (see _coarserThan), so a tile sees its boundary sources' geometry as it will be drawn.
+const boundaryRank = (t) => (t.ground ? 2 : t.heightGrid ? 1 : 0);
+const coarserFirst = (a, b) => (a.lod - b.lod) || (boundaryRank(a) - boundaryRank(b));
+
 // Surface-detail noise. The hash is periodic with DETAIL_PERIOD lattice cells so
 // a per-tile offset can be reduced modulo the period without creating seams.
 // Each distinct noise frequency (cycles/metre) gets its own offset uniform.
@@ -372,9 +379,11 @@ class Tile {
     // The coarser visible neighbour across each edge (where edgeSteps > 1), whose heights the edge takes.
     this.edgeNeighbors = [null, null, null, null];
     // The coarser drawn tiles this tile's boundary takes its positions from (edges T, B, L, R, then corners TL, TR,
-    // BL, BR; see _updateEdgeMorph), the key they were taken with, and a count of this tile's geometry rebuilds.
+    // BL, BR; see _updateEdgeMorph), their numKeys and geometryVersions when they were taken (-1 where there is
+    // none; null until first taken), and a count of this tile's geometry rebuilds.
     this.boundarySources = null;
-    this.boundaryKey = '';
+    this.boundaryKeys = null;
+    this.boundaryVersions = null;
     this.geometryVersion = 0;
 
     // Cached geometric bounds (planet-local space). `center` is also the tile
@@ -451,7 +460,11 @@ export class CubedSpherePlanetRenderer {
     // The assets whose tiles are on screen (names, sorted), reported to options.onVisibleAssets whenever
     // they change, so that each source's credit is shown while its imagery is.
     this.onVisibleAssets = options.onVisibleAssets ?? null;
-    this._visibleAssetsKey = null;
+    this._visibleAssets = new Set();      // (this frame's, reused)
+    this._reportedAssets = null;          // (the set last reported)
+    // Scratch for _updateEdgeMorph, which runs every frame for every visible tile.
+    this._boundaryOrder = [];
+    this._boundaryScratch = new Array(BOUNDARY_OFFSETS.length).fill(null);
 
     this.enabled = true;
     this.segments = Math.max(2, options.tileSegments ?? 24);
@@ -2853,7 +2866,8 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
   // ---------------------------------------------------------------------------
 
   _applyVisibility() {
-    const visibleAssets = new Set();
+    const visibleAssets = this._visibleAssets;
+    visibleAssets.clear();
     for (const tile of this.tiles.values()) {
       if (!tile.mesh) continue;
       const visible = tile.visibleFrame === this.frame;
@@ -2861,8 +2875,9 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
       tile.mesh.visible = visible;
       if (visible && tile.ready) {
         // (A generated tile shows its baked ancestor's imagery, and the ground data's.)
-        visibleAssets.add(this.tileSourceMap.get((tile.colorTile ?? tile).id)?.name ?? this.assets[0]?.name);
-        if (tile.ground) visibleAssets.add(tile.ground.name);
+        const name = this.tileSourceMap.get((tile.colorTile ?? tile).id)?.name ?? this.assets[0]?.name;
+        if (name) visibleAssets.add(name);
+        if (tile.ground?.name) visibleAssets.add(tile.ground.name);
       }
       if (visible && tile.ready && this.debugStats.startupTrace.firstVisibleReadyMs == null) {
         this._traceFirst('firstVisibleReadyMs', tile, 'firstVisibleReadyTileId');
@@ -2873,11 +2888,13 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
       }
     }
     if (this.debugMode !== 'none') this._applyDebugColors();
-    const names = [...visibleAssets].filter(Boolean).sort();
-    const key = names.join(',');
-    if (key !== this._visibleAssetsKey) {
-      this._visibleAssetsKey = key;
-      this.onVisibleAssets?.(names);
+    // Reported when the set changes (nothing is allocated while it does not).
+    const reported = this._reportedAssets;
+    let same = reported !== null && reported.size === visibleAssets.size;
+    if (same) for (const name of visibleAssets) if (!reported.has(name)) { same = false; break; }
+    if (!same) {
+      this._reportedAssets = new Set(visibleAssets);
+      this.onVisibleAssets?.([...visibleAssets].sort());
     }
   }
 
@@ -2886,8 +2903,7 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
   // generated one.
   _coarserThan(a, b) {
     if (a.lod !== b.lod) return a.lod < b.lod;
-    const rank = (t) => (t.ground ? 2 : t.heightGrid ? 1 : 0);
-    return rank(a) < rank(b);
+    return boundaryRank(a) < boundaryRank(b);
   }
 
   // The drawn tile across from this one at (dx, dy) tiles away (an edge or diagonal neighbour), if it is coarser
@@ -2913,20 +2929,31 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
   // Each visible tile's boundary sources (the coarser drawn tiles its boundary takes its positions from: see
   // _buildTileGeometry), rebuilding it when they, or their geometry, change. Coarser tiles first, so a tile sees its
   // sources' geometry as it will be drawn this frame.
+  // It runs every frame for every visible tile, so it allocates nothing unless a tile's sources change.
   _updateEdgeMorph() {
-    const order = this.visibleList.filter((t) => t.ready);
-    const rank = (t) => (t.ground ? 2 : t.heightGrid ? 1 : 0);
-    order.sort((a, b) => (a.lod - b.lod) || (rank(a) - rank(b)));
-    const offsets = [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+    const order = this._boundaryOrder;
+    order.length = 0;
+    for (const tile of this.visibleList) if (tile.ready) order.push(tile);
+    order.sort(coarserFirst);
+    const sources = this._boundaryScratch;
     for (const tile of order) {
-      const sources = offsets.map(([dx, dy]) => this._coarserNeighbour(tile, dx, dy));
-      const key = sources.map((n) => (n ? `${n.numKey}:${n.geometryVersion}` : '')).join('|');
-      if (key !== tile.boundaryKey) {
-        tile.boundaryKey = key;
-        tile.boundarySources = sources;
+      let changed = tile.boundaryKeys === null;
+      for (let i = 0; i < BOUNDARY_OFFSETS.length; i++) {
+        const n = this._coarserNeighbour(tile, BOUNDARY_OFFSETS[i][0], BOUNDARY_OFFSETS[i][1]);
+        sources[i] = n;
+        if (!changed && (tile.boundaryKeys[i] !== (n ? n.numKey : -1) || tile.boundaryVersions[i] !== (n ? n.geometryVersion : -1))) changed = true;
+      }
+      if (changed) {
+        tile.boundaryKeys ??= new Float64Array(BOUNDARY_OFFSETS.length);
+        tile.boundaryVersions ??= new Float64Array(BOUNDARY_OFFSETS.length);
+        for (let i = 0; i < BOUNDARY_OFFSETS.length; i++) {
+          tile.boundaryKeys[i] = sources[i] ? sources[i].numKey : -1;
+          tile.boundaryVersions[i] = sources[i] ? sources[i].geometryVersion : -1;
+        }
+        tile.boundarySources = sources.slice();
         // (Kept for the debug stats and the sea's far variant: the edges' level differences.)
-        tile.edgeSteps = sources.slice(0, 4).map((n) => (n ? 2 ** (tile.lod - n.lod) : 1));
-        tile.edgeNeighbors = sources.slice(0, 4);
+        tile.edgeSteps = tile.boundarySources.slice(0, 4).map((n) => (n ? 2 ** (tile.lod - n.lod) : 1));
+        tile.edgeNeighbors = tile.boundarySources.slice(0, 4);
         this._replaceGeometry(tile);
       }
     }
