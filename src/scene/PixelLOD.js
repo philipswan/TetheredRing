@@ -49,20 +49,28 @@ export class PixelLOD extends THREE.LOD {
   static updateScene(scene, camera) {
     scene.updateMatrixWorld(true)
     camera.updateMatrixWorld(true)
+    // (Remembered for prepareScene. An LOD shows and hides only its own levels, which traverseVisible visits after
+    // it, so these are all the LODs that are shown.)
+    const shown = PixelLOD._shown
+    shown.length = 0
     scene.traverseVisible(object => {
-      if (object instanceof PixelLOD) object.update(camera)
+      if (object instanceof PixelLOD) {
+        object.update(camera)
+        shown.push(object)
+      }
     })
   }
+
+  static _shown = []
 
   static async prepareScene(scene, camera) {
     for (;;) {
       PixelLOD.updateScene(scene, camera)
       const pending = []
-      scene.traverseVisible(object => {
-        if (!(object instanceof PixelLOD)) return
+      for (const object of PixelLOD._shown) {
         const wanted = object.pixelLevels.find(level => object.onScreenPixels >= level.minPixels)
         if (wanted?.pending) pending.push(wanted.pending.promise)
-      })
+      }
       if (!pending.length) return
       await Promise.all(pending)
     }
