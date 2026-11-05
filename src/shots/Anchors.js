@@ -35,6 +35,7 @@ const STAGE_NAMES = {
   elevatedEvacuatedTube: 'Enters the evacuated tube',
   freeFlightPositionCurve: 'Free flight',
   launchSledBrakingCurve: 'Sled starts braking',
+  fallBack: 'Falls back down the track',
   end: 'End of the path',
 }
 

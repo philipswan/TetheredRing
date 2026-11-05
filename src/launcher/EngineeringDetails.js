@@ -277,7 +277,7 @@ export function define_genLauncherSpecs() {
 
     // Elevated Evacuated Tube (EVT) - Aeronautically Supported Case  
     // The launch sled brakes along the track in the tube from the end of the ramp until it stops short of the
-    // exit airlock (see the trajectory's launchSledBrakingCurve and sledBraking.js; gravity helps as it climbs).
+    // exit airlock (see the trajectory's launchSledBrakingCurve and trackBraking.js; gravity helps as it climbs).
     const breakingGuidwayLength = this.launchSledBrakingDistance ?? launcherElevatedEvacuatedTubeLength
     const launchSledInitialSpeed = this.launcherRampExitSpeed
     const launchSledDeceleration = this.launchSledBrakingDeceleration ?? launchSledInitialSpeed**2 / (2 * breakingGuidwayLength)

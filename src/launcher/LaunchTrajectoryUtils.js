@@ -8,7 +8,7 @@ import * as LauncherRamp from './launcherRamp.js'
 import { arrow } from '../ring/markers.js'
 import { exitAirlockDistanceFromTubeExit } from './EngineeringDetails.js'
 import { launchSledFrontReach } from './LaunchSled.js'
-import { sledBrakingProfile } from './sledBraking.js'
+import { brakingProfile } from './trackBraking.js'
 
 export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
@@ -456,28 +456,23 @@ export function defineUpdateTrajectoryCurves () {
     [launchVehicleRamptToiConvertor, launchVehicleRamptTodConvertor, launchVehicleRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(launchVehicleRampConversionCurvePoints, launchVehicleTimeWithinRamp, this.launcherRampLength)
     const launchRampExitVelocity = launchVehicleRamptTosConvertor(launchVehicleTimeWithinRamp)
 
-    // We would like to decelerate the adaptive nut and bring it to a stop while it's on the ramp.
-    // Afterwards it should be able to slide backwards down the ramp and then coast back to the start of the launcher.
-
-    //const launcherAdaptiveNutRampAcceleration = dParamWithUnits['launcherAdaptiveNutRampAcceleration'].value 
-    const rampLength = allowableUpwardTurningRadius * angleACB
-    // Adding a fudge factor of 0.9 to force the adaptive nut to continue past the end of the ramp to avoid an unhandled edge case
-    const launcherAdaptiveNutRampAcceleration = -(launcherMassDriverExitVelocity**2)/2/rampLength*1 // v^2=2ax, therefore a=v^2/(2x) 
-    console.log('launcherAdaptiveNutRampAcceleration', launcherAdaptiveNutRampAcceleration)
-
-    let adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp
-    [adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp] = new LauncherRamp.CalculateSpeedAndPositionVersusTime(
-      launcherMassDriverExitVelocity,
-      launcherMassDriverAltitude,
-      this.planetRadius,
-      planetSpec,
-      allowableUpwardTurningRadius,
-      angleACB,
-      launcherAdaptiveNutRampAcceleration)
-    this.adaptiveNutTimeWithinRamp = adaptiveNutTimeWithinRamp
-
-    let adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor
-    [adaptiveNutRamptToiConvertor, adaptiveNutRamptTodConvertor, adaptiveNutRamptTosConvertor] = new LauncherRamp.CreateConversionFunctions(adaptiveNutRampConversionCurvePoints, adaptiveNutTimeWithinRamp, this.launcherRampLength)
+    // The adaptive nut brakes from the moment it leaves the last screw (at the bottom of the ramp) and comes to
+    // a stop at the top of the ramp (trackBraking.js). Afterwards it slides backwards down the ramp (see
+    // launcher.updateFallBacks).
+    // Its distance from the centre of the planet, `s` up the ramp: in the triangle ABC (A the centre of the
+    // planet, B the nut, C the centre of the ramp's circle; see launcherRamp.js), the side AB.
+    const rampTriangleSideAC = this.planetRadius + launcherMassDriverAltitude + allowableUpwardTurningRadius
+    const rampRadiusAt = (s) => Math.sqrt(rampTriangleSideAC**2 + allowableUpwardTurningRadius**2 - 2 * rampTriangleSideAC * allowableUpwardTurningRadius * Math.cos(s / allowableUpwardTurningRadius))
+    const adaptiveNutRampBraking = brakingProfile({
+      initialSpeed: launcherMassDriverExitVelocity,
+      stopDistance: this.launcherRampLength,
+      radiusAt: rampRadiusAt,
+      mu: planetSpec.gravitationalParameter,
+    })
+    this.adaptiveNutTimeWithinRamp = adaptiveNutRampBraking.duration
+    const adaptiveNutRamptTodConvertor = adaptiveNutRampBraking.tTod
+    const adaptiveNutRamptTosConvertor = adaptiveNutRampBraking.tTos
+    const adaptiveNutRamptToiConvertor = (t) => adaptiveNutRampBraking.tTod(t) / this.launcherRampLength
 
     // ***************************************************************
     // Next we need to capture some curves and data sets for plotting
@@ -1637,7 +1632,7 @@ export function defineUpdateTrajectoryCurves () {
     // over the ramp (whose high-g turn it makes possible). From the end of the ramp the vehicle coasts on its
     // ballistic trajectory, and the sled brakes on the track inside the elevated evacuated tube, which follows
     // that trajectory. The track ends at the exit airlock's doors (they must be able to close across the
-    // tube), and the sled stops with its front launchSledStopClearance short of them (see sledBraking.js).
+    // tube), and the sled stops with its front launchSledStopClearance short of them (see trackBraking.js).
     // ***************************************************************
     this.exitAirlockDistanceFromTubeExit = this.evacuatedTubeCurve ? exitAirlockDistanceFromTubeExit(dParamWithUnits, planetSpec, this.launchVehicleAirSpeedAtExit) : 0
     const tubeLength = this.evacuatedTubeCurve ? this.evacuatedTubeCurve.getLength() : 0
@@ -1665,7 +1660,7 @@ export function defineUpdateTrajectoryCurves () {
       const trackLength = track.getLength()
       const requestedStopDistance = trackLength - launchSledFrontReach(dParamWithUnits) - dParamWithUnits['launchSledStopClearance'].value
       if (requestedStopDistance <= 0) console.warn('The elevated evacuated tube is too short for the launch sled to stop before the exit airlock')
-      const braking = sledBrakingProfile({
+      const braking = brakingProfile({
         initialSpeed: launchRampExitVelocity,
         stopDistance: Math.max(Math.min(1, trackLength), requestedStopDistance),
         radiusAt: (s) => track.getPointAt(Math.max(0, Math.min(1, s / trackLength))).length(),

@@ -2,7 +2,8 @@ import * as THREE from 'three'
 //import { XYChart } from '../scene/XYChart.js'
 import { SuperCurvePath } from '../curves/SuperCurves.js'
 import * as tram from '../utils/tram.js'
-import { MovingVirtualObject, disposeModels } from './VirtualObject.js'
+import { MovingVirtualObject, disposeModels, pathDuration } from './VirtualObject.js'
+import { fallBackProfile } from './fallBack.js'
 import { referenceFrame } from '../core/ReferenceFrame.js'
 import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
 import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
@@ -165,6 +166,7 @@ export class launcher {
 
     this.objectClasses.forEach(objectClass => objectClass.removeAllVirtualObjects())
 
+    this.planetSpec = planetSpec
     this.refFrames = []
     const numZones = this.numZones
     Highlights.disposeStandIn(this.highlightStandIn)
@@ -201,6 +203,7 @@ export class launcher {
           new referenceFrame(this.polyCurveForrf3, numZones, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame'),
           new referenceFrame(this.polyCurveForrf4, numZones, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame'))
         this.launchTrajectoryLine = this.polyCurveForrf4
+        this.updateFallBacks()
 
         // Which reference frame each class of virtual object lives in
         this.classRefFrameIndex = new Map([
@@ -317,7 +320,7 @@ export class launcher {
     const moving = this.objectClasses.filter(c => c.prototype instanceof MovingVirtualObject)
     let stride = 1
     moving.forEach(c => {
-      if (c.numObjects > 0 && c.refFrames[0]) stride = Math.max(stride, c.strideNeeded(c.refFrames[0].curve.getDuration() + c.egressDuration))
+      if (c.numObjects > 0 && c.refFrames[0]) stride = Math.max(stride, c.strideNeeded(pathDuration(c.refFrames[0].curve) + c.egressDuration))
     })
     const perShip = this.cadence?.terminal ? this.cadence.launchesPerShip : 1
     stride = Math.ceil(stride / perShip) * perShip
@@ -399,6 +402,102 @@ export class launcher {
         objectClass.needsObjects = true
       }
     })
+  }
+
+  // ---- Nuts and sleds falling back down the track ----------------------------------------------
+  // Once it has stopped, each adaptive nut and launch sled falls back down its path (fallBack.js) until it is
+  // out of sight: it disappears at the first point on the way down where the path is underground (or, on a
+  // planet with an ocean, under the sea), or failing that at the bottom of the ramp. Where that is comes from
+  // fixed terrain tiles (setFixedTerrainHeight), which load asynchronously; until they have, the nuts and
+  // sleds fall back to the bottom of the ramp. fallBacksReady resolves once the terrain has been consulted
+  // (recordings wait for it). The Moon's launcher is still to be redesigned: there they just disappear
+  // when they stop, as before.
+
+  updateFallBacks() {
+    const paths = (this.planetSpec?.name === 'Moon') ? [] : [this.polyCurveForrf1, this.polyCurveForrf2].filter(Boolean)
+    paths.forEach(path => { path.fallBack = this.fallBackFor(path, this.rampStartDistance(path)) })
+    const generation = this.fallBackGeneration = (this.fallBackGeneration ?? 0) + 1
+    if (!this.fixedTerrainHeight || paths.length === 0) {
+      this.fallBacksReady = Promise.resolve()
+      return
+    }
+    this.fallBacksReady = Promise.all(paths.map(async path => {
+      const end = await this.groundEntryDistance(path)
+      if (generation === this.fallBackGeneration && end !== null) path.fallBack = this.fallBackFor(path, end)
+    })).then(() => {
+      if (generation !== this.fallBackGeneration) return
+      this.updateLaunchStride()
+      this.refFrames.forEach(refFrame => { refFrame.forceVisibilityRefresh = true })
+    }).catch(error => console.warn('Could not find where the launcher\'s track goes underground:', error))
+  }
+
+  // Path distance at which the object on `path` stops: where the motion along its last sub-curve ends.
+  stopDistance(path) {
+    const curves = path.superCurves
+    const last = curves[curves.length - 1]
+    const before = curves.slice(0, -1).reduce((sum, curve) => sum + curve.getLength(), 0)
+    return before + Math.max(0, Math.min(last.getLength(), last.tTod(last.getDuration())))
+  }
+
+  // Path distance of the start (the bottom) of the ramp on `path`.
+  rampStartDistance(path) {
+    let distance = 0
+    for (const curve of path.superCurves) {
+      if (curve.name.startsWith('launchRampCurve')) return distance
+      distance += curve.getLength()
+    }
+    return distance
+  }
+
+  fallBackFor(path, endDistance) {
+    const length = path.getLength()
+    return fallBackProfile({
+      startDistance: this.stopDistance(path),
+      endDistance,
+      radiusAt: (s) => path.getPointAt(Math.max(0, Math.min(1, s / length))).length(),
+      mu: this.mu,
+    })
+  }
+
+  // The first path distance below where the object on `path` stops at which the path is out of sight under
+  // the ground (or the sea), searching down the ramp; null if it never is.
+  async groundEntryDistance(path) {
+    const rampStart = this.rampStartDistance(path)
+    const ramp = path.superCurves.find(curve => curve.name.startsWith('launchRampCurve'))
+    if (!ramp) return null
+    const length = path.getLength()
+    const ellipsoid = this.planetSpec.ellipsoid
+    const hasOcean = this.planetSpec.hasOcean === true
+    const hidden = async (s) => {
+      const p = path.getPointAt(s / length)
+      const { lat, lon, alt } = tram.ecefToGeodetic(p.x, p.y, p.z, ellipsoid)
+      const ground = await this.fixedTerrainHeight(lat, lon)
+      return (ground !== null && alt < ground) || (hasOcean && alt < 0)
+    }
+    const step = 50 // m
+    let open = Math.min(this.stopDistance(path), rampStart + ramp.getLength())
+    if (await hidden(open)) return open
+    for (let s = open - step; s > rampStart - step; s -= step) {
+      let under = Math.max(rampStart, s)
+      if (await hidden(under)) {
+        // Narrow down where it goes under (to within a few metres).
+        while (open - under > 2) {
+          const mid = (open + under) / 2
+          if (await hidden(mid)) under = mid
+          else open = mid
+        }
+        return under
+      }
+      open = under
+    }
+    return null
+  }
+
+  // fixedTerrainHeight(latDeg, lonDeg) -> Promise<metres | null>: the terrain's height from fixed tiles (the
+  // same wherever the camera has been), for where the nuts and sleds go out of sight (updateFallBacks).
+  setFixedTerrainHeight(fixedTerrainHeight) {
+    this.fixedTerrainHeight = fixedTerrainHeight
+    this.updateFallBacks()
   }
 
   // sampleTerrainHeight(latDeg, lonDeg) -> { heightMeters, lod } | null: where the tube's mooring cables
@@ -483,7 +582,7 @@ export class launcher {
     if (!objectClass) return null
     const refFrame = objectClass.refFrames[0]
     const adj = objectClass.adjustedTime(this.animationTimeAt(simTime))
-    const deltaT = Math.max(-objectClass.egressDuration, Math.min(refFrame.curve.getDuration(), adj - launchIndex * objectClass.tInc))
+    const deltaT = Math.max(-objectClass.egressDuration, Math.min(pathDuration(refFrame.curve), adj - launchIndex * objectClass.tInc))
     const object = Object.create(objectClass.prototype)
     object.launchIndex = launchIndex
     object.timeLaunched = launchIndex * objectClass.tInc
@@ -495,7 +594,7 @@ export class launcher {
   activeLaunchIndicesAt(className, simTime) {
     const objectClass = this.movingObjectClass(className)
     if (!objectClass || !(objectClass.numObjects > 0)) return []
-    return objectClass.activeLaunchIndices(objectClass.adjustedTime(this.animationTimeAt(simTime)), objectClass.refFrames[0].curve.getDuration())
+    return objectClass.activeLaunchIndices(objectClass.adjustedTime(this.animationTimeAt(simTime)), pathDuration(objectClass.refFrames[0].curve))
   }
 
   // Simulated time at which launch `launchIndex` has been on its path for `deltaT` seconds.
@@ -526,6 +625,10 @@ export class launcher {
     for (const curve of path.superCurves) {
       stages.push({ name: curve.name, deltaT: t })
       t += curve.getDuration()
+    }
+    if (path.fallBack?.duration > 0) {
+      stages.push({ name: 'fallBack', deltaT: t })
+      t += path.fallBack.duration
     }
     stages.push({ name: 'end', deltaT: t })
     return stages

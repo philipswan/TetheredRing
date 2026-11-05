@@ -256,7 +256,7 @@ export class MovingVirtualObject extends VirtualObject {
   // visible models. visibleZones is a Uint8Array indexed by zone.
   static syncToTime(refFrame, visibleZones) {
     const adj = this.adjustedTime(refFrame.timeSinceStart)
-    const duration = refFrame.curve.getDuration()
+    const duration = pathDuration(refFrame.curve)
     const previous = this.activeObjects
     const next = new Map()
     this.activeLaunchIndices(adj, duration).forEach(k => {
@@ -271,7 +271,7 @@ export class MovingVirtualObject extends VirtualObject {
     refFrame.wedges.forEach(wedge => { wedge[this.className].length = 0 })
     next.forEach(obj => {
       // (While leaving the terminal it is in the zone of the start of its path.)
-      const zoneIndex = refFrame.curve.getZoneIndex(Math.max(0, adj - obj.timeLaunched))
+      const zoneIndex = pathZoneIndex(refFrame.curve, adj - obj.timeLaunched)
       refFrame.wedges[zoneIndex][this.className].push(obj)
       const visible = this.isVisible && visibleZones[zoneIndex] === 1
       if (visible && !obj.model) obj.model = this.acquireModel(obj, refFrame)
@@ -307,14 +307,14 @@ export class MovingVirtualObject extends VirtualObject {
     const ctor = this.constructor
     const adj = ctor.adjustedTime(refFrame.timeSinceStart + timeDeltaInSeconds)
     const deltaT = adj - this.timeLaunched
-    return (deltaT >= -ctor.egressDuration && deltaT <= refFrame.curve.getDuration()) ? deltaT : null
+    return (deltaT >= -ctor.egressDuration && deltaT <= pathDuration(refFrame.curve)) ? deltaT : null
   }
 
   // Time along this object's trajectory at refFrame's time, kept to it (from its egress to its end).
   clampedDeltaT(refFrame) {
     const ctor = this.constructor
     const deltaT = ctor.adjustedTime(refFrame.timeSinceStart) - this.timeLaunched
-    return Math.max(-ctor.egressDuration, Math.min(refFrame.curve.getDuration(), deltaT))
+    return Math.max(-ctor.egressDuration, Math.min(pathDuration(refFrame.curve), deltaT))
   }
 
   // Default getFutureFrame: frameAt() is implemented by subclasses and returns the rendered model's
@@ -329,7 +329,7 @@ export class MovingVirtualObject extends VirtualObject {
     if (deltaT === null) {
       // Clamp to the trajectory so that trackers following an object that just finished get its end point
       const adj = this.constructor.adjustedTime(refFrame.timeSinceStart + timeDeltaInSeconds)
-      deltaT = Math.max(-this.constructor.egressDuration, Math.min(refFrame.curve.getDuration(), adj - this.timeLaunched))
+      deltaT = Math.max(-this.constructor.egressDuration, Math.min(pathDuration(refFrame.curve), adj - this.timeLaunched))
     }
     const frame = this.frameAt(refFrame, deltaT)
     return {
@@ -342,12 +342,27 @@ export class MovingVirtualObject extends VirtualObject {
   }
 }
 
+// How long a moving object is on `path`: along it, and then (path.fallBack, which the launcher gives the
+// nuts' and sleds' paths: see fallBack.js) back down it.
+export function pathDuration(path) {
+  return path.getDuration() + (path.fallBack?.duration ?? 0)
+}
+
+// The zone of `path` an object is in `deltaT` seconds after it entered it.
+export function pathZoneIndex(path, deltaT) {
+  if (path.fallBack && deltaT > path.getDuration()) {
+    return path.getZoneIndexAt(path.fallBack.distanceAt(deltaT - path.getDuration()) / path.getLength())
+  }
+  return path.getZoneIndex(Math.max(0, deltaT))
+}
+
 // Position and orientation along a SuperCurvePath `deltaT` seconds after an object entered it.
 // useT selects the curve's own spline parameter (tToi) instead of arc length (tTod); curves without a
 // tToi converter, and the animated coiled tube (whose spline parameter does not match the converters
 // of the uncoiled tube), always use arc length.
 // Before the path (deltaT < 0, leaving the terminal: MovingVirtualObject.egress), the object is on the
 // line of the path's start, `egress` behind it, and the result has egress: true and a negative distance.
+// After the path's duration, an object whose path has a fallBack is falling back down it (fallingBack: true).
 export function curveFrameAtTime(path, deltaT, useT = false) {
   if (deltaT < 0) {
     const f = curveFrameAtTime(path, 0, useT)
@@ -356,6 +371,20 @@ export function curveFrameAtTime(path, deltaT, useT = false) {
     f.distance -= behind
     f.egress = true
     return f
+  }
+  if (path.fallBack && deltaT > path.getDuration()) {
+    // Falling back down the path (still facing along it), by distance along the whole path.
+    const res = path.findRelevantCurveAt(path.fallBack.distanceAt(deltaT - path.getDuration()) / path.getLength())
+    const curve = res.relevantCurve
+    const length = res.relevantCurveLength
+    const distance = path.fallBack.distanceAt(deltaT - path.getDuration()) - res.relevantCurveStartPosition
+    const d = (length > 0) ? Math.max(0, Math.min(1, distance / length)) : 0
+    const point = curve.getPointAt(d)
+    const forward = curve.getTangentAt(d).normalize()
+    const upward = curve.getNormalAt(d)
+    upward.addScaledVector(forward, -upward.dot(forward)).normalize()
+    res.relevantCurveStartDistance = res.relevantCurveStartPosition
+    return { res, curve, t: null, i: d, d, distance, byT: false, point, forward, upward, egress: false, fallingBack: true }
   }
   const res = path.findRelevantCurve(deltaT)
   const curve = res.relevantCurve
