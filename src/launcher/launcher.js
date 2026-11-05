@@ -29,6 +29,7 @@ import { launchCadence } from './launchCadence.js'
 import { terminalSchedule } from './terminalPort.js'
 import { MIN_DEPTH } from './OceanTerminal.js'
 import { LaunchVehicleGlow } from './LaunchVehicleGlow.js'
+import { splitPositions, withRelativeToEye } from '../scene/relativeToEye.js'
 
 //import { arrow } from '../ring/markers.js'
 //import { FrontSide } from 'three'
@@ -760,8 +761,9 @@ export class launcher {
     if (objectClass) objectClass.removeAllVirtualObjects()
   }
 
-  // Draws the trajectory as a group of LineSegments chunks, each with its own local origin, so that
-  // vertex coordinates stay small (float32 precision) even though the trajectory reaches orbit.
+  // Draws the trajectory as one LineSegments, relative to its start. It reaches orbit, thousands of kilometres
+  // from there, where float32 vertex positions would only be good to ~0.1 m, so it is drawn relative to the
+  // eye (see relativeToEye.js): exact to well under a millimetre near the camera, wherever it is along it.
   drawLaunchTrajectoryLine(dParamWithUnits, planetCoordSys) {
 
     if (this.launchTrajectoryMesh) {
@@ -773,7 +775,6 @@ export class launcher {
     const color = new THREE.Color()
     const totalDuration = this.launchTrajectoryLine.getDuration()
     const tStep = 1 // second
-    const segmentsPerChunk = 256
 
     const pointAt = (deltaT) => {
       const res = this.launchTrajectoryLine.findRelevantCurve(deltaT)
@@ -783,51 +784,46 @@ export class launcher {
       return relevantCurve.getPointAt(d)
     }
 
-    const launchTrajectoryMaterial = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: dParamWithUnits['launchTrajectoryVisibility'].value
-    })
     const group = new THREE.Group()
     group.name = 'launchTrajectory'
     group.visible = dParamWithUnits['showLaunchTrajectory'].value
     group.renderOrder = 1
 
-    let positions = []
-    let colors = []
-    let chunkOrigin = null
-    const flush = () => {
-      if (positions.length === 0) return
-      const geometry = new THREE.BufferGeometry()
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-      const chunk = new THREE.LineSegments(geometry, launchTrajectoryMaterial)
-      chunk.position.copy(chunkOrigin)
-      chunk.renderOrder = 1
-      group.add(chunk)
-      positions = []
-      colors = []
-      chunkOrigin = null
-    }
-
-    let prev = pointAt(0)
-    let segmentCount = 0
+    const origin = pointAt(0)
+    const offsets = []   // (float64, relative to origin)
+    const colors = []
+    let prev = origin
     if (Number.isFinite(totalDuration)) {
       for (let deltaT = tStep; deltaT < totalDuration; deltaT += tStep) {
         const curr = pointAt(deltaT)
-        if (!chunkOrigin) chunkOrigin = prev.clone()
-        positions.push(prev.x - chunkOrigin.x, prev.y - chunkOrigin.y, prev.z - chunkOrigin.z)
-        positions.push(curr.x - chunkOrigin.x, curr.y - chunkOrigin.y, curr.z - chunkOrigin.z)
+        offsets.push(prev.x - origin.x, prev.y - origin.y, prev.z - origin.z)
+        offsets.push(curr.x - origin.x, curr.y - origin.y, curr.z - origin.z)
         // Major hash marks every 60 seconds and minor ones every 10 seconds
         const floorT = Math.floor(deltaT)
         if ((floorT%10==9) || (floorT%60==58)) color.setHSL(0.0, 0.8, 0.7)
         else color.setHSL(0.35, 0.8, 0.3)
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
         prev = curr
-        if (++segmentCount % segmentsPerChunk === 0) flush()
       }
     }
-    flush()
+    if (offsets.length > 0) {
+      const { high, low } = splitPositions(offsets)
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(high, 3))
+      geometry.setAttribute('positionLow', new THREE.BufferAttribute(low, 3))
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+      const material = withRelativeToEye(new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: dParamWithUnits['launchTrajectoryVisibility'].value
+      }))
+      const line = new THREE.LineSegments(geometry, material)
+      line.name = 'launchTrajectoryLine'
+      line.position.copy(origin)
+      line.renderOrder = 1
+      line.onBeforeRender = (renderer, scene, camera) => material.userData.setCamera(line, camera)
+      group.add(line)
+    }
 
     this.launchTrajectoryMesh = group
     planetCoordSys.add(group)
