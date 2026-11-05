@@ -14,6 +14,7 @@ import cameraPresets from '../data/cameraPresets.json' with { type: 'json' }
 // The grappler-sequencing algorithms are owned by the launcher module that implements them; re-exported
 // so presets can refer to them (e.g. grapplerSequencingModes.Original).
 import { grapplerSequencingModes } from '../launcher/grapplerPlacement.js'
+import { CAMERA_SCHEMES } from '../camera/CameraControlSwitch.js'
 export { grapplerSequencingModes }
 
 const radiusOfEarth = 6378100 // m
@@ -682,6 +683,9 @@ export function createParameterDefinitions() {
   // put and only turns to keep it in frame, between drifts after it.
   trackingMode: {value: 0, units: '', autoMap: true, min: 0, max: 2, step: 1, onChange: 'updateTrackingMode', folder: 'Camera'},
   trackingFollow: {value: 1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateTrackingMode', folder: 'Camera'},
+  // Which camera control scheme drives the free camera (src/camera/CameraControlSwitch.js): the classic
+  // orbit controls, or the smart one (CameraController). The settings below are the smart scheme's.
+  cameraControlScheme: {value: 'classic', units: '', autoMap: true, options: CAMERA_SCHEMES, onChange: 'updateCameraScheme', folder: 'Camera'},
   // Navigation with the mouse, touchpad and touchscreen.
   cameraRotateSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
   cameraZoomSpeed: {value: 1, units: '', autoMap: true, min: 0.1, max: 5, onChange: 'updatedParam', folder: 'Camera'},
