@@ -137,7 +137,7 @@ export class massDriverBracketModel {
     const bracketCost = bracketMass * costOfMaterial
     specs['massDriverBracketMaterialCost'] = {value: bracketCost, units: "USD"}
     // contour.forEach(point => {
-    //   console.print(point.x, point.y)
+    //   console.log(point.x, point.y)
     // })
 
   }

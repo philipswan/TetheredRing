@@ -9,6 +9,7 @@ import { arrow } from '../ring/markers.js'
 import { exitAirlockDistanceFromTubeExit } from './EngineeringDetails.js'
 import { launchSledFrontReach } from './LaunchSled.js'
 import { brakingProfile } from './trackBraking.js'
+import { print } from '../utils/print.js'
 
 // The points of the CatmullRomSuperCurve3 `curve` up to `fraction` of its length: its control points before
 // there (none very close to it), then the point there.
@@ -104,11 +105,6 @@ export function defineUpdateTrajectoryCurves () {
     // The goal is to position the suspended portion of the evacuated launch tube under the tethered ring's tethers. The portion of the launch tube that contains the mass driver will be on the planet's surface.
     // Let's start by defining the sothern most point on the ring as the end of the mass driver. Then we can create a curve that initially follows the surface of the Earth and then, from the end of the mass driver,
     // follows a hyperbolic trajectory away from the planet.
-
-    // console.print: console.log without filename/line number
-    console.print = function (...args) {
-      queueMicrotask (console.log.bind (console, ...args));
-    }
 
     // ***************************************************************
     // Design the mass driver
@@ -281,7 +277,7 @@ export function defineUpdateTrajectoryCurves () {
     //   const deltaVNeededToCircularizeOrbit = speedOfCircularizedOrbit - speedAtApogee
     //   const launchVehicleRocketExhaustVelocity = dParamWithUnits['launchVehicleRocketExhaustVelocity'].value
     //   const m0Overmf = Math.exp(deltaVNeededToCircularizeOrbit / launchVehicleRocketExhaustVelocity)
-    //   console.print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - this.planetRadius), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
+    //   print(launcherMassDriverExitVelocity, Math.round(apogeeDistance - this.planetRadius), Math.round(deltaVNeededToCircularizeOrbit), Math.round(m0Overmf * 100)/100)
     // }
 
     // Need a vector normal to planet's axis that points to the evacuated tube's entrance
@@ -729,7 +725,7 @@ export function defineUpdateTrajectoryCurves () {
         heatShieldTemperatureVersusTimeData.push(new THREE.Vector3(t, heatShieldTemperature, 0))
       }
     }
-    console.print('Speed at the end of horizontal acceleration:', vehicleAirSpeed, 'm/s')
+    print('Speed at the end of horizontal acceleration:', vehicleAirSpeed, 'm/s')
 
     //console.log('done')
 
@@ -760,7 +756,7 @@ export function defineUpdateTrajectoryCurves () {
     // for (let t = 0; lastAngle<angleACB; t+=deltaT) {
     //   const lutSpeed = launchVehicleRamptTosConvertor(t)
     //   const lutDistance = launchVehicleRamptTodConvertor(t)
-    //   console.print(t, speed, lutSpeed, distance, lutDistance)
+    //   print(t, speed, lutSpeed, distance, lutDistance)
     //   // Change in angular position...
     //   const deltaAngle = speed * deltaT / allowableUpwardTurningRadius
     //   lastAngle = angle
@@ -1026,7 +1022,7 @@ export function defineUpdateTrajectoryCurves () {
     let fuelFlowRate = maxFuelFlowRate
     let mTotal = mVehicle + mPayload + mPropellant
     const noseconeAngle = Math.atan2(launchVehicleRadius, launchVehicleNoseconeLength)
-    console.print('noseconeAngle (deg)', noseconeAngle * 180 / Math.PI)
+    print('noseconeAngle (deg)', noseconeAngle * 180 / Math.PI)
     const numFreeFlightSplinePoints = Math.max(4, totalSplinePoints - numEvacuatedTubeSplinePoints)
     const tStep2 = (t6a - t5a) / (numFreeFlightSplinePoints - 1)
     let accellerateToRaisePerigee = false
@@ -1118,17 +1114,17 @@ export function defineUpdateTrajectoryCurves () {
       // Print out some of the peak values that occur at the moment the vehicle leaves the evacuated tube
       if (i===0) {
         console.log('--- Vehicle State at Exit from Evacuated Tube ---')
-        console.print('Vehicle Speed - Inertial Frame (m/s)', myFormat(vehicleSpeed))
-        console.print('Vehicle Air Speed (m/s)', myFormat(vehicleAirSpeed))
-        console.print('Vehicle Altitude (m)', myFormat(altitude))
-        console.print('Air Pressure (atm)', myFormat(airPressureInAtmospheres, 3))
-        console.print('Air Density (kg/m^3)', myFormat(airDensity, 3))
-        console.print('Aerodynamic Drag (N)', myFormat(aerodynamicDrag))
-        console.print('Dynamic Pressure (MPa)', myFormat(dynamicPressure/1e6, 2))
-        console.print('Convective Heating Rate (W/mm^2)', myFormat(qConv/1e6, 3))
-        console.print('Convective Heating At Tip (W)', myFormat(qConvTip, 3))
-        console.print('Radiative Heating Rate (W/mm^2)', myFormat(qRad/1e6, 3))
-        console.print('-----------------------------------------------')
+        print('Vehicle Speed - Inertial Frame (m/s)', myFormat(vehicleSpeed))
+        print('Vehicle Air Speed (m/s)', myFormat(vehicleAirSpeed))
+        print('Vehicle Altitude (m)', myFormat(altitude))
+        print('Air Pressure (atm)', myFormat(airPressureInAtmospheres, 3))
+        print('Air Density (kg/m^3)', myFormat(airDensity, 3))
+        print('Aerodynamic Drag (N)', myFormat(aerodynamicDrag))
+        print('Dynamic Pressure (MPa)', myFormat(dynamicPressure/1e6, 2))
+        print('Convective Heating Rate (W/mm^2)', myFormat(qConv/1e6, 3))
+        print('Convective Heating At Tip (W)', myFormat(qConvTip, 3))
+        print('Radiative Heating Rate (W/mm^2)', myFormat(qRad/1e6, 3))
+        print('-----------------------------------------------')
       }
 
       const maxPossibleRocketThrust = maxFuelFlowRate * launchVehicleRocketExhaustVelocity
@@ -1486,9 +1482,9 @@ export function defineUpdateTrajectoryCurves () {
     this.remainingPropellantAfterFreeFlight = mPropellant
     //console.log('done')
 
-    console.print("Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1e3)/1e3, "MN")
+    print("Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1e3)/1e3, "MN")
     const peakDeceleration = peakAerodynamicDrag / m0
-    console.print("Peak Deceleration if Rocket Fails", Math.round(peakDeceleration), "m/s2")
+    print("Peak Deceleration if Rocket Fails", Math.round(peakDeceleration), "m/s2")
 
     distanceTravelled += distanceTravelledOutsideLaunchSystem
 
@@ -1767,13 +1763,13 @@ export function defineUpdateTrajectoryCurves () {
     if (dParamWithUnits['showHeatShieldTemperatureVersusTime'].value) this.xyChart.addCurve("Heat Shield Temperature", "K", "K", heatShieldTemperatureVersusTimeData, (y)=>y*0.1, 0xff0000, "Red", "Heat Shield Temperature (10's K)")
     this.xyChart.drawLegend(14, 22)
 
-    //console.print("Altitude (km)", "Air Pressure (Pa)", "Aerodynamic Drag (N)", "Convective Heating (W/mm2)")
+    //print("Altitude (km)", "Air Pressure (Pa)", "Aerodynamic Drag (N)", "Convective Heating (W/mm2)")
     function list(array1, array2, array3, array4, array5) {
       for (let i = 0; i<array1.length; i++) {
-        console.print(array1[i].x, array1[i].y, array2[i].y, array3[i].y, array4[i].y/1e6, array5[i].y/1e6)
+        print(array1[i].x, array1[i].y, array2[i].y, array3[i].y, array4[i].y/1e6, array5[i].y/1e6)
       }
     }
-    // console.print("altitudeVersusTimeData")
+    // print("altitudeVersusTimeData")
     // //list(altitudeVersusTimeData)
     // console.log("airPressureVersusTimeData")
     //list(altitudeVersusTimeData, airPressureVersusTimeData, aerodynamicDragVersusTimeData, convectiveHeatingVersusTimeData, radiativeHeatingVersusTimeData)
@@ -1783,51 +1779,51 @@ export function defineUpdateTrajectoryCurves () {
 
     // forwardAccelerationVersusTimeData.forEach(point => {
     //   if (point.y<0) {
-    //     console.print(point.x, -point.y)
+    //     print(point.x, -point.y)
     //   }
     // })
     if (verbose) {
-      console.print('========= Chart Legend and Y-Axis Values ==========')
+      print('========= Chart Legend and Y-Axis Values ==========')
       //let peakAerodynamicDrag = 0
       this.xyChart.curveInfo.forEach(curve =>{
         if (curve.name == 'Aerodynamic Drag') {
-          console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY), curve.units)
-          console.print('   (Equivalent to ' + Math.round(curve.largestY/2279000*100)/100 + ' RS-25 Space Shuttle Main Engines)')
-          console.print('   (Equivalent to ' + Math.round(curve.largestY/2520000*100)/100 + ' SpaceX Raptor2 Vacuum Engines)')
+          print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY), curve.units)
+          print('   (Equivalent to ' + Math.round(curve.largestY/2279000*100)/100 + ' RS-25 Space Shuttle Main Engines)')
+          print('   (Equivalent to ' + Math.round(curve.largestY/2520000*100)/100 + ' SpaceX Raptor2 Vacuum Engines)')
           //peakAerodynamicDrag = curve.maxY
         }
         else {
-          console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY*curve.yScale), curve.scaledUnits)
+          print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY*curve.yScale), curve.scaledUnits)
         }
       })
       
-      console.print('===================================================')
-      // console.print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000000), 'MN')
-      // console.print("RS-25 Engine Thrust 2279 kN")
-      //console.print("Vehicle Initial Mass", Math.round(m0), 'kg')
-      console.print("MassDriver1 Time", Math.round(launcherMassDriver1AccelerationTime*10)/10, 'sec')
-      console.print("MassDriver2 Time", Math.round(launcherMassDriver2AccelerationTime*10)/10, 'sec (' + Math.round(launcherMassDriver2AccelerationTime*100/60)/100, 'min)')
-      console.print("Ramp Time", Math.round(this.launchVehicleTimeWithinRamp*10)/10, 'sec')
-      console.print("Evacuate Tube Time", Math.round(this.timeWithinEvacuatedTube*10)/10, 'sec')
-      console.print("Forward Acceleration", Math.round(launcherMassDriverForwardAcceleration*10)/10, 'm/s2')
-      console.print("Upward Acceleration", Math.round(launcherRampUpwardAcceleration*10)/10, 'm/s2')
-      console.print("Time at Elevated Evacuated Tube Exit", launcherMassDriver1AccelerationTime + launcherMassDriver2AccelerationTime + this.launchVehicleTimeWithinRamp + this.timeWithinEvacuatedTube, 'sec')
-      console.print("Total Time on Chart X-Axis", Math.round(t6a), 'sec (' + Math.round(t6a/6)/10 + ' min)')
-      console.print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/10)/100, 'km (',  Math.round(this.launcherMassDriver1Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
-      console.print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/10)/100, 'km (',  Math.round(this.launcherMassDriver2Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
-      console.print("Ramp Length", Math.round(this.launcherRampLength/10)/100, 'km (',  Math.round(this.launcherRampLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
-      console.print("Elevated Evacuated Tube Length", Math.round(this.launcherElevatedEvacuatedTubeLength/10)/100, 'km (',  Math.round(this.launcherElevatedEvacuatedTubeLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
-      console.print("Elevated Evacuated Tube Exit Altitude", Math.round(launcherEvacuatedTubeExitAltitude/10)/100, 'km')
-      console.print("Total Length Of Launch System", Math.round(this.totalLengthOfLaunchSystem/10)/100, 'km')
-      console.print('Hit \'s\' to print out more specifications.')
+      print('===================================================')
+      // print("Vehicle Peak Aerodynamic Drag", Math.round(peakAerodynamicDrag/1000000), 'MN')
+      // print("RS-25 Engine Thrust 2279 kN")
+      //print("Vehicle Initial Mass", Math.round(m0), 'kg')
+      print("MassDriver1 Time", Math.round(launcherMassDriver1AccelerationTime*10)/10, 'sec')
+      print("MassDriver2 Time", Math.round(launcherMassDriver2AccelerationTime*10)/10, 'sec (' + Math.round(launcherMassDriver2AccelerationTime*100/60)/100, 'min)')
+      print("Ramp Time", Math.round(this.launchVehicleTimeWithinRamp*10)/10, 'sec')
+      print("Evacuate Tube Time", Math.round(this.timeWithinEvacuatedTube*10)/10, 'sec')
+      print("Forward Acceleration", Math.round(launcherMassDriverForwardAcceleration*10)/10, 'm/s2')
+      print("Upward Acceleration", Math.round(launcherRampUpwardAcceleration*10)/10, 'm/s2')
+      print("Time at Elevated Evacuated Tube Exit", launcherMassDriver1AccelerationTime + launcherMassDriver2AccelerationTime + this.launchVehicleTimeWithinRamp + this.timeWithinEvacuatedTube, 'sec')
+      print("Total Time on Chart X-Axis", Math.round(t6a), 'sec (' + Math.round(t6a/6)/10 + ' min)')
+      print("MassDriver1 Length", Math.round(this.launcherMassDriver1Length/10)/100, 'km (',  Math.round(this.launcherMassDriver1Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
+      print("MassDriver2 Length", Math.round(this.launcherMassDriver2Length/10)/100, 'km (',  Math.round(this.launcherMassDriver2Length/this.totalLengthOfLaunchSystem*10000)/100, '%)')
+      print("Ramp Length", Math.round(this.launcherRampLength/10)/100, 'km (',  Math.round(this.launcherRampLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
+      print("Elevated Evacuated Tube Length", Math.round(this.launcherElevatedEvacuatedTubeLength/10)/100, 'km (',  Math.round(this.launcherElevatedEvacuatedTubeLength/this.totalLengthOfLaunchSystem*10000)/100, '%)')
+      print("Elevated Evacuated Tube Exit Altitude", Math.round(launcherEvacuatedTubeExitAltitude/10)/100, 'km')
+      print("Total Length Of Launch System", Math.round(this.totalLengthOfLaunchSystem/10)/100, 'km')
+      print('Hit \'s\' to print out more specifications.')
 
       // const massDriverCost = (this.launcherMassDriver1Length + this.launcherMassDriver2Length) * massDriverCostPerMeter
       // const rampCost = this.launcherRampLength * rampCostPerMeter
       // const suspendedEvacuatedTubeCost = this.launcherElevatedEvacuatedTubeLength * suspendedEvacuatedTubeCostPerMeter
-      // console.print("MassDriver Cost", Math.round(massDriverCost/1e6)/1e3, 'billion USD')
-      // console.print("Ramp Cost", Math.round(rampCost/1e6)/1e3, 'billion USD')
-      // console.print("Suspended Evacuated Tube Cost", Math.round(suspendedEvacuatedTubeCost/1e6)/1e3, 'billion USD')
-      // console.print('==================================================')
+      // print("MassDriver Cost", Math.round(massDriverCost/1e6)/1e3, 'billion USD')
+      // print("Ramp Cost", Math.round(rampCost/1e6)/1e3, 'billion USD')
+      // print("Suspended Evacuated Tube Cost", Math.round(suspendedEvacuatedTubeCost/1e6)/1e3, 'billion USD')
+      // print('==================================================')
     }
 
     // Note that each segment has launcherMassDriverNumScrews screws. The screws (and brackets) are spread

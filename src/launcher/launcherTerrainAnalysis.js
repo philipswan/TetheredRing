@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { print } from '../utils/print.js'
 
 // Analyzes the launcher ramp altitude against terrain displacement
 // This hack plots the altitude of the ramp section of the launcher alongside the distance above sea level,
@@ -41,8 +42,8 @@ export function analyzeLauncherTerrainDisplacement(launchSystemObject, planetMes
     const altitude = geo.alt  // This is the altitude above sea level of the ramp section of the launcher
     const terrainResult = sampleTerrainDisplacement(point)
     if (terrainResult !== null) {
-      //console.print(i.toFixed(2), altitude, terrainResult.displacement, `tile(${terrainResult.ti},${terrainResult.tj})`, `px=${terrainResult.px}`, `py=${terrainResult.py}`, `tex=${terrainResult.texValue.toFixed(4)}`)
-      console.print(i.toFixed(5), altitude, terrainResult.displacement)
+      //print(i.toFixed(2), altitude, terrainResult.displacement, `tile(${terrainResult.ti},${terrainResult.tj})`, `px=${terrainResult.px}`, `py=${terrainResult.py}`, `tex=${terrainResult.texValue.toFixed(4)}`)
+      print(i.toFixed(5), altitude, terrainResult.displacement)
       // Place a debug sphere at the terrain surface point
       const terrainECEF = tram.geodeticToECEF(geo.lat, geo.lon, terrainResult.displacement, planetSpec.ellipsoid)
       const terrainPoint = new THREE.Vector3(terrainECEF.x, terrainECEF.y, terrainECEF.z)

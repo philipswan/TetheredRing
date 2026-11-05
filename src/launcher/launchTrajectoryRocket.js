@@ -2,15 +2,11 @@ import * as THREE from 'three'
 import { CatmullRomSuperCurve3 } from '../curves/SuperCurves.js'
 import * as tram from '../utils/tram.js'
 import { simRocketFlight } from './simRocketFlight.js'
+import { print } from '../utils/print.js'
 
 export function defineUpdateTrajectoryCurvesRocket () {
   return function (dParamWithUnits, planetSpec) {
 
-    // console.print: console.log without filename/line number
-    console.print = function (...args) {
-      queueMicrotask (console.log.bind (console, ...args));
-    }
-  
     const lat = dParamWithUnits['rocketLaunchPadLatitude'].value
     const lon = dParamWithUnits['rocketLaunchPadLongitude'].value
     let rocketRadius = dParamWithUnits['rocketRadius'].value
@@ -88,7 +84,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
     // for (let mdot = 0; mdot <= engineParams.mdot_max; mdot += engineParams.mdot_max/64) {
     //   engineParams.mdot = mdot
     //   const {inertialThrust, pressureThrust, ve} = tram.calculateThrustAndExitVelocity(engineParams)
-    //   console.print(mdot, inertialThrust, pressureThrust, ve)
+    //   print(mdot, inertialThrust, pressureThrust, ve)
     // }
     
     // const maxThrust = tram.calculateMaxThrust(engineParams)
@@ -99,7 +95,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
     //   const flowRate1 = tram.solveForMassFlowRate(engineParams)
     //   engineParams.P0 = 101325
     //   const flowRate2 = tram.solveForMassFlowRate(engineParams)
-    //   console.print(targetThrust, flowRate1, flowRate2)
+    //   print(targetThrust, flowRate1, flowRate2)
     // }
 
     const spacexRaptorIdealExhaustVelocitySLEng = tram.exhaustVelocity(gamma, Tc, M, Pc, PeSL)
@@ -240,7 +236,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
         console.log(`${key}: ${originalTunableParams[key]} -> ${finalTunableParams[key]}`)
       })
       tunableParams.forEach(({ key }) => {
-        console.print(`guidParamWithUnits['${key}'].value = ${finalTunableParams[key]}`)
+        print(`guidParamWithUnits['${key}'].value = ${finalTunableParams[key]}`)
       })
     }
     else {
@@ -528,21 +524,21 @@ export function defineUpdateTrajectoryCurvesRocket () {
 
     // forwardAccelerationVersusTimeData.forEach(point => {
     //   if (point.y<0) {
-    //     console.print(point.x, -point.y)
+    //     print(point.x, -point.y)
     //   }
     // })
     if (verbose) {
-      console.print('========= Chart Legend and Y-Axis Values ==========')
+      print('========= Chart Legend and Y-Axis Values ==========')
       //let peakAerodynamicDrag = 0
       this.xyChart.curveInfo.forEach(curve =>{
         if (curve.name == 'Aerodynamic Drag') {
-          console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY), curve.units)
-          console.print('   (Equivalent to ' + Math.round(curve.largestY/2279000*100)/100 + ' RS-25 Space Shuttle Main Engines)')
-          console.print('   (Equivalent to ' + Math.round(curve.largestY/2520000*100)/100 + ' SpaceX Raptor2 Vacuum Engines)')
+          print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY), curve.units)
+          print('   (Equivalent to ' + Math.round(curve.largestY/2279000*100)/100 + ' RS-25 Space Shuttle Main Engines)')
+          print('   (Equivalent to ' + Math.round(curve.largestY/2520000*100)/100 + ' SpaceX Raptor2 Vacuum Engines)')
           //peakAerodynamicDrag = curve.maxY
         }
         else {
-          console.print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY*curve.yScale), curve.scaledUnits)
+          print(curve.name, '(', curve.colorName, ')', Math.round(curve.largestY*curve.yScale), curve.scaledUnits)
         }
       })
 
