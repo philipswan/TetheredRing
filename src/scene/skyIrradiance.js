@@ -8,7 +8,9 @@
 // is scaled by MULTIPLE_SCATTERING.
 
 export const ATMO_BETA_R = [5.8e-6, 13.5e-6, 33.1e-6]
-export const ATMO_BETA_M = 8e-6
+export const ATMO_BETA_M = 80e-6  // (the sky's: atmosphereCommon.glsl with ATMO_SKY_AEROSOL)
+export const ATMO_MIE_MULTIPLE = 0.06
+export const ATMO_MIE_MULTIPLE_TINT = [0.7207, 1.0083, 1.7402]
 export const ATMO_HEIGHT_R = 8000
 export const ATMO_HEIGHT_M = 1200
 export const ATMO_MIE_G = 0.76
@@ -81,7 +83,7 @@ function skyRadiance(d, sun) {
   const phaseR = 3 / (16 * Math.PI) * (1 + cos * cos)
   const g2 = ATMO_MIE_G * ATMO_MIE_G
   const phaseM = 3 / (8 * Math.PI) * ((1 - g2) * (1 + cos * cos)) / ((2 + g2) * Math.pow(1 + g2 - 2 * ATMO_MIE_G * cos, 1.5))
-  return [0, 1, 2].map(c => sumR[c] * ATMO_BETA_R[c] * phaseR + sumM[c] * ATMO_BETA_M * phaseM)
+  return [0, 1, 2].map(c => sumR[c] * ATMO_BETA_R[c] * phaseR + ATMO_BETA_M * (sumM[c] * phaseM + sumM[1] * ATMO_MIE_MULTIPLE * ATMO_MIE_MULTIPLE_TINT[c]))
 }
 
 /** Sky irradiance (RGB) on a level surface at sea level, per unit of the sun's irradiance. */

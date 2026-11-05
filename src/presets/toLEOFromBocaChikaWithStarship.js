@@ -15,7 +15,6 @@ export function toLEOFromBocaChikaWithStarship(guidParamWithUnits, nonGUIParams)
   const rampExitAltitude = 400    // Temporary until we can remove the mass driver code entirely
   toLowOrbitWithRocket(guidParamWithUnits, rocketLaunchPadLatitude, rocketLaunchPadLongitude, massDriverAltitude, rampExitAltitude)
 
-  guidParamWithUnits['launchVehicleFlameLength'].value = 1
 
   // ISPs are from https://x.com/elonmusk/status/1171118891671490560
   // At sea level values are estimated using ratio of "At Sea Level" thrust to "In Vacuum" thrust from Falcon9 which is 7607/8227. See "thrust" at https://www.spacex.com/vehicles/falcon-9/

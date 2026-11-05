@@ -271,13 +271,16 @@ export function createParameterDefinitions() {
   launchVehicleForwardsOffset: {value: 23, units: 'm', autoMap: true, min: -20, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchVehicleFlameLength: {value: 15, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleNoseconeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 50, onChange: 'updateLauncher', folder: 'Launcher'},
     
   // From page 23 of https://upcommons.upc.edu/bitstream/handle/2117/328318/REPORT_556.pdf?sequence=1&isAllowed=y
   launchVehicleCoefficientOfDrag: {value: 0.035, units: '', autoMap: true, min: 0.01, max: 2, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleRocketEngineLength: {value: 4.3, units: 'm', autoMap: true, min: .1, max: 50, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchVehicleShockwaveConeLength: {value: 30, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
+  // The vehicle's glow (src/launcher/LaunchVehicleGlow.js): the plasma around it and in its wake, and its exhaust plume.
+  launchVehiclePlasmaBrightness: {value: 1, units: '', autoMap: true, min: 0, max: 20, onChange: 'adjustLaunchVehicleGlow', folder: 'Launcher'},
+  launchVehiclePlasmaCoolingTime: {value: 1.5, units: 's', autoMap: true, min: 0.05, max: 30, onChange: 'adjustLaunchVehicleGlow', folder: 'Launcher'},
+  launchVehicleExhaustBrightness: {value: 1, units: '', autoMap: true, min: 0, max: 20, onChange: 'adjustLaunchVehicleGlow', folder: 'Launcher'},
+  launchVehicleEngineChamberPressure: {value: 20.6e6, units: 'Pa', autoMap: true, min: 1e5, max: 5e7, onChange: 'adjustLaunchVehicleGlow', folder: 'Launcher'},
   launchVehicleEmptyMass: {value: 1000, units: 'kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehiclePropellantMass: {value: 9500, units: 'kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -634,6 +637,8 @@ export function createParameterDefinitions() {
   showAdaptiveNuts: {value: massDriverShows, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showLaunchVehicles: {value: massDriverShows, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
+  showLaunchVehiclePlasma: {value: true, units: '', autoMap: true, onChange: 'adjustLaunchVehicleGlow', folder: 'Rendering'},
+  showLaunchVehicleExhaust: {value: true, units: '', autoMap: true, onChange: 'adjustLaunchVehicleGlow', folder: 'Rendering'},
   showMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showTrackingMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   trackingMarkerSize: {value: 500, units: '', autoMap: true, min: 0, max: 10000, onChange: 'resizeTrackingMarkers', folder: 'Rendering'},

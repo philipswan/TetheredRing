@@ -5,7 +5,12 @@
 // there and reports how much they differ (and writes an amplified difference image).
 //
 //   npm run bench:clouds -- [--out .scratch/bench/now] [--baseline .scratch/bench/base] [--only name,name]
-//                           [--frames 60] [--width 1280 --height 720]
+//                           [--frames 60] [--width 1280 --height 720] [--url-params a=1&b=2]
+//   BENCH_QUALITY=high|balanced|low  the graphics quality (default high; never Auto, which follows the frame time)
+//   BENCH_SEA_LITE=0|1, BENCH_HAZE_LUT=0|1, BENCH_HAZE_SAMPLES=n, BENCH_CLOUD_DEFINES=A,B  tier settings, whatever the quality
+//   BENCH_PASSES=1  also times each pass (sky, scene, the clouds' distance, march and composite, ...)
+//   BENCH_COST=1    the march's work per pixel (counts and a heat map; see Clouds.setCostView)
+//   BENCH_MOTION=kind:amount:frames  a camera move's frames, for tools/motion_artifacts.py
 //
 // Uses the GPU (like SMOKE_GPU=1). Timings vary with the GPU's clock: compare runs on the same machine,
 // and look at the cloud pass's median rather than one number. It prints the GPU it ran on: headless Chrome
@@ -46,7 +51,7 @@ const env = {
 const renderNode = arg('render-node', null)
 const command = renderNode ? 'bwrap' : process.execPath
 const wrap = renderNode ? ['--dev-bind', '/', '/', '--tmpfs', '/dev/dri', '--dev-bind', renderNode, renderNode, process.execPath] : []
-const result = spawnSync(command, [...wrap, path.join(here, 'smoke.mjs'), '--url-params', `preset=${[...presets][0]}`, '--wait', arg('wait', '20'),
+const result = spawnSync(command, [...wrap, path.join(here, 'smoke.mjs'), '--url-params', `preset=${[...presets][0]}${arg('url-params', '') ? '&' + arg('url-params', '') : ''}`, '--wait', arg('wait', '20'),
   '--out', path.join(out, '_last.png'), '--steps', path.join(here, 'bench', 'cloudBenchSteps.mjs'),
   '--width', arg('width', '1280'), '--height', arg('height', '720')], { encoding: 'utf8', env, maxBuffer: 1 << 26 })
 const text = result.stdout + result.stderr
@@ -61,6 +66,7 @@ console.log(pad('view', 22) + pad('clouds ms', 11) + pad('frame ms', 10) + (base
 for (const r of report) {
   console.log(pad(r.name, 22) + pad(r.clouds.median.toFixed(2), 11) + pad(r.frame.median.toFixed(2), 10)
     + (r.diff ? `      ${r.diff.mean.toFixed(2).padEnd(6)}${(r.diff.over8 * 100).toFixed(2).padStart(6)}%  ${r.diff.max}` : ''))
+  if (r.passes && Object.keys(r.passes).length) console.log('  passes (ms/frame): ' + Object.entries(r.passes).map(([k, v]) => `${k} ${v}`).join(', '))
 }
 const errors = lines.filter(l => /error/i.test(l) && !l.startsWith('BENCH '))
 if (result.status !== 0 || errors.length) { console.log(errors.join('\n')); process.exit(1) }

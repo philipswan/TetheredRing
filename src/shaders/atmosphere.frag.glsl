@@ -8,6 +8,7 @@
 // a/b - 1), which turns it into a sphere of radius a; relative to the camera, with |C'|^2 - r^2 (small
 // differences of huge numbers) computed in float64 on the CPU (Planet.updateAtmosphere), and with
 // numerically stable roots. The output is premultiplied: colour + background * (1 - alpha).
+#define ATMO_SKY_AEROSOL
 #include <common>
 #include <logdepthbuf_pars_fragment>
 #include <atmosphere_common>
@@ -18,6 +19,13 @@ uniform vec4 atmoParams;   // x: |C'|^2 - a^2 (ground); y: exposure; z: a (m); w
 uniform vec3 atmoSun;      // direction to the sun (world)
 #ifdef SEA_REFLECTION
 uniform float seaSlopeVariance; // the sea's mean square slope (src/planet/seaWaves.js)
+#endif
+#ifdef SKY_LUT
+// The sky from the camera, worked out once a frame (src/planet/skyLut.js): read rather than marched here.
+uniform sampler2D skyLight;          // rgb: the scattered light; a: the transmittance's luminance
+uniform sampler2D skyTransmittance;  // rgb: the transmittance
+uniform vec2 skyLutSize;
+SKY_LUT_GLSL
 #endif
 varying vec3 vWorldPosition;
 
@@ -83,7 +91,15 @@ void main() {
   float sunDisc = smoothstep(sunCosRadius - 0.000004, sunCosRadius, sunCos);
 
   vec3 light, transmittance;
+#ifdef SKY_LUT
+  vec2 uv = skyLutUv(ds / sqrt(A), atmoCamera.xyz, atmoSun, atmoParams.z, atmoParams.w);
+  // (Above the horizon's row: the table's lower half is the air in front of the ground.)
+  uv.y = max(uv.y, 0.5 + 0.5 / skyLutSize.y);
+  light = texture2D(skyLight, uv).rgb;
+  transmittance = texture2D(skyTransmittance, uv).rgb;
+#else
   atmoScatter(atmoCamera.xyz, ds, d, t0, t1, atmoSun, atmoParams.z, VIEW_SAMPLES, light, transmittance);
+#endif
   light *= atmoParams.y;
   // The sun's disc seen through the air, reddened by it.
   light += sunDisc * ATMO_SUN_INTENSITY * 4.0 * transmittance;

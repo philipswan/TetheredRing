@@ -96,10 +96,13 @@ const NOISE_RMS = rms(clusterNoise)
 
 /**
  * The weather's pressure anomaly at geodetic latitude/longitude (degrees) and date: about normally
- * distributed with unit variance, negative under lows (cloud and rain), positive under highs.
+ * distributed with unit variance, negative under lows (cloud and rain), positive under highs. With a
+ * drawOffset, an independent field of the same kind (other draws), as the GLSL's weatherAnomaly with d0 and
+ * d1 offset.
  */
-export function pressureAnomaly(lat, lon, dayOfYear, utcHours) {
-  const { d0, d1, f } = weatherDraws(dayOfYear, utcHours)
+export function pressureAnomaly(lat, lon, dayOfYear, utcHours, drawOffset = 0) {
+  const { d0: w0, d1: w1, f } = weatherDraws(dayOfYear, utcHours)
+  const d0 = w0 + drawOffset, d1 = w1 + drawOffset
   const phi = lat * Math.PI / 180, lambda = lon * Math.PI / 180
   const x = Math.cos(phi) * Math.sin(lambda), y = Math.sin(phi), z = Math.cos(phi) * Math.cos(lambda)
   return ((1 - f) * drawAnomaly(lat, x, y, z, d0) + f * drawAnomaly(lat, x, y, z, d1)) / Math.hypot(1 - f, f)

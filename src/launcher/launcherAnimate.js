@@ -115,6 +115,9 @@ export function defineAnimate () {
     this.objectClasses.forEach(objectClass => {
       objectClass.hasChanged = false
     })
+
+    // The vehicles' plasma trails and exhaust plumes, from the launches now in flight
+    this.glow.update()
   }
 }
 

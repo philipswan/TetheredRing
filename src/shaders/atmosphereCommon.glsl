@@ -16,10 +16,25 @@
 
 // Scattering coefficients at sea level (1/m) and scale heights (m).
 const vec3 ATMO_BETA_R = vec3(5.8e-6, 13.5e-6, 33.1e-6);
-const float ATMO_BETA_M = 8e-6;   // a clear day (21e-6 is hazy)
+// The aerosol: for the sky and the clouds (shaders that define ATMO_SKY_AEROSOL: the sky, its table, the cloud
+// march), marine air's (an aerosol optical depth of about 0.1), so that distant clouds and the horizon fade
+// into haze as at sea; for the ground's own haze and light (terrain, sea, the ring: three.js's materials, by
+// the fog and light chunks), a clean day's, so that hills and coasts seen from the air stay clear.
+#ifdef ATMO_SKY_AEROSOL
+const float ATMO_BETA_M = 80e-6;
+#else
+const float ATMO_BETA_M = 8e-6;
+#endif
 const float ATMO_HEIGHT_R = 8000.0;
 const float ATMO_HEIGHT_M = 1200.0;
 const float ATMO_MIE_G = 0.76;
+// The aerosol's light scattered more than once (by the haze and the air around it), which comes from all
+// directions: added to its phase evenly. With single scattering alone, thick haze looking away from the sun
+// was a dark grey band, darker than the sky above it; a hazy horizon is bright.
+const float ATMO_MIE_MULTIPLE = 0.06;
+// (Lit by the sky as well as the sun, so bluish: half the air's own colour, of the same luminance. Lit by
+// the sun alone, reddened on its way, the haze was tan.)
+const vec3 ATMO_MIE_MULTIPLE_TINT = vec3(0.7207, 1.0083, 1.7402);
 const float ATMO_SUN_INTENSITY = 22.0;
 // The haze over the ground (aerialPerspective.js, and the ground the sky draws near the horizon). The
 // sky is drawn brighter than the ground beside it would be (its exposure, with its curve, is set for a
@@ -102,7 +117,7 @@ void atmoScatter(vec3 camera, vec3 ds, vec3 d, float t0, float t1, vec3 sun, flo
   float phaseR = 3.0 / (16.0 * PI) * (1.0 + sunCos * sunCos);
   float g2 = ATMO_MIE_G * ATMO_MIE_G;
   float phaseM = 3.0 / (8.0 * PI) * ((1.0 - g2) * (1.0 + sunCos * sunCos)) / ((2.0 + g2) * pow(1.0 + g2 - 2.0 * ATMO_MIE_G * sunCos, 1.5));
-  light = ATMO_SUN_INTENSITY * (sumR * ATMO_BETA_R * phaseR + sumM * ATMO_BETA_M * phaseM);
+  light = ATMO_SUN_INTENSITY * (sumR * ATMO_BETA_R * phaseR + ATMO_BETA_M * (sumM * phaseM + sumM.g * ATMO_MIE_MULTIPLE * ATMO_MIE_MULTIPLE_TINT));
   transmittance = exp(-(ATMO_BETA_R * viewDepth.x + ATMO_BETA_M * 1.1 * viewDepth.y));
 }
 

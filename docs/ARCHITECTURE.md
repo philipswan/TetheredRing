@@ -97,7 +97,7 @@ Every animated system receives the simulation time in `animate(time, ...)`. Its 
 
 1. The sky pass: stars and the Moon, drawn with their own camera so the main camera's far plane can stay fitted to the planet
 2. Any background image or Google Earth frame
-3. The main scene (then the clouds over it)
+3. The main scene, then the launch vehicles' glow and the clouds over it (the glow before the clouds with the camera below the clouds' tops, after them from above; see below)
 4. The highlights, if any are on (see below)
 5. The screen-space overlays
 
@@ -128,7 +128,7 @@ The object tracker walks `system.refFrames[i].wedges[j][className]` to find trac
 
 Detail is chosen from projected size in drawing-buffer pixels, not distance:
 
-- `src/scene/PixelLOD.js` is a `THREE.LOD` whose levels have pixel thresholds. three.js calls its `update(camera)` during rendering. Levels are built lazily; expensive builds are limited to a few milliseconds per frame (`PixelLOD.buildBudget`) except while recording. A level's factory may return a Promise (built in the background; the next coarser level shows meanwhile), and a level can ask to be prefetched before it is needed. While recording, everything is built synchronously so every frame is complete. `PixelLOD.viewportHeight` (set by `App.setRenderSize`) and `PixelLOD.lodBias` (set by the quality setting) feed the calculation.
+- `src/scene/PixelLOD.js` is a `THREE.LOD` whose levels have pixel thresholds. App selects visible levels before synchronizing instanced proxies; three.js also calls `update(camera)` during rendering. Levels are built lazily; expensive builds are limited to a few milliseconds per frame (`PixelLOD.buildBudget`) except while recording. A level's factory may return a Promise (built in the background; the next coarser level shows meanwhile), and a level can ask to be prefetched before it is needed. Recording removes the build budget and waits for any required asynchronous levels before drawing. `PixelLOD.viewportHeight` (set by `App.setRenderSize`) and `PixelLOD.lodBias` (set by the quality setting) feed the calculation.
 - `src/scene/InstancedProxyPool.js` draws many identical objects with one `InstancedMesh` per detail level. The code that places them still works with ordinary `Object3D` proxies; `syncAll()` (called from `App.render`) copies visible, in-frustum proxies into instances relative to the camera.
 - Shader programs are compiled ahead of their first use, in the background (`src/scene/precompile.js`): every 120 frames `App.precompileShaders()` hands `renderer.compileAsync` a scene of stand-ins, one per material and kind of object not compiled before, from the main scene (drawn or not, e.g. the sea surface and the atmosphere while under the sea), the sky pass and the clouds' passes. Afterwards `warmPrograms` looks up each ready program's uniforms (three.js's first-use step, which waits for the driver) within a couple of milliseconds a frame. Otherwise three.js compiles a program when it first draws with it, which stalled the first frame above the sea by about half a second. The real clouds' large texture is uploaded as soon as it has loaded, for the same reason.
 - `src/app/GraphicsQuality.js` sets the pixel ratio, LOD bias and terrain threshold. In Auto mode it adapts the render resolution to the frame time. Recording forces full quality.
@@ -204,11 +204,13 @@ The pieces:
 | `ShotPathOverlay.js` | The free view's drawing of the shot: the camera and target paths (sampled over the shot, each point at its own moment; chunked lines for precision), keyframe markers and a camera gizmo at the playhead. Hidden in the shot camera's view and while recording. |
 | `src/ui/ShotSidebar.js`, `Timeline.js` | The panel on the left. Plain DOM; it only calls the controller (and sets the sun parameters). It is not part of the canvas, so it never appears in recordings. |
 
-While recording, the path overlay and the tracking markers are hidden, and every frame is rendered at the output size with full quality.
+While recording, the path overlay and the tracking markers are hidden, and every frame is rendered at the output size with full quality. The fixed-step loop owns the drawing-buffer size: application resizes, including Google Earth playback, cannot override it. Quality changes take effect after recording, not halfway through a frame. Visible pixel LODs are selected before instanced buffers are synchronized; each sub-frame waits for its required asynchronous geometry. Terrain waiting also includes pending GPU uploads, and readiness timeouts fail the recording instead of silently capturing an incomplete frame.
 
 Motion blur (`src/capture/MotionBlur.js`) is temporal supersampling: each video frame averages several sub-frames at moments spread over the shutter interval, centred on the frame's own moment. Each sub-frame is stepped and rendered to the canvas exactly as an ordinary frame (so nothing in the renderer knows about it), copied into a texture, converted to linear light and added into a float buffer; the average is converted back to sRGB and drawn to the canvas for the encoder. In adaptive mode the number of sub-frames per frame comes from the shot camera's motion over that frame's shutter (`adaptiveSubFrames`): a step of at most `motionBlurMaxStep` metres near things, growing with the distance to the nearest scenery (the closer of the camera's target and the ground) so that it moves at most `motionBlurMaxPixels` on screen. Terrain is waited for once per frame, not per sub-frame.
 
-Supersampling (`src/capture/Supersampler.js`) enlarges the canvas itself (pixel ratio = the factor) while recording, so everything sized in pixels (the clouds' targets, pixel-based level of detail, line coverage) follows; the frame is filtered down with a Mitchell-Netravali filter in linear light into the canvas's output-sized bottom-left corner (where motion blur averages it), and copied to a 2D canvas for the encoder. Things whose look depends on pixel size are told the factor so a supersampled frame matches an ordinary one. Every recorded frame is made opaque, because the canvas has an alpha channel and the sky is nearly transparent there.
+Supersampling (`src/capture/Supersampler.js`) enlarges the canvas itself (pixel ratio = the factor) while recording, so everything sized in pixels (the clouds' targets, pixel-based level of detail, line coverage) follows; the frame is filtered down with a Mitchell-Netravali filter in linear light into the canvas's output-sized bottom-left corner (where motion blur averages it). Things whose look depends on pixel size are told the factor so a supersampled frame matches an ordinary one.
+
+All capture modes use `src/capture/FrameCapture.js` to synchronously read the completed output pixels into CPU memory before yielding. It checks the exact drawing-buffer dimensions, flips WebGL's bottom-up rows, preserves RGB while making alpha opaque, and publishes to an output-sized software-oriented 2D canvas for the encoder. Thus the encoder never snapshots the live WebGL canvas; later rendering, resizing, or compositing cannot replace its source pixels. Readback failures and unexpected resolution changes stop recording explicitly. This trades some capture throughput for reliable frame ownership.
 
 The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, tested; `RenderQueueRunner.js`: running it in the page) renders many shots unattended. Each item holds a whole shot, so it carries its own preset, parameters, start time and output settings. Presets set construction-time options, so the page reloads to switch preset (and, by default, before every shot); the queue, the run state, the log and the output folder's handle live in IndexedDB, and `ShotController.resumePendingShot` carries a run on after the reload. Each shot is rendered by `ShotController.renderShotUnattended`, the same fixed-step path as **Render video**, with no dialogs. `scripts/render-shots.mjs` (`npm run render`) does the same from the command line: it starts Vite, opens a fresh headless page per shot with `?preset=`, calls `renderShotUnattended` with a `WritableStream` whose chunks are passed back to Node and written into the output file, and has a watchdog for shots that stop making progress.
 
@@ -222,7 +224,82 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
 
 - `npm test` runs the unit tests: physics maths, the shot format, the camera path, the time warp, supersampling filter weights and the render queue.
 - `npm run lint` runs ESLint.
-- `npm run smoke` loads the full app in headless Chrome/Chromium and fails on any console error. Use `SMOKE_GPU=1` with real hardware; the software renderer takes over a minute to decode a single terrain tile. `--eval "<js>"` runs code against `window.tetheredRing` and prints the result, `--steps <file.mjs>` runs a multi-step check with screenshots, and `--page /tests/planet.html` targets a standalone test page.
+- `npm run smoke` loads the full app in headless Chrome/Chromium and fails on any console error. Use `SMOKE_GPU=1` with real hardware; the software renderer takes over a minute to decode a single terrain tile. `--eval "<js>"` runs code against `window.tetheredRing` and prints the result, `--steps <file.mjs>` runs a multi-step check with screenshots, and `--page /tests/planet.html` targets a standalone test page. `SMOKE_DUMPIO=1` passes the browser's own output through and `SMOKE_CHROME_ARGS` adds browser flags; together with Mesa's `AMD_DEBUG=ps,stats` or `INTEL_DEBUG=fs` (and `--in-process-gpu --disable-gpu-sandbox`) they print each shader's registers, spills and size as the driver compiled it.
+
+### Performance and visual checks
+
+- `npm run bench:clouds` renders the views in `tests/bench/cloudViews.json` at a fixed graphics quality (`BENCH_QUALITY`, default High: Auto would follow the frame time) and reports the GPU time of the cloud pass and of the frame, with a screenshot of each. `--render-node /dev/dri/renderD12x` picks one GPU on a Linux machine with two. `BENCH_PASSES=1` times each of the renderer's passes (the times include the GPU waiting for the CPU, so a pass of many draw calls can read high); `BENCH_COST=1` counts the march's work per pixel (`Clouds.setCostView`) and saves a heat map; `BENCH_MOTION=kind:amount:frames` saves the frames of a camera move (strafe, dolly, pan or orbit) with simulated time held. Compare a change with a baseline rendered with the same views in the same order: terrain loaded for one view can stay loaded for the next.
+- `tools/perceptual_diff.py` judges whether a change can be seen: per 16 x 16 block, whether the candidate differs from the baseline by more than encoding the baseline as high-quality AVIF (AV1) does, and the difference survives encoding. A good lossy codec spends its bits on what the eye would notice, so what it leaves out could change unseen.
+- `tools/motion_artifacts.py` looks for flicker, shimmer and sliding in a camera move's frames: what is left after block-matching motion estimation (as a video encoder does it), and the x264 and AV1 inter-frame bytes, against a baseline's.
+
+    POSIX:       .venv/bin/python -m tools.perceptual_diff --baseline .scratch/bench/base --candidate .scratch/bench/now
+                 .venv/bin/python -m tools.motion_artifacts .scratch/bench/now/<view>.motion --baseline .scratch/bench/base/<view>.motion
+    PowerShell:  .venv\Scripts\python.exe -m tools.perceptual_diff --baseline .scratch\bench\base --candidate .scratch\bench\now
+                 .venv\Scripts\python.exe -m tools.motion_artifacts .scratch\bench\now\<view>.motion --baseline .scratch\bench\base\<view>.motion
+
+  Both need ffmpeg (with libsvtav1 and libx264) and ffprobe on the PATH, and numpy and Pillow in the venv.
+- `SMOKE_REMOTE=user@host` runs the browser of `npm run smoke` and `npm run bench:clouds` on another machine over ssh, on its GPU (for a laptop's integrated graphics), with the page served from here through ssh tunnels; `SMOKE_SSH_ARGS` adds ssh options (a key, `-o IdentitiesOnly=yes`) and `SMOKE_REMOTE_CHROME` names its browser (default `chromium-browser`). Tests views of one cloud type each: `npm run bench:clouds -- --views tests/bench/cloudTypeViews.json` (`Clouds.setCloudTypeTest`).
+
+## Generated ground
+
+Close to the ground the baked imagery (about 100 m pixels on the Big Island) and heights (150 m) run out of
+detail. Inside a region with ground data (`assets/hawaii_ground`, baked by `tools/ground_cover.py`; see
+docs/ASSETS.md), `CubedSpherePlanetRenderer` goes on refining below the deepest baked tile, down to LOD 20 (tiles
+about 10 m across, vertices 0.4 m apart), making each tile on the spot:
+
+- **Shape** (`groundData.js`). The region's own 30 m heights (bicubic), then the coast: beaches slope gently into
+  the sea, low lava shores end in a bench a metre or two high, and cliffs drop straight into it, along the 10 m
+  coastline, not the 30 m heights'. On that, relief from noise, by the ground's kind (a'a rubble, pahoehoe lobes and
+  tumuli, cinder, sand, vegetation), with only the octaves the tile's grid can show, fading in as it gets finer.
+- **Look** (`groundDetail.js`). The tile shows its baked ancestor's imagery. The region's cover splits each imagery
+  pixel into its kinds, as patches, tree crowns, grass bunches (or turf, where the
+  imagery is green), a'a clinker, pahoehoe plates and ropes, lapilli, rippled sand with a wet swash, and stones, each
+  in its own colour and relief (bump-mapped), keeping the imagery's average colour. Near the coast, where the
+  imagery's pixels are partly sea, the kinds' own colours are used. Crowns and shrubs are painted on the ground, so
+  from near their height the shaded ground under them is drawn instead. Snow lies on Mauna Kea and Mauna Loa from
+  December to March (`setGroundSeason`, from `Planet.setDayOfYear`), patchy, on north-facing slopes and hollows first.
+- **One ground for every tile.** Nothing in a tile's shape or look depends on the tile, so nothing changes at a tile's
+  edge, whatever the levels on either side, and whether the tiles are generated or baked (baked tiles in the region,
+  from level 9 down, have the look and the region's heights too):
+  - Heights, sea floor included (GEBCO bathymetry in the region's data), come from one function of position.
+  - Tiles join by one rule: every vertex on a tile's boundary takes the position and normal of the coarsest drawn
+    tile touching it there (its edge neighbours, and the diagonal one at a corner), from that tile's drawn geometry
+    (`_updateEdgeMorph`, `_buildTileGeometry`). A plain baked tile counts as coarser than one with the region's
+    heights, and both as coarser than a generated one, of the same level. Coarser tiles are built first, and a tile
+    is rebuilt when one it took its boundary from is.
+  - The look samples the region's data on the GPU (`groundTextures.js`): its chunks as layers of texture arrays, with
+    a border of one cell from their neighbours, in a coarse copy (cells 4 x 4, for the whole of what is in view) and a
+    full one (for the nearer tiles), blended by the ground a pixel covers; with the ground's slope, which is the
+    shading normal (not the tiles' vertex normals, which depend on their level).
+  - Patterns are functions of the position in the region's plane (east and north of its middle). Each band's
+    per-tile offset is worked out in float64 and reduced modulo 20 noise periods, a whole number of periods for every
+    scale the shader applies to the coordinates.
+- **Cost.** A baked tile whose children would be generated is refined by its vertex spacing (`GROUND_SSE_PIXELS`),
+  not its texels (its children show the same imagery), and nothing is generated over open sea. On the B70 at 720p
+  the generated ground costs about 0-2 ms.
+
+`?ground=0` turns the generated ground off, `?groundDetail=0` its look (shape only), and `?groundDebug=1` shows the
+kinds as colours (red lava, brighter for a'a; green vegetation, brighter for trees; blue sand; magenta cinder).
+`tests/bench/groundViews.json` (written by `scripts/bench/groundViews.py`) are views from the Kona coast to Mauna
+Kea's summit and of the coasts, for `npm run bench:clouds -- --views tests/bench/groundViews.json`; their cameras
+are placed on the terrain as drawn (`camera.eyeAboveGround`).
+
+Seams are checked by two scripts:
+
+- `scripts/check-seams.mjs` (Node, no GPU) runs the renderer's tile selection and geometry for a sweep of camera
+  positions over the region (points along the coast and over a grid, at heights from 2 m to 2.5 km, four headings,
+  and descents from 4 km to the ground, so tiles refine and coarsen through their levels) and checks every edge of
+  every drawn tile (`measureSeams`): the gap to the drawn tile across it, and whether one is there at all where the
+  edge is on screen. `--quick` takes a few minutes, the full sweep (about 20,000 positions) about half an hour.
+- `scripts/check-visual-seams.mjs` (headless Chrome, on the GPU) renders views of the sweep with a pass of each
+  terrain tile's id and distance, and measures the step in brightness across every on-screen boundary between two
+  tiles (not at a silhouette or under the sea surface), beyond each side's own gradient, against the texture's
+  variation beside it. `SEAM_SELFTEST=1` darkens every other tile, to check what it finds.
+
+    POSIX:       node scripts/check-seams.mjs --quick
+                 node scripts/check-visual-seams.mjs --every 8 --render-node /dev/dri/renderD129
+    PowerShell:  node scripts\check-seams.mjs --quick
+                 node scripts\check-visual-seams.mjs --every 8
 
 ## Sun, sky and atmosphere
 
@@ -242,12 +319,23 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
 
 **View status.** A readout in the bottom-right corner (`src/ui/ViewStatus.js`, **Rendering → showViewStatus**) shows the camera's latitude, longitude, altitude, heading, pitch and field of view, the date and time of day (UTC and local solar) and the simulated time; its Copy view button copies a link (`?preset=…&view=…`) holding the preset, the start's day of year and time of day (always), the simulated time, the camera in the planet's frame and every parameter changed from the preset's, which reopens exactly that view, paused at that moment. It is for reporting and reproducing what is seen; it is page HTML, so it is never recorded.
 
+## Launch vehicle plasma and exhaust
+
+From the moment a launch vehicle leaves the evacuated tube, the air it flies through glows (`src/launcher/LaunchVehicleGlow.js`, physics in `src/launcher/hypersonicGlow.js`, tested in `tests/launcher`):
+
+- **Plasma.** An envelope of hot gas surrounds the vehicle from the tip of its nose, widening along the body out to 1.2 body radii, and runs on into the wake. Each point of the trail glows as the air was heated when the vehicle passed it (as the radiative heating, density x speed^4), the envelope around the vehicle brightest; the wake cools over `launchVehiclePlasmaCoolingTime` from white-pink through orange to red, and spreads as the hypersonic far wake does (radius ~ (Cd A x)^(1/3)), keeping its light per unit length. So the trail fades by about a hundred times as the vehicle climbs from the tube's exit (32 km) to 65 km.
+- **Exhaust plume.** The hydrolox plume expands round the nozzle's lip by the Prandtl-Meyer angle to the air's pressure (from the nozzle's area ratio and `launchVehicleEngineChamberPressure`), is confined by the oncoming air (its thrust against the dynamic pressure) or by the base's wake, and balloons once the air is too thin to hold it. Its light follows the propellant flow in the trajectory's telemetry and fades over a few Mach-disk distances; near sea level the Mach disk is a bright band.
+
+Nothing is remembered between frames: each frame the plasma of every launch in flight is rebuilt from the vehicle's trajectory at earlier times (`frameAt`), so it is a function of the parameters and the time, and any frame of a shot renders on its own.
+
+The plasma and the plume are tubes of light with a Gaussian cross-section (`src/scene/GlowTube.js`). The mesh is a closed tube bounding the light; only its far side is drawn, and `glowTube.frag.glsl` integrates the light along each line of sight in closed form (with erf), between the tube's ends, so it is right from outside, from inside (a chase camera in the wake) and end on. Tubes narrower than a pixel are widened and dimmed to keep their light, so a distant trail does not break up. All the glow is screen-blended (`src/scene/glowMaterials.js`), so a faint glow over a bright sunlit cloud stays faint. The tubes are in a scene of their own (`launchSystem.glow.scene`), not the main scene: the clouds' distance prepass would treat them as solid, and since they fly above the clouds they are drawn under the clouds from below their tops and over them from above. **Rendering → showLaunchVehiclePlasma / showLaunchVehicleExhaust** turn them off; `launchVehiclePlasmaBrightness` and `launchVehicleExhaustBrightness` scale them.
+
 ## Weather and clouds
 
 - **Weather.** `src/physics/weather.js` gives the weather at any place and date: cloud cover, the low and high cloud layers' heights, rain and its convective share, and humidity, from a reanalysis climatology (`tools/sources/build_weather.py`; see docs/ASSETS.md) moved by the procedural lows and highs that also turn the wind (`src/physics/weatherNoise.js`). It is a pure function of place and date, so shots repeat. Squalls under heavy showers strengthen the wind on the sea (`seaWindAt`), which the boats and waves use.
 - **Weather map.** `src/planet/clouds/weatherMap.js` evaluates the same formulas on the GPU into an equirectangular map (cover, rain, convective share, high cloud; low cloud base and top, wind), redrawn when the date changes. A test page check confirms it matches the CPU.
 - **Clouds.** `src/planet/clouds/Clouds.js` draws volumetric clouds over the scene at half resolution, in three passes: a distance prepass (so clouds stop at the ground and at structures), a ray march through the shell from sea level to 13 km, and a composite. Cloud shapes come from tiling Perlin-Worley noise (`cloudNoise.js`), thresholded so the fraction cloudy matches the cover, anchored to the planet and drifting with the wind by flow-mapping. Convective weather gives cumulus that tower in showers; otherwise the layer is stratiform. Lighting uses the sun (through the cloud, with a two-lobed phase function and approximate multiple scattering), the sky and the ground (sunAndSkyLight.js), then the air's haze in front. Too far away for single clouds to be told apart, the density becomes its expected value, with large-scale structure added from a coarser tile of the same noise. Farther still, where a pixel covers kilometres (from high orbit out to whole-Earth views), the clouds blend into a flat layer of the satellite imagery's opacity, lit by the sun and the sky on it, and denser seen aslant as the march's clouds are. The cloud target stays at half resolution from every height, so nothing changes at once as the camera climbs. The march samples only points fixed to the planet: it crosses the cells of a grid in the planet's axes (powers of two growing with the distance, so each divides the next), integrating the density across each cell's stretch by Simpson's rule from the grid's planes, with coarse cells skipped where the weather's layers or bounds on the noise (`cloudNoise.js` occupancy) show they are empty. Moving the camera changes only where the clouds are seen from, never what is sampled, so they do not shimmer, slide or pop; nothing changes from frame to frame, so recordings are repeatable. **Rendering → showClouds** turns them off.
-- **Cloud types.** At every altitude the cloud cover is the satellite snapshot's (`src/planet/clouds/realClouds.js`, data in `assets/clouds`; see docs/ASSETS.md), the one nearest the simulated date in the year, so the sky seen from the ground matches the Earth seen from space; it is a real day, not the weather's, so the clouds do not line up with the weather's rain and wind. Without the imagery the weather's cover is used. Where the noon sun was low on the snapshot's day (below 15° to 25°: towards the poles, and down to about 50° of latitude in midwinter) the weather's cover takes over from the imagery's: over snow and ice in grazing light the satellite's neighbouring passes look very different, and the imagery's clouds showed their edges as arcs and straight lines. The cover is shared between two layers: high cloud (cirrus, cirrostratus) takes the thin part of the opacity as far as the reanalysis has high cloud often, and, being thin, covers more of the sky than its opacity, as hair-like streaks a few hundred metres across drawn out along the wind aloft (fine noise averaged along the wind), filling in to an even veil of cirrostratus where the high cloud is most opaque; low cloud takes the rest, as a few fair-weather cumulus where there is little (always a few), stratocumulus and then a stratus sheet as it rises, and towering cumulus in showers where the imagery shows cloud. Far away each layer's density becomes the expected value that gives its share of the opacity, so from space the clouds are the imagery. The haze through thin air is on the ground's own scale (`atmoHazeScale`), which turns the dark sea blue from space, and the sea surface adds the blue light deep water sends back. Over the clouds the haze is the brighter of the sky's light and its own physical scale (with multiple scattering), so clouds near the horizon seen from orbit are hazed blue-white rather than reddened.
+- **Cloud types.** At every altitude the cloud cover is the satellite snapshot's (`src/planet/clouds/realClouds.js`, data in `assets/clouds`; see docs/ASSETS.md), the one nearest the simulated date in the year, so the sky seen from the ground matches the Earth seen from space; it is a real day, not the weather's, so the clouds do not line up with the weather's rain and wind. Without the imagery the weather's cover is used. Where the noon sun was low on the snapshot's day (below 15° to 25°: towards the poles, and down to about 50° of latitude in midwinter) the weather's cover takes over from the imagery's: over snow and ice in grazing light the satellite's neighbouring passes look very different, and the imagery's clouds showed their edges as arcs and straight lines. The cover is shared between two layers: high cloud (cirrus, cirrostratus) takes the thin part of the opacity as far as the reanalysis has high cloud often, and, being thin, covers more of the sky than its opacity, as hair-like streaks a few hundred metres across (fine noise stretched east-west along the planet's latitude and longitude, so it stays fixed to the planet, and bent into curls by the patches' noise; or small cells for cirrocumulus, `Clouds.cirrocumulus`), filling in to an even veil of cirrostratus where the high cloud is most opaque; low cloud takes the rest, as a few fair-weather cumulus where there is little (always a few), stratocumulus and then a stratus sheet as it rises, and towering cumulus in showers where the imagery shows cloud. Far away each layer's density becomes the expected value that gives its share of the opacity, so from space the clouds are the imagery. The haze through thin air is on the ground's own scale (`atmoHazeScale`), which turns the dark sea blue from space, and the sea surface adds the blue light deep water sends back. Over the clouds the haze is the brighter of the sky's light and its own physical scale (with multiple scattering), so clouds near the horizon seen from orbit are hazed blue-white rather than reddened.
 - **Weather effects.** The same pass shades the scene under the clouds (screen space: from each pixel's scene point it marches towards the sun through the clouds, and dims the scene by the sun's share of the light there times that transmittance, and the sky's share under overcast), adds rain shafts under raining clouds and haze, mist or sea fog from the surface humidity (both cut visibility, lit by the sun reaching the end of the line of sight), and rain streaks over the view when the camera is in the rain. The reanalysis's rain is an area average; under the raining clouds it is heavier (`showerRain`), which also sets how high showers tower.
 
 ## The sea

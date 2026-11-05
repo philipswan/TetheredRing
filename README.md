@@ -94,6 +94,8 @@ Keys are ignored while you are typing in a GUI field.
 
 ## Recording video and repeatable shots
 
+For a step-by-step walkthrough, see the [Shots and video capture user's guide](docs/SHOTS.md). The rest of this section is a quick reference.
+
 Recording happens entirely in the browser; no tar files, PowerShell or ffmpeg are needed. Everything is in the **Shot & video** panel on the left, and all of it works with the mouse alone. Press **—** to minimise the panel and **🎬 Shots** to bring it back. Nothing in the panel, and nothing drawn to help set up a shot, ever appears in a video: recordings capture only the 3D scene.
 
 ### Time

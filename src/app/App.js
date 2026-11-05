@@ -22,7 +22,7 @@ import { InstancedProxyPool } from '../scene/InstancedProxyPool.js'
 import { GraphicsQuality, QUALITY_PRESETS } from './GraphicsQuality.js'
 import { Planet, defaultPlanetAssets } from '../planet/Planet.js'
 import { Sailboats } from '../scene/Sailboats.js'
-import { Clouds } from '../planet/clouds/Clouds.js'
+import { Clouds, SHELL_TOP } from '../planet/clouds/Clouds.js'
 import { ViewStatus, applyViewState } from '../ui/ViewStatus.js'
 import { setWeatherDate, windAt } from '../scene/seaPlacement.js'
 import { ContainerShips } from '../scene/ContainerShips.js'
@@ -146,6 +146,7 @@ export class App {
     this.nonGUIParams.renderer = this.renderer
     this.nonGUIParams.maxTextureAnisotropy = this.renderer.capabilities.getMaxAnisotropy()
     this.nonGUIParams.maxTextureSize = this.renderer.capabilities.maxTextureSize
+    this.quality.watchContextLoss(canvas)
   }
 
   buildScene() {
@@ -452,6 +453,7 @@ export class App {
       planetCoordSys: this.planetCoordSys,
       store: this.store,
       getPlanetObjects: () => [this.planet.surface, this.planet.atmosphere],
+      resize: (width, height) => this.setRenderSize(width, height),
     })
     this.launchTrialSweep = new LaunchTrialSweep(this)
 
@@ -574,6 +576,7 @@ export class App {
       adjustViewStatus: visibility((p) => this.viewStatus?.setVisible(p.showViewStatus.value)),
       adjustContainerShips: visibility((p) => this.containerShips?.setVisible(p.showContainerShips.value)),
       adjustOceanTerminal: visibility((p) => this.oceanTerminal?.setVisible(p.showLauncherOceanTerminal.value)),
+      adjustLaunchVehicleGlow: visibility((p) => this.launchSystem?.glow.configure(this.launchSystem.effectiveParams(p), this.planetSpec)),
       adjustEarthAtmosphereVisibility: visibility((p) => this.planet.setAtmosphereVisible(p.showEarthsAtmosphere.value)),
       adjustTerrainExaggeration: visibility((p) => this.planet.setDisplacementScale((this.nonGUIParams.planet2DisplacementScaleMultiplier ?? 1) * p.terrainExaggeration.value)),
       adjustBackgroundOpacity: visibility((p) => this.renderer.setClearAlpha(p.enableBackgroundAlpha.value ? 0 : 1)),
@@ -876,6 +879,7 @@ export class App {
       this._seaWindMapSet = true
       this.planet.setSeaWindMap(this.clouds.weatherMap.textures[1])
     }
+    this.planet.setSeaClouds(this.clouds)
     this.planet.setDayOfYear(date.dayOfYear + date.utcHours / 24)
     if (!this.sunFollowsDate) return
     const s = subsolarPoint(date.dayOfYear, date.utcHours)
@@ -915,13 +919,25 @@ export class App {
     this.rebuildRing()
   }
 
-  render() {
-    const renderer = this.renderer
+  // The camera's height above the planet's ellipsoid (m).
+  cameraAltitude() {
+    const p = this.planetCoordSys.worldToLocal(this.camera3d.getWorldPosition(this._cameraPosition ??= new THREE.Vector3()))
+    return tram.ecefToGeodetic(p.x, p.y, p.z, this.planetSpec.ellipsoid).alt
+  }
+
+  prepareRender() {
     this.viewStatus?.update(performance.now())
     this.shots.overlay.update(this.camera3d)
-    PixelLOD.beginFrame(renderer.info.render.frame)
-    InstancedProxyPool.syncAll(this.camera3d, PixelLOD.viewportHeight)
+    PixelLOD.beginFrame(this.renderer.info.render.frame)
     this.ring.update()
+  }
+
+  render({ prepared = false } = {}) {
+    this.quality.beginGpuFrame()
+    if (!prepared) this.prepareRender()
+    const renderer = this.renderer
+    PixelLOD.updateScene(this.scene, this.camera3d)
+    InstancedProxyPool.syncAll(this.camera3d, PixelLOD.viewportHeight)
     // Tethers and cables: pixel coverage, and haze from the air (not from under the sea).
     StructureLines.update(
       this.planetSpec.hasOcean === true && this.planet.atmosphere.visible && !this.ocean?.cameraUnderSurface)
@@ -959,10 +975,17 @@ export class App {
     }
     this.lighting.updateSkyLight(true, this.planet, this.planetSpec.hasOcean === true)
     renderer.render(this.scene, this.camera3d)
+    // The launch vehicles' plasma and exhaust (LaunchVehicleGlow.js) are light without a surface, kept out
+    // of the clouds' distance prepass. They fly above the clouds, so the clouds cover them seen from below
+    // the clouds' tops, and they are drawn over the clouds seen from above.
+    const glow = this.launchSystem?.glow
+    const glowOverClouds = glow?.anyVisible && this.cameraAltitude() > SHELL_TOP
+    if (glow && !glowOverClouds) glow.render(renderer, this.camera3d, this.planetCoordSys)
     // (While the sun and sky light is still set up for this camera: the clouds use it.)
     if (!underwater && atmosphereVisible) {
       this.clouds?.render(renderer, this.scene, this.camera3d, this.lighting.sunLight.intensity, this.planet.atmosphereUniforms.atmoParams.value.y)
     }
+    if (glow && glowOverClouds) glow.render(renderer, this.camera3d, this.planetCoordSys)
     this.lighting.updateSkyLight(false)
     if (moonInFront) {
       renderer.clearDepth()
@@ -976,22 +999,26 @@ export class App {
     this.highlights.render(renderer, this.scene, this.camera3d)
     renderer.clearDepth()
     this.overlays.render(renderer)
+    this.quality.endGpuFrame()
     if ((this._framesRendered = (this._framesRendered ?? 0) + 1) % PRECOMPILE_INTERVAL === 1) this.precompileShaders()
     warmPrograms(renderer)
   }
 
   // Compiles the shader programs of new objects in the scene (drawn or not: e.g. the sea surface and the
-  // atmosphere while under the sea), the sky's and the clouds' passes' in the background, so that the
-  // first frame that draws them does not stall (see precompile.js).
+  // atmosphere while under the sea), the sky's, the launch vehicles' glow's and the clouds' passes' in the
+  // background, so that the first frame that draws them does not stall (see precompile.js).
   precompileShaders() {
     if (this._precompiling) return
-    const seen = (this._precompiled ??= { scene: new Set(), sky: new Set() })
+    const seen = (this._precompiled ??= { scene: new Set(), sky: new Set(), glow: new Set() })
     const scene = standInScene(this.scene, { seen: seen.scene })
     const sky = standInScene(this.sky.scene, { seen: seen.sky })
+    const glowScene = this.launchSystem?.glow.scene
+    const glow = glowScene && standInScene(glowScene, { seen: seen.glow })
     this._precompiling = true
     Promise.all([
       scene && this.renderer.compileAsync(scene, this.camera3d, this.scene),
       sky && this.renderer.compileAsync(sky, this.sky.camera, this.sky.scene),
+      glow && this.renderer.compileAsync(glow, this.camera3d, glowScene),
       this.clouds?.compileAsync(this.renderer, this.scene, this.camera3d),
     ]).catch((error) => console.warn('[app] precompiling shaders failed', error))
       .finally(() => { this._precompiling = false })
@@ -1000,6 +1027,7 @@ export class App {
   // Sets the drawing-buffer size. `css` keeps the canvas filling its container while recording at
   // a different resolution.
   setRenderSize(width, height, { pixelRatio = this.quality.pixelRatio() } = {}) {
+    if (this.shots?.recordingSize) ({ width, height, pixelRatio } = this.shots.recordingSize)
     this.renderer.setPixelRatio(pixelRatio)
     this.renderer.setSize(width, height, false)
     PixelLOD.viewportHeight = height * pixelRatio

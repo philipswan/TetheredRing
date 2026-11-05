@@ -105,12 +105,46 @@ export function rainFor(z, frequency, rate) {
   return rate * (z - threshold) / meanExcess
 }
 
+// The cloud types: the real world's mix from surface observations (build_weather.py's st ... hiWhen,
+// tools/sources/cloud_types.py), today's from the weather (as weatherMap.js's GLSL). Each layer's cover
+// follows its long-run mean amount through the same probit transform as the total cover (coverFor, which
+// keeps that mean), moved by the pressure anomaly (lows bring more) partly through a field of its own
+// (LAYER_OWN of it, other draws: the layers are not all locked together). In a low the low cloud turns
+// stratiform and the middle cloud to altostratus and nimbostratus; in a high, cumuliform and altocumulus
+// (TYPE_SHIFT, in log-odds per unit of anomaly). LAYER_SPREAD: the layers' cover's spread, as a share of a
+// 0/1 variable's at the same mean. LAYER_DRAWS: the draw offsets of the mid and high layers' own fields.
+export const LAYER_OWN = 0.6
+export const TYPE_SHIFT = 0.8
+export const LAYER_SPREAD = 0.8
+export const LAYER_DRAWS = [3001, 6007]
+// The clouds' layers keep at least this far (km) above the ground's mean height (the climatology's ground):
+// low, mid-level and high. (The reanalysis's cloud heights, averaged over its cells, put low cloud under
+// plateaus such as Tibet's; the low layer is lifted whole, keeping its depth.)
+export const GROUND_CLEARANCE = [0.5, 1.5, 3.0]
+// (The middle cloud's stratiform share is the more where its cover is the more, both being moved by the
+// same lows: MID_SHEET_BIAS, in log-odds, keeps its mean amount the observations'.)
+export const MID_SHEET_BIAS = -0.8
+
+/** A layer's cover today (0..1) from its long-run mean amount, at weather strength z. */
+export function layerCover(z, mean) {
+  const m = Math.min(Math.max(mean, 0), 0.98)
+  return m <= 0.002 ? 0 : coverFor(z, m, LAYER_SPREAD * Math.sqrt(m * (1 - m)))
+}
+
+/** A share (0..1) moved by `shift` in log-odds. */
+export function shiftShare(share, shift) {
+  const s = Math.min(Math.max(share, 0.01), 0.99)
+  return 1 / (1 + Math.exp(-(Math.log(s / (1 - s)) + shift)))
+}
+
 const _c = new Float64Array(FIELDS)
 
 /**
  * The weather at geodetic latitude/longitude (degrees) on day of year `dayOfYear` (1..366) at
- * `utcHours`: cover (0..1) of cloud, the low cloud layer's base and top (m) and the high cloud's cover
- * (0..1) and base (m); rain (mm/h, averaged over the area), its convective share (0..1, showers rather
+ * `utcHours`: cover (0..1) of cloud, the low cloud layer's cover (0..1), base and top (m) and its cumuliform share
+ * (0..1: cumulus and cumulonimbus, rather than stratocumulus and stratus); the middle cloud layer's cover
+ * (0..1), stratiform share (altostratus and nimbostratus, rather than altocumulus) and base (m); the high
+ * cloud's cover (0..1) and base (m); rain (mm/h, averaged over the area), its convective share (0..1, showers rather
  * than steady rain) and showerRain (mm/h, under the clouds that are raining);
  * humidity (relative, near the surface, 0..1); and the pressure anomaly.
  */
@@ -121,12 +155,23 @@ export function weatherAt(lat, lon, dayOfYear, utcHours) {
   const w = 2 * Math.PI * utcHours / 24
   const clamp = (v) => Math.min(1, Math.max(0, v))
   const cover = coverFor(z, c[F.cover] + c[F.coverCos] * Math.cos(w) + c[F.coverSin] * Math.sin(w), c[F.coverSd])
+  const own = Math.sqrt(1 - LAYER_OWN * LAYER_OWN)
+  const zMid = own * z - LAYER_OWN * pressureAnomaly(lat, lon, dayOfYear, utcHours, LAYER_DRAWS[0])
+  const zHigh = own * z - LAYER_OWN * pressureAnomaly(lat, lon, dayOfYear, utcHours, LAYER_DRAWS[1])
+  const lowSum = c[F.st] + c[F.sc] + c[F.cu] + c[F.cb]
+  const lift = Math.max(c[F.ground] + GROUND_CLEARANCE[0] - c[F.lowBase], 0)
+  const midMean = c[F.ac] + c[F.as_] + c[F.ns]
   return {
     cover,
-    lowBase: 1000 * c[F.lowBase],
-    lowTop: 1000 * Math.max(c[F.lowTop], c[F.lowBase] + 0.3),
-    highCover: clamp(c[F.highFreq] * (1 + 0.5 * z)),
-    highBase: 1000 * c[F.highBase],
+    lowBase: 1000 * (c[F.lowBase] + lift),
+    lowTop: 1000 * (Math.max(c[F.lowTop], c[F.lowBase] + 0.3) + lift),
+    lowCover: layerCover(z, lowSum),
+    cumuliform: shiftShare((c[F.cu] + c[F.cb]) / Math.max(lowSum, 1e-3), -TYPE_SHIFT * z),
+    midCover: layerCover(zMid, midMean),
+    midStratiform: shiftShare((c[F.as_] + c[F.ns]) / Math.max(midMean, 1e-3), TYPE_SHIFT * zMid + MID_SHEET_BIAS),
+    midBase: 1000 * Math.max(c[F.midBase], c[F.ground] + GROUND_CLEARANCE[1]),
+    highCover: layerCover(zHigh, c[F.hi]),
+    highBase: 1000 * Math.max(c[F.highBase], c[F.ground] + GROUND_CLEARANCE[2]),
     rain: rainFor(z, c[F.rainFreq], c[F.rainRate]),
     convective: clamp(c[F.convective]),
     get showerRain() { return this.rain / (RAIN_AREA[0] + (RAIN_AREA[1] - RAIN_AREA[0]) * this.convective) },

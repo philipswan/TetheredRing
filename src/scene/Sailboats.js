@@ -16,7 +16,8 @@ import { hash, offsetLatLon, pickWeighted, random, vesselBasis, windAt } from '.
 //  - The sea is divided into cells CELL_DEG of latitude high (and about as wide). Each cell has
 //    CANDIDATES places, drawn from a random sequence seeded by the cell's indices. Each place is
 //    classified from the terrain heights of a fixed tile (Planet.fixedHeightSampler: the deepest tile
-//    covering it, down to HEIGHT_LOD, not whatever is loaded for display): it needs MIN_DEPTH of water,
+//    covering it, down to HEIGHT_LOD, not whatever is loaded for display): it needs MIN_DEPTH of water
+//    (and, where the ground is generated, to be SHORE_CLEARANCE off its coastline: Planet.coastDistance),
 //    and is near the shore if there is land within NEAR_SHORE, mid-distance within MID_SHORE.
 //  - The wind is the day's weather at the boat (seaPlacement.windAt).
 //  - A sailing boat sails a "racetrack": a straight leg on a reach, a turn, the reciprocal leg, and a
@@ -38,6 +39,7 @@ const CELL_DEG = 0.02
 const CANDIDATES = 4
 const HEIGHT_LOD = 10
 const MIN_DEPTH = 3
+const SHORE_CLEARANCE = 25 // (m from the generated ground's coastline, where there is one)
 const NEAR_SHORE = 1000
 const MID_SHORE = 4000
 const SPAWN_RADIUS = 20000
@@ -245,7 +247,10 @@ export class Sailboats {
 
   async _water(lat, lon) {
     const h = await this._height(lat, lon)
-    return h !== null && h <= -MIN_DEPTH
+    if (h === null || h > -MIN_DEPTH) return false
+    // Where the ground is generated (Planet.coastDistance), its coastline, which is much sharper than the tile's.
+    const coast = await this.planet.coastDistance?.(lat, lon)
+    return coast === null || coast === undefined || coast < -SHORE_CLEARANCE
   }
 
   async _landWithin(lat, lon, distance) {

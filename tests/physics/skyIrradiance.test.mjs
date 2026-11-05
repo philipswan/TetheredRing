@@ -19,6 +19,8 @@ test('the constants match the shader model (atmosphereCommon.glsl)', () => {
   assert.equal(sky.ATMO_HEIGHT_R, glslConst('ATMO_HEIGHT_R'))
   assert.equal(sky.ATMO_HEIGHT_M, glslConst('ATMO_HEIGHT_M'))
   assert.equal(sky.ATMO_MIE_G, glslConst('ATMO_MIE_G'))
+  assert.equal(sky.ATMO_MIE_MULTIPLE, glslConst('ATMO_MIE_MULTIPLE'))
+  assert.deepEqual(sky.ATMO_MIE_MULTIPLE_TINT, glslConst('ATMO_MIE_MULTIPLE_TINT'))
 })
 
 test('a clear noon sky gives roughly a tenth of the sun\'s light, and is blue', () => {

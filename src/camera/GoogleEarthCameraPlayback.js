@@ -9,10 +9,15 @@ import { backgroundScene } from '../scene/backgroundScene.js'
 // In "helper" mode (jsonFileCameraControlHelper) the path drives a visible camera helper instead
 // of the real camera, to check alignment.
 export class GoogleEarthCameraPlayback {
-  constructor({ project = 'OrbitMaunaKea', camera, renderer, planetCoordSys, store, getPlanetObjects }) {
+  constructor({ project = 'OrbitMaunaKea', camera, renderer, planetCoordSys, store, getPlanetObjects, resize }) {
     this.project = project
     this.camera = camera
     this.renderer = renderer
+    this.resize = resize ?? ((width, height) => {
+      renderer.setSize(width, height, false)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+    })
     this.store = store
     this.getPlanetObjects = getPlanetObjects
     this.data = null
@@ -75,8 +80,7 @@ export class GoogleEarthCameraPlayback {
     const width = first ? first.source.data.naturalWidth : this.data.width
     const height = first ? first.source.data.naturalHeight : this.data.height
     this.renderer.setClearAlpha(0)
-    this.renderer.setSize(width, height, false)
-    this.camera.aspect = width / height
+    this.resize(width, height)
     this.background = new backgroundScene(width, height, first ?? null)
     if (this.background.scene) this.background.hidePlanet(this.getPlanetObjects())
   }
@@ -91,7 +95,7 @@ export class GoogleEarthCameraPlayback {
     this.camera.aspect = this.saved.width / this.saved.height
     this.camera.updateProjectionMatrix()
     this.renderer.setClearAlpha(this.saved.clearAlpha)
-    this.renderer.setSize(this.saved.width, this.saved.height, false)
+    this.resize(this.saved.width, this.saved.height)
     if (this.background) {
       if (this.background.preserveVisibility.length > 0) this.background.restorePlanet(this.getPlanetObjects())
       this.background.remove()

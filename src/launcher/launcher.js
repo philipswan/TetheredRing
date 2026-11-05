@@ -26,6 +26,7 @@ import { nearestOnCurve } from '../curves/curveDistance.js'
 import { launchCadence } from './launchCadence.js'
 import { terminalSchedule } from './terminalPort.js'
 import { MIN_DEPTH } from './OceanTerminal.js'
+import { LaunchVehicleGlow } from './LaunchVehicleGlow.js'
 
 //import { arrow } from '../ring/markers.js'
 //import { FrontSide } from 'three'
@@ -61,6 +62,8 @@ export class launcher {
 
     this.scene = planetCoordSys
     this.objectClasses = []
+    // The launch vehicles' plasma and exhaust, drawn apart from the main scene (see App.render)
+    this.glow = new LaunchVehicleGlow()
 
     const whiteMaterial = new THREE.MeshLambertMaterial({color: 0xffffff})
     const redMaterial = new THREE.MeshLambertMaterial({color: 0xdf4040})
@@ -589,6 +592,8 @@ export class launcher {
     const showMarkers = dParamWithUnits['showLaunchTrajectory'].value && dParamWithUnits['showMarkers'].value
     ;[this.launchTrajectoryWhiteMarker, this.launchTrajectoryRedMarker, this.launchTrajectoryGreenMarker, this.launchTrajectoryBlueMarker,
       this.launchTrajectoryOrangeMarker, this.launchTrajectoryMarker5, this.launchTrajectoryMarker6].forEach(marker => { marker.visible = showMarkers })
+
+    this.glow.configure(this.effectiveParams(dParamWithUnits), planetSpec)
 
     // Update 2D chart
     this.xyChart.visible = dParamWithUnits['showXYChart'].value

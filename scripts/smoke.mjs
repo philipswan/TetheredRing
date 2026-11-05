@@ -53,15 +53,43 @@ const port = server.httpServer.address().port
 const pagePath = arg('page', '/')
 const url = `http://localhost:${port}${pagePath}${urlParams ? `?${urlParams}` : ''}`
 
-const browser = await puppeteer.launch({
-  executablePath: findChrome(),
-  headless: true,
-  // SMOKE_GPU=1 uses the real GPU (much faster KTX2/terrain); the default software renderer works anywhere.
-  args: process.env.SMOKE_GPU
-    ? ['--enable-gpu', '--use-angle=' + (process.env.SMOKE_ANGLE ?? 'gl-egl'), '--ignore-gpu-blocklist', `--window-size=${width},${height}`]
-    : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${width},${height}`],
-  defaultViewport: { width, height, deviceScaleFactor },
-})
+// SMOKE_GPU=1 uses the real GPU (much faster KTX2/terrain); the default software renderer works anywhere.
+// SMOKE_CHROME_ARGS: more browser flags, space-separated (e.g. --disable-gpu-sandbox).
+const chromeArgs = [...(process.env.SMOKE_CHROME_ARGS?.split(' ').filter(Boolean) ?? [])].concat(process.env.SMOKE_GPU
+  ? ['--enable-gpu', '--use-angle=' + (process.env.SMOKE_ANGLE ?? 'gl-egl'), '--ignore-gpu-blocklist', `--window-size=${width},${height}`]
+  : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${width},${height}`])
+let browser, tunnel = null
+const remote = process.env.SMOKE_REMOTE
+if (remote) {
+  // SMOKE_REMOTE=user@host: runs Chromium (SMOKE_REMOTE_CHROME, default chromium-browser) on another machine
+  // over ssh (more options in SMOKE_SSH_ARGS), on its GPU. The page is served from here: a reverse tunnel makes
+  // the dev server the remote machine's localhost, and a forward tunnel brings back the browser's DevTools
+  // port. The remote browser is closed when ssh's input closes (when this ends).
+  const { spawn } = await import('node:child_process')
+  const debugPort = 20000 + (process.pid % 20000)
+  const chrome = process.env.SMOKE_REMOTE_CHROME ?? 'chromium-browser'
+  tunnel = spawn('ssh', [...(process.env.SMOKE_SSH_ARGS?.split(' ').filter(Boolean) ?? []), '-o', 'ExitOnForwardFailure=yes',
+    '-R', `${port}:localhost:${port}`, '-L', `${debugPort}:localhost:${debugPort}`, remote,
+    // (SMOKE_REMOTE_ENV: environment for the remote browser, e.g. a driver's debug options; SMOKE_REMOTE_LOG: a
+    // file there for its output.)
+    `dir=$(mktemp -d); ${process.env.SMOKE_REMOTE_ENV ?? ''} ${chrome} --headless=new --remote-debugging-port=${debugPort} --user-data-dir=$dir ${chromeArgs.join(' ')} about:blank >${process.env.SMOKE_REMOTE_LOG ?? '/dev/null'} 2>&1 & pid=$!; cat >/dev/null; kill $pid; sleep 1; rm -rf $dir`],
+  { stdio: ['pipe', 'inherit', 'inherit'] })
+  for (let i = 0; i < 150; i++) {
+    try { if ((await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok) break } catch { /* not yet */ }
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${debugPort}`, defaultViewport: { width, height, deviceScaleFactor } })
+} else {
+  browser = await puppeteer.launch({
+    executablePath: findChrome(),
+    headless: true,
+    args: chromeArgs,
+    ignoreDefaultArgs: false,
+    defaultViewport: { width, height, deviceScaleFactor },
+    // SMOKE_DUMPIO=1 passes the browser's own stdout/stderr through (e.g. a GPU driver's shader statistics).
+    dumpio: !!process.env.SMOKE_DUMPIO,
+  })
+}
 
 const errors = []
 let exitCode = 0
@@ -97,6 +125,7 @@ try {
   errors.push(`harness: ${e.message}`)
 } finally {
   await browser.close()
+  if (tunnel) { tunnel.stdin.end(); setTimeout(() => tunnel.kill(), 3000).unref() }
   await server.close()
 }
 

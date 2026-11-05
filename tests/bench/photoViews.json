@@ -1,0 +1,506 @@
+[
+ {
+  "name": "altocumulus",
+  "photo": "Altocumulus.jpg",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 206,
+   "sunTimeOfDayUTC": 22.633,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4358000.512,
+     1640634.123,
+     -4356807.157
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 31
+   },
+   "parameters": {
+    "sunDayOfYear": 206,
+    "sunTimeOfDayUTC": 22.633
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "mid": [
+     0.65,
+     0,
+     3500
+    ],
+    "low": [
+     0.02,
+     0,
+     0,
+     600,
+     1500
+    ]
+   }
+  }
+ },
+ {
+  "name": "cumulus+altocumulus",
+  "photo": "Calm Cumulus+Altocumulus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 206,
+   "sunTimeOfDayUTC": 22.6,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4357980.973,
+     1640628.791,
+     -4356778.73
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 25
+   },
+   "parameters": {
+    "sunDayOfYear": 206,
+    "sunTimeOfDayUTC": 22.6
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "mid": [
+     0.85,
+     0,
+     3500
+    ],
+    "low": [
+     0.04,
+     0,
+     0,
+     600,
+     1500
+    ]
+   }
+  }
+ },
+ {
+  "name": "cumulus+altostratus",
+  "photo": "Calm Cumulus+Altostratus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 206,
+   "sunTimeOfDayUTC": 22.667,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4358000.512,
+     1640634.123,
+     -4356807.157
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 29
+   },
+   "parameters": {
+    "sunDayOfYear": 206,
+    "sunTimeOfDayUTC": 22.667
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "mid": [
+     0.45,
+     1,
+     3000
+    ],
+    "low": [
+     0.05,
+     0,
+     0,
+     600,
+     1500
+    ]
+   }
+  }
+ },
+ {
+  "name": "altocumulus+cumulus",
+  "photo": "Altocumulus+Cumulus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 181,
+   "sunTimeOfDayUTC": 8.467,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4356710.723,
+     1640612.688,
+     -4357928.758
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 26
+   },
+   "parameters": {
+    "sunDayOfYear": 181,
+    "sunTimeOfDayUTC": 8.467
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "mid": [
+     0.9,
+     0.6,
+     3000
+    ],
+    "low": [
+     0.25,
+     0,
+     0,
+     600,
+     1200
+    ]
+   }
+  }
+ },
+ {
+  "name": "nimbostratus-under",
+  "photo": "Nimbostratus under.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 181,
+   "sunTimeOfDayUTC": 5.617,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4356647.5,
+     1640592.723,
+     -4357872.058
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 44
+   },
+   "parameters": {
+    "sunDayOfYear": 181,
+    "sunTimeOfDayUTC": 5.617
+   },
+   "cloudType": {
+    "rain": 3,
+    "humidity": 0.95,
+    "low": [
+     1,
+     1,
+     0,
+     700,
+     4500
+    ]
+   }
+  }
+ },
+ {
+  "name": "nimbostratus-edge",
+  "photo": "Nimbostratus edge.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 181,
+   "sunTimeOfDayUTC": 5.6,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4356851.003,
+     1640640.911,
+     -4358028.304
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 54
+   },
+   "parameters": {
+    "sunDayOfYear": 181,
+    "sunTimeOfDayUTC": 5.6
+   },
+   "cloudType": {
+    "rain": 3,
+    "humidity": 0.95,
+    "low": [
+     0.85,
+     1,
+     0,
+     700,
+     4500
+    ]
+   }
+  }
+ },
+ {
+  "name": "stratocumulus",
+  "photo": "Stratocumulus+Altocumulus+Cirrostratus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 214,
+   "sunTimeOfDayUTC": 23.633,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4357928.758,
+     1640612.688,
+     -4356710.723
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 30
+   },
+   "parameters": {
+    "sunDayOfYear": 214,
+    "sunTimeOfDayUTC": 23.633
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "low": [
+     0.9,
+     0.6,
+     0,
+     700,
+     1500
+    ],
+    "high": [
+     0.8,
+     0.3,
+     9000
+    ]
+   }
+  }
+ },
+ {
+  "name": "stratus",
+  "photo": "Stratus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 216,
+   "sunTimeOfDayUTC": 22.433,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4357917.764,
+     1640608.999,
+     -4356697.68
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 30
+   },
+   "parameters": {
+    "sunDayOfYear": 216,
+    "sunTimeOfDayUTC": 22.433
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "low": [
+     1,
+     1,
+     0,
+     300,
+     900
+    ]
+   }
+  }
+ },
+ {
+  "name": "hazy-cumulus",
+  "photo": "hazy horizon cumulus.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 170,
+   "sunTimeOfDayUTC": 2.483,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4357917.764,
+     1640608.999,
+     -4356697.68
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 30
+   },
+   "parameters": {
+    "sunDayOfYear": 170,
+    "sunTimeOfDayUTC": 2.483
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "low": [
+     0.04,
+     0,
+     0,
+     600,
+     1700
+    ]
+   }
+  }
+ },
+ {
+  "name": "cirrus-dusk",
+  "photo": "Cirrocumulus+Cirrus Dusk.JPG",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 185,
+   "sunTimeOfDayUTC": 10.15,
+   "camera": {
+    "position": [
+     4357339.351,
+     1640105.317,
+     -4357339.351
+    ],
+    "target": [
+     4358009.318,
+     1640460.927,
+     -4356687.671
+    ],
+    "up": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "orbitUp": [
+     0.683,
+     0.259,
+     -0.683
+    ],
+    "fov": 26
+   },
+   "parameters": {
+    "sunDayOfYear": 185,
+    "sunTimeOfDayUTC": 10.15
+   },
+   "cloudType": {
+    "rain": 0,
+    "humidity": 0.8,
+    "high": [
+     0.5,
+     0.15,
+     9000
+    ],
+    "cells": 0.5
+   }
+  }
+ }
+]

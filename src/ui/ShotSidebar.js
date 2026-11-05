@@ -7,6 +7,7 @@ import { ANCHOR_KINDS } from '../shots/Anchors.js'
 import { isWorldAnchor, WORLD_ANCHOR, ANCHOR_ORIENTS } from '../shots/ShotFormat.js'
 import { PLAYBACK_SPEEDS } from '../shots/ShotController.js'
 import { formatDuration } from '../shots/RenderQueueRunner.js'
+import { DEFAULT_CORNER_SECONDS } from '../shots/CameraPath.js'
 import { Timeline } from './Timeline.js'
 
 const STORAGE_KEY = 'tetheredRing.shotSidebar'
@@ -492,7 +493,9 @@ export class ShotSidebar {
       this.row('Duration (s)',
         this.number(() => s.shot.output.duration, (v) => s.setOutput({ duration: Math.max(0.1, v) }), { min: 0.1 }),
         this.button('Fit', () => { const last = s.keyframes.at(-1); if (last) s.setOutput({ duration: Math.max(0.1, last.time) }) }, { title: 'End the shot at the last keyframe' })),
-      this.row('Interpolation', this.select([['smooth', 'Smooth spline'], ['linear', 'Linear (live takes)']], () => s.shot.camera.interpolation, (v) => s.setInterpolation(v))),
+      this.row('Interpolation', this.select([['smooth', 'Smooth spline'], ['linearEased', 'Linear, eased corners'], ['linear', 'Linear (live takes)']], () => s.shot.camera.interpolation, (v) => s.setInterpolation(v))),
+      this.cornerRow = this.row('Corner length (s)',
+        this.number(() => s.shot.camera.cornerSeconds ?? DEFAULT_CORNER_SECONDS, (v) => s.setCornerSeconds(v), { min: 0, step: 0.1, title: 'How long (± seconds) the camera eases around each keyframe, blending the straight line in with the straight line out' })),
       el('div', { class: 'ss-line' },
         this.button('New shot', () => { if (!s.keyframes.length || confirm('Start a new shot? The current keyframes will be discarded unless you export them.')) s.newShot() }, { title: 'An empty shot starting at the current simulated time' }),
         this.button('Import…', () => s.chooseShotFile(), { title: 'Load a .shot.json file' }),
@@ -687,6 +690,7 @@ export class ShotSidebar {
     if (kind === 'shot') {
       this.updateBlurRows()
       this.updateSupersampleHint()
+      this.cornerRow.hidden = s.shot.camera.interpolation !== 'linearEased'
       this.rebuildKeyList()
       this.syncEditor()
       for (const sync of this.syncs) sync()

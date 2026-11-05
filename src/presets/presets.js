@@ -789,6 +789,8 @@ function launchSystemOverview(guidParamWithUnits, nonGUIParams) {
 }
 
 function solarPanelsCalifornia(guidParamWithUnits, nonGUIParams) {
+  // 15 August: the real clouds' snapshot nearest the default (hashed) day had a featureless deck over the view.
+  guidParamWithUnits['sunDayOfYear'].value = 228
 
   // guidParamWithUnits['ringFinalAltitude'].value = 22000  // m
   // guidParamWithUnits['numTethers'].value = 1300

@@ -1,10 +1,15 @@
 import * as THREE from 'three';
+import { COVER, COVER_COUNT, GroundData } from './groundData.js';
+import { setGroundSeason } from './groundDetail.js';
 import { CubedSpherePlanetRenderer, PLANET_YAW } from './CubedSpherePlanetRenderer.js';
 import { loadSeaIce, setSeaIceDayOfYear, setSeaIceVisible } from './seaIce.js';
 import atmosphereVertexShader from '../shaders/atmosphere.vert.glsl?raw';
 import atmosphereFragmentShader from '../shaders/atmosphere.frag.glsl?raw';
-import './aerialPerspective.js'; // registers <atmosphere_common>
+import { AerialPerspective, AP_HIGH_HEIGHT, apHazeUniforms } from './aerialPerspective.js'; // (and registers <atmosphere_common>)
 import { seaWaveUniforms, updateSeaWaves } from './seaWaves.js';
+import { SkyLut, SKY_LUT_SIZE, skyLutGlsl } from './skyLut.js';
+import { SeaSkyTable } from './seaSkyTable.js';
+import { HazeVolume } from './hazeVolume.js';
 
 // Top of the atmosphere shell above sea level (m), where the sky's scattering stops. High enough that
 // the air left above it would not show: a line of sight grazing the top crosses ~1100 km of air at
@@ -92,6 +97,15 @@ const ASSET_ATTRIBUTIONS = {
   boca_chica: EOX_CLOUDLESS,
   christmas_island: EOX_CLOUDLESS,
   queensland: EOX_CLOUDLESS,
+  // The generated close-up ground's data (tools/ground_cover.py).
+  hawaii_ground: 'Ground: Copernicus DEM GLO-30 (DLR, Airbus, ESA); ESA WorldCover 2021; Sentinel-2 cloudless 2024 by EOX (contains modified Copernicus Sentinel data)',
+};
+
+// Regions of generated close-up ground (folders under assets/ baked by tools/ground_cover.py; see groundData.js). Below
+// the regional bakes' deepest tiles, the ground there is made on the spot from them. One that is not on the machine
+// is skipped.
+export const GROUND_DATA = {
+  earth: ['hawaii_ground'],
 };
 
 function assetFromName(name) {
@@ -221,6 +235,11 @@ export class Planet {
     this.renderers = new Map();
     this.settings = new Map(); // renderer method -> its last arguments
     this.visible = true;
+    const groundNames = new URLSearchParams(globalThis.location?.search ?? '').get('ground') === '0'
+      ? [] : (GROUND_DATA[bodyKey(planetSpec)] ?? []);
+    this.rendererOptions.groundData = rendererOptions.groundData ??
+      groundNames.map((name) => new GroundData(`${import.meta.env?.BASE_URL ?? '/'}assets/${name}`));
+    this.rendererOptions.groundShading = new URLSearchParams(globalThis.location?.search ?? '').get('groundDetail') !== '0';
     this.lod = this._createRenderer(assetNames);
     // Seasonal sea ice on the Earth's sea surface (seaIce.js; the date is set by setDayOfYear).
     if (bodyKey(planetSpec) === 'earth' && this.rendererOptions.water) loadSeaIce();
@@ -243,10 +262,13 @@ export class Planet {
       new THREE.ShaderMaterial({
         // (The sea it draws near the horizon reflects the sky as the sea surface does: seaWaves.js.)
         // (The sea it draws near the horizon reflects the sky as the sea surface does: seaWaves.js.)
-        uniforms: { ...this.atmosphereUniforms, seaSlopeVariance: seaWaveUniforms.seaSlopeVariance },
+        uniforms: {
+          ...this.atmosphereUniforms, seaSlopeVariance: seaWaveUniforms.seaSlopeVariance,
+          skyLight: { value: null }, skyTransmittance: { value: null }, skyLutSize: { value: new THREE.Vector2(...SKY_LUT_SIZE) },
+        },
         defines: planetSpec.hasOcean === true ? { SEA_REFLECTION: '' } : {},
         vertexShader: atmosphereVertexShader,
-        fragmentShader: atmosphereFragmentShader,
+        fragmentShader: atmosphereFragmentShader.replace('SKY_LUT_GLSL', skyLutGlsl),
         side: THREE.BackSide,
         depthWrite: false,
         transparent: true,
@@ -260,6 +282,43 @@ export class Planet {
     this.atmosphere.scale.set(a + ATMOSPHERE_HEIGHT, b + ATMOSPHERE_HEIGHT, a + ATMOSPHERE_HEIGHT);
     this.atmosphere.frustumCulled = false; // also the sky around the camera when it is inside the shell
     this.atmosphere.visible = showAtmosphere;
+    this.skyLut = null;
+    this.setSkyLut(true);
+  }
+
+  // The haze in front of the ground read from a table worked out once a frame (skyLut.js, with the ground's
+  // aerosol) rather than marched at every pixel, from high up (aerialPerspective.js), for the lightest quality.
+  setGroundHazeLut(on) {
+    if (on === !!this.groundHazeLut) return;
+    if (on) this.groundHazeLut = new SkyLut(this.atmosphereUniforms, { skyAerosol: false });
+    else { this.groundHazeLut.dispose(); this.groundHazeLut = null; }
+    AerialPerspective.setHazeLut(this.groundHazeLut);
+  }
+
+  // The haze in front of the ground from above read from a table of lines of sight down to it, by where along
+  // them each point is (hazeVolume.js), rather than marched at every pixel of the ground and the sea.
+  setHazeVolume(on) {
+    if (on === !!this.hazeVolume) return;
+    if (on) this.hazeVolume = new HazeVolume(this.atmosphereUniforms, apHazeUniforms.apVolumeTop);
+    else { this.hazeVolume.dispose(); this.hazeVolume = null; }
+    AerialPerspective.setHazeVolume(this.hazeVolume);
+  }
+
+  // The sky read from a table worked out once a frame (skyLut.js) rather than marched at every pixel.
+  setSkyLut(on) {
+    if (on === !!this.skyLut) return;
+    const material = this.atmosphere.material;
+    if (on) {
+      this.skyLut = new SkyLut(this.atmosphereUniforms);
+      material.uniforms.skyLight.value = this.skyLut.light;
+      material.uniforms.skyTransmittance.value = this.skyLut.transmittance;
+      material.defines.SKY_LUT = '';
+    } else {
+      this.skyLut.dispose();
+      this.skyLut = null;
+      delete material.defines.SKY_LUT;
+    }
+    material.needsUpdate = true;
   }
 
   /**
@@ -282,6 +341,14 @@ export class Planet {
     seaWaveUniforms.seaWindMapActive.value = texture ? 1 : 0;
   }
 
+  /** The clouds' cover for the sea's reflection of them (seaWaves.js seaCloudCover): clouds, a Clouds (or null). */
+  setSeaClouds(clouds) {
+    const u = clouds?.uniforms;
+    seaWaveUniforms.seaCoverMap.value = u?.weatherA.value ?? null;
+    seaWaveUniforms.seaRealClouds.value = u?.realClouds.value ?? null;
+    seaWaveUniforms.seaCloudBlend.value.set(u?.realBlend.value ?? 0, u?.realDeclination.value ?? 0, u?.realClouds.value ? 1 : 0);
+  }
+
   updateAtmosphere(camera, sunDirection) {
     const { a, b } = this.ellipsoid;
     const k = a / b;
@@ -302,6 +369,17 @@ export class Planet {
     const fade = THREE.MathUtils.smoothstep(Math.sqrt(c2) - a, EXPOSURE_FADE[0], EXPOSURE_FADE[1]);
     u.atmoParams.value.y = THREE.MathUtils.lerp(1, SPACE_EXPOSURE, fade);
     u.atmoSun.value.copy(sunDirection).normalize();
+    if (this.skyLut && this.atmosphere.visible && this.rendererOptions.renderer) this.skyLut.update(this.rendererOptions.renderer);
+    // (The ground's haze table: the sea reads it from any height, aerialPerspective.js.)
+    if (this.groundHazeLut && this.rendererOptions.renderer) this.groundHazeLut.update(this.rendererOptions.renderer);
+    // (Only from where the haze reads it: aerialPerspective.js.)
+    if (this.hazeVolume && this.rendererOptions.renderer && Math.sqrt(c2) - a >= AP_HIGH_HEIGHT) this.hazeVolume.update(this.rendererOptions.renderer, Math.sqrt(c2) - a, ATMOSPHERE_HEIGHT);
+    // The sky from sea level, for the lighter qualities' sea (worked out once).
+    if (this.rendererOptions.renderer) {
+      this.seaSkyTable ??= new SeaSkyTable();
+      this.seaSkyTable.update(this.rendererOptions.renderer, a);
+      seaWaveUniforms.seaSkyTable.value = this.seaSkyTable.texture;
+    }
   }
 
   _createRenderer(assetNames) {
@@ -360,6 +438,7 @@ export class Planet {
   /** The date for seasonal effects (sea ice): day of the year, 1 = 1 January, fractional days allowed. */
   setDayOfYear(dayOfYear) {
     setSeaIceDayOfYear(dayOfYear);
+    setGroundSeason(dayOfYear);
   }
 
   setSeaIceVisible(visible) {
@@ -379,6 +458,11 @@ export class Planet {
   }
 
   // Sea surface over terrain below sea level (planets with oceans).
+  // The sea's lighter shader, for the lighter graphics qualities (see CubedSpherePlanetRenderer.setSeaLite).
+  setSeaLite(on) {
+    this._setOnRenderers('setSeaLite', on)
+  }
+
   setWaterVisible(visible) {
     this._setOnRenderers('setWaterVisible', visible)
   }
@@ -415,6 +499,21 @@ export class Planet {
    */
   sampleTerrainHeight(latDeg, lonDeg) {
     return this.lod.sampleTerrainHeight(latDeg, lonDeg);
+  }
+
+  /**
+   * Distance (m) from the generated ground's coastline at a geodetic latitude and longitude (degrees): positive
+   * inland, negative at sea (to -256 m and no further). Resolves to null where there is no ground data (groundData.js).
+   */
+  async coastDistance(lat, lon) {
+    for (const g of this.rendererOptions.groundData ?? []) {
+      if (!(await g.ready) || !g.covers(lat, lon)) continue;
+      await g.request(lat - 0.001, lat + 0.001, lon - 0.001, lon + 0.001);
+      const c = new Float32Array(COVER_COUNT);
+      g.cover(lat, lon, c);
+      return c[COVER.coast];
+    }
+    return null;
   }
 
   /** See CubedSpherePlanetRenderer.fixedHeightSampler. */

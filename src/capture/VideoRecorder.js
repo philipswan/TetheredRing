@@ -1,4 +1,4 @@
-// In-browser video encoding using WebCodecs (via mediabunny). Frames are pulled from the renderer's
+// In-browser video encoding using WebCodecs (via mediabunny). Frames are pulled from the CPU capture
 // canvas one at a time, so recording is independent of the real-time frame rate: the caller renders a
 // frame, then awaits addFrame() before advancing the simulation by exactly 1/fps seconds.
 //

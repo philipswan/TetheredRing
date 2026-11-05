@@ -50,7 +50,8 @@ const warmed = new WeakSet()
 export function warmPrograms(renderer, budget = 2) {
   const start = performance.now()
   for (const program of renderer.info.programs) {
-    if (warmed.has(program) || !program.isReady()) continue
+    // (three.js's list of programs has held an empty slot now and then, after a program was released.)
+    if (!program || warmed.has(program) || !program.isReady()) continue
     warmed.add(program)
     program.getUniforms()
     if (performance.now() - start > budget) return
