@@ -95,18 +95,38 @@ export class InstancedProxyPool {
     if (!this.meshes.length) return
     // World -> mesh-local (computed once per frame in float64).
     _toOrigin.copy(this.meshes[0].matrixWorld).invert()
+    const visible = this._visible ??= []
+    let n = 0
     for (const proxy of this.proxies) {
       if (!proxy.parent || !isShown(proxy)) continue
       proxy.updateWorldMatrix(true, false)
       _proxyPosition.setFromMatrixPosition(proxy.matrixWorld)
       _sphere.center.copy(_proxyPosition)
       if (!_frustum.intersectsSphere(_sphere)) continue
-      const pixels = this.size / Math.max(1e-3, _proxyPosition.distanceTo(_cameraPosition)) * pixelsPerRadian
+      const distance = _proxyPosition.distanceTo(_cameraPosition)
+      const pixels = this.size / Math.max(1e-3, distance) * pixelsPerRadian
       const level = this.levels.findIndex(l => pixels >= l.minPixels)
       if (level === -1) continue
+      const entry = visible[n] ??= { proxy: null, level: 0, distance: 0, x: 0, y: 0, z: 0 }
+      entry.proxy = proxy
+      entry.level = level
+      entry.distance = distance
+      entry.x = _proxyPosition.x; entry.y = _proxyPosition.y; entry.z = _proxyPosition.z
+      n++
+    }
+    visible.length = n
+    // In an order that depends only on where they are (not on the order the proxies were made, which depends on
+    // what was drawn before): nearest first, or for a transparent material farthest first (so they blend in
+    // order). Copies that overlap exactly then always come out the same.
+    const transparent = this.levels.map(l => l.material.transparent === true)
+    visible.sort((a, b) => a.level - b.level || (transparent[a.level] ? b.distance - a.distance : a.distance - b.distance) ||
+      a.x - b.x || a.y - b.y || a.z - b.z)
+    for (let i = 0; i < n; i++) {
+      const { proxy, level } = visible[i]
       const mesh = this.meshes[level]
       _relative.multiplyMatrices(_toOrigin, proxy.matrixWorld)
       mesh.setMatrixAt(mesh.count++, _relative)
+      visible[i].proxy = null
     }
     for (const mesh of this.meshes) mesh.instanceMatrix.needsUpdate = true
   }
