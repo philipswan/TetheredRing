@@ -41,7 +41,7 @@ test('moving and removing items', () => {
 test('a run interrupted mid-shot resumes that shot before moving to the next', () => {
   const q = createQueue()
   const a = addToQueue(q, shot('A'))
-  const b = addToQueue(q, shot('B'))
+  addToQueue(q, shot('B'))   // (queued behind A)
   a.status = 'rendering'
   markInterrupted(q)
   assert.equal(a.status, 'pending')
