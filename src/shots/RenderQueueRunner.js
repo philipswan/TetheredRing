@@ -20,6 +20,7 @@ import {
 } from './RenderQueue.js'
 import { serializeShot } from './ShotFormat.js'
 import { downloadText } from '../app/exports.js'
+import { randomUUID } from '../utils/randomUUID.js'
 
 const DB_NAME = 'tetheredRing.renderQueue'
 const STORE = 'kv'
@@ -183,7 +184,7 @@ export class RenderQueueRunner {
   renderAgain(id) {
     const item = findItem(this.queue, id)
     if (item && item.status !== 'rendering') {
-      if (item.status === 'done') item.fileName = `${item.fileName || item.shot.name}_${crypto.randomUUID().slice(0, 8)}`
+      if (item.status === 'done') item.fileName = `${item.fileName || item.shot.name}_${randomUUID().slice(0, 8)}`
       resetItem(item)
     }
     return this.save()

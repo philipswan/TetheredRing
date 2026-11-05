@@ -21,6 +21,7 @@ import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, mat
 import { SegmentedRecorder, assembleRender } from '../capture/SegmentedRecorder.js'
 import { RenderReview, outputFolderPath, reviewVideoPath, reviewVideoName } from '../capture/RenderReview.js'
 import { RENDER_BUILD_ID } from 'virtual:render-build'
+import { randomUUID } from '../utils/randomUUID.js'
 
 const PENDING_SHOT_KEY = 'tetheredRing.pendingShot'
 const AUTOSAVE_KEY = 'tetheredRing.shotAutosave'
@@ -423,7 +424,7 @@ export class ShotController {
   }
 
   ensureProject() {
-    this.shot.project ??= { id: crypto.randomUUID() }
+    this.shot.project ??= { id: randomUUID() }
   }
 
   // Moves the shot's start to `simTime` (keyframes keep their times within the shot).
@@ -1574,7 +1575,7 @@ export class ShotController {
       await this.queue.ready
       this.syncShotFromApp()
       if (!window.showSaveFilePicker) {
-        if (saveAs) { this.shot.project = { id: crypto.randomUUID() }; this.clearProjectRender(); this.changed() }
+        if (saveAs) { this.shot.project = { id: randomUUID() }; this.clearProjectRender(); this.changed() }
         this.exportShot()
         this.setStatus('Shot project downloaded. This browser cannot update the original file; each Save downloads a copy.')
         return
@@ -1590,7 +1591,7 @@ export class ShotController {
         (handle.isSameEntry && await handle.isSameEntry(previous.fileHandle)))
       const savedShot = clone(this.shot)
       const fork = saveAs && !sameFile
-      if (fork) savedShot.project = { id: crypto.randomUUID() }
+      if (fork) savedShot.project = { id: randomUUID() }
       writable = await handle.createWritable()
       await writable.write(serializeShot(savedShot))
       await writable.close()
@@ -1700,7 +1701,7 @@ export class ShotController {
           }
         }
       }
-      shot.project ??= { id: crypto.randomUUID() }
+      shot.project ??= { id: randomUUID() }
       if (fileHandle || fromFile) {
         await this.queue.ready
         const previous = Object.hasOwn(this.queue.projectRecords, shot.project.id) ? this.queue.projectRecords[shot.project.id] : null
