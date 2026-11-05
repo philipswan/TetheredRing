@@ -230,6 +230,28 @@ function reshape(geometry, design, { superstructure = false } = {}) {
   return g
 }
 
+// A cap on the unit sphere holding every ship of `lane`: its waypoints, the great-circle arcs between them, and the
+// ships' offsets to starboard. { centre, radius (radians; PI when no smaller cap holds it), ships: the lane's ship count }.
+function laneCap(lane) {
+  const centre = new THREE.Vector3()
+  for (const p of lane.points) centre.add(p)
+  let radius = Math.PI
+  if (centre.lengthSq() > 1e-12) {
+    centre.normalize()
+    radius = 0
+    for (const p of lane.points) radius = Math.max(radius, centre.angleTo(p))
+    // (A cap under a hemisphere holds the shorter arcs between its points; a larger one might not.)
+    if (radius >= Math.PI / 2) radius = Math.PI
+    else {
+      let offset = 0
+      for (const s of lane.separation) offset = Math.max(offset, s)
+      for (const ship of lane.ships) offset = Math.max(offset, ship.offset ?? 0)
+      radius += offset / EARTH_RADIUS + 1e-6
+    }
+  }
+  return { centre, radius, ships: lane.ships.length }
+}
+
 export class ContainerShips {
   /**
    * planet: Planet (for the terrain at anchorages); parent: the planet's coordinate system (three.js
@@ -687,6 +709,9 @@ if (!gl_FrontFacing) diffuseColor.rgb = vec3(${hold.r.toFixed(4)}, ${hold.g.toFi
       const here = unitVector(geo.lat, geo.lon)
       const near = (lat, lon) => unitVector(lat, lon, _q).dot(here) > cosRadius && seaIceConcentrationAt(lat, lon) < 0.15
       for (const lane of this.lanes) {
+        // (A lane none of whose ships can be in range is skipped whole: the same ships are shown.)
+        if (lane.cap?.ships !== lane.ships.length) lane.cap = laneCap(lane)
+        if (lane.cap.radius < Math.PI / 2 && here.angleTo(lane.cap.centre) > lane.cap.radius + radius / EARTH_RADIUS) continue
         for (const ship of lane.ships) {
           const pose = this._laneShipPose(lane, ship, t)
           if (pose && near(pose.lat, pose.lon)) this._show(ship, [0.35, 1], pose.lat, pose.lon, pose.heading, seen)
