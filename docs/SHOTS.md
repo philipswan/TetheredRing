@@ -248,6 +248,20 @@ Set these before you render:
     2 px). **Most sub-frames per frame** caps it. A camera riding a launch vehicle gets hundreds of
     sub-frames; a slow pan gets the fewest.
   - **Fixed** uses the same **Sub-frames** count for every frame.
+  - **Jitter sub-frame times** (off by default) puts each sub-frame at a random but repeatable
+    moment within its share of the shutter, instead of evenly spaced. Evenly spaced sub-frames that
+    move things more than a pixel each show as separate copies. When the step between them is close to
+    a simple fraction of the spacing of what the camera passes (a 1 m step past 5 m brackets is
+    exactly 1/5), the copies land in only a few places and stay sharp. At a whole number of spacings
+    per frame they also freeze on screen, and near it they crawl. Jitter scatters the copies
+    differently every frame, so that pattern becomes a faint grain, which is smaller with more
+    sub-frames. It costs no extra rendering. Turn it on for fast passes along repeated structures.
+    Leave it off when the sub-frames are already close together on screen, where it only adds grain.
+    With jitter, what counts is how many sub-frames fall within one spacing of the repeated
+    structure. That is fewest at low speed, so raise **Fewest sub-frames** to about 48. At high speed
+    the many spacings passed per frame fill in by themselves, so **Most sub-frames per frame** can
+    usually come down. For the launch-vehicle ride in `shots/FollowLaunchVehicle.shot.json`, 48 to 128
+    rendered cleaner than the defaults (16 to 1024), at under half the sub-frames.
   - **Preview this frame** renders the frame at the playhead exactly as the recording will (motion
     blur and all) and shows it.
 - **Supersampling** — render each frame at 1.5× to 4× the output resolution per axis and filter it
@@ -312,7 +326,7 @@ a half-written file is never mistaken for a finished one.
 
 Options that apply to every shot: `--width`, `--height`, `--fps`, `--codec av1|avc|hevc|vp9`,
 `--container mp4|mkv`, `--bitrate <Mbps>`, `--supersample 1|1.5|2|3|4`,
-`--motion-blur off|fixed|adaptive`; `--headful` shows the browser window. The full list is at the top
+`--motion-blur off|fixed|adaptive`, `--motion-blur-jitter on|off`; `--headful` shows the browser window. The full list is at the top
 of [`scripts/render-shots.mjs`](../scripts/render-shots.mjs). Set `CHROME_PATH` if Chrome, Chromium
 or Edge is not found automatically. Keep the computer from sleeping during the run (Windows:
 Settings → System → Power; macOS: `caffeinate -i npm run render -- …`).
@@ -360,6 +374,7 @@ heading** (level), or **Moves with it, never turns** (translate).
 | Bitrate | Auto (high) |
 | Motion blur | Off |
 | Shutter angle | 360° |
+| Jitter sub-frame times | Off |
 | Supersampling | Off |
 | Wait for terrain tiles | On |
 
@@ -377,6 +392,9 @@ heading** (level), or **Moves with it, never turns** (translate).
   waits for its terrain to stream in.
 - **Strobing / "wagon-wheel" motion past brackets or tethers** — turn on **Motion blur** (Adaptive),
   and keep *Camera step near things* under half the spacing of what the camera passes.
+- **Sharp copies of brackets that freeze or crawl at certain speeds, even with motion blur** — the
+  sub-frames are lining up with the bracket spacing. Turn on **Jitter sub-frame times** and raise
+  **Fewest sub-frames** to about 48, so the grain it leaves is faint.
 - **A shot imported fine but looks different** — check it was made with the same preset. Importing a
   shot from another preset reloads the page with that preset; let the reload finish.
 - **The render is slow** — supersampling and motion blur multiply the work per frame. Lower the

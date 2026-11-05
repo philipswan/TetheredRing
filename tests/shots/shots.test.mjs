@@ -163,6 +163,33 @@ test('motion blur sub-frames are spread over the shutter, centred on the frame',
   assert.throws(() => validateShot(shot), /motionBlurSamples/)
 })
 
+test('jittered sub-frames stay in their own slice of the shutter and are the same on every render', () => {
+  const fps = 60
+  const frame = 1234
+  const even = subFrameTimes(frame, fps, 16, 360)
+  const jittered = subFrameTimes(frame, fps, 16, 360, true)
+  assert.deepEqual(subFrameTimes(frame, fps, 16, 360, true), jittered)
+  const slice = 1 / fps / 16
+  const start = (frame - 0.5) / fps
+  jittered.forEach((t, s) => {
+    assert.ok(t >= start + s * slice - 1e-12 && t < start + (s + 1) * slice + 1e-12, `sub-frame ${s} left its slice`)
+  })
+  assert.notDeepEqual(jittered, even)
+  // Neighbouring frames are not jittered alike (that would bring a regular pattern back).
+  const offsets = (i) => subFrameTimes(i, fps, 16, 360, true).map((t, s) => (t - (i - 0.5) / fps) / slice - s)
+  assert.notDeepEqual(offsets(frame).map(x => x.toFixed(6)), offsets(frame + 1).map(x => x.toFixed(6)))
+  // Offsets spread over the whole slice.
+  const all = Array.from({ length: 64 }, (_, i) => offsets(i)).flat()
+  assert.ok(Math.min(...all) < 0.02 && Math.max(...all) > 0.98)
+  assert.ok(Math.abs(all.reduce((a, b) => a + b, 0) / all.length - 0.5) < 0.03)
+  // A single sub-frame is the frame's own moment, jitter or not.
+  assert.deepEqual(subFrameTimes(3, 30, 1, 360, true), [0.1])
+  const shot = createShot({ preset: 'default', parameters: {}, startTime: 0 })
+  assert.equal(validateShot(shot).output.motionBlurJitter, false)
+  shot.output.motionBlurJitter = 'yes'
+  assert.throws(() => validateShot(shot), /motionBlurJitter/)
+})
+
 test('adaptive motion blur measures the camera over the whole shutter', () => {
   // From the shutter opening to its closing, ends included.
   const t = shutterTimes(10, 50, 9, 180)

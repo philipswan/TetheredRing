@@ -589,6 +589,7 @@ export class ShotSidebar {
       this.blurRows = el('div', { class: 'ss-editor' },
         this.row('Shutter angle', this.select([[90, '90°'], [180, '180° (film look)'], [270, '270°'], [360, '360° (no gaps)']], () => o().shutterAngle, (v) => s.setOutput({ shutterAngle: Number(v) }), { title: 'How much of each frame\'s time the sub-frames cover. 360° leaves no gaps between frames, which removes the most strobing.' })),
         this.blurSamplesRow = this.row('Sub-frames', this.number(() => o().motionBlurSamples, (v) => s.setOutput({ motionBlurSamples: Math.max(1, Math.round(v)) }), { min: 1, step: 1 })),
+        this.checkbox('Jitter sub-frame times', () => o().motionBlurJitter, (v) => s.setOutput({ motionBlurJitter: v }), { title: 'Put each sub-frame at a random (but repeatable) moment within its share of the shutter instead of evenly spaced. Stops repeated structures passed at speed (brackets, tethers, screw threads) from showing as sharp copies that freeze or crawl when their spacing lines up with the sub-frames, at the cost of a faint grain that is smaller with more sub-frames.' }),
         this.blurAdaptiveRows = el('div', {},
           this.row('Camera step near things (m)', this.number(() => o().motionBlurMaxStep, (v) => v > 0 && s.setOutput({ motionBlurMaxStep: v }), { min: 0.01, title: 'How far the camera may move between sub-frames close to things. Keep it below about half the spacing of the repeated structures it passes (mass-driver brackets are about 5 m apart). Further from everything the step grows, keeping the nearest scenery moving no more than the pixel limit below.' })),
           this.row('Scenery motion per sub-frame (px)', this.number(() => o().motionBlurMaxPixels, (v) => v > 0 && s.setOutput({ motionBlurMaxPixels: v }), { min: 0.1 })),
@@ -719,6 +720,8 @@ export class ShotSidebar {
     name.addEventListener('change', () => q.setFileName(item.id, name.value.trim()))
     const terrain = el('input', { type: 'checkbox', checked: o.waitForTerrain })
     terrain.addEventListener('change', () => set({ waitForTerrain: terrain.checked }))
+    const jitter = el('input', { type: 'checkbox', checked: o.motionBlurJitter })
+    jitter.addEventListener('change', () => set({ motionBlurJitter: jitter.checked }))
     return el('div', { class: 'ss-editor' },
       this.row('File name', name),
       this.row('Resolution', plainSelect([...RESOLUTIONS.map(([w, h]) => [`${w}x${h}`, `${w} × ${h}`]), ['custom', 'Custom']], resolutionValue ? `${resolutionValue[0]}x${resolutionValue[1]}` : 'custom', (v) => {
@@ -735,6 +738,7 @@ export class ShotSidebar {
       this.row('Bitrate (Mbps, 0 = studio quality)', numberInput(o.bitrateMbps ?? 0, (v) => set({ bitrateMbps: v > 0 ? v : null }), { min: 0, title: '0 preserves constant high quality; a positive value opts into bitrate-targeted encoding.' })),
       this.row('Supersampling', plainSelect(SUPERSAMPLE_OPTIONS, o.supersample ?? 1, (v) => set({ supersample: Number(v) }))),
       this.row('Motion blur', plainSelect([['off', 'Off'], ['adaptive', 'Adaptive'], ['fixed', 'Fixed sub-frames']], o.motionBlur, (v) => set({ motionBlur: v }))),
+      el('label', { class: 'ss-check' }, jitter, 'Jitter sub-frame times'),
       el('label', { class: 'ss-check' }, terrain, 'Wait for terrain tiles'),
       el('div', { class: 'ss-line' },
         this.button('Open in the editor', () => q.edit(item.id), { title: 'Load this shot to change its camera or timing (add it again afterwards)' }),

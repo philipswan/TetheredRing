@@ -1372,7 +1372,7 @@ export class ShotController {
           if (i >= frames) return false
           if (s === 0) {
             n = blurred ? this.subFramesFor(i) : 1
-            times = n > 1 ? subFrameTimes(i, output.fps, n, output.shutterAngle) : [i / output.fps]
+            times = n > 1 ? subFrameTimes(i, output.fps, n, output.shutterAngle, output.motionBlurJitter) : [i / output.fps]
           }
           return this.setPlayhead(times[s])
         },

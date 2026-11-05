@@ -18,6 +18,8 @@
 //             motionBlurMaxStep,     // 'adaptive': metres the camera may move between sub-frames near things
 //             motionBlurMaxPixels,   // 'adaptive': pixels nearby scenery may move between sub-frames
 //             motionBlurMaxSamples,  // 'adaptive': the most sub-frames per frame
+//             motionBlurJitter,      // true: each sub-frame at a repeatable pseudo-random moment within
+//                                    // its slice of the shutter instead of the middle (see subFrameTimes)
 //             shutterAngle,          // degrees of each frame interval the sub-frames cover (360 = all)
 //             supersample },         // render at this many times the resolution and filter down (1 = off;
 //                                    // see src/capture/Supersampler.js)
@@ -74,6 +76,7 @@ export const DEFAULT_OUTPUT = {
   motionBlurMaxStep: 1,
   motionBlurMaxPixels: 2,
   motionBlurMaxSamples: 1024,
+  motionBlurJitter: false,
   shutterAngle: 360,
   supersample: 1,
 }
@@ -165,6 +168,7 @@ export function validateShot(shot) {
     if (!(Number.isInteger(o[field]) && o[field] >= 1 && o[field] <= 4096)) fail(`"output.${field}" must be a whole number from 1 to 4096`)
   }
   if (!(o.motionBlurMaxStep > 0) || !(o.motionBlurMaxPixels > 0)) fail('"output.motionBlurMaxStep" and "motionBlurMaxPixels" must be positive')
+  if (typeof o.motionBlurJitter !== 'boolean') fail('"output.motionBlurJitter" must be true or false')
   if (!(o.shutterAngle >= 0 && o.shutterAngle <= 360)) fail('"output.shutterAngle" must be between 0 and 360')
   if (!(o.supersample >= 1 && o.supersample <= 4)) fail('"output.supersample" must be between 1 and 4')
   return shot

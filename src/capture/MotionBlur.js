@@ -54,11 +54,27 @@ export function adaptiveSubFrames(poses, { maxStep, maxPixels, pixelsPerRadian, 
 }
 
 // Sub-frame moments for frame i at `fps` with `samples` sub-frames and a shutter of `shutterAngle`
-// degrees (360 = the whole frame interval), centred on the frame's own moment i / fps.
-export function subFrameTimes(i, fps, samples, shutterAngle) {
+// degrees (360 = the whole frame interval), centred on the frame's own moment i / fps. The shutter is
+// cut into `samples` equal slices, one sub-frame in each.
+//
+// Evenly spaced sub-frames (the middle of each slice) give a smooth streak while each sub-frame moves
+// things by less than about a pixel. When they move further, they show as separate copies, and passing
+// repeated structures (brackets every 5 m, say) can line those copies up: whenever the step between
+// sub-frames is close to a simple fraction of the spacing (1/5, 2/9, ...), every sub-frame sees the
+// structure in one of only a few places, and the copies stay sharp. At a whole number of spacings per
+// frame they also freeze in place on screen, which is the moire seen in fast passes.
+//
+// With `jitter`, each sub-frame is instead at a pseudo-random moment within its slice (from a hash of
+// the frame and sub-frame numbers, so every render of the shot is the same). The copies then land at
+// irregular places that change from frame to frame: no sharp or frozen pattern, at the cost of a faint
+// grain that is smaller with more sub-frames. A single sub-frame stays at the frame's own moment.
+export function subFrameTimes(i, fps, samples, shutterAngle, jitter = false) {
   const open = Math.min(360, Math.max(0, shutterAngle)) / 360
   const times = []
-  for (let s = 0; s < samples; s++) times.push((i + open * ((s + 0.5) / samples - 0.5)) / fps)
+  for (let s = 0; s < samples; s++) {
+    const offset = jitter && samples > 1 ? subFrameJitter(i, s) : 0.5
+    times.push((i + open * ((s + offset) / samples - 0.5)) / fps)
+  }
   return times
 }
 
@@ -69,6 +85,22 @@ export function shutterTimes(i, fps, count, shutterAngle) {
   const times = []
   for (let k = 0; k < count; k++) times.push((i + open * (k / (count - 1) - 0.5)) / fps)
   return times
+}
+
+// A repeatable value in [0, 1) for sub-frame s of frame i.
+export function subFrameJitter(i, s) {
+  return hash32((hash32(i >>> 0) + Math.imul(s + 1, 0x9e3779b9)) >>> 0) / 4294967296
+}
+
+// Integer hash (lowbias32, by Chris Wellons): well mixed, so neighbouring frames and sub-frames get
+// unrelated values.
+function hash32(x) {
+  x ^= x >>> 16
+  x = Math.imul(x, 0x7feb352d)
+  x ^= x >>> 15
+  x = Math.imul(x, 0x846ca68b)
+  x ^= x >>> 16
+  return x >>> 0
 }
 
 const VERTEX = /* glsl */`

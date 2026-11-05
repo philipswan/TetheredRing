@@ -16,6 +16,7 @@
 //   --width <px> --height <px> --fps <n> --codec av1|avc|hevc|vp9 --container mp4|mkv
 //   --bitrate <Mbps>         0 uses studio-quality constant quantization; positive values target a bitrate
 //   --supersample 1|1.5|2|3|4 --motion-blur off|fixed|adaptive
+//   --motion-blur-jitter on|off  jittered sub-frame times (see subFrameTimes in src/capture/MotionBlur.js)
 //   --angle <backend>       ANGLE backend (Linux default gl-egl; Windows and macOS use the browser's default)
 //   --headful               show the browser window
 //
@@ -102,6 +103,7 @@ const overrides = {
   bitrateMbps: options.bitrate && Number(options.bitrate),
   supersample: options.supersample && Number(options.supersample),
   motionBlur: options['motion-blur'],
+  motionBlurJitter: options['motion-blur-jitter'] === undefined ? undefined : !['off', 'false', 'no', '0'].includes(String(options['motion-blur-jitter']).toLowerCase()),
 }
 for (const item of queue.items) {
   for (const [k, v] of Object.entries(overrides)) if (v !== undefined && v !== null && v !== '') item.shot.output[k] = v
@@ -296,7 +298,7 @@ for (const [index, item] of queue.items.entries()) {
   const name = names.get(item.id)
   const file = path.join(outDir, name)
   const o = item.shot.output
-  const label = `[${index + 1}/${queue.items.length}] "${item.shot.name}" (${item.shot.preset}, ${o.width}x${o.height} @ ${o.fps} fps, ${itemFrames(item)} frames${o.supersample > 1 ? `, ${o.supersample}x supersampled` : ''}${o.motionBlur !== 'off' ? `, motion blur ${o.motionBlur}` : ''})`
+  const label = `[${index + 1}/${queue.items.length}] "${item.shot.name}" (${item.shot.preset}, ${o.width}x${o.height} @ ${o.fps} fps, ${itemFrames(item)} frames${o.supersample > 1 ? `, ${o.supersample}x supersampled` : ''}${o.motionBlur !== 'off' ? `, motion blur ${o.motionBlur}${o.motionBlurJitter ? ' (jittered)' : ''}` : ''})`
   if (fs.existsSync(file) && !options.overwrite) {
     log(`${label}: ${name} exists; skipped.`)
     results.skipped++
