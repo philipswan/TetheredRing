@@ -11,13 +11,14 @@ import { FrameCapture } from './FrameCapture.js'
 // copied into a texture and filtered into its bottom-left output-sized corner; motion blur then
 // averages that corner (MotionBlur.add copies the output-sized region from the canvas origin), and
 // finally the corner is copied into a separate 2D canvas of the output size, which the video encoder
-// reads.
+// reads. Restore the full scene after consuming the corner so this work area is not displayed.
 //
 //   const ss = new Supersampler(renderer)
 //   ss.begin(width, height)               // after the canvas has been enlarged; once per recording
 //   for each render: render to the canvas, then ss.resolve()
 //   (motion blur: blur.add() after each resolve, blur.present() at the end of the frame)
 //   ss.publish()                          // the output frame is now in ss.canvas
+//   ss.restoreDisplay()                   // hide the processing corner after reading it
 //   ss.dispose()
 //
 // The filter is Mitchell-Netravali (B = C = 1/3) over a radius of two output pixels, applied in
@@ -120,6 +121,7 @@ const DOWNSAMPLE = /* glsl */`
 uniform sampler2D map;
 uniform vec2 sourceSize;
 uniform vec2 factor;
+uniform bool displayOnly;
 vec3 srgbToLinear(vec3 c) {
   return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
 }
@@ -133,6 +135,10 @@ float mitchell(float x) {
   return 0.0;
 }
 void main() {
+  if (displayOnly) {
+    gl_FragColor = texture2D(map, gl_FragCoord.xy / sourceSize);
+    return;
+  }
   // This output pixel's centre, in source texels.
   // (The viewport is the output-sized corner, so gl_FragCoord is the output pixel's centre.)
   vec2 centre = gl_FragCoord.xy * factor;
@@ -174,6 +180,7 @@ export class Supersampler {
         map: { value: null },
         sourceSize: { value: new THREE.Vector2() },
         factor: { value: new THREE.Vector2(1, 1) },
+        displayOnly: { value: false },
       },
       vertexShader: VERTEX,
       fragmentShader: DOWNSAMPLE,
@@ -211,6 +218,16 @@ export class Supersampler {
   resolve() {
     this.renderer.copyFramebufferToTexture(this.source)
     renderToCorner(this.renderer, this.scene, this.camera, this.width, this.height)
+  }
+
+  // Restore the original full-size scene only after capture or motion-blur accumulation has read the corner.
+  restoreDisplay() {
+    const u = this.material.uniforms
+    u.displayOnly.value = true
+    try {
+      renderToCorner(this.renderer, this.scene, this.camera, u.sourceSize.value.x, u.sourceSize.value.y)
+    }
+    finally { u.displayOnly.value = false }
   }
 
   // Copies the output-sized corner into this.canvas (the encoder's source). Call it right after the

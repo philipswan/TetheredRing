@@ -2,19 +2,20 @@
 // dev server, then for each shot opens a fresh page of the app in headless Chrome/Chromium/Edge with
 // the shot's preset, renders it at the fixed step exactly as the panel's "Render video" does, and
 // streams the encoded file into the output folder. A shot that fails (or stops making progress) is
-// logged and skipped; the browser is restarted after a failure. Videos already in the output folder
-// are skipped, so running the same command again carries on where it stopped.
+// logged and skipped; the browser is restarted after a failure. Completed videos are skipped, while
+// interrupted shots resume from committed clips in their .render subfolders.
 //
 //   npm run render -- [options] <file.shot.json | file.queue.json> ...
 //
 //   --out <folder>          where the videos go (default: renders); a log is kept there too
-//   --overwrite             render shots whose video already exists
+//   --overwrite             start a new render subfolder, preserving earlier clips
 //   --settle <s>            seconds to let each page settle before rendering (default 5)
 //   --stall-minutes <m>     give up on a shot after this long without a finished frame (default 30)
 //   --load-minutes <m>      give up on a page that has not started after this long (default 5)
 //   Output overrides for every shot (otherwise each shot's own settings are used):
 //   --width <px> --height <px> --fps <n> --codec av1|avc|hevc|vp9 --container mp4|mkv
-//   --bitrate <Mbps> --supersample 1|1.5|2|3|4 --motion-blur off|fixed|adaptive
+//   --bitrate <Mbps>         0 uses studio-quality constant quantization; positive values target a bitrate
+//   --supersample 1|1.5|2|3|4 --motion-blur off|fixed|adaptive
 //   --angle <backend>       ANGLE backend (Linux default gl-egl; Windows and macOS use the browser's default)
 //   --headful               show the browser window
 //
@@ -29,6 +30,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createQueue, addToQueue, outputFileNames, parseShotOrQueue, itemFrames } from '../src/shots/RenderQueue.js'
 import { serializeShot } from '../src/shots/ShotFormat.js'
+import { renderFolderName } from '../src/capture/RenderJob.js'
 
 const argv = process.argv.slice(2)
 const flags = new Set(['overwrite', 'headful'])
@@ -123,7 +125,7 @@ async function launchBrowser() {
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
     defaultViewport: { width: 1280, height: 720 },
     protocolTimeout: 0,
-    // (Ctrl+C is handled below, so the browser is closed and the half-written video removed.)
+    // Ctrl+C saves completed frames before closing; committed clips are retained.
     handleSIGINT: false,
     handleSIGTERM: false,
     handleSIGHUP: false,
@@ -139,11 +141,21 @@ async function closeBrowser() {
   if (!(await Promise.race([closed, new Promise((resolve) => setTimeout(() => resolve(false), 10_000))]))) b.process()?.kill('SIGKILL')
 }
 
-// Renders one item into `file`. Throws on failure.
+let activePage = null
+let activeRenderDone = null
+
+// Renders one item into `file`, retaining independently committed segment files.
 async function renderItem(item, file) {
   browser ??= await launchBrowser()
   const page = await browser.newPage()
-  const fd = fs.openSync(file, 'w')
+  activePage = page
+  let signalDone
+  activeRenderDone = new Promise(resolve => { signalDone = resolve })
+  const fileName = path.basename(file).replace(/\.part$/, '')
+  const folderName = renderFolderName(fileName)
+  const segmentDir = path.join(outDir, options.overwrite ? `${folderName}-${Date.now()}` : folderName)
+  fs.mkdirSync(segmentDir, { recursive: true })
+  const streams = new Map()
   let lastProgress = Date.now()
   let frameText = ''
   let bytes = 0
@@ -156,10 +168,35 @@ async function renderItem(item, file) {
     page.on('pageerror', (err) => log(`  page error: ${err.message}`))
     page.on('console', (msg) => { if (msg.type() === 'error') log(`  console: ${msg.text()}`) })
     page.on('error', (err) => fail.reject(new Error(`The page crashed: ${err.message}`)))
-    await page.exposeFunction('__renderWrite', (position, base64) => {
-      const data = Buffer.from(base64, 'base64')
-      fs.writeSync(fd, data, 0, data.length, position)
-      bytes = Math.max(bytes, position + data.length)
+    await page.exposeFunction('__renderStorage', (op, scope, name, position, base64) => {
+      if (!['segments', 'output'].includes(scope) || !/^[a-zA-Z0-9._-]+$/.test(name) || name === '.' || name === '..') throw new Error('Invalid render storage path.')
+      const destination = scope === 'output' ? file : path.join(segmentDir, name)
+      const key = `${scope}:${name}`
+      if (op === 'read') return fs.existsSync(destination) ? fs.readFileSync(destination).toString('base64') : null
+      if (op === 'open') {
+        if (streams.has(key)) throw new Error('Render file is already open.')
+        const temporary = destination + '.writing'
+        streams.set(key, { fd: fs.openSync(temporary, 'w'), destination, temporary, position: 0 })
+        return
+      }
+      const stream = streams.get(key)
+      if (!stream) throw new Error('Render file is not open.')
+      if (op === 'write') {
+        const data = Buffer.from(base64, 'base64')
+        const offset = position ?? stream.position
+        let written = 0
+        while (written < data.length) written += fs.writeSync(stream.fd, data, written, data.length - written, offset + written)
+        stream.position = offset + written
+        if (scope === 'output') bytes = Math.max(bytes, stream.position)
+      }
+      else if (op === 'close' || op === 'abort') {
+        fs.fsyncSync(stream.fd)
+        fs.closeSync(stream.fd)
+        streams.delete(key)
+        if (op === 'close') fs.renameSync(stream.temporary, stream.destination)
+        else fs.rmSync(stream.temporary, { force: true })
+      }
+      else throw new Error('Unknown render storage operation.')
     })
     await page.exposeFunction('__renderProgress', (frame, frames) => {
       lastProgress = Date.now()
@@ -188,18 +225,33 @@ async function renderItem(item, file) {
           for (let i = 0; i < data.length; i += 0x8000) s += String.fromCharCode.apply(null, data.subarray(i, i + 0x8000))
           return btoa(s)
         }
-        const writable = new WritableStream({
-          write: (chunk) => window.__renderWrite(chunk.position, base64(chunk.data)),
+        const storageFor = scope => ({
+          async read(name) {
+            const text = await window.__renderStorage('read', scope, name)
+            return text === null ? null : new Blob([Uint8Array.from(atob(text), c => c.charCodeAt(0))])
+          },
+          async createWritable(name) {
+            await window.__renderStorage('open', scope, name)
+            return new WritableStream({
+              write(chunk) {
+                const data = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk.data ?? chunk
+                return window.__renderStorage('write', scope, name, chunk.position ?? null, base64(data))
+              },
+              close: () => window.__renderStorage('close', scope, name),
+              abort: () => window.__renderStorage('abort', scope, name),
+            })
+          },
         })
         const shots = window.tetheredRing.app.shots
         const r = await shots.renderShotUnattended(JSON.parse(shotText), {
-          writable,
+          storage: storageFor('segments'),
+          outputStorage: storageFor('output'),
           fileName,
           settleSeconds: settle,
           onProgress: ({ frame, frames }) => window.__renderProgress(frame, frames),
         })
         return { frames: r.frames, codec: r.codec }
-      }, serializeShot(item.shot), path.basename(file), settleSeconds), failed])
+      }, serializeShot(item.shot), fileName, settleSeconds), failed])
       if (process.stdout.isTTY) process.stdout.write('\n')
       const msPerFrame = result.frames > 1 && firstFrameAt ? (lastFrameAt - firstFrameAt) / (result.frames - 1) : null
       return { ...result, bytes, msPerFrame }
@@ -209,8 +261,13 @@ async function renderItem(item, file) {
     }
   }
   finally {
-    fs.closeSync(fd)
+    for (const stream of streams.values()) {
+      fs.closeSync(stream.fd)
+      fs.rmSync(stream.temporary, { force: true })
+    }
     await page.close().catch(() => {})
+    activePage = null
+    signalDone()
   }
 }
 
@@ -221,8 +278,11 @@ let currentPartial = null
 function interrupted(signal) {
   if (stopping) process.exit(130)
   stopping = true
-  log(`Interrupted (${signal}); closing the browser (press Ctrl+C again to quit at once).`)
-  closeBrowser().finally(() => server.close()).finally(() => {
+  log(`Interrupted (${signal}); saving completed frames (press Ctrl+C again to quit at once).`)
+  Promise.race([
+    Promise.resolve(activePage?.evaluate(() => window.tetheredRing?.app.shots.stop())).then(() => activeRenderDone),
+    new Promise(resolve => setTimeout(resolve, 30000)),
+  ]).catch(error => log(`Could not finish the active segment: ${error.message}`)).finally(() => closeBrowser()).finally(() => server.close()).finally(() => {
     if (currentPartial) fs.rmSync(currentPartial, { force: true })
     process.exit(130)
   })

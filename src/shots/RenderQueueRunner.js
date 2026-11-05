@@ -7,9 +7,8 @@
 // memory). The queue, the run's state, the log and the chosen output folder live in IndexedDB, so the
 // run carries on after the reload; it also survives closing the tab (open the page again to resume).
 //
-// Videos go into a folder chosen once (File System Access API: Chrome, Edge), with no dialog per
-// file; elsewhere each video is downloaded when it is finished. Chrome may ask once whether the page
-// can download several files. Browsers keep folder access for the session; if access lapses after a
+// Videos and per-shot .render subfolders go into a folder chosen once (Chrome, Edge); elsewhere
+// segments are retained in browser storage. Browsers keep folder access for the session; if it lapses after a
 // reload the run pauses until "Continue" grants it again.
 //
 // Overnight: a hidden or minimised tab is throttled by the browser, so the run asks for a screen wake
@@ -46,8 +45,6 @@ function dbRequest(db, mode, fn) {
   })
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
 export class RenderQueueRunner {
   constructor(app, shots) {
     this.app = app
@@ -57,6 +54,9 @@ export class RenderQueueRunner {
     // returnShot: the shot being edited when the run started, loaded again when it ends.
     this.run = { running: false, freshPage: true, settleSeconds: 5, returnShot: null, renderedInPage: 0 }
     this.folder = null
+    this.folderPath = ''
+    this.projectRecords = {}
+    this.legacyRender = null // migration input only; never used directly by render actions
     this.log = []
     this.progress = null // { id, frame, frames, startedAt (ms, page clock) }
     this.waitingForPermission = false
@@ -84,11 +84,14 @@ export class RenderQueueRunner {
   async load() {
     try {
       this.db = await openDb()
-      const [queue, run, folder, log] = await Promise.all(['queue', 'run', 'folder', 'log'].map(k => dbRequest(this.db, 'readonly', s => s.get(k))))
+      const [queue, run, folder, log, folderPath, projectRecords, legacyRender] = await Promise.all(['queue', 'run', 'folder', 'log', 'folderPath', 'projectRecords', 'lastRender'].map(k => dbRequest(this.db, 'readonly', s => s.get(k))))
       if (queue) this.queue = validateQueue(queue)
       if (run) this.run = { ...this.run, ...run, renderedInPage: 0 }
       this.folder = folder ?? null
       this.log = log ?? []
+      this.folderPath = folderPath ?? ''
+      this.projectRecords = projectRecords ?? {}
+      this.legacyRender = legacyRender ?? null
     }
     catch (err) {
       console.warn('The render queue could not be loaded:', err)
@@ -96,20 +99,26 @@ export class RenderQueueRunner {
     this.emit()
   }
 
-  async save() {
+  async save({ strict = false } = {}) {
     this.emit()
-    if (!this.db) return
+    if (!this.db) {
+      if (strict) throw new Error('Browser storage is unavailable; project file and folder permissions cannot be remembered.')
+      return
+    }
     try {
       const { renderedInPage, ...run } = this.run
       await dbRequest(this.db, 'readwrite', (s) => {
         s.put(this.queue, 'queue')
         s.put(run, 'run')
         s.put(this.folder, 'folder')
+        s.put(this.folderPath, 'folderPath')
+        s.put(this.projectRecords, 'projectRecords')
         return s.put(this.log, 'log')
       })
     }
     catch (err) {
       console.warn('The render queue could not be saved:', err)
+      if (strict) throw err
     }
   }
 
@@ -173,7 +182,10 @@ export class RenderQueueRunner {
 
   renderAgain(id) {
     const item = findItem(this.queue, id)
-    if (item && item.status !== 'rendering') resetItem(item)
+    if (item && item.status !== 'rendering') {
+      if (item.status === 'done') item.fileName = `${item.fileName || item.shot.name}_${crypto.randomUUID().slice(0, 8)}`
+      resetItem(item)
+    }
     return this.save()
   }
 
@@ -219,6 +231,7 @@ export class RenderQueueRunner {
     if (!this.supportsFolders) return
     try {
       this.folder = await window.showDirectoryPicker({ id: 'tetheredRingRenderQueue', mode: 'readwrite', startIn: 'videos' })
+      this.folderPath = ''
       this.note(`Videos will be saved in the folder "${this.folder.name}".`)
     }
     catch (err) {
@@ -229,6 +242,7 @@ export class RenderQueueRunner {
 
   forgetFolder() {
     this.folder = null
+    this.folderPath = ''
     return this.save()
   }
 
@@ -236,8 +250,9 @@ export class RenderQueueRunner {
 
   async start({ freshPage = this.run.freshPage } = {}) {
     await this.ready
-    if (this.running || this.shots.mode !== 'idle') return
+    if (this.running || this.shots.busy || this.shots._projectIO || this.shots.mode !== 'idle') return
     if (!nextPending(this.queue)) { this.note('Nothing is waiting to be rendered.'); await this.save(); return }
+    if (!this.folder && !(await this.shots.outputFolder(true))) return
     // Folder access is granted in this click, so it carries over the reloads.
     if (this.folder && !(await this.ensureFolderAccess(true))) return
     this.shots.syncShotFromApp()
@@ -248,14 +263,14 @@ export class RenderQueueRunner {
     this.loop()
   }
 
-  // Stops after cancelling the shot being rendered (it is marked as failed: stopped).
+  // Pauses rendering after saving completed frames; the shot waits to resume.
   async stop() {
     if (!this.running) return
     this.run.running = false
     this.waitingForPermission = false
     this.stopRequested = true
     if (this.shots.mode === 'render') this.shots.stop()
-    this.note('Stopped.')
+    this.note('Pausing rendering; completed frames are being saved.')
     await this.save()
   }
 
@@ -276,7 +291,7 @@ export class RenderQueueRunner {
   async ensureFolderAccess(ask) {
     const options = { mode: 'readwrite' }
     try {
-      if ((await this.folder.queryPermission(options)) === 'granted') return true
+      if (!this.folder.queryPermission || (await this.folder.queryPermission(options)) === 'granted') return true
       if (ask && (await this.folder.requestPermission(options)) === 'granted') return true
     }
     catch (err) {
@@ -338,11 +353,9 @@ export class RenderQueueRunner {
     this.progress = { id: item.id, frame: 0, frames: itemFrames(item), startedAt: performance.now() }
     this.note(`Rendering "${item.shot.name}" to ${fileName}.`)
     await this.save()
-    let writable = null
     try {
-      if (this.folder) writable = await (await this.folder.getFileHandle(fileName, { create: true })).createWritable()
       const result = await this.shots.renderShotUnattended(item.shot, {
-        writable,
+        directory: this.folder,
         fileName,
         settleSeconds: this.run.settleSeconds,
         onProgress: ({ frame, frames }) => {
@@ -355,9 +368,6 @@ export class RenderQueueRunner {
       this.note(`Saved ${result.fileName}: ${result.frames} frames in ${formatDuration(seconds)}.`)
     }
     catch (err) {
-      // (A FileSystemWritableFileStream only replaces the file when closed, so nothing half-written
-      // is left behind; the recorder aborts it.)
-      await writable?.abort?.().catch(() => {})
       if (this.stopRequested) {
         resetItem(item)
         this.note(`Stopped "${item.shot.name}"; it is waiting again.`)

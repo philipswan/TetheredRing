@@ -10,6 +10,8 @@
 //   simulation: { startTime, animationState },
 //   camera: { interpolation: 'smooth' | 'linear' | 'linearEased', cornerSeconds, keyframes: [keyframe, ...] },
 //   parameterTracks: { name: [{ time, value }] },   // optional, times relative to the shot start
+//   project: { id, renderFolder?, outputPath? },   // optional project identity and render location;
+//                                                // filesystem handles stay in this browser's IndexedDB
 //   output: { width, height, fps, duration, codec, container, bitrateMbps, waitForTerrain,
 //             motionBlur,            // 'off' | 'fixed' | 'adaptive' (see src/capture/MotionBlur.js)
 //             motionBlurSamples,     // sub-frames per frame ('fixed'), or the fewest ('adaptive')
@@ -65,7 +67,7 @@ export const DEFAULT_OUTPUT = {
   duration: 10,
   codec: 'av1',
   container: 'mp4',
-  bitrateMbps: null, // null = derive a high default from resolution and frame rate
+  bitrateMbps: null, // null = studio-quality constant quantization; positive values override with a bitrate target
   waitForTerrain: true,
   motionBlur: 'off',
   motionBlurSamples: 16,
@@ -130,6 +132,12 @@ export function validateShot(shot) {
   if (typeof shot.preset !== 'string') fail('"preset" must be a string')
   if (!shot.parameters || typeof shot.parameters !== 'object') fail('"parameters" missing')
   if (!Number.isFinite(shot.simulation?.startTime)) fail('"simulation.startTime" must be a number')
+  if (shot.project !== undefined) {
+    const p = shot.project
+    if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(p.id)) fail('"project.id" is invalid')
+    if (p.renderFolder !== undefined && (typeof p.renderFolder !== 'string' || !/^[a-zA-Z0-9._-]+\.render$/.test(p.renderFolder))) fail('"project.renderFolder" must be a .render folder name, not a path')
+    if (p.outputPath !== undefined && typeof p.outputPath !== 'string') fail('"project.outputPath" must be a string')
+  }
   const keyframes = shot.camera?.keyframes
   if (!Array.isArray(keyframes)) fail('"camera.keyframes" must be an array')
   keyframes.forEach((k, i) => {

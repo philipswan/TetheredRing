@@ -38,15 +38,15 @@ test('moving and removing items', () => {
   assert.deepEqual(q.items.map(i => i.shot.name), ['C', 'A'])
 })
 
-test('a run interrupted mid-shot marks that shot failed and carries on with the next', () => {
+test('a run interrupted mid-shot resumes that shot before moving to the next', () => {
   const q = createQueue()
   const a = addToQueue(q, shot('A'))
   const b = addToQueue(q, shot('B'))
   a.status = 'rendering'
   markInterrupted(q)
-  assert.equal(a.status, 'failed')
-  assert.ok(a.error)
-  assert.equal(nextPending(q), b)
+  assert.equal(a.status, 'pending')
+  assert.equal(a.error, null)
+  assert.equal(nextPending(q), a)
   resetItem(a)
   assert.equal(a.status, 'pending')
   assert.equal(a.error, null)
