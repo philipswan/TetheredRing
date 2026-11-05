@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { sampleCameraPath } from '../../src/shots/CameraPath.js'
 import { createShot, parseShot, serializeShot, sampleParameterTrack, validateShot } from '../../src/shots/ShotFormat.js'
 import { createTimeMap, solveSpeedFor } from '../../src/shots/ShotTiming.js'
-import { subFrameTimes, adaptiveSubFrames } from '../../src/capture/MotionBlur.js'
+import { subFrameTimes, shutterTimes, adaptiveSubFrames } from '../../src/capture/MotionBlur.js'
 
 const R = 6.4e6
 const key = (time, x) => ({ time, position: [R + x, 1, 2], target: [R, 0, 0], up: [1, 0, 0], fov: 45 })
@@ -161,6 +161,21 @@ test('motion blur sub-frames are spread over the shutter, centred on the frame',
   assert.equal(validateShot(shot).output.motionBlur, 'off')
   shot.output.motionBlurSamples = 0
   assert.throws(() => validateShot(shot), /motionBlurSamples/)
+})
+
+test('adaptive motion blur measures the camera over the whole shutter', () => {
+  // From the shutter opening to its closing, ends included.
+  const t = shutterTimes(10, 50, 9, 180)
+  assert.equal(t.length, 9)
+  assert.ok(Math.abs(t[0] - (10 - 0.25) / 50) < 1e-12)
+  assert.ok(Math.abs(t[8] - (10 + 0.25) / 50) < 1e-12)
+  assert.ok(Math.abs(t[4] - 10 / 50) < 1e-12)
+  // 90 m/s at 1 fps with a 360 degree shutter: 90 m over the frame, so 90 sub-frames of 1 m each.
+  const poses = shutterTimes(0, 1, 9, 360).map(time => ({ position: [90 * time, 0, 0], target: [90 * time, 0, 100] }))
+  const n = adaptiveSubFrames(poses, { maxStep: 1, maxPixels: 2, pixelsPerRadian: 1000, minSamples: 1, maxSamples: 1024 })
+  assert.equal(n, 90)
+  const times = subFrameTimes(0, 1, n, 360)
+  assert.ok(90 * (times[1] - times[0]) <= 1 + 1e-9)
 })
 
 test('adaptive motion blur takes enough sub-frames for the camera to move a step at a time', () => {

@@ -22,7 +22,8 @@ import { renderToCorner } from './Supersampler.js'
 //   blur.dispose()
 
 // How many sub-frames a frame needs, from the camera poses across the frame's shutter interval
-// (`poses`: [{ position, target }] in world metres, in order).
+// (`poses`: [{ position, target }] in world metres, in order, from the shutter opening to its closing;
+// see shutterTimes).
 //
 // Between sub-frames the camera may move `maxStep` metres, so repeated structures passing close by
 // (mass-driver brackets about 5 m apart, tube joints, screw threads) move less than their own spacing
@@ -58,6 +59,15 @@ export function subFrameTimes(i, fps, samples, shutterAngle) {
   const open = Math.min(360, Math.max(0, shutterAngle)) / 360
   const times = []
   for (let s = 0; s < samples; s++) times.push((i + open * ((s + 0.5) / samples - 0.5)) / fps)
+  return times
+}
+
+// `count` (>= 2) moments evenly spaced from the opening of frame i's shutter to its closing, both
+// included: where to measure the camera's motion over the frame (see adaptiveSubFrames).
+export function shutterTimes(i, fps, count, shutterAngle) {
+  const open = Math.min(360, Math.max(0, shutterAngle)) / 360
+  const times = []
+  for (let k = 0; k < count; k++) times.push((i + open * (k / (count - 1) - 0.5)) / fps)
   return times
 }
 

@@ -11,7 +11,7 @@ import {
   VideoRecorder, resolveCodec, evenDimension, isRecordingSupported, CODEC_LABELS, CONTAINERS, downloadBlob,
 } from '../capture/VideoRecorder.js'
 import { downloadText } from '../app/exports.js'
-import { MotionBlur, subFrameTimes, adaptiveSubFrames } from '../capture/MotionBlur.js'
+import { MotionBlur, subFrameTimes, shutterTimes, adaptiveSubFrames } from '../capture/MotionBlur.js'
 import { Supersampler, clampSupersample, maxRenderSize } from '../capture/Supersampler.js'
 import { FrameCapture } from '../capture/FrameCapture.js'
 import { PixelLOD } from '../scene/PixelLOD.js'
@@ -1313,8 +1313,9 @@ export class ShotController {
     const o = this.shot.output
     if (o.motionBlur === 'fixed') return o.motionBlurSamples
     if (o.motionBlur !== 'adaptive') return 1
-    // The shot camera's poses across the frame's shutter interval.
-    const poses = subFrameTimes(i, o.fps, 9, o.shutterAngle).map(t => this.poseAt(t)).filter(Boolean)
+    // The shot camera's poses across the frame's whole shutter interval, opening to closing (the
+    // sub-frames' own moments would miss its ends and undercount the motion).
+    const poses = shutterTimes(i, o.fps, 9, o.shutterAngle).map(t => this.poseAt(t)).filter(Boolean)
     const fov = THREE.MathUtils.degToRad(poses[0]?.fov ?? this.app.camera3d.fov)
     return adaptiveSubFrames(poses, {
       maxStep: o.motionBlurMaxStep,
