@@ -778,8 +778,13 @@ export class App {
     this.sailboats?.update(t, this.camera3d)
     this.containerShips?.update(t, this.camera3d)
     this.updateLauncherTraffic()
-    // (With no boat near, around the camera: where the last boat was would depend on what came before.)
-    if (this.sailboats) this.lighting.setLocalShadowFocus(this.sailboats.shadowFocus ?? this.camera3d.getWorldPosition(this._shadowFocus ??= new THREE.Vector3()))
+    if (this.sailboats) {
+      const focus = this.sailboats.shadowFocus
+      // (With no boat near, around the camera: where the last boat was would depend on what came before.)
+      this.lighting.setLocalShadowFocus(focus ?? this.camera3d.getWorldPosition(this._shadowFocus ??= new THREE.Vector3()))
+      // Only boats receive the local shadows: with none near, the shadow map is not drawn (nothing would show it).
+      if (this.lighting.localShadows) this.renderer.shadowMap.autoUpdate = focus !== null
+    }
     // The water surface follows the camera; under it the view switches to the underwater look (see
     // render()), with the evacuated tube kept dry.
     this.ocean?.update(this.camera3d, (point, maxDistance) => this.launchSystem?.tubeNear(point, maxDistance) ?? null)
