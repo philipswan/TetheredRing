@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+// Imported as a URL so that Vite copies the font into the build (dist/ has no node_modules/).
+import chartFontUrl from 'three/examples/fonts/droid/droid_sans_regular.typeface.json?url'
 
 // First, we will define some constants for the size and position of the graph
 const X_STEP = 10;
@@ -53,7 +55,7 @@ export class XYChart extends THREE.Group {
       }
     }
 
-    loader.load( 'node_modules/three/examples/fonts/droid/droid_sans_regular.typeface.json', prepareACallbackFunctionForFontFLoader(this))
+    loader.load(chartFontUrl, prepareACallbackFunctionForFontFLoader(this))
   }
 
   setWidth(width) {
