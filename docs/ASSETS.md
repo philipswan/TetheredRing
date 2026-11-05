@@ -344,6 +344,40 @@ POSIX shells:
 .venv/bin/python -m tools.sources.build_clouds
 ```
 
+### Generated close-up ground (`assets/hawaii_ground`)
+
+Below the deepest baked tile, the Big Island's ground is generated in the browser (`src/planet/groundData.js`,
+`src/planet/groundDetail.js`; see Generated ground in docs/ARCHITECTURE.md) from a small bake of what the ground is
+made of. `tools/ground_cover.py` makes it, in 0.1-degree chunks of about 27 m cells (240 chunks, the sea round the
+island included, about 30 MB):
+
+- the terrain's heights from Copernicus GLO-30 at its full resolution (the baked tiles have them every 150 m), and
+  the sea floor from the planet source data's elevation (GEBCO bathymetry; `additional_earth_imagery/sources`);
+- vegetation, tree and shrub cover from ESA WorldCover 2021 (10 m), with dry grass, which WorldCover calls bare,
+  found in Sentinel-2 cloudless 2024 imagery (tan, not the grey of lava);
+- how rough the lava is (a'a or pahoehoe), sand and cinder, from the imagery and the heights;
+- the distance to the coastline (WorldCover's water joined to the open sea, at 10 m), how high the coast rises
+  behind it (cliffs are a rise of more than 10 m within 30 m of the sea) and the sand's shade. The island's beaches
+  are listed in the tool (`BEACHES`, with their sand: white, grey, black, green or pebbles), each moved to the best
+  nearby shoreline when baked; white coral sand is also found in the imagery.
+
+The sources are downloaded into `.cache/ground/` (about 230 MB; not in Git). The Sentinel-2 imagery is used only
+to classify the ground, never drawn. `--preview <folder> --only i_j,...` writes PNGs of chunks' channels.
+
+PowerShell:
+
+```powershell
+.venv\Scripts\python.exe -m tools.ground_cover hawaii
+.venv\Scripts\python.exe -m tools.ground_cover hawaii --only 3_4 --preview .scratch\ground
+```
+
+POSIX shells:
+
+```sh
+.venv/bin/python -m tools.ground_cover hawaii
+.venv/bin/python -m tools.ground_cover hawaii --only 3_4 --preview .scratch/ground
+```
+
 ### Credits and licences
 
 | Source | Credit | Licence |
@@ -356,6 +390,8 @@ POSIX shells:
 | Real clouds | NASA Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS); VIIRS (Suomi NPP, NOAA-20) and MODIS (Terra) Corrected Reflectance | NASA imagery, free to use with acknowledgement of GIBS |
 | New Zealand imagery and DEM | Sourced from the LINZ Data Service: New Zealand 10m Satellite Imagery (2022-2023), NZ 8m Digital Elevation Model (2012) | CC BY 4.0 (attribution: "Toitū Te Whenua Land Information New Zealand") |
 | Hawaii imagery (XHR) | Esri World Imagery (Esri, Maxar, Earthstar Geographics and the GIS user community) | Esri's terms of use: it may be displayed with attribution, but not redistributed as data. Do not publish the raw images or COGs; check the terms before shipping tiles baked from them |
+| Hawaii ground cover | ESA WorldCover 10 m 2021 v200 (Zanaga, D. et al., 2022, doi:10.5281/zenodo.7254221) | CC BY 4.0 |
+| Hawaii ground classification | Sentinel-2 cloudless 2024 (https://s2maps.eu) by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2024) | CC BY-NC-SA 4.0 for the 2018 and later layers: used here only to classify the ground (not drawn); check the terms before commercial use |
 | Hawaii terrain | Copernicus DEM GLO-30, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA | Copernicus DEM licence (free, attribution required) |
 
 ## Committing LFS data without uploading it

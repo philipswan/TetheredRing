@@ -1,0 +1,766 @@
+[
+ {
+  "name": "hapuna-beach",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.388,
+   "camera": {
+    "position": [
+     -2455478.295,
+     2166709.074,
+     -5470375.854
+    ],
+    "target": [
+     -2455318.632,
+     2167282.999,
+     -5470224.595
+    ],
+    "up": [
+     -0.385,
+     0.342,
+     -0.857
+    ],
+    "orbitUp": [
+     -0.385,
+     0.342,
+     -0.857
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.388
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "kona-lava-shore",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.403,
+   "camera": {
+    "position": [
+     -2437930.937,
+     2139901.648,
+     -5488826.054
+    ],
+    "target": [
+     -2437341.917,
+     2140627.659,
+     -5488791.022
+    ],
+    "up": [
+     -0.382,
+     0.338,
+     -0.86
+    ],
+    "orbitUp": [
+     -0.382,
+     0.338,
+     -0.86
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.403
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "kona-coast-200m",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.399,
+   "camera": {
+    "position": [
+     -2442371.92,
+     2150074.656,
+     -5483081.466
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.383,
+     0.339,
+     -0.859
+    ],
+    "orbitUp": [
+     -0.383,
+     0.339,
+     -0.859
+    ],
+    "fov": 60,
+    "eyeAboveGround": 200
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.399
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "waikoloa-scrub",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.385,
+   "camera": {
+    "position": [
+     -2460956.246,
+     2160528.544,
+     -5470767.768
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.386,
+     0.341,
+     -0.857
+    ],
+    "orbitUp": [
+     -0.386,
+     0.341,
+     -0.857
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.385
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "waimea-pasture",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.373,
+   "camera": {
+    "position": [
+     -2477271.769,
+     2168018.55,
+     -5461115.302
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.388,
+     0.342,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.388,
+     0.342,
+     -0.856
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.373
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "saddle-lava-1km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.37,
+   "camera": {
+    "position": [
+     -2488157.378,
+     2133327.473,
+     -5472413.453
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.39,
+     0.336,
+     -0.857
+    ],
+    "orbitUp": [
+     -0.39,
+     0.336,
+     -0.857
+    ],
+    "fov": 60,
+    "eyeAboveGround": 1000
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.37
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-mid-slope",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.364,
+   "camera": {
+    "position": [
+     -2495570.867,
+     2143663.215,
+     -5464652.687
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.391,
+     0.338,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.391,
+     0.338,
+     -0.856
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.364
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-summit-west",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.365,
+   "camera": {
+    "position": [
+     -2493530.869,
+     2150445.78,
+     -5464475.785
+    ],
+    "target": [
+     -2451530.525,
+     2147028.691,
+     -5480465.129
+    ],
+    "up": [
+     -0.391,
+     0.339,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.391,
+     0.339,
+     -0.856
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.365
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-summit-snow",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.365,
+   "camera": {
+    "position": [
+     -2492851.132,
+     2149258.214,
+     -5465006.45
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.39,
+     0.339,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.39,
+     0.339,
+     -0.856
+    ],
+    "fov": 60,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.365
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "mauna-kea-aerial-3km",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.375,
+   "camera": {
+    "position": [
+     -2481562.802,
+     2138113.804,
+     -5475654.641
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.389,
+     0.337,
+     -0.858
+    ],
+    "orbitUp": [
+     -0.389,
+     0.337,
+     -0.858
+    ],
+    "fov": 55,
+    "eyeAboveGround": 3000
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.375
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "west-coast-helicopter",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.392,
+   "camera": {
+    "position": [
+     -2451434.424,
+     2162910.924,
+     -5475122.09
+    ],
+    "target": [
+     -2493918.062,
+     2150459.013,
+     -5464339.443
+    ],
+    "up": [
+     -0.384,
+     0.341,
+     -0.858
+    ],
+    "orbitUp": [
+     -0.384,
+     0.341,
+     -0.858
+    ],
+    "fov": 60,
+    "eyeAboveGround": 1200
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.392
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "hamakua-cliffs-from-sea",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.355,
+   "camera": {
+    "position": [
+     -2502616.929,
+     2173942.444,
+     -5446086.185
+    ],
+    "target": [
+     -2499616.294,
+     2169930.415,
+     -5449580.637
+    ],
+    "up": [
+     -0.392,
+     0.343,
+     -0.854
+    ],
+    "orbitUp": [
+     -0.392,
+     0.343,
+     -0.854
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.355
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "kohala-cliffs-pololu",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.38,
+   "camera": {
+    "position": [
+     -2463938.367,
+     2190577.553,
+     -5457018.581
+    ],
+    "target": [
+     -2464651.008,
+     2186496.12,
+     -5458596.906
+    ],
+    "up": [
+     -0.386,
+     0.346,
+     -0.855
+    ],
+    "orbitUp": [
+     -0.386,
+     0.346,
+     -0.855
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.38
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "waipio-from-sea",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.372,
+   "camera": {
+    "position": [
+     -2476845.196,
+     2182055.065,
+     -5454606.768
+    ],
+    "target": [
+     -2475785.989,
+     2180175.466,
+     -5455814.909
+    ],
+    "up": [
+     -0.388,
+     0.344,
+     -0.855
+    ],
+    "orbitUp": [
+     -0.388,
+     0.344,
+     -0.855
+    ],
+    "fov": 55
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.372
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "punaluu-black-sand",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.367,
+   "camera": {
+    "position": [
+     -2499249.474,
+     2077528.592,
+     -5485370.937
+    ],
+    "target": [
+     -2499308.974,
+     2077791.186,
+     -5485247.785
+    ],
+    "up": [
+     -0.392,
+     0.328,
+     -0.86
+    ],
+    "orbitUp": [
+     -0.392,
+     0.328,
+     -0.86
+    ],
+    "fov": 70,
+    "eyeAboveGround": 1.7
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.367
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ },
+ {
+  "name": "chain-of-craters-sea-cliffs",
+  "view": {
+   "preset": "bigIslandLauncher",
+   "time": 10,
+   "sunDayOfYear": 35,
+   "sunTimeOfDayUTC": 20.34,
+   "camera": {
+    "position": [
+     -2535602.961,
+     2093688.384,
+     -5462488.976
+    ],
+    "target": [
+     -2534064.026,
+     2094418.876,
+     -5462918.116
+    ],
+    "up": [
+     -0.397,
+     0.33,
+     -0.856
+    ],
+    "orbitUp": [
+     -0.397,
+     0.33,
+     -0.856
+    ],
+    "fov": 60
+   },
+   "parameters": {
+    "sunDayOfYear": 35,
+    "sunTimeOfDayUTC": 20.34
+   },
+   "cloudType": {
+    "low": [
+     0,
+     0,
+     0,
+     1800,
+     2400
+    ],
+    "rain": 0,
+    "humidity": 0.5
+   }
+  }
+ }
+]

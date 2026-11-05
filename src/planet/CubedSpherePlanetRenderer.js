@@ -6,6 +6,9 @@ import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, SEA_GUSTS_UNSEEN
 import { SEA_ICE_FREQUENCIES, seaIceGlsl, seaIceUniforms } from './seaIce.js';
 import { apHazeUniforms } from './aerialPerspective.js';
 import { PixelLOD } from '../scene/PixelLOD.js';
+import { COVER, COVER_COUNT, coastShape, coastSide, groundRelief } from './groundData.js';
+import { FULL_MIN_LOD, GroundTextures } from './groundTextures.js';
+import { groundFragment, groundFragmentPars, groundNormalFragment, groundOffsets, groundRoughnessFragment, groundUniforms, groundVertex, groundVertexPars } from './groundDetail.js';
 
 // Milliseconds per frame for uploading newly loaded tiles to the GPU (at least one tile per frame;
 // everything while recording, which sets PixelLOD.buildBudget to Infinity). Without a budget, the
@@ -15,6 +18,17 @@ const TILE_UPLOAD_BUDGET_MS = 4;
 // The base tile sets (assets/earth, assets/earth_hires, assets/moon) have every tile through this LOD;
 // regional overlays only add tiles below it (BASE_FULL_COVERAGE_LOD in tools/adaptive_lod.py).
 const BASE_FULL_COVERAGE_LOD = 3;
+
+// Generated ground (groundData.js): below the deepest baked tile, inside a region with ground data, tiles are made on
+// the spot from the region's terrain heights, the shape of its coast and generated relief, down to GROUND_MAX_LOD
+// (tiles about 10 m across, vertices 0.4 m apart). They are drawn with their baked ancestor's imagery. A generated
+// tile is refined once its vertex spacing would cover more than GROUND_SSE_PIXELS pixels.
+const GROUND_MAX_LOD = 20;
+const GROUND_SSE_PIXELS = 10;
+// Generated tiles are not made over open sea further than this from the coast (m).
+const GROUND_SEA_MARGIN = 150;
+// Baked tiles from this level down, inside a region with ground data, have the generated ground's look too.
+const GROUND_LOOK_MIN_LOD = 9; // (level 11 tiles, always several kilometres off, get 38 m texels: their patterns have faded)
 
 // =============================================================================
 // CubedSpherePlanetRenderer - cubed-sphere quadtree LOD planet renderer that
@@ -357,8 +371,11 @@ class Tile {
     this.edgeSteps = [1, 1, 1, 1];
     // The coarser visible neighbour across each edge (where edgeSteps > 1), whose heights the edge takes.
     this.edgeNeighbors = [null, null, null, null];
-    // Packed key of edgeSteps used for cheap change detection / rebuild trigger.
-    this.edgeMask = 0;
+    // The coarser drawn tiles this tile's boundary takes its positions from (edges T, B, L, R, then corners TL, TR,
+    // BL, BR; see _updateEdgeMorph), the key they were taken with, and a count of this tile's geometry rebuilds.
+    this.boundarySources = null;
+    this.boundaryKey = '';
+    this.geometryVersion = 0;
 
     // Cached geometric bounds (planet-local space). `center` is also the tile
     // mesh's position: vertices are stored relative to it.
@@ -372,6 +389,15 @@ class Tile {
 
     // Per-frequency surface-detail noise offsets (only with surfaceDetail).
     this.detailOffsets = null;
+
+    // Generated ground (see GROUND_MAX_LOD): `ground` is the region's GroundData for a generated tile (null for a
+    // baked one), `colorTile` the baked ancestor whose imagery it shows. Its heights are heightGrid, (segments + 3)^2
+    // samples: the vertices and a ring of one more around them (for the normals at its edges).
+    this.ground = null;
+    this.colorTile = null;
+    this.heightGrid = null;
+    // The height (m) the ground is near around the tile, for its bounds and its distance from the camera.
+    this.refHeight = 0;
   }
 
   // A tile is "loaded" once both its color and height streams have resolved, and "ready" (drawn) once
@@ -482,6 +508,16 @@ export class CubedSpherePlanetRenderer {
       roughnessStrength: options.surfaceDetail.roughnessStrength ?? 0.12,
     } : null;
 
+    // Regions of generated ground (GroundData objects; groundData.js).
+    this.groundData = options.groundData ?? [];
+    // Their data on the GPU, for the tiles' look (groundTextures.js).
+    this.groundTextures = new Map(this.groundData.map((g) => [g, new GroundTextures(g)]));
+    for (const g of this.groundData) g.ready.then((ok) => { if (ok) this.manifestVersion++; });
+    this.groundMaxLod = GROUND_MAX_LOD;
+    // The generated ground's look (groundDetail.js) on generated tiles (?groundDetail=0 for their shape alone).
+    this.groundShading = options.groundShading ?? true;
+    this.groundDebug = Number(new URLSearchParams(globalThis.location?.search ?? '').get('groundDebug') ?? 0);
+
     this.locationInterests = (options.locationInterests || []).map((loc) => {
       const dir = latLonToDirection(
         loc.lat * DEG2RAD, loc.lon * DEG2RAD, new THREE.Vector3(), this.planetE2);
@@ -573,10 +609,10 @@ export class CubedSpherePlanetRenderer {
     this._tmpNormalC = new THREE.Vector3();
     this._tmpNormalD = new THREE.Vector3();
     this._tmpV2 = new THREE.Vector2();
+    this._tmpLatLon = { lat: 0, lon: 0 };
+    this._tmpCover = new Float32Array(COVER_COUNT);
+    this._tmpRefPoint = new THREE.Vector3();
     this._tmpColor = new THREE.Color();
-    this._steps = [1, 1, 1, 1];
-    this._neighbors = [null, null, null, null];
-    this._lastNeighbor = null;
 
     // Shared base material; per-tile clones receive the streamed color map.
     // Material.copy carries side/transparent/opacity/depthWrite, so settings
@@ -1142,7 +1178,7 @@ export class CubedSpherePlanetRenderer {
     ellipsoidNormal(out, this.a, this.b, nor);
     const span = 2 / Math.pow(2, tile.lod);
     const u01 = (u + 1) / span - tile.x, v01 = (v + 1) / span - tile.y;
-    const eps = 1e-9;
+    const eps = tile.heightGrid ? 1.0001 / this.segments : 1e-9;
     const inside = u01 >= -eps && u01 <= 1 + eps && v01 >= -eps && v01 <= 1 + eps;
     const h = inside ? this._sampleHeight(tile, u01, v01) : this._heightNear(dir, tile.lod);
     return out.addScaledVector(nor, h * this.displacementScaleMultiplier);
@@ -1158,12 +1194,22 @@ export class CubedSpherePlanetRenderer {
       const x = Math.min(count - 1, Math.max(0, Math.floor((f.u + 1) / span)));
       const y = Math.min(count - 1, Math.max(0, Math.floor((f.v + 1) / span)));
       const t = this._getTile(faceIndex, l, x, y);
-      if (t?.heightSamples && t.heightWidth && t.heightHeight) return this._sampleHeight(t, (f.u + 1) / span - x, (f.v + 1) / span - y);
+      if (t?.heightGrid || (t?.heightSamples && t.heightWidth && t.heightHeight)) return this._sampleHeight(t, (f.u + 1) / span - x, (f.v + 1) / span - y);
     }
     return 0;
   }
 
   _sampleHeight(tile, u01, v01) {
+    if (tile.heightGrid) {
+      // A generated tile's grid: its vertices and one more ring around them.
+      const seg = this.segments, G = seg + 3, grid = tile.heightGrid;
+      const px = Math.min(G - 1, Math.max(0, u01 * seg + 1)), py = Math.min(G - 1, Math.max(0, v01 * seg + 1));
+      const x0 = Math.min(G - 2, Math.floor(px)), y0 = Math.min(G - 2, Math.floor(py));
+      const tx = px - x0, ty = py - y0, i = y0 * G + x0;
+      const a = grid[i] + (grid[i + 1] - grid[i]) * tx;
+      const b = grid[i + G] + (grid[i + G + 1] - grid[i + G]) * tx;
+      return a + (b - a) * ty;
+    }
     const samples = tile.heightSamples;
     if (!samples) return 0;
     const w = tile.heightWidth;
@@ -1324,6 +1370,14 @@ export class CubedSpherePlanetRenderer {
   // four children). Such boundary parents simply stay one LOD coarser.
   _computeHasChildAssets(tile) {
     if (!this.hasAssets) return tile.lod < this.maxAvailableLod;
+    tile.childrenGenerated = false;
+    if (!tile.ground && this._bakedChildren(tile)) return true;
+    // Below the baked tiles: generated ones, inside a region with ground data.
+    tile.childrenGenerated = this._canGenerateChildren(tile);
+    return tile.childrenGenerated;
+  }
+
+  _bakedChildren(tile) {
     const l = tile.lod + 1;
     const parentLayer = this.tileSourceMap.get(tile.id)?.layerIndex ?? 0;
     for (let i = 0; i < 4; i++) {
@@ -1336,6 +1390,251 @@ export class CubedSpherePlanetRenderer {
       if (childLayer < parentLayer) return false;
     }
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Generated ground (see GROUND_MAX_LOD and groundData.js)
+  // ---------------------------------------------------------------------------
+
+  // Geodetic latitude and longitude (degrees) of a direction in the planet group's frame (the generator's mapping).
+  _latLon(dir, out) {
+    out.lon = Math.atan2(-dir.z, dir.x) / DEG2RAD;
+    out.lat = Math.atan2(dir.y, (1 - this.planetE2) * Math.hypot(dir.x, dir.z)) / DEG2RAD;
+    return out;
+  }
+
+  // The loaded region of ground data that holds the whole tile, or null.
+  _groundFor(tile) {
+    if (!this.groundData.length || tile.lod < 8) return null;
+    const span = 2 / Math.pow(2, tile.lod), u0 = -1 + tile.x * span, v0 = -1 + tile.y * span;
+    const ll = this._tmpLatLon;
+    for (const g of this.groundData) {
+      if (!g.loaded) continue;
+      let inside = true;
+      for (let i = 0; i < 4 && inside; i++) {
+        cubeToDirection(tile.face, u0 + span * (i & 1), v0 + span * (i >> 1), this._tmpDir);
+        this._latLon(this._tmpDir, ll);
+        inside = g.covers(ll.lat, ll.lon);
+      }
+      if (inside) return g;
+    }
+    return null;
+  }
+
+  _canGenerateChildren(tile) {
+    if (tile.lod >= this.groundMaxLod) return false;
+    const g = tile.ground ?? this._groundFor(tile);
+    if (!g) return false;
+    // Not over open sea (more than GROUND_SEA_MARGIN from the coast all over the tile): nothing to add there.
+    if (g.has(...this._tileLatLonBox(tile))) {
+      const span = 2 / Math.pow(2, tile.lod), u0 = -1 + tile.x * span, v0 = -1 + tile.y * span;
+      const c = this._tmpCover, ll = this._tmpLatLon;
+      for (let i = 0; i < 25; i++) {
+        cubeToDirection(tile.face, u0 + span * (i % 5) / 4, v0 + span * Math.floor(i / 5) / 4, this._tmpDir);
+        this._latLon(this._tmpDir, ll);
+        g.cover(ll.lat, ll.lon, c);
+        if (c[COVER.coast] > -GROUND_SEA_MARGIN) return true;
+      }
+      return false;
+    }
+    // (Until its data is here; then the tiles' cached answers are worked out again.)
+    g.request(...this._tileLatLonBox(tile)).then(() => { this.manifestVersion++; });
+    return true;
+  }
+
+  // [latMin, latMax, lonMin, lonMax] (degrees) around a tile.
+  _tileLatLonBox(tile, margin = 0) {
+    const span = 2 / Math.pow(2, tile.lod), u0 = -1 + tile.x * span, v0 = -1 + tile.y * span;
+    const ll = this._tmpLatLon;
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    for (let i = 0; i < 4; i++) {
+      cubeToDirection(tile.face, u0 + span * (-margin + (1 + 2 * margin) * (i & 1)), v0 + span * (-margin + (1 + 2 * margin) * (i >> 1)), this._tmpDir);
+      this._latLon(this._tmpDir, ll);
+      latMin = Math.min(latMin, ll.lat); latMax = Math.max(latMax, ll.lat);
+      lonMin = Math.min(lonMin, ll.lon); lonMax = Math.max(lonMax, ll.lon);
+    }
+    return [latMin, latMax, lonMin, lonMax];
+  }
+
+  // The region's own plane for the generated ground's patterns: its origin (on the ellipsoid at the middle of the
+  // region) and the directions east and north there. Patterns are functions of the position on this plane, so they
+  // are the same on every tile (it is within 0.03% of the ground's own distances over 200 km).
+  _groundFrame(g) {
+    if (g.frame) return g.frame;
+    const b = g.manifest.bbox;
+    const lat = (b[2] + b[3]) / 2 * DEG2RAD, lon = (b[0] + b[1]) / 2 * DEG2RAD;
+    const dir = latLonToDirection(lat, lon, new THREE.Vector3(), this.planetE2);
+    const origin = rayEllipsoidIntersection(dir, this.a, this.b, new THREE.Vector3());
+    const up = ellipsoidNormal(origin, this.a, this.b, new THREE.Vector3());
+    const east = new THREE.Vector3(-Math.sin(lon), 0, -Math.cos(lon)); // d/dlon of (cos lon, 0, -sin lon)
+    const north = new THREE.Vector3().crossVectors(up, east).normalize();
+    g.frame = { origin, east, north, up };
+    return g.frame;
+  }
+
+  // Starts making a generated tile: once its region's data and its ancestor's imagery are here, it is queued for
+  // building like a loaded tile (its heights are worked out when its geometry is built, within the upload budget).
+  _requestGround(tile) {
+    if (tile.loading || tile.loaded) return;
+    if (!tile.colorTile?.ready) return;
+    tile.loading = true;
+    tile.uploaded = false;
+    const [latMin, latMax, lonMin, lonMax] = this._tileLatLonBox(tile, 0.1);
+    const pad = 3 / tile.ground.cpd;
+    const generation = tile.loadGeneration;
+    tile.ground.request(latMin - pad, latMax + pad, lonMin - pad, lonMax + pad).then(() => {
+      if (tile.disposed || tile.loadGeneration !== generation) return;
+      tile.loading = false;
+      tile.colorReady = true;
+      tile.heightReady = true;
+      this._uploadQueue.push(tile);
+    });
+  }
+
+  // A generated tile's heights (heightGrid): the region's terrain, the coast's shape and the generated relief, at
+  // each vertex and a ring of points one step beyond its edges.
+  _buildGroundHeights(tile) {
+    const g = tile.ground ?? tile.groundLook, frame = this._groundFrame(g);
+    const seg = this.segments, G = seg + 3;
+    const span = 2 / Math.pow(2, tile.lod), u0 = -1 + tile.x * span, v0 = -1 + tile.y * span;
+    const spacing = span * (Math.PI / 4) * this.meanRadius / seg;
+    const grid = new Float32Array(G * G);
+    const cover = this._tmpCover, ll = this._tmpLatLon, dir = this._tmpDir, pos = this._tmpA;
+    let sum = 0, min = Infinity, max = -Infinity;
+    for (let gy = 0; gy < G; gy++) {
+      const v = v0 + span * (gy - 1) / seg;
+      for (let gx = 0; gx < G; gx++) {
+        const u = u0 + span * (gx - 1) / seg;
+        cubeToDirection(tile.face, u, v, dir);
+        this._latLon(dir, ll);
+        let h = g.height(ll.lat, ll.lon);
+        g.cover(ll.lat, ll.lon, cover);
+        // (The region's heights include the sea floor near the coast. Beyond them, out at sea, the baked
+        // ancestor's own heights, clamped to its edge.)
+        if (h !== h) {
+          const ct = tile.colorTile ?? tile, ctSpan = 2 / Math.pow(2, ct.lod);
+          directionToUVOnFace(dir, ct.face, this._tmpFaceUV);
+          h = this._sampleHeight(ct, (this._tmpFaceUV.u + 1) / ctSpan - ct.x, (this._tmpFaceUV.v + 1) / ctSpan - ct.y);
+        }
+        h = coastShape(h, cover, spacing);
+        rayEllipsoidIntersection(dir, this.a, this.b, pos).sub(frame.origin);
+        h += groundRelief(pos.dot(frame.east), pos.dot(frame.north), cover, spacing);
+        h = coastSide(h, cover);
+        grid[gy * G + gx] = h;
+        sum += h;
+        if (h < min) min = h;
+        if (h > max) max = h;
+      }
+    }
+    tile.heightGrid = grid;
+    tile.refHeight = sum / (G * G);
+    // Its bounds: its ground, and the sea surface over it if there is one (a deep-water tile whose bounds were its sea
+    // floor's alone was culled while its sea surface was in view, leaving a hole down to the next tile's sea floor).
+    const top = this.hasWater ? Math.max(max, 0) : max, bottom = min;
+    tile.boundsHeight = (top + bottom) / 2;
+    tile.heightAllowance = (top - bottom) / 2 + 20;
+    tile.boundsValid = false;
+    this._updateTileBounds(tile);
+  }
+
+  // A tile's look (groundDetail.js) samples its region's data directly (groundTextures.js); it needs the transform from
+  // the region's cells to its colour texture's UVs (for the imagery's colour from inland near the coast).
+  _groundCellToUv(tile) {
+    const g = tile.ground ?? tile.groundLook, ct = tile.colorTile ?? tile;
+    const span = 2 / Math.pow(2, ct.lod), cu = -1 + (ct.x + 0.5) * span, cv = -1 + (ct.y + 0.5) * span;
+    const ll = this._tmpLatLon, eps = span * 0.01, cell = (u, v) => {
+      cubeToDirection(ct.face, u, v, this._tmpDir);
+      this._latLon(this._tmpDir, ll);
+      return [(ll.lon - g.lonMin) * g.cpd, (g.latMax - ll.lat) * g.cpd];
+    };
+    const c0 = cell(cu, cv), cuu = cell(cu + eps, cv), cvv = cell(cu, cv + eps);
+    // d(cell)/d(uv), inverted: d(uv)/d(cell). (UV runs 0..1 across the colour tile: du = eps / span.)
+    const duv = eps / span;
+    const a = (cuu[0] - c0[0]) / duv, b = (cvv[0] - c0[0]) / duv, c = (cuu[1] - c0[1]) / duv, d = (cvv[1] - c0[1]) / duv;
+    const det = a * d - b * c;
+    return new THREE.Vector4(d / det, -b / det, -c / det, a / det);
+  }
+
+  // A baked tile inside a region with ground data, from level GROUND_LOOK_MIN_LOD down, has the generated ground's
+  // look too, so it does not change where generated tiles take over.
+  _groundLookForBaked(tile) {
+    if (tile.ground || tile.groundUniforms || !this.groundShading || tile.lod < GROUND_LOOK_MIN_LOD) return;
+    const g = this._groundFor(tile);
+    if (!g) return;
+    tile.groundLook = g;
+    this._configureGroundDetail(tile.material, tile);
+    tile.material.needsUpdate = true;
+  }
+
+  // Keeps the region data under the drawn tiles with a look on the GPU (and gives baked tiles loaded before their
+  // region's data their look).
+  _updateGroundTextures() {
+    for (const t of this.groundTextures.values()) t.tick();
+    for (const tile of this.visibleList) {
+      if (!tile.ground && !tile.groundLook && tile.ready && tile.groundLookChecked !== this.manifestVersion) {
+        tile.groundLookChecked = this.manifestVersion;
+        this._groundLookForBaked(tile);
+        if (tile.groundLook) this._replaceGeometry(tile);
+      }
+      const g = tile.ground ?? tile.groundLook;
+      if (!g) continue;
+      tile.groundBox ??= this._tileLatLonBox(tile, 0.02);
+      this.groundTextures.get(g)?.need(...tile.groundBox, tile.lod >= FULL_MIN_LOD);
+      // (A baked tile's heights from the region's data once it has arrived.)
+      if (tile.groundLook && tile.loaded && !tile.heightGrid && g.has(...tile.groundBox)) this._replaceGeometry(tile);
+    }
+  }
+
+  _configureGroundDetail(material, tile) {
+    const previous = material.onBeforeCompile;
+    const previousKey = material.customProgramCacheKey;
+    const frame = this._groundFrame(tile.ground ?? tile.groundLook);
+    const rel = this._tmpA.copy(tile.center).sub(frame.origin);
+    const g = tile.ground ?? tile.groundLook, textures = this.groundTextures.get(g);
+    const uniforms = tile.groundUniforms = {
+      groundEast: { value: frame.east },
+      groundNorth: { value: frame.north },
+      groundFrameUp: { value: frame.up },
+      groundTileCenter: { value: tile.center },
+      groundOffset: { value: groundOffsets(rel.dot(frame.east), rel.dot(frame.north)) },
+      groundA: { get value() { return textures.a ?? null; } },
+      groundB: { get value() { return textures.b ?? null; } },
+      groundS: { get value() { return textures.s ?? null; } },
+      groundCA: { get value() { return textures.ca ?? null; } },
+      groundCB: { get value() { return textures.cb ?? null; } },
+      groundCS: { get value() { return textures.cs ?? null; } },
+      groundLookup: { get value() { return textures.lookup ?? null; } },
+      groundGrid: { value: new THREE.Vector3(g.n, g.cols, g.rows) },
+      groundCellMetres: { value: 110600 / g.cpd },
+      groundActive: { get value() { return textures.ready ? 1 : 0; } },
+      groundCellToUv: { value: this._groundCellToUv(tile) },
+    };
+    material.onBeforeCompile = (shader, renderer) => {
+      if (previous) previous.call(material, shader, renderer);
+      Object.assign(shader.uniforms, uniforms, groundUniforms);
+      if (this.groundDebug === 1) shader.fragmentShader = '#define GROUND_DEBUG\n' + shader.fragmentShader;
+      if (this.groundDebug === 2) {
+        // (Unlit: the ground's colour alone, without the light's shading, for telling seams in the colour from seams
+        // in the normals.)
+        shader.fragmentShader = '#define GROUND_DEBUG_ALBEDO\n' + shader.fragmentShader.replace('#include <opaque_fragment>',
+          'outgoingLight = diffuseColor.rgb;\n#include <opaque_fragment>');
+      }
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+${groundVertexPars}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+${groundVertex(this.a, this.b)}`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+${groundFragmentPars}`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+${groundFragment}`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+${groundRoughnessFragment}`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+${groundNormalFragment}`);
+    };
+    material.customProgramCacheKey = () => (previousKey ? previousKey.call(material) : '') + '|ground';
   }
 
   // Per-tile metadata from the manifest.
@@ -1412,6 +1711,7 @@ export class CubedSpherePlanetRenderer {
     }
 
     this._applyVisibility();
+    if (this.groundData.length) this._updateGroundTextures();
     this._updateSeaFar(camera);
     this._updateEdgeMorph();
     this._processQueue();
@@ -1445,7 +1745,7 @@ export class CubedSpherePlanetRenderer {
     // assets=['hawaii']). Do not display or load cube-face roots and other
     // tiles that its explicit manifest does not contain.
     if (this.manifestReady && this.manifest?.tiles &&
-        !this.manifestTileMap.has(tile.id)) {
+        !this.manifestTileMap.has(tile.id) && !tile.ground) {
       return;
     }
 
@@ -1488,7 +1788,8 @@ export class CubedSpherePlanetRenderer {
   _isTileVisible(tile) {
     this._updateTileBounds(tile);
 
-    tile.worldCenter.copy(tile.center).applyMatrix4(this.group.matrixWorld);
+    tile.worldCenter.copy(tile.center).addScaledVector(tile.centerNormal, tile.ground ? (tile.boundsHeight ?? tile.refHeight) : 0)
+      .applyMatrix4(this.group.matrixWorld);
     this.worldSphere.center.copy(tile.worldCenter);
     this.worldSphere.radius = tile.boundingRadius * this._groupScale;
 
@@ -1510,7 +1811,8 @@ export class CubedSpherePlanetRenderer {
   // scene loads every overlay on the machine, and uses its tiles where the
   // camera is close enough to need them.
   _shouldRefine(tile) {
-    if (tile.lod >= Math.min(this.maxAvailableLod, this.lodCap)) return false;
+    if (tile.lod >= this.lodCap) return false;
+    if (tile.lod >= this.maxAvailableLod && !this.groundData.length) return false;
     this._refreshTileCache(tile);
     if (!tile.hasChildAssets) return false;
 
@@ -1518,9 +1820,16 @@ export class CubedSpherePlanetRenderer {
       return false;
     }
 
-    const distance = Math.max(1, tile.center.distanceTo(this._camLocal));
+    const distance = Math.max(1, this._tmpRefPoint.copy(tile.center)
+      .addScaledVector(tile.centerNormal, tile.refHeight).distanceTo(this._camLocal));
     const geometricError = this._tileGeometricError(tile);
     const sse = (geometricError / distance) * this._sseScale;
+    if (tile.ground || tile.childrenGenerated) {
+      // A generated tile, or a baked one whose children would be generated (they show its imagery, no sharper): by
+      // how far apart its vertices are on screen.
+      const threshold = GROUND_SSE_PIXELS * (tile.refinementActive ? this.hysteresisCollapse : this.hysteresisExpand);
+      return sse > threshold;
+    }
 
     // Terrain-aware bias: rougher / mountainous / interesting tiles refine sooner;
     // open-ocean / flat tiles refine later.
@@ -1537,7 +1846,7 @@ export class CubedSpherePlanetRenderer {
   _tileGeometricError(tile) {
     const tileSpan = 2 / Math.pow(2, tile.lod); // in cube-face [-1,1] units
     const tileArc = tileSpan * (Math.PI / 4) * this.meanRadius; // a whole face spans ~pi/2 radians
-    return this.hasAssets ? tileArc / this.tileTextureSize : tileArc / this.segments;
+    return this.hasAssets && !tile.ground && !tile.childrenGenerated ? tileArc / this.tileTextureSize : tileArc / this.segments;
   }
 
   // True if the tile's surface footprint overlaps a location-of-interest disc.
@@ -1612,7 +1921,9 @@ export class CubedSpherePlanetRenderer {
       rayEllipsoidIntersection(this._tmpDir, this.a, this.b, this._tmpA);
       maxCornerDist = Math.max(maxCornerDist, tile.center.distanceTo(this._tmpA));
     }
-    const heightAllowance = 10000 * Math.max(1, this.displacementScaleMultiplier);
+    const heightAllowance = tile.ground
+      ? (tile.heightAllowance ?? 500) + Math.abs(tile.refHeight) * 0 // (centred at refHeight: see _isTileVisible)
+      : 10000 * Math.max(1, this.displacementScaleMultiplier);
     tile.boundingRadius = maxCornerDist + heightAllowance;
     tile.angularRadius = maxCornerDist / this.meanRadius;
     tile.boundsValid = true;
@@ -1629,6 +1940,7 @@ export class CubedSpherePlanetRenderer {
     const material = this.baseMaterial.clone();
     this._configureSurfaceDetail(material, tile);
     if (this.hasWater) this._configureSeafloor(material, tile);
+    if (tile.ground && this.groundShading) this._configureGroundDetail(material, tile);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `tile:${tile.id}`;
     mesh.frustumCulled = false; // we do our own conservative culling
@@ -1784,8 +2096,18 @@ roughnessFactor = clamp(roughnessFactor + lunarFade * lunarRoughnessStrength *
   // UV == (u01, v01) and height sampling == (u01, v01): a direct, self-consistent
   // mapping that matches the offline asset generator at every LOD.
   _buildTileGeometry(tile) {
+    if (tile.ground && !tile.heightGrid && tile.loaded) this._buildGroundHeights(tile);
+    // A baked tile with the look takes its heights from the region's data too, once it is here: every tile in the
+    // region then has the same ground and sea floor (and so the same depth of water) where it meets another.
+    if (tile.groundLook && !tile.heightGrid && tile.loaded && tile.groundLook.has(...this._tileLatLonBox(tile, 0.02))) {
+      this._buildGroundHeights(tile);
+    }
     this._updateTileBounds(tile);
     const seg = this.segments;
+    // A generated tile shows its baked ancestor's imagery: its UVs are in that tile's texture.
+    const ct = tile.colorTile;
+    const uvScale = ct ? Math.pow(2, ct.lod - tile.lod) : 1;
+    const uvU0 = ct ? tile.x * uvScale - ct.x : 0, uvV0 = ct ? tile.y * uvScale - ct.y : 0;
     const tileSpan = 2 / Math.pow(2, tile.lod);
     const u0 = -1 + tile.x * tileSpan;
     const v0 = -1 + tile.y * tileSpan;
@@ -1831,7 +2153,7 @@ roughnessFactor = clamp(roughnessFactor + lunarFade * lunarRoughnessStrength *
         // Subtract the centre in float64 before narrowing to float32.
         positions[i3] = pos.x - cx; positions[i3 + 1] = pos.y - cy; positions[i3 + 2] = pos.z - cz;
         normals[i3] = nor.x; normals[i3 + 1] = nor.y; normals[i3 + 2] = nor.z;
-        uvs[i2] = u01; uvs[i2 + 1] = v01;
+        uvs[i2] = uvU0 + u01 * uvScale; uvs[i2 + 1] = uvV0 + v01 * uvScale;
       }
     }
 
@@ -1854,73 +2176,80 @@ roughnessFactor = clamp(roughnessFactor + lunarFade * lunarRoughnessStrength *
       }
     }
 
-    // CDLOD edge morph: where an edge faces a coarser neighbor, collapse the in-between
-    // boundary vertices onto the segment between the coarse tile's shared vertices so the
-    // fine edge matches the coarse vertex spacing (removes T-junction cracks). Handles
-    // multi-level differences via a per-edge step of 2^(levelDiff). The sea surface's edges (and its
-    // depths) are collapsed the same way, or the sea would tear open along them.
-    const steps = tile.edgeSteps;
-    if (steps[0] > 1 || steps[1] > 1 || steps[2] > 1 || steps[3] > 1) {
-      const idx = (x, y) => y * (seg + 1) + x;
-      // The coarse neighbour's own heights at its vertices along the shared edge: this tile's height
-      // data (finer, or from another source) differs there, which would open a crack between the two
-      // tiles. (Neighbours at the same level agree already: their height tiles share their edge samples.)
-      const takeNeighborHeights = (e, xy) => {
-        const n = tile.edgeNeighbors[e];
-        const step = Math.min(steps[e], seg);
-        if (!n || !n.heightSamples || step <= 1 || seg % step !== 0) return;
-        const nSpan = 2 / Math.pow(2, n.lod);
-        for (let i = 0; i <= seg; i += step) {
-          const [x, y] = xy(i);
-          cubeToDirection(tile.face, u0 + tileSpan * x / seg, v0 + tileSpan * y / seg, dir);
+    // Joining the neighbours: every vertex on this tile's boundary takes the position (and normal) of the coarsest
+    // drawn tile touching it there (its edge neighbours, and at a corner the diagonal one too), as that tile is drawn:
+    // straight between its own boundary vertices. Every tile touching a boundary point then agrees on it, whatever
+    // the mix of levels, and of generated and baked tiles, meeting there (a baked tile counts as coarser than a
+    // generated one of the same level). Coarser tiles are built first, and a tile is rebuilt whenever one it took
+    // its boundary from has been (see _updateEdgeMorph). The sea surface's depths follow; its own positions are on
+    // the ellipsoid, the same for every tile.
+    const sources = tile.boundarySources;
+    if (sources && sources.some(Boolean)) {
+      const take = (x, y, src) => {
+        if (!src?.mesh?.geometry) return;
+        const g = src.mesh.geometry, P = g.attributes.position.array, N = g.attributes.normal.array;
+        cubeToDirection(tile.face, u0 + tileSpan * x / seg, v0 + tileSpan * y / seg, dir);
+        directionToUVOnFace(dir, src.face, this._tmpFaceUV);
+        const sSpan = 2 / Math.pow(2, src.lod);
+        const gx = Math.min(seg, Math.max(0, ((this._tmpFaceUV.u + 1) / sSpan - src.x) * seg));
+        const gy = Math.min(seg, Math.max(0, ((this._tmpFaceUV.v + 1) / sSpan - src.y) * seg));
+        // (On its boundary one of gx, gy is 0 or seg: bilinear there is straight along its edge.)
+        const x0 = Math.min(seg - 1, Math.floor(gx)), y0 = Math.min(seg - 1, Math.floor(gy));
+        const fx = gx - x0, fy = gy - y0;
+        const i00 = (y0 * (seg + 1) + x0) * 3, i10 = i00 + 3, i01 = i00 + (seg + 1) * 3, i11 = i01 + 3;
+        const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+        const sc = src.center, i3 = (y * (seg + 1) + x) * 3;
+        for (let k = 0; k < 3; k++) {
+          const p = P[i00 + k] * w00 + P[i10 + k] * w10 + P[i01 + k] * w01 + P[i11 + k] * w11;
+          positions[i3 + k] = p + (k === 0 ? sc.x - cx : k === 1 ? sc.y - cy : sc.z - cz);
+          normals[i3 + k] = N[i00 + k] * w00 + N[i10 + k] * w10 + N[i01 + k] * w01 + N[i11 + k] * w11;
+        }
+        if (heights) {
+          // (The depth for the sea surface: how far the point is above the ellipsoid, along its normal.)
           rayEllipsoidIntersection(dir, this.a, this.b, pos);
           ellipsoidNormal(pos, this.a, this.b, nor);
-          directionToUVOnFace(dir, n.face, this._tmpFaceUV);
-          const nu = (this._tmpFaceUV.u + 1) / nSpan - n.x, nv = (this._tmpFaceUV.v + 1) / nSpan - n.y;
-          const h = this._sampleHeight(n, nu, nv) * displacementScale;
-          const index = idx(x, y), i3 = index * 3;
-          if (heights) heights[index] = h;
-          pos.addScaledVector(nor, h);
-          positions[i3] = pos.x - cx; positions[i3 + 1] = pos.y - cy; positions[i3 + 2] = pos.z - cz;
+          heights[i3 / 3] = (positions[i3] + cx - pos.x) * nor.x + (positions[i3 + 1] + cy - pos.y) * nor.y + (positions[i3 + 2] + cz - pos.z) * nor.z;
         }
       };
-      takeNeighborHeights(0, (i) => [i, 0]);
-      takeNeighborHeights(1, (i) => [i, seg]);
-      takeNeighborHeights(2, (i) => [0, i]);
-      takeNeighborHeights(3, (i) => [seg, i]);
-      const lerp = (i, a, b, t) => {
-        for (const p of seaPositions ? [positions, seaPositions, normals] : [positions, normals]) {
-          const i3 = i * 3, a3 = a * 3, b3 = b * 3;
-          p[i3] = p[a3] + (p[b3] - p[a3]) * t;
-          p[i3 + 1] = p[a3 + 1] + (p[b3 + 1] - p[a3 + 1]) * t;
-          p[i3 + 2] = p[a3 + 2] + (p[b3 + 2] - p[a3 + 2]) * t;
-        }
-        if (heights) heights[i] = heights[a] + (heights[b] - heights[a]) * t;
-      };
-      const morphEdge = (step, get) => {
-        let s = Math.min(step, seg);
-        while (s > 1 && seg % s !== 0) s >>= 1; // clamp to a divisor of seg
-        if (s <= 1) return;
-        for (let i = 0; i < seg; i++) {
-          if (i % s === 0) continue;
-          const lo = Math.floor(i / s) * s, hi = lo + s;
-          lerp(get(i), get(lo), get(hi), (i - lo) / s);
-        }
-      };
-      morphEdge(steps[0], (x) => idx(x, 0));     // T
-      morphEdge(steps[1], (x) => idx(x, seg));   // B
-      morphEdge(steps[2], (y) => idx(0, y));     // L
-      morphEdge(steps[3], (y) => idx(seg, y));   // R
+      // Edges T, B, L, R (sources 0-3), then corners TL, TR, BL, BR (4-7): a corner takes the coarsest of its two
+      // edges' sources and its diagonal one.
+      for (let i = 1; i < seg; i++) {
+        take(i, 0, sources[0]); take(i, seg, sources[1]); take(0, i, sources[2]); take(seg, i, sources[3]);
+      }
+      const coarsest = (...list) => list.reduce((best, t) => (t && (!best || this._coarserThan(t, best)) ? t : best), null);
+      take(0, 0, coarsest(sources[0], sources[2], sources[4]));
+      take(seg, 0, coarsest(sources[0], sources[3], sources[5]));
+      take(0, seg, coarsest(sources[1], sources[2], sources[6]));
+      take(seg, seg, coarsest(sources[1], sources[3], sources[7]));
+      // (Normals were turned outward with the rest: the neighbour's are already.)
     }
 
     // Choose the winding that makes front faces point outward for this face's
     // (u,v) handedness, so FrontSide culling never opens holes.
-    const reversed = this._needsReversedWinding(positions, normals, seg);
+    // (Judged from the ellipsoid, not the terrain: a steep slope, or an edge stitched to a neighbour, can fold the
+    // terrain's corner triangle over, which flipped the tile and its sea surface, showing the sea's dark underside.)
+    const reversed = this._faceNeedsReversedWinding(tile, u0, v0, tileSpan / seg);
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    // Where each vertex is in its region's data (cells east and south of its north-west corner): the look samples
+    // the region's data there (groundTextures.js).
+    const look = tile.ground ?? tile.groundLook;
+    if (look?.loaded) {
+      const cells = new Float32Array(total * 2), ll = this._tmpLatLon;
+      for (let y = 0; y <= seg; y++) {
+        for (let x = 0; x <= seg; x++) {
+          cubeToDirection(tile.face, u0 + tileSpan * x / seg, v0 + tileSpan * y / seg, dir);
+          this._latLon(dir, ll);
+          const k = (y * (seg + 1) + x) * 2;
+          cells[k] = (ll.lon - look.lonMin) * look.cpd;
+          cells[k + 1] = (look.latMax - ll.lat) * look.cpd;
+        }
+      }
+      geometry.setAttribute('groundCell', new THREE.BufferAttribute(cells, 2));
+    }
     geometry.setIndex(this.indexBufferCache.getIndexAttribute(seg, reversed));
     geometry.computeBoundingSphere();
     geometry.userData.waterGeometry = seaPositions
@@ -2038,9 +2367,10 @@ ${seaSkyReflectionGlsl}`)
   // behind, without clamping. Where there is sea ice at the simulated date (seaIce.js), it covers the
   // water: opaque, matte and flat.
   _createWaterMaterial(tile) {
+    const texture = tile.texture ?? tile.colorTile?.texture ?? null; // (a generated tile shows its ancestor's)
     const material = new THREE.MeshPhongMaterial({
-      color: tile.texture ? 0xffffff : WATER_FALLBACK_COLOR,
-      map: tile.texture ?? null,
+      color: texture ? 0xffffff : WATER_FALLBACK_COLOR,
+      map: texture,
       specular: new THREE.Color().setRGB(0.02, 0.02, 0.02), // water's reflectance looking straight in (Fresnel F0)
       transparent: true,
       depthWrite: false,
@@ -2347,6 +2677,14 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
 
   // Determines whether the forward index winding produces inward-facing triangles
   // for this tile (in which case the reversed winding is needed).
+  _faceNeedsReversedWinding(tile, u0, v0, step) {
+    const a = rayEllipsoidIntersection(cubeToDirection(tile.face, u0, v0, this._tmpDir), this.a, this.b, new THREE.Vector3());
+    const b = rayEllipsoidIntersection(cubeToDirection(tile.face, u0 + step, v0, this._tmpDir), this.a, this.b, new THREE.Vector3());
+    const c = rayEllipsoidIntersection(cubeToDirection(tile.face, u0, v0 + step, this._tmpDir), this.a, this.b, new THREE.Vector3());
+    const n = ellipsoidNormal(a, this.a, this.b, new THREE.Vector3());
+    return b.sub(a).cross(c.sub(a)).dot(n) < 0;
+  }
+
   _needsReversedWinding(positions, normals, seg) {
     const ia = 0;
     const ib = 1;
@@ -2364,6 +2702,7 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
 
   _replaceGeometry(tile) {
     if (!tile.mesh) return;
+    tile.geometryVersion = (tile.geometryVersion ?? 0) + 1;
     const newGeometry = this._buildTileGeometry(tile);
     const oldGeometry = tile.mesh.geometry;
     tile.mesh.geometry = newGeometry;
@@ -2446,12 +2785,13 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
 
     // Prefer the deepest resident height tile, falling back through loaded
     // ancestors. Tiles are streamed asynchronously, so absence is not an error.
-    for (let lod = this.maxAvailableLod; lod >= this.rootLod; lod--) {
-      const count = 1 << lod;
+    const deepest = this.groundData.length ? Math.max(this.maxAvailableLod, this.groundMaxLod) : this.maxAvailableLod;
+    for (let lod = deepest; lod >= this.rootLod; lod--) {
+      const count = 2 ** lod;
       const x = Math.min(count - 1, Math.floor(globalU * count));
       const y = Math.min(count - 1, Math.floor(globalV * count));
       const tile = this._getTile(faceIndex, lod, x, y);
-      if (!tile?.heightSamples || !tile.heightWidth || !tile.heightHeight) continue;
+      if (!tile?.heightGrid && (!tile?.heightSamples || !tile.heightWidth || !tile.heightHeight)) continue;
       const localU = globalU * count - x;
       const localV = globalV * count - y;
       const raw = this._sampleHeight(tile, localU, localV);
@@ -2470,6 +2810,11 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     return null;
   }
 
+  _latLonArgs(dir) {
+    const ll = this._latLon(dir, this._tmpLatLon);
+    return [ll.lat, ll.lon];
+  }
+
   _ensureChildren(tile) {
     const l = tile.lod + 1;
     // Keep a stable 4-slot array. Eviction may null out individual slots (see
@@ -2480,6 +2825,16 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
       const existing = tile.children[i];
       if (existing && !existing.disposed) continue;
       const child = this._getOrCreateTile(tile.face, l, tile.x * 2 + (i & 1), tile.y * 2 + (i >> 1), tile);
+      if (tile.childrenGenerated && !child.ground) {
+        child.ground = tile.ground ?? this._groundFor(tile);
+        child.colorTile = tile.colorTile ?? tile;
+        child.meta = DEFAULT_TILE_META;
+        // (Its distance from the camera judged from the ground's height there until its own heights are made.)
+        this._updateTileBounds(child);
+        const h = child.ground.height(...this._latLonArgs(child.centerDir));
+        child.refHeight = h === h ? h : tile.refHeight;
+        child.boundsValid = false;
+      }
       this._ensureTileMesh(child);
       tile.children[i] = child;
     }
@@ -2496,7 +2851,11 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
       const visible = tile.visibleFrame === this.frame;
       tile.visible = visible;
       tile.mesh.visible = visible;
-      if (visible && tile.ready) visibleAssets.add(this.tileSourceMap.get(tile.id)?.name ?? this.assets[0]?.name);
+      if (visible && tile.ready) {
+        // (A generated tile shows its baked ancestor's imagery, and the ground data's.)
+        visibleAssets.add(this.tileSourceMap.get((tile.colorTile ?? tile).id)?.name ?? this.assets[0]?.name);
+        if (tile.ground) visibleAssets.add(tile.ground.name);
+      }
       if (visible && tile.ready && this.debugStats.startupTrace.firstVisibleReadyMs == null) {
         this._traceFirst('firstVisibleReadyMs', tile, 'firstVisibleReadyTileId');
       }
@@ -2514,52 +2873,52 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     }
   }
 
-  // How many LOD levels coarser the visible neighbour across an edge is
-  // (returns 2^d; 1 == same/finer, no morph needed). Within the face this is
-  // plain (x,y) arithmetic; across a cube seam we evaluate the shared
-  // parametrization just past the edge and invert it to the owning face + cell.
-  _neighborStep(tile, dx, dy) {
-    const tc = 1 << tile.lod;
-    let nfaceIndex = tile.faceIndex;
-    let nx = tile.x + dx;
-    let ny = tile.y + dy;
+  // True if tile a counts as coarser than tile b where they meet: a lower level; or at the same level, a plain baked
+  // tile against one with the region's heights (heightGrid: a baked tile with the look), and either against a
+  // generated one.
+  _coarserThan(a, b) {
+    if (a.lod !== b.lod) return a.lod < b.lod;
+    const rank = (t) => (t.ground ? 2 : t.heightGrid ? 1 : 0);
+    return rank(a) < rank(b);
+  }
+
+  // The drawn tile across from this one at (dx, dy) tiles away (an edge or diagonal neighbour), if it is coarser
+  // than this one (see _coarserThan); else null.
+  _coarserNeighbour(tile, dx, dy) {
+    const tc = 2 ** tile.lod;
+    let nfaceIndex = tile.faceIndex, nx = tile.x + dx, ny = tile.y + dy;
     if (nx < 0 || ny < 0 || nx >= tc || ny >= tc) {
       const span = 2 / tc;
-      const u = -1 + (nx + 0.5) * span; // cell-center cube coords (may exceed +/-1)
-      const v = -1 + (ny + 0.5) * span;
-      cubeToDirection(tile.face, u, v, this._tmpMorphDir);
+      cubeToDirection(tile.face, -1 + (nx + 0.5) * span, -1 + (ny + 0.5) * span, this._tmpMorphDir);
       directionToFaceUV(this._tmpMorphDir, this._tmpFaceUV);
       nfaceIndex = FACE_INDEX[this._tmpFaceUV.face];
       nx = Math.min(tc - 1, Math.max(0, Math.floor((this._tmpFaceUV.u + 1) * 0.5 * tc)));
       ny = Math.min(tc - 1, Math.max(0, Math.floor((this._tmpFaceUV.v + 1) * 0.5 * tc)));
     }
-    for (let d = 1; tile.lod - d >= this.rootLod; d++) {
-      const n = this._getTile(nfaceIndex, tile.lod - d, nx >> d, ny >> d);
-      if (n && n.visibleFrame === this.frame) {
-        this._lastNeighbor = n;
-        return 1 << d;
-      }
+    for (let d = 0; tile.lod - d >= this.rootLod; d++) {
+      const n = this._getTile(nfaceIndex, tile.lod - d, Math.floor(nx / 2 ** d), Math.floor(ny / 2 ** d));
+      if (n && n.visibleFrame === this.frame && n.ready && n.mesh?.geometry) return this._coarserThan(n, tile) ? n : null;
     }
-    this._lastNeighbor = null;
-    return 1;
+    return null;
   }
 
-  // Computes each visible tile's coarser-neighbor edge mask and rebuilds geometry
-  // when it changes, so edges morph to match coarser neighbors.
+  // Each visible tile's boundary sources (the coarser drawn tiles its boundary takes its positions from: see
+  // _buildTileGeometry), rebuilding it when they, or their geometry, change. Coarser tiles first, so a tile sees its
+  // sources' geometry as it will be drawn this frame.
   _updateEdgeMorph() {
-    const steps = this._steps;
-    for (const tile of this.visibleList) {
-      if (!tile.ready) continue;
-      const neighbors = this._neighbors;
-      steps[0] = this._neighborStep(tile, 0, -1); neighbors[0] = this._lastNeighbor; // T
-      steps[1] = this._neighborStep(tile, 0, 1);  neighbors[1] = this._lastNeighbor; // B
-      steps[2] = this._neighborStep(tile, -1, 0); neighbors[2] = this._lastNeighbor; // L
-      steps[3] = this._neighborStep(tile, 1, 0);  neighbors[3] = this._lastNeighbor; // R
-      const mask = steps[0] | (steps[1] << 5) | (steps[2] << 10) | (steps[3] << 15);
-      if (mask !== tile.edgeMask || neighbors.some((n, e) => n !== tile.edgeNeighbors[e])) {
-        tile.edgeMask = mask;
-        tile.edgeSteps = steps.slice();
-        tile.edgeNeighbors = neighbors.slice();
+    const order = this.visibleList.filter((t) => t.ready);
+    const rank = (t) => (t.ground ? 2 : t.heightGrid ? 1 : 0);
+    order.sort((a, b) => (a.lod - b.lod) || (rank(a) - rank(b)));
+    const offsets = [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+    for (const tile of order) {
+      const sources = offsets.map(([dx, dy]) => this._coarserNeighbour(tile, dx, dy));
+      const key = sources.map((n) => (n ? `${n.numKey}:${n.geometryVersion}` : '')).join('|');
+      if (key !== tile.boundaryKey) {
+        tile.boundaryKey = key;
+        tile.boundarySources = sources;
+        // (Kept for the debug stats and the sea's far variant: the edges' level differences.)
+        tile.edgeSteps = sources.slice(0, 4).map((n) => (n ? 2 ** (tile.lod - n.lod) : 1));
+        tile.edgeNeighbors = sources.slice(0, 4);
         this._replaceGeometry(tile);
       }
     }
@@ -2574,6 +2933,7 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     if (tile.wantedFrame === this.frame) return;
     tile.wantedFrame = this.frame;
     tile.priority = this._computePriority(tile);
+    if (tile.ground) { this._requestGround(tile); return; }
     if (tile.loading || tile.loaded || tile.retryScheduled || !this.hasAssets) return;
     if (tile.queuedAtMs === 0) {
       tile.queuedAtMs = performance.now();
@@ -2857,16 +3217,19 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
 
   _applyTileData(tile) {
     if (!tile.mesh || tile.disposed) return;
+    tile.groundLookChecked = this.manifestVersion;
+    this._groundLookForBaked(tile);
 
     this._replaceGeometry(tile);
 
-    if (tile.texture && this.debugMode === 'none') {
-      tile.material.map = tile.texture;
+    const texture = tile.texture ?? tile.colorTile?.texture ?? null;
+    if (texture && this.debugMode === 'none') {
+      tile.material.map = texture;
       tile.material.color.set(0xffffff);
       tile.material.needsUpdate = true;
     }
-    if (tile.waterMesh && tile.texture && tile.waterMesh.material.map !== tile.texture) {
-      tile.waterMesh.material.map = tile.texture;
+    if (tile.waterMesh && texture && tile.waterMesh.material.map !== texture) {
+      tile.waterMesh.material.map = texture;
       tile.waterMesh.material.color.set(0xffffff);
       tile.waterMesh.material.needsUpdate = true;
     }
@@ -2961,6 +3324,7 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     if (tile.waterMesh) { tile.waterMesh.material.dispose(); tile.waterMesh = null; tile.waterUnderside = null; }
     if (tile.material && tile.material !== this.baseMaterial) tile.material.dispose();
     tile.heightSamples = null;
+    tile.heightGrid = null;
     this.debugStats.gpuBytes = Math.max(0, this.debugStats.gpuBytes - tile.estimatedBytes);
     tile.estimatedBytes = 0;
 
@@ -2978,6 +3342,88 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
       this.debugStats.evictedTiles += 1;
       this._getSourceStats(this._getTileSourceKey(tile)).evictedTiles += 1;
     }
+  }
+
+  /**
+   * Debugging: how well the drawn tiles meet. For every vertex on every edge of every drawn tile, the drawn tile on
+   * the other side of the edge and the gap (m) between that vertex and its edge there (straight between its own
+   * vertices, as it is drawn). Edges on screen with no drawn tile beyond them are counted as uncovered. camera: the
+   * camera (to tell which edges are on screen). Returns { edges, maxGap, over5cm, over1m, uncovered, worst: [...] }.
+   */
+  measureSeams(camera) {
+    const seg = this.segments, visible = new Map();
+    for (const t of this.visibleList) if (t.ready && t.mesh?.geometry) visible.set(t.id, t);
+    const find = (dir) => {
+      const f = directionToFaceUV(dir, {});
+      for (let lod = Math.max(this.maxAvailableLod, this.groundMaxLod); lod >= 0; lod--) {
+        const n = 2 ** lod, x = Math.min(n - 1, Math.floor((f.u + 1) / 2 * n)), y = Math.min(n - 1, Math.floor((f.v + 1) / 2 * n));
+        const t = visible.get(tileKey(f.face, lod, x, y));
+        if (t) return t;
+      }
+      return null;
+    };
+    const vertex = (t, i, out) => {
+      const p = t.mesh.geometry.attributes.position;
+      return out.set(p.getX(i), p.getY(i), p.getZ(i)).add(t.center);
+    };
+    const toWorld = this.group.matrixWorld, frustum = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const a = new THREE.Vector3(), b0 = new THREE.Vector3(), b1 = new THREE.Vector3(), dir = new THREE.Vector3(), w = new THREE.Vector3();
+    // (Separately for edges with a generated tile on either side: baked tiles have long-standing gaps of their own
+    // where asset sets meet, far off.)
+    const out = { edges: 0, maxGap: 0, over5cm: 0, over1m: 0, uncovered: 0, worst: [],
+      generated: { edges: 0, maxGap: 0, over5cm: 0, over1m: 0, uncovered: 0 } };
+    for (const t of visible.values()) {
+      const span = 2 / 2 ** t.lod, u0 = -1 + t.x * span, v0 = -1 + t.y * span;
+      for (let e = 0; e < 4; e++) {
+        let edgeGap = 0, edgeUncovered = 0, other = null;
+        for (let i = 0; i <= seg; i++) {
+          const [x, y] = e === 0 ? [i, 0] : e === 1 ? [i, seg] : e === 2 ? [0, i] : [seg, i];
+          vertex(t, y * (seg + 1) + x, a);
+          // (Just across the edge, by a hair (a small fraction of the finest tile's step, whatever this tile's level:
+          // a coarse tile's neighbour can be ten levels finer), and a hair along it, inwards, so a corner is the
+          // neighbour's across this edge, not the diagonal one's.)
+          const hair = Math.min(0.25, 0.01 * 2 ** (t.lod - this.groundMaxLod));
+          const along = i < seg / 2 ? hair : -hair;
+          const du = e === 2 ? -hair : e === 3 ? hair : along, dv = e === 0 ? -hair : e === 1 ? hair : along;
+          cubeToDirection(t.face, u0 + span * (x + du) / seg, v0 + span * (y + dv) / seg, dir);
+          const n = find(dir);
+          if (!n) {
+            if (frustum.containsPoint(w.copy(a).applyMatrix4(toWorld))) edgeUncovered++;
+            continue;
+          }
+          if (n === t) continue;
+          other = n;
+          // The neighbour's own edge at this vertex's direction: straight between its two edge vertices there.
+          cubeToDirection(t.face, u0 + span * x / seg, v0 + span * y / seg, dir);
+          const nf = directionToUVOnFace(dir, n.face, {}), nSpan = 2 / 2 ** n.lod;
+          const nu = ((nf.u + 1) / nSpan - n.x) * seg, nv = ((nf.v + 1) / nSpan - n.y) * seg;
+          const alongU = Math.min(Math.abs(nu), Math.abs(nu - seg)) > Math.min(Math.abs(nv), Math.abs(nv - seg));
+          const tt = Math.min(seg, Math.max(0, alongU ? nu : nv)), k = Math.min(seg - 1, Math.floor(tt)), f = tt - k;
+          const fixed = Math.round(alongU ? nv : nu);
+          const at = (q) => (alongU ? fixed * (seg + 1) + q : q * (seg + 1) + fixed);
+          vertex(n, at(k), b0); vertex(n, at(k + 1), b1);
+          const gap = a.distanceTo(b0.lerp(b1, f));
+          edgeGap = Math.max(edgeGap, gap);
+        }
+        for (const o of t.ground || other?.ground ? [out, out.generated] : [out]) {
+          o.edges++;
+          if (edgeUncovered) o.uncovered++;
+          o.maxGap = Math.max(o.maxGap, edgeGap);
+          if (edgeGap > 0.05) o.over5cm++;
+          if (edgeGap > 1) o.over1m++;
+        }
+        if ((edgeGap > 0.05 || edgeUncovered) && (t.ground || other?.ground)) {
+          out.worst.push({ tile: t.id, edge: e, neighbor: other?.id ?? null, gap: +edgeGap.toFixed(2), uncovered: edgeUncovered,
+            generated: !!t.ground, neighborGenerated: !!other?.ground });
+        }
+      }
+    }
+    out.maxGap = +out.maxGap.toFixed(3);
+    out.generated.maxGap = +out.generated.maxGap.toFixed(3);
+    out.worst.sort((p, q) => q.gap - p.gap || q.uncovered - p.uncovered);
+    out.worst.length = Math.min(out.worst.length, 12);
+    return out;
   }
 
   // ---------------------------------------------------------------------------
@@ -3085,6 +3531,10 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
           break;
         case 'lod':
           colorRamp01(tile.lod / Math.max(1, this.maxAvailableLod), color);
+          break;
+        case 'ground': // (generated tiles by level, 10 blue to 20 red; baked ones grey, lighter the deeper)
+          if (tile.ground) colorRamp01((tile.lod - 10) / 10, color);
+          else color.setRGB(0.1 + tile.lod * 0.05, 0.1 + tile.lod * 0.05, 0.1 + tile.lod * 0.05);
           break;
         case 'priority':
           colorRamp01(clamp01(tile.priority / 5e6), color);

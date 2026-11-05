@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { COVER, COVER_COUNT, GroundData } from './groundData.js';
+import { setGroundSeason } from './groundDetail.js';
 import { CubedSpherePlanetRenderer, PLANET_YAW } from './CubedSpherePlanetRenderer.js';
 import { loadSeaIce, setSeaIceDayOfYear, setSeaIceVisible } from './seaIce.js';
 import atmosphereVertexShader from '../shaders/atmosphere.vert.glsl?raw';
@@ -95,6 +97,15 @@ const ASSET_ATTRIBUTIONS = {
   boca_chica: EOX_CLOUDLESS,
   christmas_island: EOX_CLOUDLESS,
   queensland: EOX_CLOUDLESS,
+  // The generated close-up ground's data (tools/ground_cover.py).
+  hawaii_ground: 'Ground: Copernicus DEM GLO-30 (DLR, Airbus, ESA); ESA WorldCover 2021; Sentinel-2 cloudless 2024 by EOX (contains modified Copernicus Sentinel data)',
+};
+
+// Regions of generated close-up ground (folders under assets/ baked by tools/ground_cover.py; see groundData.js). Below
+// the regional bakes' deepest tiles, the ground there is made on the spot from them. One that is not on the machine
+// is skipped.
+export const GROUND_DATA = {
+  earth: ['hawaii_ground'],
 };
 
 function assetFromName(name) {
@@ -224,6 +235,11 @@ export class Planet {
     this.renderers = new Map();
     this.settings = new Map(); // renderer method -> its last arguments
     this.visible = true;
+    const groundNames = new URLSearchParams(globalThis.location?.search ?? '').get('ground') === '0'
+      ? [] : (GROUND_DATA[bodyKey(planetSpec)] ?? []);
+    this.rendererOptions.groundData = rendererOptions.groundData ??
+      groundNames.map((name) => new GroundData(`${import.meta.env?.BASE_URL ?? '/'}assets/${name}`));
+    this.rendererOptions.groundShading = new URLSearchParams(globalThis.location?.search ?? '').get('groundDetail') !== '0';
     this.lod = this._createRenderer(assetNames);
     // Seasonal sea ice on the Earth's sea surface (seaIce.js; the date is set by setDayOfYear).
     if (bodyKey(planetSpec) === 'earth' && this.rendererOptions.water) loadSeaIce();
@@ -422,6 +438,7 @@ export class Planet {
   /** The date for seasonal effects (sea ice): day of the year, 1 = 1 January, fractional days allowed. */
   setDayOfYear(dayOfYear) {
     setSeaIceDayOfYear(dayOfYear);
+    setGroundSeason(dayOfYear);
   }
 
   setSeaIceVisible(visible) {
@@ -482,6 +499,21 @@ export class Planet {
    */
   sampleTerrainHeight(latDeg, lonDeg) {
     return this.lod.sampleTerrainHeight(latDeg, lonDeg);
+  }
+
+  /**
+   * Distance (m) from the generated ground's coastline at a geodetic latitude and longitude (degrees): positive
+   * inland, negative at sea (to -256 m and no further). Resolves to null where there is no ground data (groundData.js).
+   */
+  async coastDistance(lat, lon) {
+    for (const g of this.rendererOptions.groundData ?? []) {
+      if (!(await g.ready) || !g.covers(lat, lon)) continue;
+      await g.request(lat - 0.001, lat + 0.001, lon - 0.001, lon + 0.001);
+      const c = new Float32Array(COVER_COUNT);
+      g.cover(lat, lon, c);
+      return c[COVER.coast];
+    }
+    return null;
   }
 
   /** See CubedSpherePlanetRenderer.fixedHeightSampler. */

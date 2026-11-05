@@ -35,13 +35,22 @@ export default async function ({ page }) {
   if (process.env.BENCH_HAZE_SAMPLES) await page.evaluate(async (n) => (await import('/src/planet/aerialPerspective.js')).AerialPerspective.setLowSamples(n), Number(process.env.BENCH_HAZE_SAMPLES))
   // BENCH_CLOUD_DEFINES=A,B: the clouds' optional shader parts (Clouds.setFeatures).
   if (process.env.BENCH_CLOUD_DEFINES) await page.evaluate((d) => window.tetheredRing.app.clouds?.setFeatures(d.split(',')), process.env.BENCH_CLOUD_DEFINES)
+  // BENCH_PLANET_DEBUG=tileBorders|lod|ground|...: the planet's tiles drawn in a debug mode, without the sea surface
+  // (noWater: just without the sea surface).
+  if (process.env.BENCH_PLANET_DEBUG) {
+    await page.evaluate((mode) => {
+      const lod = window.tetheredRing.app.planet.lod
+      if (mode !== 'noWater') lod.setDebugMode(mode)
+      lod.setWaterVisible(false)
+    }, process.env.BENCH_PLANET_DEBUG)
+  }
   const gpu = await page.evaluate(() => {
     const gl = window.tetheredRing.app.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
     return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
   })
   for (const { name, view } of views) {
     // BENCH_PASSES=1: also the GPU time of each pass (see below).
-    const timing = await page.evaluate(async (view, frames, passesWanted) => {
+    const timing = await page.evaluate(async (view, frames, passesWanted, probe) => {
       const app = window.tetheredRing.app, gl = app.renderer.getContext()
       const frame = () => new Promise(r => requestAnimationFrame(r))
       const { applyViewState } = await import('/src/ui/ViewStatus.js')
@@ -49,11 +58,34 @@ export default async function ({ page }) {
       app.clouds?.setCloudTypeTest?.(view.cloudType ?? null)
       applyViewState(app, view)
       // Loaded: the planet's tiles, the real clouds, and a few quiet frames.
-      for (let i = 0; i < 1200; i++) {
-        await frame()
-        const s = app.planet.getDebugStats()
-        const real = app.clouds?.realClouds
-        if (i > 60 && !s.queue && !s.inflight && (!real || (real.ready && !real.loading))) break
+      const settle = async () => {
+        for (let i = 0; i < 1200; i++) {
+          await frame()
+          const s = app.planet.getDebugStats()
+          const real = app.clouds?.realClouds
+          if (i > 60 && !s.queue && !s.inflight && (!real || (real.ready && !real.loading))) break
+        }
+      }
+      await settle()
+      // (view.camera.eyeAboveGround: the camera that many metres above the terrain as drawn, found by a ray down
+      // through it once loaded, and again after the closer tiles that brings in have loaded.)
+      const eye = view.camera?.eyeAboveGround
+      if (eye) {
+        const THREE = await window.tetheredRing.THREE
+        for (let pass = 0; pass < 4; pass++) {
+          const state = app.camera.getState()
+          const pos = new THREE.Vector3().fromArray(state.position)
+          const centre = app.planetCoordSys.getWorldPosition(new THREE.Vector3())
+          const up = pos.clone().sub(centre).normalize()
+          const ray = new THREE.Raycaster(pos.clone().addScaledVector(up, 20000), up.clone().negate(), 0, 60000)
+          const hit = app.planet.raycast(ray)[0]
+          if (!hit) break
+          const next = hit.point.clone().addScaledVector(up, eye)
+          if (next.distanceTo(pos) < 0.05) break
+          const shift = next.clone().sub(pos)
+          app.camera.setState({ ...state, position: next.toArray(), target: new THREE.Vector3().fromArray(state.target).add(shift).toArray() })
+          await settle()
+        }
       }
       for (let i = 0; i < 20; i++) await frame()
       const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2')
@@ -119,9 +151,97 @@ export default async function ({ page }) {
         sun: u?.slSun && [u.slSun.value.x, u.slSun.value.y, u.slSun.value.z].map((x) => +x.toFixed(5)),
         exposure: u && round(u.exposure.value),
         buffer: `${app.renderer.domElement.width}x${app.renderer.domElement.height}`,
+        tiles: (() => { const s = app.planet.getDebugStats(); return { visible: s.visibleTiles, loaded: s.loadedTiles } })(),
+        lods: (() => { const h = {}; for (const t of app.planet.lod.visibleList ?? []) { const k = t.lod + (t.ground ? 'g' : ''); h[k] = (h[k] ?? 0) + 1 } return h })(),
+        // BENCH_PROBE=x,y (pixels from the top left, of 1280 x 720): the planet tile and sea surface under that pixel.
+        probe: await (async () => {
+          if (!probe) return undefined
+          const THREE = await window.tetheredRing.THREE
+          const [px, py] = probe.split(',').map(Number)
+          const ray = new THREE.Raycaster()
+          ray.setFromCamera(new THREE.Vector2(px / 640 - 1, 1 - py / 360), app.camera3d)
+          const lod = app.planet.lod, out = []
+          for (const tile of lod.visibleList) {
+            for (const m of [tile.mesh, tile.waterMesh, tile.waterUnderside]) {
+              if (!m) continue
+              m.updateWorldMatrix(true, false)
+              const hits = []
+              const side = m.material.side
+              m.material.side = THREE.DoubleSide
+              m.raycast(ray, hits)
+              m.material.side = side
+              if (hits.length) {
+                const f = hits[0].face, n = f.normal.clone().transformDirection(m.matrixWorld)
+                const local = hits[0].point.clone().applyMatrix4(lod.group.matrixWorld.clone().invert())
+                const ll = lod._latLon(local.clone().normalize(), {})
+                out.push({ tile: tile.id, ground: !!tile.ground, mesh: m.name, dist: +hits[0].distance.toFixed(1),
+                  lat: +ll.lat.toFixed(6), lon: +ll.lon.toFixed(6),
+                  facing: +n.dot(ray.ray.direction).toFixed(3), visible: m.visible, map: !!m.material.map,
+                  seaFar: tile.seaFar, color: m.material.color?.getHexString(), colorTile: tile.colorTile?.id,
+                  hasWater: !!tile.waterMesh, waterGeometry: !!tile.mesh?.geometry?.userData.waterGeometry,
+                  grid: tile.heightGrid ? [Math.min(...tile.heightGrid), Math.max(...tile.heightGrid)].map((x) => +x.toFixed(1)) : null,
+                  loaded: tile.loaded, ready: tile.ready, edgeSteps: tile.edgeSteps,
+                  water: (() => {
+                    const w = tile.waterMesh
+                    if (!w || m !== tile.mesh) return undefined
+                    const g = w.geometry, pos = g.attributes.position, local = w.worldToLocal(hits[0].point.clone())
+                    let best = Infinity, bi = -1
+                    for (let i = 0; i < pos.count; i++) {
+                      const d = Math.hypot(pos.getX(i) - local.x, pos.getY(i) - local.y, pos.getZ(i) - local.z)
+                      if (d < best) { best = d; bi = i }
+                    }
+                    return { count: pos.count, index: g.index?.count, sphere: g.boundingSphere?.radius, nearestVertex: +best.toFixed(1), at: bi,
+                      depth: g.attributes.seaDepth.getX(bi), parent: w.parent?.name, sameGeometryAsMesh: g === tile.mesh.geometry.userData.waterGeometry }
+                  })() })
+              }
+            }
+          }
+          // Where the ray crosses sea level, and the tile there.
+          const g = lod.group, inv = g.matrixWorld.clone().invert()
+          let cross = null
+          for (let t = 1; t < 3000; t += 0.5) {
+            const p = ray.ray.at(t, new THREE.Vector3()).applyMatrix4(inv)
+            const d = p.clone().normalize()
+            const surface = 1 / Math.sqrt((d.x * d.x + d.z * d.z) / (lod.a * lod.a) + d.y * d.y / (lod.b * lod.b))
+            if (p.length() < surface) {
+              const s = lod._sampleTerrainHeightAtDirection(d)
+              const tile = s && [...lod.tiles.values()].find((x) => x.id === s.tileId)
+              cross = { t, tileId: s?.tileId, height: s && +s.heightMeters.toFixed(1), visible: tile?.visibleFrame === lod.frame,
+                hasWater: !!tile?.waterMesh, ground: !!tile?.ground }
+              // And the visible tile there.
+              for (const v of lod.visibleList) {
+                if (!s || v.face !== s.face || v.lod > s.lod) continue
+                if (Math.floor(s.x / 2 ** (s.lod - v.lod)) === v.x && Math.floor(s.y / 2 ** (s.lod - v.lod)) === v.y) {
+                  cross.visibleTile = { id: v.id, ground: !!v.ground, hasWater: !!v.waterMesh, waterVisible: v.waterMesh?.visible,
+                    grid: v.heightGrid ? [Math.min(...v.heightGrid), Math.max(...v.heightGrid)].map((x) => +x.toFixed(1)) : null }
+                }
+              }
+              break
+            }
+          }
+          out.push({ cross })
+          return out.sort((a, b) => a.dist - b.dist)
+        })(),
+        // How well the drawn tiles meet (CubedSpherePlanetRenderer.measureSeams).
+        seams: app.planet.lod.measureSeams(app.camera3d),
+        boats: app.sailboats?.active?.reduce((n, cell) => n + (cell.boats?.length ?? 0), 0),
+        // (Each boat's distance from the generated ground's coastline, metres, negative at sea; and the drawn sea floor's
+        // height under it.)
+        boatCoast: (() => {
+          const g = app.planet.lod.groundData?.[0], c = new Float32Array(16), out = []
+          if (!g?.loaded) return null
+          for (const cell of app.sailboats?.active ?? []) for (const b of cell.boats ?? []) {
+            g.cover(b.lat, b.lon, c)
+            const h = app.planet.lod.sampleTerrainHeight(b.lat, b.lon)
+            out.push([Math.round(c[3]), h ? +h.heightMeters.toFixed(1) : null, h?.lod ?? null, b.anchored ? 'anchored' : 'sailing'])
+          }
+          return out
+        })(),
+        drawCalls: app.renderer.info.render.calls,
+        triangles: app.renderer.info.render.triangles,
       }
       return { clouds, frame: frameTime, passes, state }
-    }, view, frames, !!process.env.BENCH_PASSES)
+    }, view, frames, !!process.env.BENCH_PASSES, process.env.BENCH_PROBE)
     if (timing.error) throw new Error(timing.error)
     const file = path.join(out, `${name}.png`)
     await page.screenshot({ path: file })

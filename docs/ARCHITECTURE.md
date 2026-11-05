@@ -240,6 +240,67 @@ The render queue (`src/shots/RenderQueue.js`: the data and its pure operations, 
   Both need ffmpeg (with libsvtav1 and libx264) and ffprobe on the PATH, and numpy and Pillow in the venv.
 - `SMOKE_REMOTE=user@host` runs the browser of `npm run smoke` and `npm run bench:clouds` on another machine over ssh, on its GPU (for a laptop's integrated graphics), with the page served from here through ssh tunnels; `SMOKE_SSH_ARGS` adds ssh options (a key, `-o IdentitiesOnly=yes`) and `SMOKE_REMOTE_CHROME` names its browser (default `chromium-browser`). Tests views of one cloud type each: `npm run bench:clouds -- --views tests/bench/cloudTypeViews.json` (`Clouds.setCloudTypeTest`).
 
+## Generated ground
+
+Close to the ground the baked imagery (about 100 m pixels on the Big Island) and heights (150 m) run out of
+detail. Inside a region with ground data (`assets/hawaii_ground`, baked by `tools/ground_cover.py`; see
+docs/ASSETS.md), `CubedSpherePlanetRenderer` goes on refining below the deepest baked tile, down to LOD 20 (tiles
+about 10 m across, vertices 0.4 m apart), making each tile on the spot:
+
+- **Shape** (`groundData.js`). The region's own 30 m heights (bicubic), then the coast: beaches slope gently into
+  the sea, low lava shores end in a bench a metre or two high, and cliffs drop straight into it, along the 10 m
+  coastline, not the 30 m heights'. On that, relief from noise, by the ground's kind (a'a rubble, pahoehoe lobes and
+  tumuli, cinder, sand, vegetation), with only the octaves the tile's grid can show, fading in as it gets finer.
+- **Look** (`groundDetail.js`). The tile shows its baked ancestor's imagery. The region's cover splits each imagery
+  pixel into its kinds, as patches, tree crowns, grass bunches (or turf, where the
+  imagery is green), a'a clinker, pahoehoe plates and ropes, lapilli, rippled sand with a wet swash, and stones, each
+  in its own colour and relief (bump-mapped), keeping the imagery's average colour. Near the coast, where the
+  imagery's pixels are partly sea, the kinds' own colours are used. Crowns and shrubs are painted on the ground, so
+  from near their height the shaded ground under them is drawn instead. Snow lies on Mauna Kea and Mauna Loa from
+  December to March (`setGroundSeason`, from `Planet.setDayOfYear`), patchy, on north-facing slopes and hollows first.
+- **One ground for every tile.** Nothing in a tile's shape or look depends on the tile, so nothing changes at a tile's
+  edge, whatever the levels on either side, and whether the tiles are generated or baked (baked tiles in the region,
+  from level 9 down, have the look and the region's heights too):
+  - Heights, sea floor included (GEBCO bathymetry in the region's data), come from one function of position.
+  - Tiles join by one rule: every vertex on a tile's boundary takes the position and normal of the coarsest drawn
+    tile touching it there (its edge neighbours, and the diagonal one at a corner), from that tile's drawn geometry
+    (`_updateEdgeMorph`, `_buildTileGeometry`). A plain baked tile counts as coarser than one with the region's
+    heights, and both as coarser than a generated one, of the same level. Coarser tiles are built first, and a tile
+    is rebuilt when one it took its boundary from is.
+  - The look samples the region's data on the GPU (`groundTextures.js`): its chunks as layers of texture arrays, with
+    a border of one cell from their neighbours, in a coarse copy (cells 4 x 4, for the whole of what is in view) and a
+    full one (for the nearer tiles), blended by the ground a pixel covers; with the ground's slope, which is the
+    shading normal (not the tiles' vertex normals, which depend on their level).
+  - Patterns are functions of the position in the region's plane (east and north of its middle). Each band's
+    per-tile offset is worked out in float64 and reduced modulo 20 noise periods, a whole number of periods for every
+    scale the shader applies to the coordinates.
+- **Cost.** A baked tile whose children would be generated is refined by its vertex spacing (`GROUND_SSE_PIXELS`),
+  not its texels (its children show the same imagery), and nothing is generated over open sea. On the B70 at 720p
+  the generated ground costs about 0-2 ms.
+
+`?ground=0` turns the generated ground off, `?groundDetail=0` its look (shape only), and `?groundDebug=1` shows the
+kinds as colours (red lava, brighter for a'a; green vegetation, brighter for trees; blue sand; magenta cinder).
+`tests/bench/groundViews.json` (written by `scripts/bench/groundViews.py`) are views from the Kona coast to Mauna
+Kea's summit and of the coasts, for `npm run bench:clouds -- --views tests/bench/groundViews.json`; their cameras
+are placed on the terrain as drawn (`camera.eyeAboveGround`).
+
+Seams are checked by two scripts:
+
+- `scripts/check-seams.mjs` (Node, no GPU) runs the renderer's tile selection and geometry for a sweep of camera
+  positions over the region (points along the coast and over a grid, at heights from 2 m to 2.5 km, four headings,
+  and descents from 4 km to the ground, so tiles refine and coarsen through their levels) and checks every edge of
+  every drawn tile (`measureSeams`): the gap to the drawn tile across it, and whether one is there at all where the
+  edge is on screen. `--quick` takes a few minutes, the full sweep (about 20,000 positions) about half an hour.
+- `scripts/check-visual-seams.mjs` (headless Chrome, on the GPU) renders views of the sweep with a pass of each
+  terrain tile's id and distance, and measures the step in brightness across every on-screen boundary between two
+  tiles (not at a silhouette or under the sea surface), beyond each side's own gradient, against the texture's
+  variation beside it. `SEAM_SELFTEST=1` darkens every other tile, to check what it finds.
+
+    POSIX:       node scripts/check-seams.mjs --quick
+                 node scripts/check-visual-seams.mjs --every 8 --render-node /dev/dri/renderD129
+    PowerShell:  node scripts\check-seams.mjs --quick
+                 node scripts\check-visual-seams.mjs --every 8
+
 ## Sun, sky and atmosphere
 
 - **Sun position.** `src/physics/solar.js` gives the subsolar point from the day of year and UTC time (NOAA approximation; effects longer than a year are ignored). `App.updateSun()` points the sun light along it every step, from the `sunDayOfYear` / `sunTimeOfDayUTC` parameters plus the simulated time. Left automatic, `App.resolveSunDate()` picks a repeatable daytime for the preset's opening view. Presets that place the sun themselves, and other bodies, keep their own.
