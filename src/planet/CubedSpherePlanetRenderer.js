@@ -173,6 +173,17 @@ function colorRamp01(v, out) {
 }
 
 // Builds a stable quadtree tile key in face/lod/x/y format.
+// A uniform array (of numbers or vectors) as one flat Float32Array. three.js uploads that as it is, where it copies an
+// array of vectors (or converts one of numbers) into a new Float32Array on every draw: the same float32 values, without
+// the copy. For arrays set once (a tile's offsets).
+function flatUniform(values) {
+  if (typeof values[0] === 'number') return Float32Array.from(values);
+  const size = values[0]?.isVector3 ? 3 : values[0]?.isVector2 ? 2 : 4;
+  const out = new Float32Array(values.length * size);
+  values.forEach((v, i) => v.toArray(out, i * size));
+  return out;
+}
+
 function tileKey(face, lod, x, y) {
   return `${face}/${lod}/${x}/${y}`;
 }
@@ -1637,7 +1648,7 @@ export class CubedSpherePlanetRenderer {
       groundNorth: { value: frame.north },
       groundFrameUp: { value: frame.up },
       groundTileCenter: { value: tile.center },
-      groundOffset: { value: groundOffsets(rel.dot(frame.east), rel.dot(frame.north)) },
+      groundOffset: { value: flatUniform(groundOffsets(rel.dot(frame.east), rel.dot(frame.north))) },
       groundA: { get value() { return textures.a ?? null; } },
       groundB: { get value() { return textures.b ?? null; } },
       groundS: { get value() { return textures.s ?? null; } },
@@ -2442,11 +2453,11 @@ ${seaSkyReflectionGlsl}`)
     });
     material.defines = this._seaDefines(false);
     tile.seaFar = false;
-    const waveOffsets = tileWaveOffsets(tile.center);
-    const gustOffsets = noiseOffsets(tile.center, GUST_FREQUENCIES);
-    const foamOffsets = noiseOffsets(tile.center, FOAM_FREQUENCIES);
-    const groupOffsets = noiseOffsets(tile.center, GROUP_FREQUENCIES);
-    const iceOffsets = noiseOffsets(tile.center, SEA_ICE_FREQUENCIES);
+    const waveOffsets = flatUniform(tileWaveOffsets(tile.center));
+    const gustOffsets = flatUniform(noiseOffsets(tile.center, GUST_FREQUENCIES));
+    const foamOffsets = flatUniform(noiseOffsets(tile.center, FOAM_FREQUENCIES));
+    const groupOffsets = flatUniform(noiseOffsets(tile.center, GROUP_FREQUENCIES));
+    const iceOffsets = flatUniform(noiseOffsets(tile.center, SEA_ICE_FREQUENCIES));
     const invA2 = (1 / (this.a * this.a)).toExponential(10);
     const invB2 = (1 / (this.b * this.b)).toExponential(10);
     material.onBeforeCompile = (shader) => {
@@ -2626,8 +2637,8 @@ material.specularShininess = clamp(2.0 / (seaUnresolved + 2e-4) - 2.0, 4.0, 8000
   _configureSeafloor(material, tile) {
     const previous = material.onBeforeCompile;
     const previousKey = material.customProgramCacheKey;
-    const offsets = noiseOffsets(tile.center, SEAFLOOR_FREQS);
-    const iceOffsets = noiseOffsets(tile.center, SEA_ICE_FREQUENCIES);
+    const offsets = flatUniform(noiseOffsets(tile.center, SEAFLOOR_FREQS));
+    const iceOffsets = flatUniform(noiseOffsets(tile.center, SEA_ICE_FREQUENCIES));
     const invA2 = (1 / (this.a * this.a)).toExponential(10);
     const invB2 = (1 / (this.b * this.b)).toExponential(10);
     material.onBeforeCompile = (shader, renderer) => {
