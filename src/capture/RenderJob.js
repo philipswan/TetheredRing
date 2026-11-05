@@ -33,6 +33,7 @@ export function assertRenderProject(renderShot, shot) {
 function renderIdentity(shot) {
   const copy = validateShot(structuredClone(shot))
   delete copy.project
+  delete copy.regenerateWindow
   return canonical(copy)
 }
 
@@ -46,6 +47,38 @@ export function renderFolderName(fileName) {
 
 export function segmentName(index, container) {
   return `segment-${String(index).padStart(6, '0')}.${container}`
+}
+
+export function replacementSegmentName(index, container, generation) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(generation)) throw new Error('Invalid regeneration id.')
+  return segmentName(index, container).replace(`.${container}`, `-r-${generation}.${container}`)
+}
+
+function validSegmentName(name, index, container) {
+  return name === segmentName(index, container) ||
+    new RegExp(`^segment-${String(index).padStart(6, '0')}-r-[a-zA-Z0-9_-]+\\.${container}$`).test(name)
+}
+
+export function segmentsInWindow(manifest, start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
+    throw new Error('Set a window end time greater than its start time (in video seconds).')
+  }
+  const fps = manifest.shot.output.fps
+  return manifest.segments.flatMap((segment, index) =>
+    segment.from / fps < end && segment.to / fps > start ? [{ index, segment }] : [])
+}
+
+function validateRegenerationShot(manifest, shot, { duration = true } = {}) {
+  assertRenderProject(manifest.shot, shot)
+  for (const field of ['width', 'height', 'fps', 'container']) {
+    if (shot.output[field] !== manifest.shot.output[field]) throw new Error(`Window regeneration cannot change ${field}; existing segments must remain compatible.`)
+  }
+  if (duration && shot.output.codec !== manifest.shot.output.codec && shot.output.codec !== manifest.codec) {
+    throw new Error('Window regeneration cannot change the video codec; existing segments must remain compatible.')
+  }
+  if (duration && Math.max(1, Math.round(shotDuration(shot) * shot.output.fps)) !== manifest.frames) {
+    throw new Error('Window regeneration keeps the existing video duration. Restore its duration or use a full restart.')
+  }
 }
 
 export async function checksum(blob) {
@@ -108,13 +141,23 @@ export function validateRenderJob(value) {
   }
   let next = 0
   value.segments.forEach((segment, i) => {
-    if (segment.name !== segmentName(i, shot.output.container) || segment.from !== next ||
+    if (!validSegmentName(segment.name, i, shot.output.container) || segment.from !== next ||
         !Number.isInteger(segment.to) || segment.to <= next || segment.to > total ||
         !Number.isInteger(segment.bytes) || segment.bytes <= 0 || !/^[a-f0-9]{64}$/.test(segment.sha256)) {
       throw new Error('Invalid or non-contiguous render segments.')
     }
     next = segment.to
   })
+  if (value.regenerations !== undefined) {
+    if (!value.regenerations || typeof value.regenerations !== 'object' || Array.isArray(value.regenerations)) throw new Error('Invalid regeneration history.')
+    for (const [id, generation] of Object.entries(value.regenerations)) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(id) || typeof generation?.buildId !== 'string') throw new Error('Invalid regeneration history.')
+      validateRegenerationShot({ ...value, shot }, validateShot(structuredClone(generation.shot)), { duration: false })
+    }
+  }
+  for (const segment of value.segments) {
+    if (segment.generation !== undefined && !Object.hasOwn(value.regenerations ?? {}, segment.generation)) throw new Error('Missing segment regeneration history.')
+  }
   if (value.segments.length && (typeof value.decoderConfig?.codec !== 'string' ||
       !(value.decoderConfig.codedWidth > 0) || !(value.decoderConfig.codedHeight > 0))) {
     throw new Error('Invalid render decoder configuration.')
@@ -220,12 +263,12 @@ export class RenderJob {
     const latest = await RenderJob.read(this.storage)
     if (!latest) throw new Error('The render manifest is missing; no segments have been deleted.')
     assertRenderProject(latest.manifest.shot, frozen)
-    const pattern = new RegExp(`^segment-\\d{6,}\\.${this.manifest.shot.output.container}$`)
+    const pattern = new RegExp(`^segment-\\d{6,}(?:-r-[a-zA-Z0-9_-]+)?\\.${this.manifest.shot.output.container}$`)
     const names = (await this.storage.list()).filter(name => pattern.test(name))
     const next = validateRenderJob({
       ...this.manifest, shot: frozen, fileName, codec, buildId,
       frames: Math.max(1, Math.round(shotDuration(frozen) * frozen.output.fps)),
-      decoderConfig: null, segments: [],
+      decoderConfig: null, segments: [], regenerations: {},
     })
     // Reset progress before deleting so an interruption cannot leave a manifest referencing deleted clips.
     await writeJSON(this.storage, RENDER_JOB_FILE, next)
@@ -236,6 +279,37 @@ export class RenderJob {
         throw new Error(`Could not delete old segment "${name}". Restart stopped; some prior segments may already have been deleted. ${error.message}`, { cause: error })
       }
     }
+  }
+
+  regenerationPlan(shot, start, end) {
+    const frozen = validateShot(structuredClone(shot))
+    validateRegenerationShot(this.manifest, frozen)
+    const selected = segmentsInWindow(this.manifest, start, end)
+    if (!selected.length && !(frozen.regenerateWindow?.continueUnfinished && !this.complete)) throw new Error('The window does not intersect any saved segments.')
+    return selected
+  }
+
+  async replaceSegment(index, expected, name, decoderConfig, { shot, generation, buildId }) {
+    const frozen = validateShot(structuredClone(shot))
+    const latest = await RenderJob.read(this.storage)
+    if (!latest) throw new Error('The render manifest is missing; the original segment is unchanged.')
+    assertRenderProject(this.manifest.shot, latest.manifest.shot)
+    validateRegenerationShot(latest.manifest, frozen)
+    const previous = latest.manifest.segments[index]
+    if (!previous || canonical(previous) !== canonical(expected)) throw new Error('This segment changed during regeneration; its replacement has not been committed.')
+    if (name !== replacementSegmentName(index, frozen.output.container, generation) || name === previous.name) throw new Error('Invalid replacement segment name.')
+    if (!compatibleDecoderConfig(latest.manifest.decoderConfig, decoderConfig)) throw new Error('The replacement encoder configuration is incompatible with the saved video.')
+    const file = await this.storage.read(name)
+    if (!file?.size) throw new Error('The replacement segment was not saved.')
+    const generations = latest.manifest.regenerations ?? {}
+    const provenance = { shot: frozen, buildId }
+    if (Object.hasOwn(generations, generation) && canonical(generations[generation]) !== canonical(provenance)) throw new Error('Regeneration settings changed during this window.')
+    const segments = [...latest.manifest.segments]
+    segments[index] = { ...previous, name, bytes: file.size, sha256: await checksum(file), generation }
+    const next = validateRenderJob({ ...latest.manifest, segments, regenerations: { ...generations, [generation]: provenance } })
+    // Publish the new filename and checksum together. The previous clip remains a recovery copy.
+    await writeJSON(this.storage, RENDER_JOB_FILE, next)
+    this.manifest = next
   }
 
   async commit(to, decoderConfig) {

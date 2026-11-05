@@ -154,7 +154,6 @@
     "launcherLocationMode": 1,
     "launcherRampEndLatitude": 19.820667,
     "launcherRampEndLongitude": -155.42,
-    "launcherSledDownwardAcceleration": 150,
     "launcherAdaptiveNutRampAcceleration": -1500,
     "launcherMassDriverAltitude": -150,
     "launcherRampExitAltitude": 4000,
