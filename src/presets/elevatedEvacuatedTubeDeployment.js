@@ -283,7 +283,7 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, nonGUIParams
   guidParamWithUnits['showMassDriverTube'].value = true
   guidParamWithUnits['showMassDriverAccelerationScrews'].value = false
   guidParamWithUnits['showMassDriverDecelerationScrews'].value = false
-  guidParamWithUnits['showMassDriverRail'].value = false
+  guidParamWithUnits['showMassDriverRail'].value = true   // (the sled's track runs inside the tube as it deploys)
   guidParamWithUnits['showMassDriverBrackets'].value = false
   guidParamWithUnits['showLaunchSleds'].value = false
   guidParamWithUnits['showLaunchVehicles'].value = true

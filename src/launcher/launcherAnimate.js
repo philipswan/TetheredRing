@@ -1,5 +1,6 @@
 import { getSpiralCoordinates } from './spiral.js'
 import { MovingVirtualObject } from './VirtualObject.js'
+import { curvePointsUpTo } from './LaunchTrajectoryUtils.js'
 
 // Used for modelRange until the App has reported the real value (1080 px high, 45 degree field of view).
 const DEFAULT_PIXELS_PER_RADIAN = 1300
@@ -181,23 +182,44 @@ export function defineUpdateCoiledEvacuatedTube() {
     const segmentD = 1 / Math.max(1, this.massDriverTubeSegments)
     const minD = (total > 0) ? coiledStart / total - segmentD : 0
     this.updateMassDriverTubes(minD, 1)
+
+    // The launch sled's track runs inside the tube up to the exit airlock: reshape it with the tube, and
+    // rebuild the visible rails on the coiled part.
+    const track = this.launchSledBrakingCurve
+    const sledPath = this.polyCurveForrf2
+    if (track && sledPath?.superCurves.includes(track)) {
+      track.setPoints(curvePointsUpTo(this.coiledElevatedEvacuatedTubeCurve, this.sledTrackFraction))
+      track.updateArcLengths()
+      sledPath.updateArcLengths()
+      const trackStart = sledPath.findRelevantCurveAt(1).relevantCurveStartPosition
+      const railD = 1 / Math.max(1, this.massDriverRailSegments)
+      const railMinD = (trackStart + alpha * this.coiledElevatedEvacuatedTubeCurve.getLength()) / sledPath.getLength() - railD
+      this.updateStaticModels(this.objectClasses.find(c => c.className === 'virtualMassDriverRails'), railMinD, 1)
+    }
   }
 }
 
 export function defineUpdateMassDriverTubes() {
   return function (minD = 0, maxD = 1) {
-    const tubeClass = this.virtualMassDriverTube
-    if (!(tubeClass.numObjects > 0)) return
-    const objectName = tubeClass.className
-    tubeClass.refFrames.forEach(refFrame => {
+    this.updateStaticModels(this.virtualMassDriverTube, minD, maxD)
+  }
+}
+
+// Rebuilds the models of the static objects of `objectClass` (tubes, rails) between path fractions minD and
+// maxD that have models (are visible), from the current shape of their path.
+export function defineUpdateStaticModels() {
+  return function (objectClass, minD = 0, maxD = 1) {
+    if (!(objectClass?.numObjects > 0)) return
+    const objectName = objectClass.className
+    objectClass.refFrames.forEach(refFrame => {
       refFrame.wedges.forEach(wedge => {
         const wedgeList = wedge[objectName]
         if (!wedgeList) return
         wedgeList.forEach(vobj => {
           if (vobj.model && vobj.d >= minD && vobj.d <= maxD) {
             // Replace the model with one fitted to the new shape of the curve (and dispose the old one)
-            tubeClass.releaseModel(vobj.model)
-            vobj.model = tubeClass.acquireModel(vobj, refFrame)
+            objectClass.releaseModel(vobj.model)
+            vobj.model = objectClass.acquireModel(vobj, refFrame)
             vobj.position = null
             if (vobj.model) vobj.placeAndOrientModel(vobj.model, refFrame)
           }

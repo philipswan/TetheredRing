@@ -879,6 +879,7 @@ export class launcher {
 launcher.prototype.animate = LauncherAnimate.defineAnimate()
 launcher.prototype.updateCoiledEvacuatedTube = LauncherAnimate.defineUpdateCoiledEvacuatedTube()
 launcher.prototype.updateMassDriverTubes = LauncherAnimate.defineUpdateMassDriverTubes()
+launcher.prototype.updateStaticModels = LauncherAnimate.defineUpdateStaticModels()
 launcher.prototype.trajectoryCurvesParametersHaveChanged = LaunchTrajectoryUtils.defineTrajectoryCurvesParametersHaveChanged()
 launcher.prototype.updateTrajectoryCurves = LaunchTrajectoryUtils.defineUpdateTrajectoryCurves()
 launcher.prototype.updateTrajectoryCurvesRocket = LaunchTrajectoryRocket.defineUpdateTrajectoryCurvesRocket()

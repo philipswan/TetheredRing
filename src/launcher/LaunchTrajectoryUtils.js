@@ -10,6 +10,17 @@ import { exitAirlockDistanceFromTubeExit } from './EngineeringDetails.js'
 import { launchSledFrontReach } from './LaunchSled.js'
 import { brakingProfile } from './trackBraking.js'
 
+// The points of the CatmullRomSuperCurve3 `curve` up to `fraction` of its length: its control points before
+// there (none very close to it), then the point there.
+export function curvePointsUpTo(curve, fraction) {
+  const points = curve.points
+  const endT = curve.getUtoTmapping(fraction)
+  const result = points.filter((point, i) => endT * (points.length - 1) - i > 0.25)
+  result.push(curve.getPoint(endT))
+  if (result.length < 2) result.unshift(points[0].clone())
+  return result
+}
+
 export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
     let changed = false;
@@ -1638,12 +1649,10 @@ export function defineUpdateTrajectoryCurves () {
     const tubeLength = this.evacuatedTubeCurve ? this.evacuatedTubeCurve.getLength() : 0
     const sledTrackLength = tubeLength - this.exitAirlockDistanceFromTubeExit
     if (sledTrackLength > 0) {
-      // The track is the tube's curve up to the airlock: its control points before there, and the point there.
-      const tubePoints = this.evacuatedTubeCurveControlPoints
-      const endT = this.evacuatedTubeCurve.getUtoTmapping(sledTrackLength / tubeLength)
-      const trackPoints = tubePoints.filter((point, i) => (endT - i / (tubePoints.length - 1)) * (tubePoints.length - 1) > 0.25)
-      trackPoints.push(this.evacuatedTubeCurve.getPoint(endT))
-      if (trackPoints.length < 2) trackPoints.unshift(tubePoints[0].clone())
+      // The track is the tube's curve up to the airlock. (While the tube's deployment is animated, it is
+      // reshaped with the coiled tube: see launcherAnimate.js's updateCoiledEvacuatedTube.)
+      this.sledTrackFraction = sledTrackLength / tubeLength
+      const trackPoints = curvePointsUpTo(this.evacuatedTubeCurve, this.sledTrackFraction)
       if (!this.launchSledBrakingCurve) {
         this.launchSledBrakingCurve = new CatmullRomSuperCurve3(trackPoints)
         this.launchSledBrakingCurve.setAlwaysAwayNormalMode()
