@@ -153,8 +153,27 @@ export class massDriverTubeModel {
     // this.massDriverTubeMaterial1 = new THREE.MeshPhongMaterial( { map: this.tubeTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6, shininess: 0.5} )
     // this.massDriverTubeMaterial2 = new THREE.MeshPhongMaterial( { side: THREE.DoubleSide, color: 0x101015, transparent: true, opacity: 0.95, shininess: 0.5} )
 
+    // These materials are shared by every tube segment; releasing a segment must not dispose them.
+    ;[this.massDriverTubeMaterial1, this.massDriverTubeMaterial2, this.massDriverTubeMaterial3, this.massDriverTubeMaterial4, this.massDriverTubeMaterial5].forEach(m => { m.userData.shared = true })
+    this.updateLiftFanParts()
+
+    this.exagerateNonElevatedTubeFactor = dParamWithUnits['exagerateNonElevatedTubeFactor'].value
+
+  }
+
+  // The lift fans' geometries and materials, sized from the tube's radius. They are shared by every tube
+  // segment, so releasing a segment does not dispose them. When the radius changes, every segment has
+  // already been released (launcher.update rebuilds the tubes), so the old ones are freed here and new
+  // ones built at the new size.
+  updateLiftFanParts() {
+    if (this.liftFanPartsRadius === this.radius) return
+    this.liftFanPartsRadius = this.radius
+    ;[this.liftFanHubGeometry, this.liftFanDiskGeometry, this.liftFanPylonGeometry,
+      this.liftFanHubGeometryLow, this.liftFanDiskGeometryLow, this.liftFanPylonGeometryLow,
+      this.liftFanOpaqueMaterial, this.liftFanDiskMaterial].forEach(resource => resource?.dispose())
+
     this.liftFanRoughSpacing = this.radius * 4 // This is the distance between lift fans along the elevated evacuated tube.
-        
+
     this.liftFanHubGeometry = new THREE.SphereGeometry(this.radius * 0.1, 16, 16)
     this.liftFanHubGeometry.scale(1, 1, 3)
     // The fan disks are flat (the blur of a spinning propeller: see withPropellerBlur), facing +z
@@ -172,13 +191,15 @@ export class massDriverTubeModel {
     this.liftFanPylonGeometry.rotateZ(Math.PI/2)
     this.liftFanPylonGeometryLow = new THREE.CylinderGeometry(this.radius/16, this.radius/8, this.radius*2, 5, 1, true)
     this.liftFanPylonGeometryLow.rotateZ(Math.PI/2)
-    // These geometries and materials are shared by every tube segment; releasing a segment must not dispose them.
+
+    // Fans fade in by on-screen size rather than popping in at the LOD threshold (see SubPixelFade).
+    const fanDiameter = this.radius * 3
+    this.liftFanOpaqueMaterial = withSubPixelFade(this.massDriverTubeMaterial3.clone(), { size: fanDiameter })
+    this.liftFanDiskMaterial = withPropellerBlur(withSubPixelFade(this.massDriverTubeMaterial4.clone(), { size: fanDiameter }), fanDiameter / 2)
+
     ;[this.liftFanHubGeometry, this.liftFanDiskGeometry, this.liftFanPylonGeometry,
-      this.liftFanHubGeometryLow, this.liftFanDiskGeometryLow, this.liftFanPylonGeometryLow].forEach(g => { g.userData.shared = true })
-    ;[this.massDriverTubeMaterial1, this.massDriverTubeMaterial2, this.massDriverTubeMaterial3, this.massDriverTubeMaterial4, this.massDriverTubeMaterial5].forEach(m => { m.userData.shared = true })
-
-    this.exagerateNonElevatedTubeFactor = dParamWithUnits['exagerateNonElevatedTubeFactor'].value
-
+      this.liftFanHubGeometryLow, this.liftFanDiskGeometryLow, this.liftFanPylonGeometryLow,
+      this.liftFanOpaqueMaterial, this.liftFanDiskMaterial].forEach(resource => { resource.userData.shared = true })
   }
 
   update(dParamWithUnits) {
@@ -195,6 +216,7 @@ export class massDriverTubeModel {
   
   createModel(curve, segmentIndex) {
 
+    this.updateLiftFanParts()   // (if the radius has changed)
     let modelLengthSegments    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
     const modelRadialSegments = 32
     const tubePoints = []
@@ -422,13 +444,6 @@ export class massDriverTubeModel {
     }
 
     const fanDiameter = this.radius * 3
-    // Fans fade in by on-screen size rather than popping in at the LOD threshold (see SubPixelFade).
-    if (this.liftFanFadeDiameter !== fanDiameter) {
-      this.liftFanFadeDiameter = fanDiameter
-      this.liftFanOpaqueMaterial = withSubPixelFade(this.massDriverTubeMaterial3.clone(), { size: fanDiameter })
-      this.liftFanDiskMaterial = withPropellerBlur(withSubPixelFade(this.massDriverTubeMaterial4.clone(), { size: fanDiameter }), fanDiameter / 2)
-      ;[this.liftFanOpaqueMaterial, this.liftFanDiskMaterial].forEach(m => { m.userData.shared = true })
-    }
     const opaque = this.liftFanOpaqueMaterial
     const disk = this.liftFanDiskMaterial
     const chunk = new THREE.Vector3()
