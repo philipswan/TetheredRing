@@ -30,6 +30,8 @@ import { terminalSchedule } from './terminalPort.js'
 import { MIN_DEPTH } from './OceanTerminal.js'
 import { LaunchVehicleGlow } from './LaunchVehicleGlow.js'
 import { splitPositions, withRelativeToEye } from '../scene/relativeToEye.js'
+import { track } from '../core/PendingWork.js'
+import { MooringCables } from './MooringCables.js'
 
 //import { arrow } from '../ring/markers.js'
 //import { FrontSide } from 'three'
@@ -413,12 +415,13 @@ export class launcher {
   // Where the nuts and sleds go out of sight underground (updateFallBacks) and how low the coiled-up tube rests
   // (updateCoilRest) come from fixed terrain data (setFixedTerrainHeight), which loads asynchronously; until it
   // has, the nuts and sleds fall back to the bottom of the ramp and the coil rests where it was designed to.
-  // terrainReady resolves once the terrain has been consulted (recordings wait for it).
+  // terrainReady resolves once the terrain has been consulted. Recordings wait for it, also when a shot's
+  // parameter track rebuilds the launcher partway through (it counts as pending work: PendingWork.js).
 
   updateTerrainFits() {
     const generation = this.terrainFitGeneration = (this.terrainFitGeneration ?? 0) + 1
-    this.terrainReady = Promise.all([this.updateFallBacks(generation), this.updateCoilRest(generation)])
-      .catch(error => console.warn('Could not fit the launcher to the terrain:', error))
+    this.terrainReady = track(Promise.all([this.updateFallBacks(generation), this.updateCoilRest(generation)])
+      .catch(error => console.warn('Could not fit the launcher to the terrain:', error)))
   }
 
   // Once it has stopped, each adaptive nut and launch sled falls back down its path (fallBack.js) until it is
@@ -551,11 +554,12 @@ export class launcher {
     this.updateTerrainFits()
   }
 
-  // sampleTerrainHeight(latDeg, lonDeg) -> { heightMeters, lod } | null: where the tube's mooring cables
-  // find the sea floor. Tube segments built before it is set (or before the terrain there has loaded)
-  // refine their anchors later (see MooringCables).
-  setTerrainSampler(sampleTerrainHeight) {
+  // sampleTerrainHeight(latDeg, lonDeg) -> { heightMeters } | null (null while its data loads): where the
+  // tube's mooring cables find the sea floor; version(): goes up as more of that data arrives. Tube segments
+  // built before it is set (or before their sea floor has loaded) place their anchors later (see MooringCables).
+  setTerrainSampler(sampleTerrainHeight, version = () => 0) {
     if (this.tubeModelObject) this.tubeModelObject.sampleTerrainHeight = sampleTerrainHeight
+    MooringCables.terrainVersion = version
   }
 
   // The weather date changed (seaPlacement.setWeatherDate): the lift fans lean into the new wind.

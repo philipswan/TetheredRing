@@ -21,12 +21,14 @@ import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, mat
 import { SegmentedRecorder, assembleRender, inspectSegment } from '../capture/SegmentedRecorder.js'
 import { RenderReview, outputFolderPath, reviewVideoPath, reviewVideoName } from '../capture/RenderReview.js'
 import { RENDER_BUILD_ID } from 'virtual:render-build'
+import { pendingWork, finishedWork } from '../core/PendingWork.js'
 import { randomUUID } from '../utils/randomUUID.js'
 
 const PENDING_SHOT_KEY = 'tetheredRing.pendingShot'
 const AUTOSAVE_KEY = 'tetheredRing.shotAutosave'
 const AUTOSAVE_DELAY_MS = 1000 // coalesce bursts of edits into one write
 const TERRAIN_WAIT_TIMEOUT_MS = 15000
+const SETTLE_STALL_MS = 60000 // settleScene gives up after this long without anything arriving
 const MAX_REAL_STEP = 0.1 // s of wall-clock time per displayed frame (a backgrounded tab does not jump)
 const PICK_RADIUS_PX = 30
 export const PLAYBACK_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 100, 300, 1000]
@@ -743,15 +745,27 @@ export class ShotController {
 
   // ---- Fixed-step rendering ---------------------------------------------------------------------
 
-  async waitForTerrain() {
-    const planet = this.app.planet
-    const start = performance.now()
+  // Waits until nothing that changes what is drawn is still loading or being built: the terrain the camera needs now
+  // (Planet.pendingWork), and models, textures, fixed ground data and scenery (PendingWork.js). If anything was, the
+  // scene is stepped and prepared again at the same moment (app.step(0), app.prepareRender(); every animated system
+  // is a function of the time) until that leaves nothing pending, so every system has used what arrived. Called for
+  // every sub-frame, after its step and prepareRender: what is drawn must not depend on how long any load took.
+  // (A slow wait, with many loads, carries on as long as some finish: it gives up only after SETTLE_STALL_MS without
+  // any progress.)
+  async settleScene() {
+    const pending = () => (this.app.planet?.pendingWork() ?? 0) + pendingWork()
+    if (!pending()) return
+    const progress = () => `${pending()} ${finishedWork()} ${this.app.planet?.getDebugStats().loadedTiles ?? 0}`
+    let last = progress()
+    let lastChange = performance.now()
     for (;;) {
-      planet.update(this.app.camera3d)
-      const stats = planet.getDebugStats()
-      if (!(stats.queue > 0 || stats.inflight > 0 || stats.pendingUploads > 0)) return
-      if (performance.now() - start > TERRAIN_WAIT_TIMEOUT_MS) throw new Error('Timed out waiting for terrain to finish loading and uploading.')
       await sleep(30)
+      this.app.step(0)
+      this.app.prepareRender()
+      if (!pending()) return
+      const now = progress()
+      if (now !== last) { last = now; lastChange = performance.now() }
+      else if (performance.now() - lastChange > SETTLE_STALL_MS) throw new Error('Gave up waiting for terrain, models or scenery to finish loading: nothing has arrived for a minute.')
     }
   }
 
@@ -809,9 +823,8 @@ export class ShotController {
           if (dt === false) break frames
           if (s === 0) n = subFrames(i)
           app.step(i === 0 && s === 0 ? 0 : dt)
-          // The sub-frames of one frame are close together; their terrain is the first one's.
-          if (waitForTerrain && s === 0) await this.waitForTerrain()
           app.prepareRender()
+          if (waitForTerrain) await this.settleScene()
           let timeout
           try {
             await Promise.race([

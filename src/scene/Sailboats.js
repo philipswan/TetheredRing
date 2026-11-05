@@ -4,6 +4,7 @@ import { ecefToGeodetic, geodeticToECEF } from '../physics/geodesy.js'
 import { seaIceConcentrationAt } from '../planet/seaIce.js'
 import { hash, offsetLatLon, pickWeighted, random, vesselBasis, windAt } from './seaPlacement.js'
 import { localShadowMatrix, localShadowmapVertex } from './localShadows.js'
+import { track } from '../core/PendingWork.js'
 
 // Sailboats on the sea near the camera, as references for scale: some at anchor close to the shore (no
 // sails, pointing into the wind, still), the rest sailing, more of them near the shore than offshore.
@@ -156,8 +157,8 @@ export class Sailboats {
     this.shadowLight = null      // see setShadowLight
     this.shadowFocus = null      // the nearest boat (world axes), or null
     this._nearest = new THREE.Vector3()
-    new OBJLoader().loadAsync(url).then((object) => this._build(object))
-      .catch((error) => console.warn('[sailboats] model failed to load', error))
+    track(new OBJLoader().loadAsync(url).then((object) => this._build(object))
+      .catch((error) => console.warn('[sailboats] model failed to load', error)))
   }
 
   /** The light whose shadows the boats cast and receive (Lighting.enableLocalShadows). */
@@ -386,8 +387,8 @@ export class Sailboats {
         if (!cell) {
           cell = { boats: null }
           this.cells.set(key, cell)
-          this._buildCell(i, j).then((boats) => { cell.boats = boats })
-            .catch((error) => { cell.boats = []; console.warn('[sailboats]', error) })
+          track(this._buildCell(i, j).then((boats) => { cell.boats = boats })
+            .catch((error) => { cell.boats = []; console.warn('[sailboats]', error) }))
         }
         this.active.push(cell)
       }
@@ -419,12 +420,17 @@ export class Sailboats {
     const cam = parent.worldToLocal(camWorld.clone())
     const geo = ecefToGeodetic(cam.x, cam.y, cam.z, this.ellipsoid)
     if (this.visible && geo.alt < MAX_ALTITUDE) {
-      const moved = this.lastRefresh ? Math.hypot(...this._metresBetween(this.lastRefresh, geo)) : Infinity
-      if (moved > 500) {
-        this._refreshCells(geo.lat, geo.lon)
-        this.lastRefresh = { lat: geo.lat, lon: geo.lon }
-        // The instances are placed relative to the point below the camera.
-        this._point(geo.lat, geo.lon, this.group.position)
+      // The cells in view and the instances' origin are worked out for the nearest point of a grid about 500 m
+      // across (so they are a function of where the camera is, not of where it was when they were last).
+      const step = 500 / 111000
+      const lat0 = Math.round(geo.lat / step) * step
+      const lonStep = step / Math.max(0.05, Math.cos(lat0 * Math.PI / 180))
+      const lon0 = Math.round(geo.lon / lonStep) * lonStep
+      if (!this.lastRefresh || this.lastRefresh.lat !== lat0 || this.lastRefresh.lon !== lon0) {
+        this._refreshCells(lat0, lon0)
+        this.lastRefresh = { lat: lat0, lon: lon0 }
+        // The instances are placed relative to the point below it.
+        this._point(lat0, lon0, this.group.position)
       }
       this.shadowFocus = this._placeBoats(t, add, geo) ? this.group.localToWorld(this._nearest.clone()) : null
     }

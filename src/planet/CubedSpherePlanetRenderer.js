@@ -6,6 +6,7 @@ import { FOAM_FREQUENCIES, GROUP_FREQUENCIES, GUST_FREQUENCIES, SEA_GUSTS_UNSEEN
 import { SEA_ICE_FREQUENCIES, seaIceGlsl, seaIceUniforms } from './seaIce.js';
 import { apHazeUniforms } from './aerialPerspective.js';
 import { PixelLOD } from '../scene/PixelLOD.js';
+import { track } from '../core/PendingWork.js';
 import { localShadowMatrix, localShadowmapVertex } from '../scene/localShadows.js';
 import { COVER, COVER_COUNT, coastShape, coastSide, groundRelief } from './groundData.js';
 import { FULL_MIN_LOD, GroundTextures } from './groundTextures.js';
@@ -493,6 +494,13 @@ export class CubedSpherePlanetRenderer {
     this.tileTextureSize = options.tileTextureSize ?? 256;
     this.hysteresisExpand = 1.25;
     this.hysteresisCollapse = 0.75;
+    // While recording (GraphicsQuality.applyForRecording): no hysteresis, so which tiles are refined is a function of
+    // the camera alone, not of where it was before (a render that starts partway through a shot draws the same).
+    this.deterministic = false;
+    // Generated-ground requests still running (see pendingWork).
+    this._groundRequests = 0;
+    // Goes up whenever data for fixedGroundHeightNow arrives.
+    this.fixedGroundVersion = 0;
 
     // Throttle high-LOD refinement while the camera moves quickly.
     this.fastCameraSpeed = options.fastCameraSpeed ?? Infinity;
@@ -1259,6 +1267,19 @@ export class CubedSpherePlanetRenderer {
     return Math.ceil(w * h * 1.34); // compressed + mip chain estimate
   }
 
+  // Loading and uploading still to do for what the last update() wanted: tiles queued, loading or waiting to be
+  // uploaded, generated-ground requests, and region data (manifests, chunks) still on its way. A frame drawn when this
+  // is 0, right after an update(), shows everything that update asked for.
+  pendingWork() {
+    return this.wantedTiles.length + this.inflightLoads + this._uploadQueue.length + this._pendingGround();
+  }
+
+  _pendingGround() {
+    let n = this._groundRequests;
+    for (const g of this.groundData) n += g.pending.size + (g.settled ? 0 : 1);
+    return n;
+  }
+
   getDebugStats() {
     const sourceStats = {};
     for (const [name, stats] of Object.entries(this.debugStats.sourceStats)) {
@@ -1301,6 +1322,7 @@ export class CubedSpherePlanetRenderer {
       queue: this.wantedTiles.length,
       inflight: this.inflightLoads,
       pendingUploads: this._uploadQueue.length,
+      pendingGround: this._pendingGround(),
       loadedTiles: this.tiles.size,
       visibleTiles: this.visibleList.length,
       cameraSpeedMps: Math.round(this.cameraSpeedMps),
@@ -1454,7 +1476,8 @@ export class CubedSpherePlanetRenderer {
       return false;
     }
     // (Until its data is here; then the tiles' cached answers are worked out again.)
-    g.request(...this._tileLatLonBox(tile)).then(() => { this.manifestVersion++; });
+    this._groundRequests++;
+    g.request(...this._tileLatLonBox(tile)).then(() => { this._groundRequests--; this.manifestVersion++; });
     return true;
   }
 
@@ -1498,7 +1521,9 @@ export class CubedSpherePlanetRenderer {
     const [latMin, latMax, lonMin, lonMax] = this._tileLatLonBox(tile, 0.1);
     const pad = 3 / tile.ground.cpd;
     const generation = tile.loadGeneration;
+    this._groundRequests++;
     tile.ground.request(latMin - pad, latMax + pad, lonMin - pad, lonMax + pad).then(() => {
+      this._groundRequests--;
       if (tile.disposed || tile.loadGeneration !== generation) return;
       tile.loading = false;
       tile.colorReady = true;
@@ -1843,16 +1868,21 @@ ${groundNormalFragment}`);
     if (tile.ground || tile.childrenGenerated) {
       // A generated tile, or a baked one whose children would be generated (they show its imagery, no sharper): by
       // how far apart its vertices are on screen.
-      const threshold = GROUND_SSE_PIXELS * (tile.refinementActive ? this.hysteresisCollapse : this.hysteresisExpand);
+      const threshold = GROUND_SSE_PIXELS * this._hysteresis(tile);
       return sse > threshold;
     }
 
     // Terrain-aware bias: rougher / mountainous / interesting tiles refine sooner;
     // open-ocean / flat tiles refine later.
-    const threshold = tile.refinementActive
-      ? this.sseThreshold * this.hysteresisCollapse
-      : this.sseThreshold * this.hysteresisExpand;
+    const threshold = this.sseThreshold * this._hysteresis(tile);
     return sse > threshold / tile.boost;
+  }
+
+  // Factor on a tile's refinement threshold: lower while it is refined, so it does not flicker between refined and
+  // not at the threshold; none while recording (see `deterministic`).
+  _hysteresis(tile) {
+    if (this.deterministic) return 1;
+    return tile.refinementActive ? this.hysteresisCollapse : this.hysteresisExpand;
   }
 
   // Approximate world-space geometric error: half a tile's surface span.
@@ -2796,6 +2826,82 @@ if (seafloorView < 1.0 && vSeafloorAltitude < ${SEA_ICE_SHORE_HEIGHT.toFixed(1)}
     const direction = latLonToDirection(latDeg * DEG2RAD, lonDeg * DEG2RAD, new THREE.Vector3(), this.planetE2);
     const sampler = await this.fixedHeightSampler(direction, this.maxAvailableLod);
     return sampler ? sampler(direction) : null;
+  }
+
+  // The ground's height (m, as drawn: with the terrain's exaggeration) at a geodetic latitude and longitude (degrees),
+  // as a pure function of the position: the finest the planet has, whatever is loaded or drawn just now. Inside a
+  // region with ground data, the generated ground's own height function at its finest level (as _buildGroundHeights
+  // works it out at a tile's vertices); elsewhere (and over open sea in the region), the finest baked tile's heights.
+  // For things fitted to the ground once that must not move as the drawn terrain's level of detail changes (tether
+  // roots, cables' anchors, which elevator cables reach land; ...), and that must come out the same in every render.
+  // Synchronous: null while data it needs is loading. That loading counts as pending work (PendingWork.js), so a
+  // recording waits for it, and fixedGroundVersion goes up whenever any of it arrives, for callers that got null.
+  fixedGroundHeightNow(latDeg, lonDeg) {
+    if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) return null;
+    const direction = latLonToDirection(latDeg * DEG2RAD, lonDeg * DEG2RAD, this._fixedDir ??= new THREE.Vector3(), this.planetE2);
+    for (const g of this.groundData) {
+      if (!g.settled) { this._fixedWait(g.ready); return null; }
+      if (!g.loaded || !g.covers(latDeg, lonDeg)) continue;
+      const pad = 3 / g.cpd;
+      if (!g.has(latDeg - pad, latDeg + pad, lonDeg - pad, lonDeg + pad)) {
+        this._fixedWait(g.request(latDeg - pad, latDeg + pad, lonDeg - pad, lonDeg + pad));
+        return null;
+      }
+      const cover = this._fixedCover ??= new Float32Array(COVER_COUNT);
+      let h = g.height(latDeg, lonDeg);
+      g.cover(latDeg, lonDeg, cover);
+      if (h !== h) {
+        // (No region data here: open sea. The baked heights, as a generated tile there uses its ancestor's.)
+        h = this._fixedBakedHeight(direction);
+        if (h === null) return null;
+      }
+      const spacing = (2 / Math.pow(2, this.groundMaxLod)) * (Math.PI / 4) * this.meanRadius / this.segments;
+      h = coastShape(h, cover, spacing);
+      const frame = this._groundFrame(g);
+      const pos = rayEllipsoidIntersection(direction, this.a, this.b, this._fixedPos ??= new THREE.Vector3()).sub(frame.origin);
+      h += groundRelief(pos.dot(frame.east), pos.dot(frame.north), cover, spacing);
+      return coastSide(h, cover) * this.displacementScaleMultiplier;
+    }
+    const h = this._fixedBakedHeight(direction);
+    return h === null ? null : h * this.displacementScaleMultiplier;
+  }
+
+  // The finest baked tile's height (m, unscaled) along a unit direction (see fixedGroundHeightNow), or null while it
+  // loads (or where there is no terrain data).
+  _fixedBakedHeight(direction) {
+    if (!this._fixedManifest) {
+      this._fixedWait(this.manifestLoaded.then(() => { this._fixedManifest = true; }));
+      return null;
+    }
+    const f = directionToFaceUV(direction, this._fixedUV ??= {});
+    for (let lod = this.maxAvailableLod; lod >= 0; lod--) {
+      const count = 1 << lod, span = 2 / count;
+      const x = Math.min(count - 1, Math.max(0, Math.floor((f.u + 1) / span)));
+      const y = Math.min(count - 1, Math.max(0, Math.floor((f.v + 1) / span)));
+      const key = tileKey(f.face, lod, x, y);
+      const meta = this.manifestTileMap.get(key);
+      if (!meta) continue;
+      this._fixedTiles ??= new Map(); // key -> sampler, or null (no data)
+      const sampler = this._fixedTiles.get(key);
+      if (sampler === undefined) {
+        this._fixedLoading ??= new Set();
+        if (!this._fixedLoading.has(key)) {
+          this._fixedLoading.add(key);
+          this._fixedWait(this._fetchFixedHeights({ id: key, face: f.face, lod, x, y }, meta).catch(() => null).then((loaded) => {
+            this._fixedTiles.set(key, loaded);
+            this._fixedLoading.delete(key);
+          }));
+        }
+        return null;
+      }
+      return sampler ? sampler(direction) : null;
+    }
+    return null;
+  }
+
+  // Counts `promise` (data for fixedGroundHeightNow) as pending work, and bumps fixedGroundVersion when it settles.
+  _fixedWait(promise) {
+    track(promise.finally(() => { this.fixedGroundVersion++; }));
   }
 
   async _fetchFixedHeights(tile, meta) {

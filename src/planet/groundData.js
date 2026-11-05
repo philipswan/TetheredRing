@@ -32,6 +32,7 @@ export class GroundData {
     this.chunks = new Map() // 'i_j' -> { height: Float32Array, cover: Uint8Array (cells x COVER_COUNT) } | null (sea)
     this.pending = new Map() // 'i_j' -> Promise
     this.version = 0 // bumped whenever a chunk arrives
+    this.settled = false // the manifest has loaded (or failed to)
     this.ready = fetch(`${baseUrl}/manifest.json`)
       .then((r) => (r.ok ? r.json() : null))
       .then((m) => {
@@ -56,6 +57,7 @@ export class GroundData {
         return true
       })
       .catch(() => false)
+      .then((ok) => { this.settled = true; return ok })
   }
 
   get loaded() { return this.manifest !== null }

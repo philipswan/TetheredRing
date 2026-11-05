@@ -536,6 +536,17 @@ export class Planet {
     return null;
   }
 
+  /** See CubedSpherePlanetRenderer.fixedGroundHeightNow: { heightMeters } (as sampleTerrainHeight gives), or null. */
+  sampleFixedGround(latDeg, lonDeg) {
+    const height = this.lod.fixedGroundHeightNow(latDeg, lonDeg);
+    return height === null ? null : { heightMeters: height };
+  }
+
+  /** Goes up whenever data for sampleFixedGround arrives (so callers that got null can try again). */
+  get fixedGroundVersion() {
+    return this.lod.fixedGroundVersion;
+  }
+
   /** See CubedSpherePlanetRenderer.fixedHeightSampler. */
   fixedHeightSampler(direction, maxLod) {
     return this.lod.fixedHeightSampler(direction, maxLod);
@@ -548,6 +559,16 @@ export class Planet {
 
   getDebugStats() {
     return this.lod.getDebugStats();
+  }
+
+  // (See CubedSpherePlanetRenderer.pendingWork.)
+  pendingWork() {
+    return this.lod.pendingWork();
+  }
+
+  // While recording: terrain detail is a function of the camera alone (CubedSpherePlanetRenderer.deterministic).
+  setDeterministic(on) {
+    for (const lod of this.renderers.values()) lod.deterministic = on;
   }
 
   dispose() {

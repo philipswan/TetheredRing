@@ -17,9 +17,10 @@ import { catenaryPoints } from './catenary.js'
 // straight (relative to the leg's catenary) for the middle of the attachments it holds, and the last
 // ones for their own; each fork halves the cable's cross-section.
 //
-// The anchors sit on the terrain, which streams in (and refines) after the tube segments are built,
-// so every set re-samples its anchors from time to time (MooringCables.refreshSome, once per frame)
-// and rebuilds when the sea floor it found has changed.
+// The anchors sit on the sea floor from fixed data (Planet.sampleFixedGround: the planet's finest), not the
+// terrain drawn just now, so they stay put whatever level of detail it is drawn at and come out the same in
+// every render. That data loads as it is asked for, so a set whose sea floor had not all loaded re-samples
+// its anchors when more has (MooringCables.refreshSome, once per frame) and rebuilds if they moved.
 //
 // The legs are drawn like the ring's tethers, as glowing lines at their real diameter that fade with
 // their pixel coverage (src/scene/structureLines.js), so they can be followed all the way down to the
@@ -53,7 +54,8 @@ const _s = new THREE.Vector3()
 
 export class MooringCables {
   static sets = new Set()
-  static _queue = []
+  // () -> number: goes up whenever more of the sea floor's data has loaded (setTerrainSampler in launcher.js).
+  static terrainVersion = () => 0
 
   // moorings: [{ apex: Vector3 (planet coordinates, bottom of the tube), side: Vector3 (unit, sideways),
   //   attachments: [Vector3] (where the legs' forks hold the bottom of the tube: 2^levels of them, in
@@ -92,14 +94,19 @@ export class MooringCables {
     MooringCables.sets.add(this)
   }
 
-  // Re-samples the sea floor and rebuilds the cables if it has changed. Returns true if rebuilt.
+  // Re-samples the sea floor and rebuilds the cables if it has changed. Returns true if rebuilt. `complete`:
+  // all of the sea floor it needed had loaded.
   refresh() {
     const sample = this.getSampler()
+    this.complete = false
     if (!sample) return false
+    let complete = true
     const legs = []
     const heightAt = (point) => {
       const geo = ecefToGeodetic(point.x, point.y, point.z, this.ellipsoid)
-      return { geo, height: sample(geo.lat, geo.lon)?.heightMeters ?? null }
+      const height = sample(geo.lat, geo.lon)?.heightMeters ?? null
+      if (height === null) complete = false
+      return { geo, height }
     }
     for (const { apex, side, attachments } of this.moorings) {
       const below = heightAt(apex)
@@ -114,6 +121,7 @@ export class MooringCables {
         legs.push([apex, new THREE.Vector3(anchor.x, anchor.y, anchor.z), attachments?.length ? attachments : [apex]])
       }
     }
+    this.complete = complete
     const signature = legs.map(([, anchor]) => `${anchor.x.toFixed(1)},${anchor.y.toFixed(1)},${anchor.z.toFixed(1)}`).join(';')
     if (signature === this.signature) return false
     this.signature = signature
@@ -230,16 +238,19 @@ export class MooringCables {
     MooringCables.sets.delete(this)
   }
 
-  // Re-checks the anchors of a few sets each frame (the terrain under them may have loaded or
-  // refined). Sets whose tube segment has been released (removed from the scene and disposed, see
-  // VirtualObject.releaseModel) are forgotten.
-  static refreshSome(count = 3) {
-    if (MooringCables._queue.length === 0) MooringCables._queue = [...MooringCables.sets]
-    for (let n = 0; n < count && MooringCables._queue.length; n++) {
-      const set = MooringCables._queue.pop()
-      if (!MooringCables.sets.has(set)) continue
-      if (isInScene(set.root)) set.refresh()
-      else MooringCables.sets.delete(set)
+  // Sets whose sea floor had not all loaded when last refreshed are refreshed again once more of it has (all
+  // of them while recording, else a few a frame). Sets whose tube segment has been released (removed from the
+  // scene and disposed, see VirtualObject.releaseModel) are forgotten.
+  static refreshSome(count = 8) {
+    const version = MooringCables.terrainVersion()
+    const limit = PixelLOD.buildBudget === Infinity ? Infinity : count
+    let n = 0
+    for (const set of [...MooringCables.sets]) {
+      if (set.complete || set.refreshedAt === version) continue
+      if (!isInScene(set.root)) { MooringCables.sets.delete(set); continue }
+      if (n++ >= limit) break
+      set.refreshedAt = version
+      set.refresh()
     }
   }
 }

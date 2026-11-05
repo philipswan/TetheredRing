@@ -168,6 +168,7 @@ export class GraphicsQuality {
     }
     PixelLOD.lodBias = this.preset.lodBias
     if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = this.preset.terrainSse
+    this.app.planet?.setDeterministic?.(false)
     if (this.app.clouds) {
       this.app.clouds.resolution = this.preset.clouds
       this.app.clouds.setFeatures(this.preset.cloudFeatures)
@@ -183,6 +184,7 @@ export class GraphicsQuality {
   applyForRecording() {
     PixelLOD.lodBias = 1
     if (this.app.planet?.lod) this.app.planet.lod.sseThreshold = QUALITY_PRESETS.high.terrainSse * (this.app.shots?.recordingSize?.pixelRatio ?? 1)
+    this.app.planet?.setDeterministic?.(true)
     if (this.app.clouds) {
       this.app.clouds.resolution = QUALITY_PRESETS.high.clouds
       this.app.clouds.setFeatures(QUALITY_PRESETS.high.cloudFeatures)

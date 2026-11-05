@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { track } from '../../core/PendingWork.js'
 
 // Real clouds, for the Earth seen from space: a day's cloud opacity over the whole planet from satellite
 // imagery (assets/clouds, built by tools/sources/build_clouds.py: one snapshot per DATE in its
@@ -17,33 +18,42 @@ export class RealClouds {
     this.date = null
     this.textureDate = null // the date of the snapshot showing (YYYY-MM-DD)
     this.loading = false // (a snapshot for a new date is on its way)
-    this.manifest = fetch(`${baseUrl}/manifest.json`)
+    this.dayOfYear = null
+    // (Counted as pending work, as is each snapshot's load: recordings wait for them, see PendingWork.js.)
+    this.manifest = track(fetch(`${baseUrl}/manifest.json`)
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null)
       .then((manifest) => {
         if (!manifest?.dates?.length) console.info('[clouds] no real cloud imagery (assets/clouds is not on this machine, or not pulled from Git LFS)')
+        this.manifestData = manifest
+        if (this.dayOfYear !== null) this._choose(manifest, this.dayOfYear)
         return manifest
-      })
+      }))
   }
 
   /** Shows the snapshot nearest day of year `dayOfYear` (loading it if need be). Call each frame. */
   setDayOfYear(dayOfYear) {
-    this.manifest.then((manifest) => {
-      if (!manifest?.dates?.length) return
-      const dayOf = (date) => {
-        const d = new Date(`${date}T00:00:00Z`)
-        return (d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1
-      }
-      const distance = (date) => {
-        const d = Math.abs(dayOf(date) - dayOfYear)
-        return Math.min(d, 365.25 - d)
-      }
-      const date = manifest.dates.reduce((best, d) => (distance(d) < distance(best) ? d : best))
-      if (date === this.date) return
-      this.date = date
-      this.loading = true
-      this.load(date)
-    })
+    this.dayOfYear = dayOfYear
+    // (At once when the manifest is here, so a new snapshot's load starts, and counts as pending, in the frame
+    // that needs it.)
+    if (this.manifestData !== undefined) this._choose(this.manifestData, dayOfYear)
+  }
+
+  _choose(manifest, dayOfYear) {
+    if (!manifest?.dates?.length) return
+    const dayOf = (date) => {
+      const d = new Date(`${date}T00:00:00Z`)
+      return (d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1
+    }
+    const distance = (date) => {
+      const d = Math.abs(dayOf(date) - dayOfYear)
+      return Math.min(d, 365.25 - d)
+    }
+    const date = manifest.dates.reduce((best, d) => (distance(d) < distance(best) ? d : best))
+    if (date === this.date) return
+    this.date = date
+    this.loading = true
+    track(this.load(date))
   }
 
   async load(date) {

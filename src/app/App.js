@@ -267,7 +267,8 @@ export class App {
         planetSpec: this.planetSpec,
         parent: this.planetCoordSys,
         scene: this.scene,
-        sampleTerrainHeight: (lat, lon) => this.planet.sampleTerrainHeight(lat, lon),
+        // (Whether the camera is in the water, from the sea floor's fixed data: the same in every render.)
+        sampleTerrainHeight: (lat, lon) => this.planet.sampleFixedGround(lat, lon),
       })
       this.applyOceanSettings(d)
     }
@@ -307,12 +308,17 @@ export class App {
     const r = this.ring
     this.ecv = new tram.elevatorCarVariables(this.planetSpec, this.d, r.crv)
     this.transitSystem = new transitSystem(r.refCoordSys, this.d, this.specs, false, r.crv, this.ecv, this.planetRadius, r.mainRingCurve)
-    // The tether roots reach the ground (terrain or sea floor) under each tether.
-    r.setTerrain((lat, lon) => this.planet.sampleTerrainHeight(lat, lon))
+    // The tether roots reach the ground (terrain or sea floor) under each tether. They, the elevator cables'
+    // land, the mooring cables' and the ocean terminal's anchors come from fixed data, the planet's finest
+    // (Planet.sampleFixedGround), so they stay put whatever level of detail the terrain is drawn at.
+    const sampleGround = (lat, lon) => this.planet.sampleFixedGround(lat, lon)
+    const groundVersion = () => this.planet.fixedGroundVersion
+    r.setTerrain(sampleGround, groundVersion)
     // Elevator cables only come down where there is land nearby (on planets with seas).
     if (this.planetSpec.hasOcean) {
       this.transitSystem.setTerrain({
-        sampleHeight: (lat, lon) => this.planet.sampleTerrainHeight(lat, lon),
+        sampleHeight: sampleGround,
+        version: groundVersion,
         planetFrame: this.planetCoordSys,
         ellipsoid: this.planetSpec.ellipsoid,
       })
@@ -326,7 +332,7 @@ export class App {
     const r = this.ring
     const n = this.nonGUIParams
     this.launchSystem = new Launcher.launcher(this.d, this.clock.time, this.planetCoordSys, this.planetSpec, r.refCoordSys, r.mainRingCurve, r.crv, this.overlays.xyChart, null, this.specs, false, '')
-    this.launchSystem.setTerrainSampler((lat, lon) => this.planet.sampleTerrainHeight(lat, lon))
+    this.launchSystem.setTerrainSampler((lat, lon) => this.planet.sampleFixedGround(lat, lon), () => this.planet.fixedGroundVersion)
     this.launchSystem.setFixedTerrainHeight((lat, lon) => this.planet.fixedGroundHeight(lat, lon))
     this.launchSystem.drawLaunchTrajectoryLine(this.d, this.planetCoordSys)
 
@@ -772,7 +778,8 @@ export class App {
     this.sailboats?.update(t, this.camera3d)
     this.containerShips?.update(t, this.camera3d)
     this.updateLauncherTraffic()
-    if (this.sailboats?.shadowFocus) this.lighting.setLocalShadowFocus(this.sailboats.shadowFocus)
+    // (With no boat near, around the camera: where the last boat was would depend on what came before.)
+    if (this.sailboats) this.lighting.setLocalShadowFocus(this.sailboats.shadowFocus ?? this.camera3d.getWorldPosition(this._shadowFocus ??= new THREE.Vector3()))
     // The water surface follows the camera; under it the view switches to the underwater look (see
     // render()), with the evacuated tube kept dry.
     this.ocean?.update(this.camera3d, (point, maxDistance) => this.launchSystem?.tubeNear(point, maxDistance) ?? null)
@@ -855,7 +862,8 @@ export class App {
     this.oceanTerminal ??= new OceanTerminal({
       parent: this.planetCoordSys,
       ellipsoid: this.planetSpec.ellipsoid,
-      sampleHeight: (lat, lon) => this.planet.sampleTerrainHeight(lat, lon),
+      sampleHeight: (lat, lon) => this.planet.sampleFixedGround(lat, lon),
+      terrainVersion: () => this.planet.fixedGroundVersion,
       containerShips: this.containerShips ?? null,
     })
     this.oceanTerminal.setVisible(true)

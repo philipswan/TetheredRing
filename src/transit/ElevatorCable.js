@@ -3,14 +3,17 @@ import { offset_r, offset_y } from '../ring/ringGeometry.js'
 import { ringPoint, forEachInWindow } from './VirtualRingObject.js'
 import { StructureLines } from '../scene/structureLines.js'
 import { ecefToGeodetic, ellipsoidSurfaceScale } from '../physics/geodesy.js'
+import { PixelLOD } from '../scene/PixelLOD.js'
 
 // The ring is modelled on a sphere of the equatorial radius, but the ground is the ellipsoid (lower
 // everywhere off the equator, by up to 21 km), so each cable's foot is carried straight down to it.
 // Elevator cables only reach the ground where there is land within LAND_RADIUS of where they meet the
-// surface. The terrain streams in after start-up, so each frame LAND_CHECKS_PER_FRAME cables re-check
-// (round robin); a cable is hidden until its ground has loaded.
+// surface. The ground is the planet's finest, from fixed data (Planet.sampleFixedGround), so each cable's
+// answer is found once and is the same in every render. That data loads as it is asked for: a cable in
+// range is checked once some of it has arrived since its last check, and hidden until its answer is known
+// (all at once while recording, else up to LAND_CHECKS_PER_FRAME a frame).
 const LAND_RADIUS = 5000 // m
-const LAND_CHECKS_PER_FRAME = 24
+const LAND_CHECKS_PER_FRAME = 64
 const LAND_UNKNOWN = 0, LAND_YES = 1, LAND_NO = 2
 const _ground = new THREE.Vector3()
 const _foot = new THREE.Vector3()
@@ -73,48 +76,42 @@ export class ElevatorCableLayer {
     this.maxCables = maxCables
     this.land = new Uint8Array(this.positions.length) // LAND_* per cable
     this.feet = new Float64Array(this.positions.length * 3) // on the ellipsoid, in the parent's frame (once checked)
-    this.nextLandCheck = 0
+    this.checkedAt = new Float64Array(this.positions.length).fill(-1) // the terrain data's version at the last check
     this.terrain = null
   }
 
-  // terrain: { sampleHeight(latDeg, lonDeg) -> { heightMeters } | null, planetFrame: Object3D,
-  // ellipsoid } so cables can be kept to land (see LAND_RADIUS).
+  // terrain: { sampleHeight(latDeg, lonDeg) -> { heightMeters } | null (null while its data loads),
+  // version() (goes up as it does), planetFrame: Object3D, ellipsoid } so cables can be kept to land (see
+  // LAND_RADIUS).
   setTerrain(terrain) {
     this.terrain = terrain
     this.land?.fill(LAND_UNKNOWN)
+    this.checkedAt?.fill(-1)
   }
 
-  // Re-checks a few cables' ground: is there land (height >= 0) at the point where the cable meets the
-  // surface, or on circles of half and the full LAND_RADIUS around it?
-  checkLand(curve) {
-    if (!this.terrain || !this.mesh?.parent) return
+  // Checks cable i's ground: is there land (height >= 0) at the point where the cable meets the surface,
+  // or on circles of half and the full LAND_RADIUS around it?
+  checkLand(curve, i) {
     const { sampleHeight, planetFrame, ellipsoid } = this.terrain
-    this.mesh.parent.updateWorldMatrix(true, false)
-    planetFrame.updateWorldMatrix(true, false)
-    const n = this.positions.length
-    for (let k = 0; k < Math.min(LAND_CHECKS_PER_FRAME, n); k++) {
-      const i = this.nextLandCheck
-      this.nextLandCheck = (i + 1) % n
-      ringPoint(curve, this.positions[i], this.lower[0], this.lower[1], this.forward, _ground)
-      planetFrame.worldToLocal(this.mesh.parent.localToWorld(_ground))
-      _foot.copy(_ground).multiplyScalar(ellipsoidSurfaceScale(_ground.x, _ground.y, _ground.z, ellipsoid))
-      this.mesh.parent.worldToLocal(planetFrame.localToWorld(_foot)).toArray(this.feet, i * 3)
-      const g = ecefToGeodetic(_ground.x, _ground.y, _ground.z, ellipsoid)
-      const metresPerDegreeLat = 111320
-      const metresPerDegreeLon = Math.max(1, 111320 * Math.cos(g.lat * Math.PI / 180))
-      let known = false, land = false
-      const sample = (dNorth, dEast) => {
-        const h = sampleHeight(g.lat + dNorth / metresPerDegreeLat, g.lon + dEast / metresPerDegreeLon)
-        if (!h) return
-        known = true
-        if (h.heightMeters >= 0) land = true
-      }
-      sample(0, 0)
-      for (const radius of [LAND_RADIUS / 2, LAND_RADIUS]) {
-        for (let a = 0; a < 8 && !land; a++) sample(radius * Math.cos(a * Math.PI / 4), radius * Math.sin(a * Math.PI / 4))
-      }
-      this.land[i] = land ? LAND_YES : (known ? LAND_NO : LAND_UNKNOWN)
+    ringPoint(curve, this.positions[i], this.lower[0], this.lower[1], this.forward, _ground)
+    planetFrame.worldToLocal(this.mesh.parent.localToWorld(_ground))
+    _foot.copy(_ground).multiplyScalar(ellipsoidSurfaceScale(_ground.x, _ground.y, _ground.z, ellipsoid))
+    this.mesh.parent.worldToLocal(planetFrame.localToWorld(_foot)).toArray(this.feet, i * 3)
+    const g = ecefToGeodetic(_ground.x, _ground.y, _ground.z, ellipsoid)
+    const metresPerDegreeLat = 111320
+    const metresPerDegreeLon = Math.max(1, 111320 * Math.cos(g.lat * Math.PI / 180))
+    let complete = true, land = false
+    const sample = (dNorth, dEast) => {
+      const h = sampleHeight(g.lat + dNorth / metresPerDegreeLat, g.lon + dEast / metresPerDegreeLon)
+      if (!h) { complete = false; return }
+      if (h.heightMeters >= 0) land = true
     }
+    sample(0, 0)
+    for (const radius of [LAND_RADIUS / 2, LAND_RADIUS]) {
+      for (let a = 0; a < 8 && !land; a++) sample(radius * Math.cos(a * Math.PI / 4), radius * Math.sin(a * Math.PI / 4))
+    }
+    // (Land as soon as any of it is land; none only once all of it is known.)
+    this.land[i] = land ? LAND_YES : (complete ? LAND_NO : LAND_UNKNOWN)
   }
 
   setCameraRange(range) {
@@ -139,7 +136,19 @@ export class ElevatorCableLayer {
     this.mesh.position.copy(_origin)
     const buf = this.buffer
     let k = 0
-    this.checkLand(curve)
+    if (this.terrain) {
+      // Cables in range whose answer is not known yet, once more terrain data has arrived since they were checked.
+      this.mesh.parent.updateWorldMatrix(true, false)
+      this.terrain.planetFrame.updateWorldMatrix(true, false)
+      const version = this.terrain.version?.() ?? 0
+      let checks = PixelLOD.buildBudget === Infinity ? Infinity : LAND_CHECKS_PER_FRAME
+      forEachInWindow(this.positions, nearestTrackPosition, this.cameraRange / this.ringCircumference, (i) => {
+        if (this.land[i] !== LAND_UNKNOWN || this.checkedAt[i] === version || checks <= 0) return
+        checks--
+        this.checkedAt[i] = version
+        this.checkLand(curve, i)
+      })
+    }
     forEachInWindow(this.positions, nearestTrackPosition, this.cameraRange / this.ringCircumference, (i) => {
       if (k >= this.maxCables) return
       if (this.terrain && this.land[i] !== LAND_YES) return

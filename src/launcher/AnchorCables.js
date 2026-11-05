@@ -58,9 +58,13 @@ export class AnchorCables {
     return { ...g, floor: this.sampleHeight(g.lat, g.lon)?.heightMeters ?? null }
   }
 
-  /** Re-samples the sea floor; rebuilds the cables if their anchors have moved. Returns true if rebuilt. */
+  /**
+   * Re-samples the sea floor; rebuilds the cables if their anchors have moved. Returns true if rebuilt.
+   * `complete`: all of the sea floor it needed had loaded.
+   */
   refresh() {
     const ends = []
+    this.complete = false
     for (const leg of this.legs) {
       const below = this._floor(leg.top)
       if (below.floor === null) return false
@@ -68,10 +72,12 @@ export class AnchorCables {
       if (depth < 1) continue
       const reach = SCOPE * depth
       const [lat, lon] = offsetLatLon(this.ellipsoid, below.lat, below.lon, leg.east * reach, leg.north * reach)
-      const floor = this.sampleHeight(lat, lon)?.heightMeters ?? below.floor
-      const p = geodeticToECEF(lat, lon, Math.min(floor, below.alt - 1), this.ellipsoid)
+      const at = this.sampleHeight(lat, lon)?.heightMeters ?? null
+      if (at === null) return false
+      const p = geodeticToECEF(lat, lon, Math.min(at, below.alt - 1), this.ellipsoid)
       ends.push({ top: leg.top, anchor: new THREE.Vector3(p.x, p.y, p.z) })
     }
+    this.complete = true
     const signature = ends.map(({ anchor }) => anchor.toArray().map((x) => x.toFixed(0)).join(',')).join(';')
     if (signature === this.signature) return false
     this.signature = signature

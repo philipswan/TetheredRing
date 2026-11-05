@@ -1,15 +1,20 @@
 import * as THREE from 'three'
 import { ecefToGeodetic, ellipsoidSurfaceScale } from '../physics/geodesy.js'
+import { PixelLOD } from '../scene/PixelLOD.js'
 
 // The roots of the tethers: each tether's trunk below its first fork, which is the same for every copy
 // of the shared tether geometry, run down along its catenary until it meets the ground under it (the
 // terrain: mountains, or the sea floor). A tether under tension cannot hang below the lowest point of
 // its catenary, so where the ground is deeper than that the root ends there (`unreachable`).
 //
-// The terrain streams in after start-up, so each frame CHECKS_PER_FRAME roots re-find their ground
-// (round robin); until a tile covering the ground has loaded, the ground is taken to be at sea level.
+// The ground is the planet's finest, from fixed data (Planet.sampleFixedGround: the generated ground where
+// there is region data, else the finest baked terrain), not the terrain drawn just now: a root is fitted
+// once and stays put whatever level of detail the terrain around it is drawn at, and comes out the same in
+// every render. That data loads as it is asked for; a root whose ground had not all loaded is fitted again
+// (taking it to be at sea level meanwhile) when more arrives: all of them at once while recording, else up
+// to CHECKS_PER_FRAME a frame.
 const VERTICES_PER_ROOT = 48
-const CHECKS_PER_FRAME = 24
+const CHECKS_PER_FRAME = 256
 const COPIES_PER_CHUNK = 64 // vertices are relative to a nearby origin (precision)
 const HIGHEST_GROUND = 9000 // m
 const MIN_STEP_DROP = 30 // m: the smallest drop in height between ground samples
@@ -24,6 +29,8 @@ export class TetherRoots {
     this.quaternion = ringToPlanetQuaternion
     this.ellipsoid = ellipsoid
     this.sampleHeight = null
+    this.terrainVersion = () => 0
+    this.unfitted = new Set() // roots whose ground had not all loaded when last fitted
     this.roots = []    // {copy, type, chunk, slot}
     this.chunks = []
     this.meshes = []
@@ -62,25 +69,35 @@ export class TetherRoots {
     for (let i = 0; i < this.roots.length; i++) this.write(i, this.profileOf(this.roots[i]).points.length - 1)
     for (const chunk of this.chunks) chunk.geometry.computeBoundingSphere()
     for (let i = 0; i < this.roots.length; i++) this.check(i)
-    this.next = 0
   }
 
-  // sampleHeight(latDeg, lonDeg) -> {heightMeters} | null (the rendered terrain), or null.
-  setTerrain(sampleHeight) {
+  // sampleHeight(latDeg, lonDeg) -> {heightMeters} | null (null while its data loads), or null for none;
+  // version(): goes up whenever more of that data arrives.
+  setTerrain(sampleHeight, version = () => 0) {
     this.sampleHeight = sampleHeight
+    this.terrainVersion = version
+    this.fittedVersion = null
+    for (let i = 0; i < this.roots.length; i++) this.unfitted.add(i)
   }
 
   get unreachableCount() {
     return this.unreachable?.reduce((sum, v) => sum + v, 0) ?? 0
   }
 
-  // Once per frame: a few roots re-find their ground.
+  // Once per frame: roots whose ground had not all loaded are fitted again once more of it has.
   update() {
-    const n = this.roots.length
-    for (let k = 0; k < Math.min(CHECKS_PER_FRAME, n); k++) {
-      this.check(this.next)
-      this.next = (this.next + 1) % n
+    if (!this.unfitted.size) return
+    const version = this.terrainVersion()
+    if (version === this.fittedVersion && !this.resume) return
+    // (All of them while recording: what a frame shows must not depend on how many frames came before.)
+    const limit = PixelLOD.buildBudget === Infinity ? Infinity : CHECKS_PER_FRAME
+    let n = 0
+    this.resume = false
+    for (const i of [...this.unfitted]) {
+      if (n++ >= limit) { this.resume = true; break }
+      this.check(i)
     }
+    if (!this.resume) this.fittedVersion = version
   }
 
   profileOf(root) {
@@ -103,11 +120,20 @@ export class TetherRoots {
     const height = r - r * ellipsoidSurfaceScale(p.x, p.y, p.z, this.ellipsoid)
     if (height > HIGHEST_GROUND || !this.sampleHeight) return height
     const g = ecefToGeodetic(p.x, p.y, p.z, this.ellipsoid)
-    return height - (this.sampleHeight(g.lat, g.lon)?.heightMeters ?? 0)
+    const ground = this.sampleHeight(g.lat, g.lon)
+    if (!ground) this._missing = true
+    return height - (ground?.heightMeters ?? 0)
   }
 
   // Finds where root i meets the ground and redraws it if that has moved.
   check(i) {
+    this._missing = false
+    this._check(i)
+    if (this._missing) this.unfitted.add(i)
+    else this.unfitted.delete(i)
+  }
+
+  _check(i) {
     const root = this.roots[i]
     const { heights } = this.profileOf(root)
     const last = heights.length - 1

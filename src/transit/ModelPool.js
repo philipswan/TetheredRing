@@ -42,6 +42,11 @@ export class ModelPool {
     this.parent = parent
   }
 
+  // A model can be had now (loaded, and one free).
+  get available() {
+    return !!this.template && this.free.length > 0
+  }
+
   acquire() {
     if (!this.template) return null   // still loading (or not shown); not a shortage
     const model = this.free.pop()

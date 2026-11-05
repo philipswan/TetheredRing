@@ -68,6 +68,7 @@ const MAX_DARKENING = 0.7
 const DARKENING_DEPTH = 600 // m
 
 const _camera = new THREE.Vector3()
+const _snapped = new THREE.Vector3()
 const _up = new THREE.Vector3()
 const _east = new THREE.Vector3()
 const _north = new THREE.Vector3()
@@ -225,14 +226,20 @@ if (seaUndersideOpaque > 0.5) {
     this.mesh.visible = !above
     this.mirror.visible = true
     this.opaque.value = above ? 1 : 0
-    // Rebuild only when the camera has moved by a noticeable fraction of its height above the sea
-    // (the innermost ring is 5% of it), has crossed the surface, or the visibility has changed.
-    const height = Math.abs(geo.alt)
-    if (!this._builtAt || this._builtAbove !== above || this._builtVisibility !== this.visibility || this._builtAt.distanceTo(_camera) > Math.max(0.05, 0.01 * height)) {
-      this.buildSurface(height, above)
-      ;(this._builtAt ??= new THREE.Vector3()).copy(_camera)
+    // The disc is built for the camera's height above the sea in steps of 1/16 octave, and for its position
+    // on a grid with cells 1% of that (the innermost ring is 5% of it), so it is rebuilt only when the camera
+    // has moved by about that much, and is a function of where the camera is, not of where it was when last
+    // built: every render of a frame draws the same disc.
+    const level = Math.round(16 * Math.log2(Math.max(1, Math.abs(geo.alt))))
+    const height = Math.pow(2, level / 16)
+    const cell = Math.max(0.05, 0.01 * height)
+    _snapped.set(Math.round(_camera.x / cell) * cell, Math.round(_camera.y / cell) * cell, Math.round(_camera.z / cell) * cell)
+    if (!this._builtAt || this._builtAbove !== above || this._builtVisibility !== this.visibility || this._builtLevel !== level || !this._builtAt.equals(_snapped)) {
+      this.buildSurface(height, above, _snapped)
+      ;(this._builtAt ??= new THREE.Vector3()).copy(_snapped)
       this._builtAbove = above
       this._builtVisibility = this.visibility
+      this._builtLevel = level
     }
   }
 
@@ -255,10 +262,11 @@ if (seaUndersideOpaque > 0.5) {
   // From above it reaches past twice the horizon distance: a ray that skims under the surface comes
   // back out of it about as far beyond the horizon as it went in before it. From below it reaches as
   // far as the water lets anything be seen, so that nothing above the surface shows past its edge.
-  buildSurface(heightAboveSea, above = false) {
+  // centre: the point (parent coordinates) the disc is built under (the camera, or near it).
+  buildSurface(heightAboveSea, above = false, centre = _camera) {
     const horizon = this.horizonDistance(heightAboveSea)
     const reach = above ? horizon * 2.2 + 1000 : Math.max(horizon * 1.05 + 1000, 2 * this.visibility)
-    this.fillDisc(this.mesh, heightAboveSea, Math.max(3000, reach), 0)
+    this.fillDisc(this.mesh, heightAboveSea, Math.max(3000, reach), 0, centre)
     this.mirror.position.copy(this.mesh.position)
     noiseOffsets(this.mesh.position, SEA_SURFACE_FREQUENCIES, this.rippleOffsets) // ripples stay put as the disc moves
   }
@@ -274,7 +282,7 @@ if (seaUndersideOpaque > 0.5) {
 
   // Fills a disc mesh: rings around the point below the camera, `depth` metres below sea level, out to
   // maxDistance (never more than a quarter of the way round), in float64 relative to its centre.
-  fillDisc(mesh, heightAboveSea, maxDistance, depth) {
+  fillDisc(mesh, heightAboveSea, maxDistance, depth, centre = _camera) {
     const a = this.ellipsoid.a
     const b = this.ellipsoid.b ?? a * (1 - (this.ellipsoid.f || 0))
     const meanRadius = this.meanRadius()
@@ -286,7 +294,7 @@ if (seaUndersideOpaque > 0.5) {
       const t = 1 / Math.sqrt((direction.x ** 2 + direction.z ** 2) / (a * a) + (direction.y ** 2) / (b * b))
       return target.copy(direction).multiplyScalar(t - depth)
     }
-    _up.copy(_camera).normalize()
+    _up.copy(centre).normalize()
     surfacePoint(_up, _origin)
     // Any tangent basis will do (the disc is symmetric); avoid the pole's degenerate cross product.
     _east.set(0, 1, 0).cross(_up)

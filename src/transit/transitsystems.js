@@ -733,7 +733,9 @@ export class transitSystem {
         const isDynamic = list[0].constructor.isDynamic
         for (let i = 0; i < list.length; i++) {
           const object = list[i]
-          if (!object.model && entered) {
+          // (Also an object that entered while its pool had none to give, e.g. its model still loading: which objects
+          // have models must not depend on when they came into range.)
+          if (!object.model && (entered || object.pool.available)) {
             object.model = object.pool.acquire()
             if (object.model) {
               object.placeAndOrientModel(object.model, refFrame)

@@ -1,4 +1,6 @@
 import './styles.css'
+// (First: counts every three.js loader's loads from the start, for recordings; see PendingWork.js.)
+import './core/PendingWork.js'
 import { App } from './app/App.js'
 
 // URL parameters:

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { track } from '../core/PendingWork.js'
 
 // Seasonal sea ice on the sea surface (CubedSpherePlanetRenderer._createWaterMaterial).
 //
@@ -40,7 +41,7 @@ const state = { months: null, size: 0, day: null, loading: null }
 
 /** Loads assets/sea_ice once (later calls return the same promise). */
 export function loadSeaIce(baseUrl = `${import.meta.env?.BASE_URL ?? '/'}assets/sea_ice`) {
-  state.loading ??= (async () => {
+  state.loading ??= track((async () => {
     try {
       const manifest = await (await fetch(`${baseUrl}/manifest.json`)).json()
       const size = manifest.size, count = size * size
@@ -67,7 +68,7 @@ export function loadSeaIce(baseUrl = `${import.meta.env?.BASE_URL ?? '/'}assets/
     } catch (error) {
       console.info('[planet] no sea ice data (assets/sea_ice is not on this machine, or not pulled from Git LFS)', error.message)
     }
-  })()
+  })())
   return state.loading
 }
 

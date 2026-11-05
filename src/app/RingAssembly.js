@@ -125,7 +125,7 @@ export class RingAssembly {
           const thickest = Math.max(...copies.flatMap(copy => copy.profiles.filter(Boolean).map(profile => 2 * Math.sqrt(Math.max(...profile.areas) / Math.PI))))
           if (thickest > 0) StructureLines.setReferenceDiameter(this.tetherMaterial, thickest)
           const roots = new TetherRoots({ copies, refCoordSys, ringToPlanetQuaternion: system.ringToPlanetQuaternion, ellipsoid: this.planetSpec.ellipsoid, material: this.tetherMaterial })
-          if (this.terrainSampler) roots.setTerrain(this.terrainSampler)
+          if (this.terrainSampler) roots.setTerrain(this.terrainSampler, this.terrainVersion)
           this.tetherRoots.push(roots)
           list.push(...roots.meshes)
         }
@@ -237,11 +237,12 @@ export class RingAssembly {
     }
   }
 
-  // terrain: sampleHeight(latDeg, lonDeg) -> {heightMeters} | null, so the tether roots reach the
-  // ground (see TetherRoots).
-  setTerrain(sampleHeight) {
+  // sampleHeight(latDeg, lonDeg) -> {heightMeters} | null (null while its data loads) and version() (goes
+  // up as it does), so the tether roots reach the ground (see TetherRoots).
+  setTerrain(sampleHeight, version) {
     this.terrainSampler = sampleHeight
-    for (const roots of this.tetherRoots) roots.setTerrain(sampleHeight)
+    this.terrainVersion = version
+    for (const roots of this.tetherRoots) roots.setTerrain(sampleHeight, version)
   }
 
   // Once per frame.

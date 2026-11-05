@@ -5,6 +5,8 @@ import { seaIceConcentrationAt } from '../planet/seaIce.js'
 import { SeaDarkening } from '../planet/seaDarkening.js'
 import { hash, pickWeighted, random, vesselBasis, windAt } from './seaPlacement.js'
 import shipping from '../data/shippingLanes.json' with { type: 'json' }
+import { track } from '../core/PendingWork.js'
+import { PixelLOD } from './PixelLOD.js'
 
 // Container ships near the camera: under way along the shipping lanes of src/data/shippingLanes.json,
 // and at anchor off major ports waiting to offload.
@@ -247,18 +249,18 @@ export class ContainerShips {
     this.lanes = shipping.lanes.map((lane, i) => this._lane(lane, i))
     this.anchorages = shipping.anchorages.map((a) => ({ ...a, ships: null, building: null, count: a.ships }))
     this.lastOrigin = null
-    new OBJLoader().loadAsync(url).then((object) => {
+    track(new OBJLoader().loadAsync(url).then((object) => {
       const parts = {}
       object.traverse((o) => { if (o.isMesh) parts[o.name] = o.geometry })
       this.model = parts
       this.box = new THREE.BoxGeometry(...CONTAINER)
       this.containerMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 })
       this.superstructureMaterial = new THREE.MeshStandardMaterial({ color: SUPERSTRUCTURE_COLOR, roughness: 0.6, side: THREE.DoubleSide })
-    }).catch((error) => console.warn('[ships] model failed to load', error))
+    }).catch((error) => console.warn('[ships] model failed to load', error)))
     this.cutter = null
-    new OBJLoader().loadAsync(cutterUrl).then((object) => {
+    track(new OBJLoader().loadAsync(cutterUrl).then((object) => {
       object.traverse((o) => { if (o.isMesh) this.cutter = o.geometry })
-    }).catch((error) => console.warn('[ships] cutter model failed to load', error))
+    }).catch((error) => console.warn('[ships] cutter model failed to load', error)))
   }
 
   setVisible(visible) {
@@ -669,13 +671,16 @@ if (!gl_FrontFacing) diffuseColor.rgb = vec3(${hold.r.toFixed(4)}, ${hold.g.toFi
     const cam = parent.worldToLocal(camera.getWorldPosition(new THREE.Vector3()))
     const geo = ecefToGeodetic(cam.x, cam.y, cam.z, this.ellipsoid)
     const seen = new Set()
-    this.builds = BUILDS_PER_FRAME
+    // (While recording, every ship in range is built at once: a frame must not depend on which came before.)
+    this.builds = PixelLOD.buildBudget === Infinity ? Infinity : BUILDS_PER_FRAME
     if (this.visible && geo.alt < MAX_ALTITUDE) {
-      // The instances are relative to an origin near the camera, moved now and then.
-      if (!this.lastOrigin || Math.abs(this.lastOrigin.lat - geo.lat) + Math.abs(this.lastOrigin.lon - geo.lon) > 0.2) {
-        const o = geodeticToECEF(geo.lat, geo.lon, 0, this.ellipsoid)
+      // The instances are relative to an origin near the camera: the nearest point of a 0.1 degree grid (so a
+      // function of where the camera is, not of where it was when the origin last moved).
+      const lat0 = Math.round(geo.lat * 10) / 10, lon0 = Math.round(geo.lon * 10) / 10
+      if (!this.lastOrigin || this.lastOrigin.lat !== lat0 || this.lastOrigin.lon !== lon0) {
+        const o = geodeticToECEF(lat0, lon0, 0, this.ellipsoid)
         this.group.position.set(o.x, o.y, o.z)
-        this.lastOrigin = { lat: geo.lat, lon: geo.lon }
+        this.lastOrigin = { lat: lat0, lon: lon0 }
       }
       const radius = Math.min(MAX_RADIUS, 60000 + 1.5 * Math.max(0, geo.alt))
       const cosRadius = Math.cos(radius / EARTH_RADIUS)
@@ -691,7 +696,7 @@ if (!gl_FrontFacing) diffuseColor.rgb = vec3(${hold.r.toFixed(4)}, ${hold.g.toFi
         const within = unitVector(anchorage.lat, anchorage.lon, _q).dot(here) > Math.cos((radius + anchorage.radiusKm * 1000) / EARTH_RADIUS)
         if (!within) return
         if (!anchorage.ships && !anchorage.building) {
-          this._buildAnchorage(anchorage, index).catch((error) => console.warn('[ships]', error))
+          track(this._buildAnchorage(anchorage, index).catch((error) => console.warn('[ships]', error)))
         }
         for (const ship of anchorage.ships ?? []) {
           if (near(ship.lat, ship.lon)) this._show(ship, [0.75, 1], ship.lat, ship.lon, ship.heading, seen)

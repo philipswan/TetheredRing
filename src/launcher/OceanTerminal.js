@@ -6,6 +6,7 @@ import { DEFAULT_SCHEDULE, siteSeed } from './terminalPort.js'
 import { TerminalTraffic } from './TerminalTraffic.js'
 import { AnchorCables } from './AnchorCables.js'
 import { CONE_OUTER, setLampCount, setLamps, withPortLamps } from './portLamps.js'
+import { track } from '../core/PendingWork.js'
 
 // The ocean terminal at the breech of an underwater launcher (models/launcher_ocean_terminal.obj, read by
 // terminalModel.js): a terminal building floating at the surface with a pier, an elevator shaft down to
@@ -37,7 +38,6 @@ const LAMP_INTENSITY = 140    // the lamps' intensity (light on a surface 1 m aw
 const BEAM_LENGTH = 10
 const DETAIL_DISTANCE = 30000 // m: the cranes, AGVs and the containers on the pier are drawn within this
 const MAX_DISTANCE = 400000   // m: nothing is drawn beyond this
-const REFRESH_FRAMES = 30     // how often the anchors look for the sea floor again
 
 const material = (color, options = {}) => withPortLamps(new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...options }))
 
@@ -50,13 +50,14 @@ const _camera = new THREE.Vector3()
 export class OceanTerminal {
   /**
    * parent: the planet's coordinate system; ellipsoid: { a, f }; sampleHeight(latDeg, lonDeg) -> {
-   * heightMeters } | null (the terrain, for the anchors); containerShips: ContainerShips (builds the
-   * ships), or null.
+   * heightMeters } | null (the sea floor for the anchors, from fixed data: null while it loads);
+   * terrainVersion(): goes up as more of it arrives; containerShips: ContainerShips (builds the ships), or null.
    */
-  constructor({ parent, ellipsoid, sampleHeight, containerShips, url = 'models/launcher_ocean_terminal.obj' }) {
+  constructor({ parent, ellipsoid, sampleHeight, terrainVersion = () => 0, containerShips, url = 'models/launcher_ocean_terminal.obj' }) {
     this.parent = parent
     this.ellipsoid = ellipsoid
     this.sampleHeight = sampleHeight
+    this.terrainVersion = terrainVersion
     this.containerShips = containerShips
     this.root = new THREE.Group()
     this.root.name = 'oceanTerminal'
@@ -65,11 +66,10 @@ export class OceanTerminal {
     this.visible = true
     this.placed = null     // the breech it is placed at
     this.model = null
-    this.frame = 0
     this.schedule = DEFAULT_SCHEDULE
     this.site = null
-    fetch(url).then((r) => r.text()).then((text) => this._build(terminalModel(text)))
-      .catch((error) => console.warn('[oceanTerminal] model failed to load', error))
+    track(fetch(url).then((r) => r.text()).then((text) => this._build(terminalModel(text)))
+      .catch((error) => console.warn('[oceanTerminal] model failed to load', error)))
   }
 
   _build(model) {
@@ -286,7 +286,12 @@ export class OceanTerminal {
     const near = distance < DETAIL_DISTANCE
     if (near) this._waveFlag(t, windAt(this.geo.lat, this.geo.lon).speed)
     this.traffic.update(t, near)
-    if (this.cables && ++this.frame % REFRESH_FRAMES === 0) this.cables.refresh()
+    // (The anchors' sea floor is fixed data: once it has all loaded they stay put.)
+    const version = this.terrainVersion()
+    if (this.cables && !this.cables.complete && this.cables.refreshedAt !== version) {
+      this.cables.refreshedAt = version
+      this.cables.refresh()
+    }
   }
 
   // The flag ripples, more in a stronger wind.
