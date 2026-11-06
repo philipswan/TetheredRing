@@ -9,9 +9,8 @@ const _b = new THREE.Vector3()
 const _q = new THREE.Quaternion()
 
 // Everything that moves the camera: orbit controls, object tracking, tweened moves, the zoom/climb
-// animations and the follow-elevator/transit modes. All motion is driven by simulated time so it
-// behaves identically in real time and in fixed-step recording, except that tweened moves keep
-// going while the simulation is paused (see tweenClockMs).
+// animations and the follow-elevator/transit modes. Interactive zoom and retargeting use real time,
+// or an explicit fixed step during a live take; object motion follows simulated time.
 //
 // The orbit controls are a modified copy of three's OrbitControls with an `upDirection`, so the
 // camera can orbit around a local vertical anywhere on the planet instead of the world Y axis.
@@ -27,9 +26,7 @@ export class ClassicCameraController {
     this.tweens = new TWEEN.Group()
     this.tweeningTime = 2000 // ms
     this.tweeningActive = false
-    // Clock for tweened moves (number keys, P, ...). It follows simulated time while that moves (so a
-    // live take records a move at the shot's pace), wall-clock time while paused, and never runs
-    // backwards, so a move still completes while the shot playhead is paused, rewinding or jumped.
+    // Number keys and P stay responsive independently of the shot's time warp or playback rate.
     this.tweenClockMs = 0
     this.lastWallMs = null
 
@@ -94,6 +91,9 @@ export class ClassicCameraController {
   }
 
   setState(state) {
+    this.cancelTween()
+    this.lastTrackingPoint = null
+    this.lastTrackingFrame = null
     const c = this.controls
     this.camera.position.fromArray(state.position)
     c.target.fromArray(state.target)
@@ -114,15 +114,11 @@ export class ClassicCameraController {
     const type = TRACKABLE_TYPES[index]
     if (!type) return false
     if (toggle && this.tracker.type === type) {
-      this.tracker.clear()
-      this.stationaryTracking = false
-      this.lastTrackingPoint = null
+      this.stopTracking()
       return true
     }
     if (!this.tracker.findNearest(type, this.camera.position)) return false
-    this.tweenTo(this.tracker.getPosition(this.tweeningTime / 1000))
-    this.lastTrackingPoint = null
-    return true
+    return this.tweenToTrackedObject()
   }
 
   // ---- The calls the rest of the app makes of the smart controller (CameraController), done the
@@ -137,16 +133,32 @@ export class ClassicCameraController {
   follow(entry, { aim = true, approach = false, trackerTarget = entry } = {}) {
     this.tracker.target = trackerTarget
     this.lastTrackingPoint = null
-    if (aim || approach) this.tweenTo(this.tracker.getPosition(this.tweeningTime / 1000))
+    this.lastTrackingFrame = null
+    this.cancelTween()
+    if (aim || approach) return this.tweenToTrackedObject()
     return true
   }
 
   stopTracking() {
+    this.cancelTween()
     if (!this.tracker.target) return
     this.tracker.clear()
     this.stationaryTracking = false
     this.lastTrackingPoint = null
+    this.lastTrackingFrame = null
     this.trackingReleased?.()
+  }
+
+  tweenToTrackedObject() {
+    const point = this.tracker.getPosition(0)
+    if (!point) {
+      this.stopTracking()
+      return false
+    }
+    this.lastTrackingPoint = null
+    this.lastTrackingFrame = null
+    this.tweenTo(point, this.tweenClockMs, () => this.tracker.getPosition(0))
+    return true
   }
 
   setStationaryTracking(stationary) {
@@ -160,22 +172,38 @@ export class ClassicCameraController {
   }
 
   // Smoothly moves the orbit target to `point`, re-orienting "up" to the local vertical.
-  tweenTo(point, startMs = this.tweenClockMs) {
+  tweenTo(point, startMs = this.tweenClockMs, getPoint = null) {
     if (!point) return
+    this.cancelTween()
     const c = this.controls
-    const up = this.lockUpToRingAxis ? this.ringAxis.clone() : point.clone().normalize()
+    const from = c.target.clone(), fromOrbitUp = c.upDirection.clone(), fromCameraUp = this.camera.up.clone()
+    const end = point.clone(), progress = { value: 0 }
     this.tweeningActive = true
-    new TWEEN.Tween(c.target, this.tweens).to(point.clone(), this.tweeningTime).start(startMs).onComplete(() => { this.tweeningActive = false })
-    if (!this.stationaryTracking) {
-      new TWEEN.Tween(c.upDirection, this.tweens).to(up, this.tweeningTime).start(startMs)
-      new TWEEN.Tween(this.camera.up, this.tweens).to(up.clone(), this.tweeningTime).start(startMs)
-    }
+    new TWEEN.Tween(progress, this.tweens).to({ value: 1 }, this.tweeningTime).start(startMs).onUpdate(() => {
+      const destination = getPoint ? getPoint() : end
+      if (!destination) {
+        this.stopTracking()
+        return
+      }
+      c.target.lerpVectors(from, destination, progress.value)
+      if (!this.stationaryTracking) {
+        const up = this.lockUpToRingAxis ? this.ringAxis : destination.clone().normalize()
+        c.upDirection.lerpVectors(fromOrbitUp, up, progress.value)
+        this.camera.up.lerpVectors(fromCameraUp, up, progress.value)
+      }
+    }).onComplete(() => { this.tweeningActive = false })
+  }
+
+  cancelTween() {
+    this.tweens.removeAll()
+    this.tweeningActive = false
   }
 
   updateTracking() {
     const d = this.store.derived
     const point = this.tracker.getPosition(0)
     if (!point) {
+      if (this.tracker.target) this.stopTracking()
       this.trackingMarker.visible = false
       this.lastTrackingPoint = null
       return
@@ -219,11 +247,12 @@ export class ClassicCameraController {
 
   // ---- Per-frame update ----------------------------------------------------------------------
 
-  update(simTime, dt) {
+  update(simTime, dt, interactionDt) {
     const wallMs = performance.now()
-    const wallDt = this.lastWallMs === null ? 0 : Math.min(0.1, Math.max(0, (wallMs - this.lastWallMs) / 1000))
+    const wallDt = this.lastWallMs === null ? 0 : Math.max(0, (wallMs - this.lastWallMs) / 1000)
     this.lastWallMs = wallMs
-    this.tweenClockMs += 1000 * (dt !== 0 ? Math.abs(dt) : wallDt)
+    const clockDt = interactionDt ?? wallDt
+    this.tweenClockMs += 1000 * clockDt
     const c = this.controls
     if (this.playbackActive) {
       this.updateClippingPlanes()
@@ -234,7 +263,7 @@ export class ClassicCameraController {
     if (this.zoomDirection !== 0) {
       // logZoomRate is the fractional change per 60 Hz frame; convert to a per-second rate.
       const perSecond = Math.log1p(10 ** this.store.derived.logZoomRate.value) * 60
-      const scale = Math.exp(this.zoomDirection * perSecond * dt)
+      const scale = Math.exp(this.zoomDirection * perSecond * (interactionDt ?? Math.min(0.1, wallDt)))
       _offset.copy(this.camera.position).sub(c.target).multiplyScalar(scale)
       this.camera.position.copy(c.target).add(_offset)
     }

@@ -93,6 +93,8 @@ Every animated system receives the simulation time in `animate(time, ...)`. Its 
 6. `planet.update(camera)`: level-of-detail selection and tile streaming
 7. The shadow frustum follows the camera target
 
+Free-camera zoom and retargeting use wall-clock time, independently of playback speed and the shot's time warp, in both control schemes. Live takes instead supply their fixed simulated step (zero while settling the same frame), preserving repeatable camera motion. Classic tracking transitions continuously interpolate toward the tracked object's current world position, not a fixed predicted position; a new target or release cancels the previous transition.
+
 `render` draws four layers, clearing the depth buffer between them:
 
 1. The sky pass: stars and the Moon, drawn with their own camera so the main camera's far plane can stay fitted to the planet

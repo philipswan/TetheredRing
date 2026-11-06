@@ -775,7 +775,7 @@ export class App {
     this.updateSun()
     const googleEarthDrives = this.googleEarth.update(t)
     this.camera.playbackActive = this.shots.drivesCamera || googleEarthDrives
-    this.camera.update(t, dt)
+    this.camera.update(t, dt, this.shots.mode === 'live' ? Math.abs(dt) : undefined)
     this.planet.update(this.camera3d)
     this.updateSea(t)
     this.sailboats?.update(t, this.camera3d)
@@ -1147,8 +1147,8 @@ export class App {
         if (!object || !this.isVisibleInScene(hit.object)) continue
         if (this.camera.isClassic) {
           if (name in moving) {
-            this.camera.tracker.findNearest(name, hit.point)
-            this.camera.tweenTo(this.camera.tracker.getPosition(this.camera.tweeningTime / 1000))
+            if (!this.camera.tracker.findNearest(name, hit.point)) continue
+            this.camera.tweenToTrackedObject()
           }
           else this.camera.tweenTo(hit.point)
           this.camera.controls.rotateSpeed = 0.9

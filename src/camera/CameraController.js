@@ -33,9 +33,8 @@ import {
 //   planet's centre (and its axis to the polar axis), so the globe turns like a globe.
 // * The camera is kept above the terrain (cameraMinGroundClearance).
 //
-// The controller's clock for transitions (tweenClockMs) follows simulated time while that moves (so
-// a live take records a move at the shot's pace) and wall-clock time while paused, and never runs
-// backwards, so a move completes while the shot playhead is paused, rewinding or jumped.
+// Interactive transitions and zoom use real time, independent of simulated time and playback rate.
+// A live take supplies an explicit fixed step so its camera motion does not depend on rendering speed.
 
 const _v = new THREE.Vector3()
 const _w = new THREE.Vector3()
@@ -1234,11 +1233,11 @@ export class CameraController {
 
   // ---- Per-frame update ----------------------------------------------------------------------
 
-  update(simTime, dt) {
+  update(simTime, dt, interactionDt) {
     const wallMs = performance.now()
-    const wallDt = this.lastWallMs === null ? 0 : Math.min(0.1, Math.max(0, (wallMs - this.lastWallMs) / 1000))
+    const wallDt = this.lastWallMs === null ? 0 : Math.max(0, (wallMs - this.lastWallMs) / 1000)
     this.lastWallMs = wallMs
-    const clockDt = dt !== 0 ? Math.abs(dt) : wallDt
+    const clockDt = interactionDt ?? wallDt
     this.tweenClockMs += 1000 * clockDt
     if (this.playbackActive) {
       this.lastSunFrame = null
@@ -1269,8 +1268,9 @@ export class CameraController {
     }
 
     this.carryWithSun()
-    this.applyPendingZoom(wallDt)
-    this.applyKeyMotions(dt, clockDt)
+    const motionDt = interactionDt ?? Math.min(0.1, wallDt)
+    this.applyPendingZoom(motionDt)
+    this.applyKeyMotions(dt, motionDt)
 
     const pose = this.evaluate()
     if (pose) {
