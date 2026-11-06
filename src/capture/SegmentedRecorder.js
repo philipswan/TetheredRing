@@ -3,7 +3,7 @@ import {
   Output, StreamTarget, Mp4OutputFormat, MkvOutputFormat,
 } from 'mediabunny'
 import { VideoRecorder } from './VideoRecorder.js'
-import { SEGMENT_SECONDS, CHECKPOINT_MS, segmentName } from './RenderJob.js'
+import { SEGMENT_SECONDS, CHECKPOINT_MS, segmentName, replacementSegmentName } from './RenderJob.js'
 
 function configJSON(config) {
   const { description, ...rest } = config
@@ -98,6 +98,57 @@ export class SegmentedRecorder {
   async finish() {
     await this.checkpoint()
     return { fileName: this.job.manifest.fileName, frames: this.frameCount, codec: this.options.codec }
+  }
+
+  async cancel() {
+    await this.current?.cancel()
+    this.current = null
+  }
+}
+
+export class SegmentReplacementRecorder {
+  constructor(job, canvas, { index, segment }, shot, generation, buildId) {
+    this.job = job
+    this.canvas = canvas
+    this.index = index
+    this.segment = segment
+    this.shot = shot
+    this.generation = generation
+    this.buildId = buildId
+    this.options = { ...shot.output, codec: job.manifest.codec }
+    this.fileName = replacementSegmentName(index, this.options.container, generation)
+    this.frameCount = 0
+    this.current = null
+  }
+
+  async addFrame() {
+    if (!this.current) {
+      if (await this.job.storage.read(this.fileName)) throw new Error('The replacement filename already exists; the saved clip has not been overwritten.')
+      const writable = await this.job.storage.createWritable(this.fileName)
+      this.current = new VideoRecorder({
+        ...this.options, canvas: this.canvas, fileName: this.fileName, writable,
+        bitrate: this.options.bitrateMbps ? this.options.bitrateMbps * 1e6 : null,
+      })
+      try { await this.current.prepareTarget(); await this.current.start(this.options.codec) }
+      catch (error) {
+        try { await this.current.output?.cancel(); await writable.abort() }
+        catch (cleanupError) { console.error('Could not release the unfinished replacement:', cleanupError) }
+        this.current = null
+        throw error
+      }
+    }
+    await this.current.addFrame()
+    this.frameCount++
+  }
+
+  async finish() {
+    if (this.frameCount !== this.segment.to - this.segment.from) throw new Error('The replacement segment is incomplete; the original clip is unchanged.')
+    await this.current.finish()
+    const config = await inspectSegment(this.job, this.fileName, this.frameCount)
+    await this.job.replaceSegment(this.index, this.segment, this.fileName, config, {
+      shot: this.shot, generation: this.generation, buildId: this.buildId,
+    })
+    this.current = null
   }
 
   async cancel() {

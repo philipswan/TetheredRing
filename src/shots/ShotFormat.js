@@ -10,6 +10,7 @@
 //   simulation: { startTime, animationState },
 //   camera: { interpolation: 'smooth' | 'linear' | 'linearEased', cornerSeconds, keyframes: [keyframe, ...] },
 //   parameterTracks: { name: [{ time, value }] },   // optional, times relative to the shot start
+//   regenerateWindow: { enabled, start, end, continueUnfinished? },   // optional; video seconds, controls selective re-rendering
 //   project: { id, renderFolder?, outputPath? },   // optional project identity and render location;
 //                                                // filesystem handles stay in this browser's IndexedDB
 //   output: { width, height, fps, duration, codec, container, bitrateMbps, waitForTerrain,
@@ -140,6 +141,14 @@ export function validateShot(shot) {
     if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(p.id)) fail('"project.id" is invalid')
     if (p.renderFolder !== undefined && (typeof p.renderFolder !== 'string' || !/^[a-zA-Z0-9._-]+\.render$/.test(p.renderFolder))) fail('"project.renderFolder" must be a .render folder name, not a path')
     if (p.outputPath !== undefined && typeof p.outputPath !== 'string') fail('"project.outputPath" must be a string')
+  }
+  if (shot.regenerateWindow !== undefined) {
+    const w = shot.regenerateWindow
+    if (!w || typeof w !== 'object' || typeof w.enabled !== 'boolean' ||
+        (w.continueUnfinished !== undefined && typeof w.continueUnfinished !== 'boolean') ||
+        !Number.isFinite(w.start) || w.start < 0 || !Number.isFinite(w.end) || w.end < 0) {
+      fail('"regenerateWindow" needs enabled, start and end (non-negative video seconds)')
+    }
   }
   const keyframes = shot.camera?.keyframes
   if (!Array.isArray(keyframes)) fail('"camera.keyframes" must be an array')

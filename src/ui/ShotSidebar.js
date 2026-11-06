@@ -208,6 +208,7 @@ export class ShotSidebar {
       this.buildViewSection(),
       this.buildKeyframeSection(),
       this.buildRenderSection(),
+      this.buildRegenerationSection(),
       this.buildQueueSection())
     this.projectToolbar = this.buildProjectToolbar()
     this.settingsDialog = this.buildSettingsDialog()
@@ -611,6 +612,22 @@ export class ShotSidebar {
   }
 
   // The render queue: shots (with their own output settings) rendered one after another, unattended.
+  buildRegenerationSection() {
+    const s = this.shots
+    const w = () => s.regenerationWindow
+    return this.section('regenerate-window', 'Regenerate window', false,
+      this.checkbox('Enable regenerate window', () => w().enabled, enabled => s.setRegenerationWindow({ enabled })),
+      this.row('Window start (s)',
+        this.number(() => w().start, start => s.setRegenerationWindow({ start }), { min: 0, step: 'any' }),
+        this.button('Now', () => s.setRegenerationWindow({ start: Math.max(0, s.playhead) }), { title: 'Use the current video playhead time as the window start' })),
+      this.row('Window end (s)',
+        this.number(() => w().end, end => s.setRegenerationWindow({ end }), { min: 0, step: 'any' }),
+        this.button('Now', () => s.setRegenerationWindow({ end: Math.max(0, s.playhead) }), { title: 'Use the current video playhead time as the window end' })),
+      this.checkbox('Continue unfinished segments afterward', () => !!w().continueUnfinished, continueUnfinished => s.setRegenerationWindow({ continueUnfinished })),
+      el('div', { class: 'ss-hint', textContent: "Rerenders and overwrites video segments that overlap with the [start, end] time window using the current shot's settings." }),
+      this.regenerationHint = el('div', { class: 'ss-hint', role: 'status' }))
+  }
+
   buildQueueSection() {
     const q = this.shots.queue
     this.queueList = el('div', { class: 'ss-queue' })
@@ -781,11 +798,12 @@ export class ShotSidebar {
     const saved = job?.savedFrames ?? 0
     const hasRender = !!(job || record)
     const busy = s.busy || s._projectIO
+    const regenerate = !!s.regenerationWindow?.enabled
     this.renderButton.hidden = hasRender
     this.renderButton.disabled = !!busy
     this.renderResume.hidden = this.renderRestart.hidden = !hasRender
-    this.renderRestart.disabled = !!busy || !!record?.needsDiscovery
-    this.renderResume.textContent = record?.needsMigration ? 'Recover saved render' : record?.needsDiscovery ? 'Check saved render' : 'Resume'
+    this.renderRestart.disabled = !!busy || !!record?.needsDiscovery || regenerate
+    this.renderResume.textContent = record?.needsMigration ? 'Recover saved render' : record?.needsDiscovery ? 'Check saved render' : regenerate ? 'Regenerate window' : 'Resume'
     this.renderSummary.textContent = job
       ? `${job.manifest.shot.name}: ${(saved / job.manifest.shot.output.fps).toFixed(2)} / ${(job.manifest.frames / job.manifest.shot.output.fps).toFixed(2)} s saved (${job.manifest.segments.length} segments)${s.renderFrame ? `; rendering frame ${s.renderFrame}` : ''}`
       : record?.needsMigration ? `${record.name}: ${record.savedFrames} / ${record.frames} frames saved. Recover this legacy render to attach it to the current project.`
@@ -796,15 +814,21 @@ export class ShotSidebar {
       ? 'Resume is unavailable while rendering or recording is active.'
       : !job && !record
         ? 'To resume a previous render, use Open render… to select its .render folder.'
-        : job?.complete && !extended
+        : job?.complete && !extended && !regenerate
           ? 'Rendering is complete. Use Review saved video or Export full video.'
           : ''
     this.renderResume.disabled = !!busy || !hasRender || !!resumeReason
     const settingsChanged = job && canonical(s.shot.output) !== canonical(job.manifest.shot.output)
-    const resumeHint = resumeReason || (settingsChanged ? 'Resume will use your current rendering settings for the remaining frames. Previously saved segments are kept unchanged.' : '')
+    const resumeHint = resumeReason || (regenerate ? s.regenerationWindow.continueUnfinished ? 'Regenerate saved segments in the window, continue from the first unsaved frame, then assemble the video.' : 'Regenerate only saved segments that overlap the window, then assemble them with the unchanged segments.' : settingsChanged ? 'Resume will use your current rendering settings for the remaining frames. Previously saved segments are kept unchanged.' : '')
     this.renderResumeReason.textContent = resumeHint
     this.renderResumeReason.hidden = !hasRender || !resumeHint
     this.renderResume.title = resumeHint || 'Continue from the next unsaved frame'
+    if (this.regenerationHint) {
+      const w = s.regenerationWindow
+      const count = job?.manifest.segments.filter(segment => segment.from / s.fps < w.end && segment.to / s.fps > w.start).length ?? 0
+      this.regenerationHint.hidden = !regenerate
+      this.regenerationHint.textContent = !regenerate ? '' : w.end <= w.start ? 'Set the end time after the start time.' : !job ? 'Open a saved render to regenerate its segments.' : `${count} saved segment${count === 1 ? '' : 's'} intersect this window.`
+    }
     this.renderAbort.hidden = !s.busy || s.mode === 'live'
     this.renderReview.disabled = s._projectIO || s._reviewPreparing || s.review.requested || s.review.running ||
       (s.busy ? !s.activeRecorder : !saved)

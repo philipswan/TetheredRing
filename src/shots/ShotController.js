@@ -18,7 +18,7 @@ import { PixelLOD } from '../scene/PixelLOD.js'
 import { StructureLines } from '../scene/structureLines.js'
 import { RenderQueueRunner } from './RenderQueueRunner.js'
 import { RenderJob, DirectoryStorage, renderFolderName, assertRenderProject, matchesLegacyRenderShot, canonical } from '../capture/RenderJob.js'
-import { SegmentedRecorder, assembleRender, inspectSegment } from '../capture/SegmentedRecorder.js'
+import { SegmentedRecorder, SegmentReplacementRecorder, assembleRender, inspectSegment } from '../capture/SegmentedRecorder.js'
 import { RenderReview, outputFolderPath, reviewVideoPath, reviewVideoName } from '../capture/RenderReview.js'
 import { RENDER_BUILD_ID } from 'virtual:render-build'
 import { pendingWork, finishedWork } from '../core/PendingWork.js'
@@ -624,6 +624,24 @@ export class ShotController {
     else this.setStatus(`Keyframe ${i + 1} cannot reach simulated time ${simTime.toFixed(2)} s by changing keyframe ${j + 1}'s time speed; it is as close as it gets. Move the keyframes further apart, or change other speeds.`)
   }
 
+  get regenerationWindow() {
+    return this.shot.regenerateWindow ?? { enabled: false, start: 0, end: this.duration }
+  }
+
+  setRegenerationWindow(patch) {
+    if (this.busy || this._projectIO) return
+    const next = { ...this.regenerationWindow, ...patch }
+    if ((next.continueUnfinished !== undefined && typeof next.continueUnfinished !== 'boolean') ||
+        typeof next.enabled !== 'boolean' || !Number.isFinite(next.start) || next.start < 0 || !Number.isFinite(next.end) || next.end < 0) return
+    this.shot.regenerateWindow = next
+    this.changed()
+  }
+
+  regenerateWindow() {
+    if (!this.regenerationWindow.enabled) { this.setStatus('Enable Regenerate window first.'); return }
+    return this.resumeRender()
+  }
+
   setOutput(patch) {
     Object.assign(this.shot.output, patch)
     if ('width' in patch || 'height' in patch) this.app.onResize()
@@ -915,6 +933,7 @@ export class ShotController {
 
   async renderShot() {
     if (this.busy || this._projectIO) return
+    if (this.regenerationWindow.enabled) return this.regenerateWindow()
     this._projectIO = true
     this.emit('project')
     try {
@@ -1070,7 +1089,9 @@ export class ShotController {
       if (discoverOnly) return
       const job = this.currentRenderJob
       if (!job) throw new Error('Open a saved render subfolder first.')
-      const resumed = { ...clone(job.manifest.shot), output: clone(this.shot.output) }
+      const regenerate = this.regenerationWindow.enabled
+      if (regenerate) { restart = false; this.syncShotFromApp() }
+      const resumed = regenerate ? clone(this.shot) : { ...clone(job.manifest.shot), output: clone(this.shot.output), regenerateWindow: clone(this.regenerationWindow) }
       if (!restart && job.manifest.shot.preset !== this.app.presetId) {
         await this.importShotText(serializeShot(resumed))
         return
@@ -1251,7 +1272,6 @@ export class ShotController {
     if (this.cancelRequested) throw new DOMException('Rendering paused before starting.', 'AbortError')
     this.mode = 'render'
     this.emit('mode')
-    let recorder
     try {
       this.pause()
       shot = clone(shot)
@@ -1263,6 +1283,16 @@ export class ShotController {
         const latest = await RenderJob.open(job.storage, { existingOnly: true })
         assertRenderProject(latest.manifest.shot, shot)
         job.manifest = latest.manifest
+      }
+      if (shot.regenerateWindow?.enabled) {
+        if (!job) {
+          if (!storage) {
+            directory ??= await this.outputFolder()
+            storage = new DirectoryStorage(await directory.getDirectoryHandle(renderFolderName(fileName)))
+          }
+          job = await RenderJob.open(storage, { existingOnly: true })
+        }
+        return await this.regenerateSegments(job, shot, { directory, writable, outputStorage, settleSeconds, onProgress })
       }
       if (restart) {
         if (!job) throw new Error('Open a saved render before restarting.')
@@ -1293,11 +1323,26 @@ export class ShotController {
         if (!codec) throw new Error('No video encoder supports the requested quality. Saved segments are unchanged.')
         await job.updateOutput(shot.output, { codec })
       }
-      this.loadShot({ ...clone(job.manifest.shot), ...(shot.project ? { project: clone(shot.project) } : {}) })
+      this.loadShot({ ...clone(job.manifest.shot), ...(shot.project ? { project: clone(shot.project) } : {}), ...(shot.regenerateWindow ? { regenerateWindow: clone(shot.regenerateWindow) } : {}) })
       await this.rememberRender(job, directory, shot.project?.outputPath)
       this.setViewMode('shot')
       const output = this.shot.output
       await this.settle(settleSeconds)
+      await this.generateUnfinishedSegments(job, output, onProgress)
+      return await this.assembleJob(job, writable, outputStorage)
+    }
+    finally {
+      this.review.requested = false
+      this.mode = 'idle'
+      this.renderFrame = null
+      this.emit('mode')
+      this.emit('renderJob')
+    }
+  }
+
+  async generateUnfinishedSegments(job, output, onProgress = null) {
+    let recorder
+    try {
       if (!job.complete) {
         recorder = new SegmentedRecorder(job, this.frameCanvas(output), saved => this.rememberRender(saved))
         this.activeRecorder = recorder
@@ -1317,19 +1362,54 @@ export class ShotController {
         this.setStatus(`Rendering paused. ${job.savedFrames} / ${job.manifest.frames} frames saved; Resume continues from the next frame.`)
         throw new DOMException(`Rendering paused; ${job.savedFrames} frames retained.`, 'AbortError')
       }
-      return await this.assembleJob(job, writable, outputStorage)
     }
     catch (error) {
       if (recorder?.current) await recorder.cancel()
       throw error
     }
-    finally {
-      this.review.requested = false
-      this.mode = 'idle'
-      this.renderFrame = null
-      this.emit('mode')
-      this.emit('renderJob')
+  }
+
+  async regenerateSegments(job, shot, { directory = this.renderRoot, writable = null, outputStorage = null, settleSeconds = 0, onProgress = null } = {}) {
+    const window = shot.regenerateWindow
+    const selected = job.regenerationPlan(shot, window.start, window.end)
+    const codec = await resolveCodec(job.manifest.codec, shot.output)
+    if (codec !== job.manifest.codec) throw new Error('Window regeneration needs the saved video codec at the current quality. Adjust quality settings or use a full restart.')
+    this.loadShot(clone(shot))
+    await this.rememberRender(job, directory, shot.project?.outputPath)
+    this.setViewMode('shot')
+    await this.settle(settleSeconds)
+    const generation = crypto.randomUUID()
+    let completed = 0
+    this._regenerating = true
+    this.emit('renderJob')
+    try {
+      for (const target of selected) {
+        if (this.cancelRequested) break
+        this.setStatus(`Regenerating segment ${completed + 1} / ${selected.length}: ${(target.segment.from / shot.output.fps).toFixed(2)}–${(target.segment.to / shot.output.fps).toFixed(2)} s.`)
+        const recorder = new SegmentReplacementRecorder(job, this.frameCanvas(shot.output), target, shot, generation, RENDER_BUILD_ID)
+        try {
+          const failed = await this.renderFrames(recorder, {
+            from: target.segment.from, to: target.segment.to, keepBusy: true,
+            afterFrame: i => { this.renderFrame = i + 1; this.emit('renderProgress'); onProgress?.({ frame: i + 1, frames: job.manifest.frames }) },
+          })
+          if (failed) throw failed
+          if (this.cancelRequested) { await recorder.cancel(); break }
+          await recorder.finish()
+          completed++
+          await this.rememberRender(job)
+        }
+        catch (error) { await recorder.cancel(); throw error }
+      }
+      if (this.cancelRequested) throw new DOMException(`Window regeneration paused after ${completed} / ${selected.length} segments. Completed replacements are saved; unfinished segments keep their original clips.`, 'AbortError')
+      if (window.continueUnfinished && !job.complete) {
+        this.setStatus(`Regenerated ${completed} segments. Continuing from frame ${job.savedFrames}…`)
+        await job.updateOutput(shot.output, { codec })
+        await this.generateUnfinishedSegments(job, shot.output, onProgress)
+      }
+      this.setStatus(`Regenerated ${completed} segments. Assembling all saved segments…`)
+      return await this.assembleJob(job, writable, outputStorage)
     }
+    finally { this._regenerating = false; this.emit('renderJob') }
   }
 
   // ---- Rendering in several browsers at once --------------------------------------------------

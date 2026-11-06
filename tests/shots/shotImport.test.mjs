@@ -6,6 +6,7 @@ import { URL } from 'node:url'
 import console from 'node:console'
 import { Blob } from 'node:buffer'
 import { WritableStream } from 'node:stream/web'
+import { SegmentedRecorder, SegmentReplacementRecorder } from '../../src/capture/SegmentedRecorder.js'
 import { RenderReview, reviewVideoPath } from '../../src/capture/RenderReview.js'
 import '../support/rawImports.mjs'
 
@@ -1106,5 +1107,127 @@ test('checking previous render cannot attach an owned foreign project or a diffe
     assert.equal(shots.projectRenderRecord, null)
     assert.deepEqual(directory.files, before)
     assert.match(shots.status, /different shot project/)
+  }
+})
+
+
+test('regenerate-window controls have their own collapsible section and Now uses video playhead time', t => {
+  const shots = projectController()
+  shots.playhead = 12.5
+  const sidebar = sidebarFor(shots)
+  const buttons = []
+  const fields = []
+  const checkboxes = []
+  let section
+  sidebar.checkbox = (label, get, set) => { assert.equal(get(), false); checkboxes.push({ label, set }); return null }
+  sidebar.number = (get, set) => { fields.push({ get, set }); return null }
+  sidebar.button = (label, action) => { buttons.push({ label, action }); return null }
+  sidebar.row = () => null
+  sidebar.section = (...args) => { section = args; return null }
+  globalValue(t, 'document', { createElement: () => ({ append() {}, setAttribute() {} }) })
+  sidebar.buildRegenerationSection()
+  assert.deepEqual(section.slice(0, 3), ['regenerate-window', 'Regenerate window', false])
+  assert.equal(buttons.length, 2)
+  assert.ok(buttons.every(button => button.label === 'Now'))
+  assert.deepEqual(checkboxes.map(c => c.label), ['Enable regenerate window', 'Continue unfinished segments afterward'])
+  checkboxes[0].set(true)
+  checkboxes[1].set(true)
+  buttons[0].action()
+  shots.playhead = 18.75
+  buttons[1].action()
+  assert.deepEqual(shots.regenerationWindow, { enabled: true, start: 12.5, end: 18.75, continueUnfinished: true })
+  assert.equal(fields[0].get(), 12.5)
+  assert.equal(fields[1].get(), 18.75)
+  const sidebarCard = renderSidebar(shots)
+  shots.review = new RenderReview()
+  shots.renderJob = { complete: true, savedFrames: 60, manifest: { shot: structuredClone(shots.shot), segments: [{}], frames: 60 } }
+  sidebarCard.updateRenderCard()
+  assert.equal(sidebarCard.renderResume.textContent, 'Regenerate window')
+  assert.equal(sidebarCard.renderResume.disabled, false)
+  assert.equal(sidebarCard.renderRestart.disabled, true)
+})
+
+
+test('enabled window dispatch uses the current edited shot instead of the saved camera and parameters', async () => {
+  const shots = projectController()
+  shots.mode = 'idle'
+  shots.renderJob = { manifest: { shot: structuredClone(shots.shot) } }
+  shots.setRegenerationWindow({ enabled: true, start: 1, end: 2 })
+  shots.shot.camera.keyframes[0].position = [9, 8, 7]
+  shots.shot.parameters.showLaunchVehiclePlasma = false
+  let dispatched
+  shots.renderShotUnattended = async (shot, options) => { dispatched = { shot, options } }
+  await shots.resumeRender()
+  assert.deepEqual(dispatched.shot, shots.shot)
+  assert.equal(dispatched.shot.regenerateWindow.enabled, true)
+  assert.deepEqual(dispatched.shot.camera.keyframes[0].position, [9, 8, 7])
+  assert.equal(dispatched.options.restart, false)
+})
+
+
+test('window regeneration continues only when requested and assembles after unfinished frames are saved', async t => {
+  globalValue(t, 'VideoEncoder', class { static async isConfigSupported() { return { supported: true } } })
+  for (const scenario of ['off', 'on', 'complete', 'pause-window', 'pause-continuation', 'fail-continuation']) {
+    await t.test(scenario, async t => {
+      const shots = controller()
+      const shot = structuredClone(expectedShot)
+      shot.regenerateWindow = { enabled: true, start: 0, end: 1, continueUnfinished: scenario !== 'off' }
+      shots.shot = shot
+      shots.cancelRequested = false
+      shots.emit = () => {}
+      shots.setViewMode = () => {}
+      shots.frameCanvas = () => ({})
+      shots.rememberRender = async () => {}
+      const events = []
+      const job = {
+        savedFrames: 30, complete: scenario === 'complete',
+        manifest: { codec: 'av1', shot: structuredClone(shot), frames: 90 },
+        regenerationPlan: () => [{ index: 0, segment: { from: 0, to: 30 } }],
+        async updateOutput(output, { codec }) {
+          assert.deepEqual(output, shot.output)
+          assert.equal(codec, 'av1')
+          events.push('update-output')
+        },
+      }
+      t.mock.method(SegmentReplacementRecorder.prototype, 'finish', async () => { events.push('replace') })
+      t.mock.method(SegmentReplacementRecorder.prototype, 'cancel', async () => { events.push('cancel-replacement') })
+      t.mock.method(SegmentedRecorder.prototype, 'finish', async () => {
+        events.push('save-continuation')
+        job.savedFrames = shots.cancelRequested ? 45 : 90
+        job.complete = job.savedFrames === 90
+      })
+      t.mock.method(SegmentedRecorder.prototype, 'cancel', async () => { events.push('cancel-continuation') })
+      const failure = new Error('encoder failed')
+      shots.renderFrames = async (recorder, options) => {
+        if (recorder instanceof SegmentReplacementRecorder) {
+          assert.equal(options.from, 0)
+          assert.equal(options.to, 30)
+          events.push('render-window')
+          if (scenario === 'pause-window') shots.cancelRequested = true
+        } else {
+          assert.equal(options.from, 30)
+          assert.equal(shots.activeRecorder, recorder)
+          assert.deepEqual(shots.shot, shot)
+          events.push('render-continuation')
+          if (scenario === 'pause-continuation') shots.cancelRequested = true
+          if (scenario === 'fail-continuation') return failure
+        }
+      }
+      shots.assembleJob = async () => { events.push('assemble'); return 'video' }
+      const run = shots.regenerateSegments(job, shot)
+      if (scenario.startsWith('pause-')) await assert.rejects(run, { name: 'AbortError' })
+      else if (scenario === 'fail-continuation') await assert.rejects(run, failure)
+      else assert.equal(await run, 'video')
+      const expected = scenario === 'pause-window' ? ['render-window', 'cancel-replacement']
+        : scenario === 'off' || scenario === 'complete' ? ['render-window', 'replace', 'assemble']
+        : ['render-window', 'replace', 'update-output', 'render-continuation',
+          scenario === 'fail-continuation' ? 'cancel-continuation' : 'save-continuation',
+          ...(scenario === 'on' ? ['assemble'] : [])]
+      assert.deepEqual(events, expected)
+      assert.equal(shots._regenerating, false)
+      if (scenario === 'pause-continuation') assert.equal(job.savedFrames, 45)
+      if (scenario === 'on') assert.equal(job.complete, true)
+      if (scenario !== 'pause-window') assert.equal(shots.activeRecorder ?? null, null)
+    })
   }
 })
