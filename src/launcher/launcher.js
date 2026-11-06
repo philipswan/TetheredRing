@@ -372,9 +372,9 @@ export class launcher {
         // Brackets are identical, so they are drawn instanced: the pooled "models" are proxies whose
         // transforms InstancedProxyPool copies into a full-detail and a low-detail InstancedMesh.
         virtualMassDriverBracket.instancePool?.dispose()
-        const segments = this.massDriverAccelerationScrewSegments + 1
-        const high = this.bracketModelObject.createModel(this.polyCurveForrf0, this.accelerationScrewLength, segments, 0)
-        const low = this.bracketModelObject.createModel(this.polyCurveForrf0, this.accelerationScrewLength, segments, 0, this.bracketModelObject.lowDetailShape)
+        const segmentSpacing = this.accelerationScrewLength / Math.max(1, this.massDriverAccelerationScrewSegments)
+        const high = this.bracketModelObject.createModel(segmentSpacing)
+        const low = this.bracketModelObject.createModel(segmentSpacing, this.bracketModelObject.lowDetailShape)
         const pool = new InstancedProxyPool({
           name: 'massDriver2Bracket',
           highlight: 'massDriver',

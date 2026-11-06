@@ -327,7 +327,6 @@ export class virtualMassDriverScrew extends VirtualObject {
     v.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
     v.launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
     v.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
-    v.numBrackets = dParamWithUnits['launcherMassDriverScrewNumBrackets'].value
     v.initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
     v.isVisible = dParamWithUnits['showMassDriverAccelerationScrews'].value
     v.isDynamic = true
@@ -351,7 +350,8 @@ export class virtualMassDriverScrew extends VirtualObject {
 
   static addNewVirtualObjects(refFrames) {
     const v = virtualMassDriverScrew
-    v.addEvenlySpacedObjects(refFrames, (i) => (i < v.numBrackets) ? -v.halfBracketThickness : 0)
+    // Every segment is a bracket shorter than the spacing, leaving a gap for the bracket at its start.
+    v.addEvenlySpacedObjects(refFrames, () => -v.halfBracketThickness)
   }
 
   placeAndOrientModel(om, refFrame) {
@@ -383,7 +383,7 @@ export class virtualMassDriverScrew extends VirtualObject {
       om.screwSegment = {
         baseDistanceAlongScrew,
         threadStarts,
-        screwLength: Math.max(0.01, (this.index < v.numBrackets) ? segmentSpacing - v.bracketThickness : segmentSpacing),
+        screwLength: Math.max(0.01, segmentSpacing - v.bracketThickness),
         radialSegments: Math.max(3, Math.round(12 / Math.min(Math.max(1, threadStarts), 4))),
       }
       const cache = om.screwGeometries

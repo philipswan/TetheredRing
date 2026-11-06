@@ -24,24 +24,17 @@ export class massDriverBracketModel {
 
   }
 
-  createModel(massDriverSuperCurve, launcherMassDriverLength, massDriverScrewSegments, segmentIndex, shape = this.shape) {
+  // The bracket between screw segments. The model's origin is where virtualMassDriverBracket places it:
+  // the middle of a screw segment, less half a bracket (see addNewVirtualObjects), so the bracket, from
+  // half a segment back, fills the gap of one bracket thickness that the screws leave at the start of
+  // that segment. segmentSpacing: distance between screw segments. The model's forward is +y; the
+  // track's curvature over half a segment is far too small to matter.
+  createModel(segmentSpacing, shape = this.shape) {
 
-    const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
-    const modelLengthSegments = 1    // This model, which is a segment of the whole mass driver, is itself divided into this many lengthwise segments
-
-    // Now we need a reference point in the middle of this segment of the whole mass driver
-    const modelsCurvePosition = (segmentIndex + 0.5) / massDriverScrewSegments
-    const refPoint = massDriverSuperCurve.getPointAt(modelsCurvePosition)
-    const modelForward = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
-    const modelUpward = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
-    const orientation = massDriverSuperCurve.getQuaternionAt(modelsCurvePosition, modelForward, modelUpward).invert()
-
-    // We need to define a curve for this segment of the mass driver, and then use that curve to create a tube geometry for this model
-    const tubePoints = []
-    for (let i = 0; i<=modelLengthSegments; i++) {
-        const modelsCurvePosition = (segmentIndex + (i-modelLengthSegments/2)/modelLengthSegments * this.bracketThickness/segmentSpacing) / massDriverScrewSegments
-        tubePoints.push(massDriverSuperCurve.getPointAt(modelsCurvePosition).sub(refPoint).applyQuaternion(orientation))
-    }
+    const tubePoints = [
+      new THREE.Vector3(0, -segmentSpacing / 2 - this.bracketThickness / 2, 0),
+      new THREE.Vector3(0, -segmentSpacing / 2 + this.bracketThickness / 2, 0),
+    ]
     const upDirection = new THREE.Vector3(-1, 0, 0)
     const massDriverSegmentCurve = new LineSuperCurve3(tubePoints[0], tubePoints[1], upDirection, upDirection)
     const extrudeSettings = {
