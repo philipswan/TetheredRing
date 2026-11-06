@@ -221,8 +221,10 @@ export function createParameterDefinitions() {
   
   // Engineering Parameters - Launch System - Performance
   evacuatedTubeEntrancePositionAroundRing: {value: 0.76081, units: "", autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Launcher'},
-  launcherMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
-  launcherRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchVehicleMassDriverForwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchVehicleRampUpwardAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchVehicleAccelerationTransitionTime: {value: 2, units: 's', autoMap: true, min: 0.1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherMassDriverUpwardJerk: {value: 240, units: 'm*s-3', autoMap: true, min: 1, max: 2000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMaxEyesInAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMaxEyesOutAcceleration: {value: 50, units: 'm*s-2', autoMap: true, min: 10, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampTurningRadius: {value: 5000, units: 'm', autoMap: true, min: 10, max: 1000000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -230,6 +232,8 @@ export function createParameterDefinitions() {
   launcherLocationMode: {value: 0, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampEndLatitude: {value: 25.9967, units: 'degrees', autoMap: true, min: -90, max: 90, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampEndLongitude: {value: 97.1549, units: 'degrees', autoMap: true, min: -360, max: 360, onChange: 'updateLauncher', folder: 'Launcher'},
+  adaptiveNutDecelerationJerk: {value: 2400, units: 'm*s-3', autoMap: true, min: 1, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
+  adaptiveNutStopClearance: {value: 1, units: 'm', autoMap: true, min: 0, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherAdaptiveNutRampAcceleration: {value: -1500, units: 'm*s-2', autoMap: true, min: -10000, max: 0, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -10000, max: 4000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: -10000, max: 50000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -445,8 +449,9 @@ export function createParameterDefinitions() {
   // middle of its travel (the remainder). Fractions of the whole switchover, so their sum must be < 1.
   adaptiveNutGrapplerPadLiftAwayPortion: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerPadTwistPortion: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
-  // Hop duration for Scheduled and OriginalConstantRate; the latter budgets half before phase handover
-  // and half after it, using the original pose mapping (see grapplerPlacement.js).
+  // Hop duration for Scheduled and OriginalConstantRate, and face changes in every mode.
+  // Face changes must fit the forward-force ramp-down/braking ramp-up while retaining engaged support;
+  // incompatible transition, jerk or switchover settings fail explicitly instead of speeding up the hop.
   adaptiveNutGrapplerSwitchoverTime: {value: 0.6, units: 's', autoMap: true, min: 0.001, max: 10, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerClearanceFactor: {value: 0.1, units: '', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
   adaptiveNutGrapplerBallJointClearance: {value: 0.1, units: 'm', autoMap: true, min: 0, max: 1, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
@@ -642,6 +647,10 @@ export function createParameterDefinitions() {
   showMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showTrackingMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   trackingMarkerSize: {value: 500, units: '', autoMap: true, min: 0, max: 10000, onChange: 'resizeTrackingMarkers', folder: 'Rendering'},
+  showLaunchVehicleAccelerationDirectionVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
+  showLaunchVehicleAccelerationMagnitudeVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
+  showCrewFrontBackAccelerationVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
+  showCrewSidewaysAccelerationVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
   showForwardAccelerationVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showUpwardAccelerationVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showAltitudeVersusTime: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},

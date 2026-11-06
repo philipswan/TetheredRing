@@ -100,8 +100,8 @@ This builds a short orbiting shot of the launcher. (For a finished example to pu
 The **playhead** is a position in the shot's video, and moving it moves simulated time with it.
 
 - **Transport:** go to start, play backwards, step back one frame, **play/pause**, step forward one
-  frame, go to end. The speed menu on the right sets the playback (and rewind) speed, from **0.1× to
-  1000×**. This affects only how fast you *preview*; it is not the shot's own time speed.
+  frame, go to end. The speed menu on the right sets the playback (and rewind) speed, from **0.005× to
+  100×**. This affects only how fast you *preview*; it is not the shot's own time speed.
 - **Timeline:** drag the playhead or click on the ruler to move it; drag elsewhere to pan; use the
   wheel to zoom; **Fit** frames the whole shot. The green handles are the shot's start and end —
   drag them to move either. Moving the start keeps every keyframe at the same *simulated* moment.

@@ -141,8 +141,8 @@ export function toMarsFromEarthLauncherArchitecture(guidParamWithUnits, launcher
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   //launchVehicleNonPayloadMass
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 180
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 80  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 180
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000

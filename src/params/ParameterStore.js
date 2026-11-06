@@ -1,6 +1,8 @@
 import { lerp } from '../utils/math.js'
 import { tetherFibers, coilConductorMaterials } from './parameterDefinitions.js'
 
+export const parameterAliases = { launcherMassDriverForwardAcceleration: 'launchVehicleMassDriverForwardAcceleration', launcherRampUpwardAcceleration: 'launchVehicleRampUpwardAcceleration' }
+
 // Holds every tunable parameter and the derived parameter set that subsystems consume.
 //
 //   store.definitions  { key: { value, units, ... } }  the authoritative values (a.k.a. guidParamWithUnits)
@@ -26,10 +28,11 @@ export class ParameterStore {
   }
 
   get(key) {
-    return this.definitions[key].value
+    return this.definitions[parameterAliases[key] ?? key].value
   }
 
   set(key, value) {
+    key = parameterAliases[key] ?? key
     if (!(key in this.definitions)) throw new Error(`Unknown parameter "${key}"`)
     this.definitions[key].value = value
   }
@@ -47,7 +50,7 @@ export class ParameterStore {
       units: '',
     }
     d.massDriverLength = {
-      value: d.launcherMassDriverExitVelocity.value ** 2 / 2 / d.launcherMassDriverForwardAcceleration.value,
+      value: d.launcherMassDriverExitVelocity.value ** 2 / 2 / d.launchVehicleMassDriverForwardAcceleration.value,
       units: 'm',
     }
 
@@ -75,7 +78,9 @@ export class ParameterStore {
   // Applies a snapshot. Unknown keys (e.g. from a newer/older version) are returned, not thrown.
   restore(snapshot) {
     const unknown = []
-    for (const [k, value] of Object.entries(snapshot)) {
+    for (const [oldKey, value] of Object.entries(snapshot)) {
+      const k = parameterAliases[oldKey] ?? oldKey
+      if (oldKey !== k && Object.hasOwn(snapshot, k)) continue
       if (k in this.definitions) this.definitions[k].value = value
       else unknown.push(k)
     }

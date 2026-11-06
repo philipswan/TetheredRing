@@ -2,7 +2,7 @@
 // backwards from rest under gravity alone (the track is frictionless: it is levitated), from path distance
 // `startDistance` to `endDistance` (< startDistance), where it disappears (underground).
 //
-// Gravity is the planet's alone (as on the ramp, see launcherRamp.js), with no allowance for its rotation.
+// Gravity is the planet's alone, with no allowance for its rotation during the slow return.
 //
 //   radiusAt(s): distance from the planet's centre of the point at path distance `s`
 //   mu:          the planet's gravitational parameter (m^3/s^2)

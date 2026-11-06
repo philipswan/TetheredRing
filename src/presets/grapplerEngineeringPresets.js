@@ -122,7 +122,7 @@ export function grapplerEngineeringPresets(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit
@@ -132,13 +132,13 @@ export function grapplerEngineeringPresets(guidParamWithUnits, nonGUIParams) {
   // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
   // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 70
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 70
   guidParamWithUnits['launcherRampDesignMode'].value = 0
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000
   guidParamWithUnits['launcherRampTurningRadius'].value = 49096
-  //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+  //guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
   guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
   guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
   guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)

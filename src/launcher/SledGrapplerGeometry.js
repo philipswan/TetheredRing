@@ -1,3 +1,4 @@
+import { screwStateAtTime, screwStateAtDistance } from './rampMotion.js'
 // fromJSON() looks curve classes up by type name; the three namespace exports them all.
 import * as Curves from 'three'
 import {
@@ -7,7 +8,7 @@ import {
 } from 'three'
 
 import { CylindricalVector3 } from '../utils/tram.js'
-import { nonZero, threadTime, threadSpeed } from './launcherPhysics.js'
+import { nonZero, threadTime, threadSpeed, screwFlightFrontAngle, screwContactSide } from './launcherPhysics.js'
 
 // A pad that has not yet reached the threaded part of the screw (see launcherPhysics.threadStartDistance)
 // cannot engage. It is shaped and posed for the start of the thread instead: this returns how far to
@@ -42,7 +43,7 @@ class SledGrapplerPlacementInfo {
     launchSledGrapplerMaxRangeOfMotion = 0.5, // Full range of motion is (+/-) 0.5. By design, the grapplers can engage only a fraction of the full circumference of the screws. This value represents half of that fraction.
     launchSledGrapplerTopDeadCenterRotation = 0.5, // The rotation that we'll define as the top dead center
     minMaxArray = [0, 0],
-    threadStartDistance = -Infinity) {
+    threadStartDistance = -Infinity, motion = null, contactSide = screwContactSide(motion, distanceToSledAft), threadTaperRatio = 0.25) {
 
     this.shaftRadius = shaftRadius
     this.threadRadius = threadRadius
@@ -52,6 +53,9 @@ class SledGrapplerPlacementInfo {
     this.threadStarts = null // Later: the number of starts where the last placed grappler is
     this.revolutionsPerSecond = nonZero(revolutionsPerSecond, 1e-3)
     this.acceleration = nonZero(acceleration, 1e-3)
+    this.motion = motion
+    this.contactSide = contactSide
+    this.threadTaperRatio = threadTaperRatio
     this.initialVelocity = Math.max(1, initialVelocity)
     this.initialDistance = initialDistance
     this.distanceToSledAft = distanceToSledAft
@@ -82,11 +86,18 @@ class SledGrapplerPlacementInfo {
     const midwayGPlus = midwayGrapplerDistance + this.grapplerMidOffset
     const midwayShift = shiftToThread(this.distanceToSledAft + midwayGrapplerDistance, threadStartDistance)
     this._midwayPosition = this.distanceToSledAft + midwayGPlus + midwayShift
-    this.midwayTime = threadTime(this._midwayPosition, this.initialVelocity, this.initialDistance, this.acceleration)
+    this.midwayTime = threadTime(this._midwayPosition, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
 
   }
 
   // ToDo: I don't think we need launchSledGrapplerRangeFactor as a parameter. It should be a property of the class.
+  advance(t) {
+    if (!this.motion) return this.nutSpeed * t + this.acceleration * t * t / 2
+    const s = this.distanceToSledAft
+    const now = screwStateAtDistance(this.motion, s)
+    return screwStateAtTime(this.motion, now.t + t).s - s
+  }
+
   phase() {
     return this._phase
   }
@@ -94,16 +105,16 @@ class SledGrapplerPlacementInfo {
   // Whether the grappler may grip the screw `t` s from now (the nut moving on as in phaseAt): it must be
   // over the thread, and close (in thread time) to the middle grappler. engageable is this now.
   engageableAt(t) {
-    const advance = this.nutSpeed * t + this.acceleration * t * t / 2
+    const advance = this.advance(t)
     if (!isOnThread(this._padStart + advance, this.threadStartDistance)) return false
-    const time = threadTime(this._phasePosition + advance, this.initialVelocity, this.initialDistance, this.acceleration)
-    const midway = threadTime(this._midwayPosition + advance, this.initialVelocity, this.initialDistance, this.acceleration)
+    const time = threadTime(this._phasePosition + advance, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
+    const midway = threadTime(this._midwayPosition + advance, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
     return Math.abs(time - midway) <= 0.01
   }
 
   phaseAt(t) {
-    const position = this._phasePosition + this.nutSpeed * t + this.acceleration * t * t / 2
-    const later = threadTime(position, this.initialVelocity, this.initialDistance, this.acceleration)
+    const position = this._phasePosition + this.advance(t)
+    const later = threadTime(position, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
     return this._phase + this.threadStarts * this.revolutionsPerSecond * (t + later - this._phaseTime)
   }
 
@@ -111,7 +122,7 @@ class SledGrapplerPlacementInfo {
   // (the screw adds flights between its existing ones at segment boundaries), as {time, before, after},
   // or null.
   threadStartsChange(limit, steps = 20) {
-    const startsAt = (t) => this.startsAt(this._startsPosition + this.nutSpeed * t + this.acceleration * t * t / 2)
+    const startsAt = (t) => this.startsAt(this._startsPosition + this.advance(t))
     const now = startsAt(0)
     const step = limit / steps
     for (let i = 1; i <= steps; i++) {
@@ -137,9 +148,9 @@ class SledGrapplerPlacementInfo {
     const shift = shiftToThread(this.distanceToSledAft + grapplerDistance, this.threadStartDistance)
     this._startsPosition = this.distanceToSledAft + grapplerDistance + shift
     const threadStarts = this.threadStarts = forcedStarts ?? this.startsAt(this._startsPosition)
-    const time = threadTime(this.distanceToSledAft + gPlus + shift, this.initialVelocity, this.initialDistance, this.acceleration)
+    const time = threadTime(this.distanceToSledAft + gPlus + shift, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
 
-    const rateOfChangeInForwardDisplacement = threadSpeed(this.distanceToSledAft + gPlus + shift, this.initialVelocity, this.initialDistance, this.acceleration)
+    const rateOfChangeInForwardDisplacement = threadSpeed(this.distanceToSledAft + gPlus + shift, this.initialVelocity, this.initialDistance, this.acceleration, this.motion)
     const rateOfChangeInRotationalDistance1 = 2 * Math.PI * this.shaftRadius * Math.abs(this.revolutionsPerSecond)
     const rateOfChangeInRotationalDistance2 = 2 * Math.PI * this.threadRadius * Math.abs(this.revolutionsPerSecond)
     const innerThreadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
@@ -215,8 +226,9 @@ class SledGrapplerPlacementInfo {
     const outerThreadPitchAngle = Math.atan(outerThreadPitch)
     const innerThreadPitchAngle = Math.atan(innerThreadPitch)
     const averagePitchAngle = (outerThreadPitchAngle + innerThreadPitchAngle) / 2
-    const theta = precomputedPartOfAngle1 + this.magnetThickness / 2 / r1 * Math.sin(averagePitchAngle)
-    const y = gPlus - this.magnetThickness / 2 * Math.cos(averagePitchAngle)
+    const frontAngle = this.contactSide > 0 ? screwFlightFrontAngle(r1, this.shaftRadius, this.threadRadius, this.threadThickness, this.threadTaperRatio, outerThreadPitch) : 0
+    const theta = precomputedPartOfAngle1 + frontAngle - this.contactSide * this.magnetThickness / 2 / r1 * Math.sin(averagePitchAngle)
+    const y = gPlus + this.contactSide * this.magnetThickness / 2 * Math.cos(averagePitchAngle)
     this.offset = new CylindricalVector3(r1, theta, y)
   }
 }
@@ -241,7 +253,7 @@ class SledGrapplerGeometry extends BufferGeometry {
     additionalRotation  = 0,
     grapplerDistance = 0,
     offset = new CylindricalVector3(0, 0, 0),
-    threadStartDistance = -Infinity) {
+    threadStartDistance = -Infinity, motion = null, contactSide = screwContactSide(motion, distanceToSledAft), threadTaperRatio = 0.25) {
 
     super();
 
@@ -269,7 +281,8 @@ class SledGrapplerGeometry extends BufferGeometry {
       betweenGrapplerFactor: betweenGrapplerFactor,
       shaftToGrapplerPad: shaftToGrapplerPad,
       additionalRotation : additionalRotation,
-      grapplerDistance : grapplerDistance
+      grapplerDistance : grapplerDistance,
+      contactSide, threadTaperRatio
     };
 
     const numGrapplerSegments = 8 // Must be an even number
@@ -329,7 +342,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         // Figure out the screw's rotation at the locaton of each grappler
         // 0 = 0.5 * a * t**2 + v0 * t + d0 - d
         const gPlus = g + betweenGrapplerSpacing/2 + i * segmentSpacing
-        const time = threadTime(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration)
+        const time = threadTime(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration, motion)
         gList[i] = gPlus
         rotations[i] = additionalRotation + revolutionsPerSecond * time
       }
@@ -349,7 +362,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         // Reduce the arc length of the grappler's magnetic pad by a factor of grapplerPadLengthFactor
         const fullGPlus = g + betweenGrapplerSpacing/2 + i * segmentSpacing
         const gPlus = (fullGPlus - midwayGPlus)*grapplerPadLengthFactor + midwayGPlus
-        const time = threadTime(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration)
+        const time = threadTime(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration, motion)
 
         rotations[i] = additionalRotation + revolutionsPerSecond * time
         
@@ -361,7 +374,7 @@ class SledGrapplerGeometry extends BufferGeometry {
         nearestThread[i] = (threadStarts-1) - Math.floor(rotationsWithTwistFrac * threadStarts)
 
         gList[i] = gPlus
-        const rateOfChangeInForwardDisplacement = threadSpeed(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration)
+        const rateOfChangeInForwardDisplacement = threadSpeed(distanceToSledAft + gPlus + shift, initialVelocity, initialDistance, acceleration, motion)
         innerThreadPitch[i] = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance1
         outerThreadPitch[i] = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance2
       }
@@ -385,18 +398,19 @@ class SledGrapplerGeometry extends BufferGeometry {
 
       for (let i = 0; i<=numGrapplerSegments; i++) {
         // This loop is following the screw's thread
-        const threadHalfOfCrossWidth = Math.min(threadThickness * Math.sqrt(outerThreadPitch[i]**2+1) / Math.abs(outerThreadPitch[i]), shaftRadius/2);
-
         const precomputedPartOfAngle1 = 2 * Math.PI * ((rotations[i] + nearestThread[midRib] / threadStarts) % 1)
         const outerThreadPitchAngle = Math.atan(outerThreadPitch[i])
         const innerThreadPitchAngle = Math.atan(innerThreadPitch[i])
-        const precomputedPartOfAngle2 = precomputedPartOfAngle1 + magnetThickness/threadRadius * Math.sin(outerThreadPitchAngle)
-        const precomputedPartOfAngle3 = precomputedPartOfAngle1 + magnetThickness/shaftRadiusPlus * Math.sin(innerThreadPitchAngle)
+        const frontAngle = radius => contactSide > 0 ? screwFlightFrontAngle(radius, shaftRadius, threadRadius, threadThickness, threadTaperRatio, outerThreadPitch[i]) : 0
+        const innerAngle = precomputedPartOfAngle1 + frontAngle(shaftRadiusPlus)
+        const outerAngle = precomputedPartOfAngle1 + frontAngle(threadRadius)
+        const precomputedPartOfAngle2 = outerAngle - contactSide * magnetThickness / threadRadius * Math.sin(outerThreadPitchAngle)
+        const precomputedPartOfAngle3 = innerAngle - contactSide * magnetThickness / shaftRadiusPlus * Math.sin(innerThreadPitchAngle)
 
         // Create four verticies initially in cylindrical coordinates (r, theta, z), but then convert to cartisian coordinates
         const theta = []
-        theta.push(precomputedPartOfAngle1); // Inner
-        theta.push(precomputedPartOfAngle1); // Outer
+        theta.push(innerAngle); // Inner contact
+        theta.push(outerAngle); // Outer contact
         theta.push(precomputedPartOfAngle2); // Outer
         theta.push(precomputedPartOfAngle3); // Inner
 
@@ -405,14 +419,17 @@ class SledGrapplerGeometry extends BufferGeometry {
           // then moves away from the thread, then heads back toward the shaft.
           const r = ((j==0) || (j==3)) ? shaftRadiusPlus : threadRadius;
           const tempTheta = theta[j]
-          const y = (j==2) ? -magnetThickness * Math.cos(outerThreadPitchAngle): (j==3) ? -magnetThickness * Math.cos(innerThreadPitchAngle) : 0   // Don't like this - doesn't look accurate...
+          const y = (j==2) ? contactSide * magnetThickness * Math.cos(outerThreadPitchAngle): (j==3) ? contactSide * magnetThickness * Math.cos(innerThreadPitchAngle) : 0   // Don't like this - doesn't look accurate...
 
           // Save as cylindrical coordinates...
           const vertexCylindrical = new CylindricalVector3()
           vertexCylindrical.r = r
           vertexCylindrical.θ = theta[j] 
           vertexCylindrical.y = g[i] + y
-          vertexArrayCylindrical[i*4+j] = vertexCylindrical
+          // Keep outward winding and corresponding solid corners on both faces, so a face blend
+          // carries a plate around the flight tip without collapsing or reversing its thickness.
+          const corner = contactSide > 0 ? [3, 2, 1, 0][j] : j
+          vertexArrayCylindrical[i*4+corner] = vertexCylindrical
         }
       }
 
@@ -546,6 +563,18 @@ class SledGrapplerGeometry extends BufferGeometry {
 
 }
 
+
+export function blendGrapplerGeometry(rear, front, mix) {
+  if (!Number.isFinite(mix) || mix < 0 || mix > 1) throw new Error('Invalid grappler face blend.')
+  const geometry = rear.clone()
+  const position = geometry.getAttribute('position'), next = front.getAttribute('position')
+  if (position.count !== next.count) { geometry.dispose(); throw new Error('Incompatible grappler face geometry.') }
+  for (let i = 0; i < position.array.length; i++) position.array[i] += mix * (next.array[i] - position.array[i])
+  geometry.computeVertexNormals()
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
+  return geometry
+}
 
 export { SledGrapplerPlacementInfo };
 export { SledGrapplerGeometry };

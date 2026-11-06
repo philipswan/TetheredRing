@@ -49,7 +49,7 @@ export function edwardsAirforceBasePresets(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['adaptiveNutGrapplerTopDeadCenterRotation'].value = 0.5
  
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit

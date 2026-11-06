@@ -6,7 +6,7 @@ import { screwLengthOffsets } from '../../src/launcher/ScrewGeometry.js'
 const params = (values) => Object.fromEntries(Object.entries(values).map(([k, value]) => [k, { value }]))
 // Big Island launcher screw and grappler dimensions
 const bigIsland = {
-  launcherMassDriver1InitialVelocity: 2, adaptiveNutBodyLength: 20, launcherMassDriverForwardAcceleration: 50,
+  launcherMassDriver1InitialVelocity: 2, adaptiveNutBodyLength: 20, launchVehicleMassDriverForwardAcceleration: 50,
   launcherMassDriverScrewRevolutionsPerSecond: 169, launcherMassDriverScrewShaftOuterRadius: 0.228,
   launcherMassDriverScrewThreadRadius: 0.5, launcherMassDriverScrewThreadThickness: 0.07,
   launcherMassDriverScrewThreadTaperRatio: 0.25, adaptiveNutShaftToGrapplerPad: 0.172,

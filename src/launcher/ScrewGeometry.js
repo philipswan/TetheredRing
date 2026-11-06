@@ -13,12 +13,12 @@ import {
 // that would take more than maxSegments, fewer samples per turn are used; returns null if even 3 per
 // turn would not fit (the pitch is then far too fine to draw at that budget).
 export function screwLengthOffsets(screwLength, baseDistanceAlongScrew, initialVelocity, initialDistance,
-  acceleration, revolutionsPerSecond, segmentsPerMeter, samplesPerTurn, maxSegments = Infinity, threadStartDistance = -Infinity) {
+  acceleration, revolutionsPerSecond, segmentsPerMeter, samplesPerTurn, maxSegments = Infinity, threadStartDistance = -Infinity, motion = null) {
   revolutionsPerSecond = Math.abs(nonZero(revolutionsPerSecond, 1e-3))
   acceleration = nonZero(acceleration, 1e-3)
   initialVelocity = Math.max(1, initialVelocity)
   const threadStart = threadStartDistance - baseDistanceAlongScrew  // local (may be outside this segment)
-  const timeAt = (d) => threadTime(baseDistanceAlongScrew + d, initialVelocity, initialDistance, acceleration)
+  const timeAt = (d) => threadTime(baseDistanceAlongScrew + d, initialVelocity, initialDistance, acceleration, motion)
   const turns = revolutionsPerSecond * Math.abs(timeAt(screwLength) - timeAt(Math.min(screwLength, Math.max(0, threadStart))))
   const lengthSegments = Math.ceil(segmentsPerMeter * screwLength)
   if (lengthSegments + turns * samplesPerTurn > maxSegments) {
@@ -32,7 +32,7 @@ export function screwLengthOffsets(screwLength, baseDistanceAlongScrew, initialV
     if (d >= threadStart) {
       // The pitch only grows along the screw, so stepping by the pitch at the start of each step is safe.
       // (The floor on the step only matters for a decelerating thread, whose pitch can reach zero.)
-      const metresPerTurn = Math.abs(threadSpeed(baseDistanceAlongScrew + d, initialVelocity, initialDistance, acceleration)) / revolutionsPerSecond
+      const metresPerTurn = Math.abs(threadSpeed(baseDistanceAlongScrew + d, initialVelocity, initialDistance, acceleration, motion)) / revolutionsPerSecond
       step = Math.max(maxStep * 1e-3, Math.min(maxStep, metresPerTurn / samplesPerTurn))
     }
     else if (d + step >= threadStart) {
@@ -67,7 +67,7 @@ class ScrewGeometry extends BufferGeometry {
     minLengthSegmentsPerMeter = 4,
     samplesPerTurn = 16,
     maxLengthSegments = Infinity,
-    threadStartDistance = -Infinity) {
+    threadStartDistance = -Infinity, motion = null) {
 
     super();
 
@@ -141,7 +141,7 @@ class ScrewGeometry extends BufferGeometry {
     // turns of the thread rather than evenly by length, so a tight pitch is not undersampled (which
     // made the flights alias into a wrong helix angle).
     const lengthOffsets = screwLengthOffsets(screwLength, baseDistanceAlongScrew, initialVelocity, initialDistance,
-      acceleration, revolutionsPerSecond, minLengthSegmentsPerMeter, samplesPerTurn, maxLengthSegments, threadStartDistance) ?? [0, 1]
+      acceleration, revolutionsPerSecond, minLengthSegmentsPerMeter, samplesPerTurn, maxLengthSegments, threadStartDistance, motion) ?? [0, 1]
     const tubularSegments = lengthOffsets.length - 1
 
     // create buffer data
@@ -316,10 +316,10 @@ class ScrewGeometry extends BufferGeometry {
       const threaded = distanceAlongScrew >= threadStartDistance
       const flightRadius = threaded ? threadRadius : shaftOuterRadius
       const phaseDistance = threaded ? distanceAlongScrew : (Number.isFinite(threadStartDistance) ? threadStartDistance : 0)
-      const time = threadTime(phaseDistance, initialVelocity, initialDistance, acceleration)
+      const time = threadTime(phaseDistance, initialVelocity, initialDistance, acceleration, motion)
       const rotations = revolutionsPerSecond * time
       const rateOfChangeInRotationalDistance = 2 * Math.PI * threadRadius * Math.abs(revolutionsPerSecond)
-      const rateOfChangeInForwardDisplacement = threadSpeed(phaseDistance, initialVelocity, initialDistance, acceleration)
+      const rateOfChangeInForwardDisplacement = threadSpeed(phaseDistance, initialVelocity, initialDistance, acceleration, motion)
       const threadPitch = rateOfChangeInForwardDisplacement / rateOfChangeInRotationalDistance
   
       const threadHalfOfCrossWidth = Math.min(threadThickness * Math.sqrt(threadPitch**2+1) / Math.abs(threadPitch), shaftOuterRadius/2);

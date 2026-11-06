@@ -1329,7 +1329,7 @@ export class App {
   // Sweeps the ramp upward acceleration and logs launcher cost, tube length and ramp time.
   runRampAccelerationSweep() {
     const s = this.store
-    const keys = ['launcherMassDriverForwardAcceleration', 'launcherRampUpwardAcceleration']
+    const keys = ['launchVehicleMassDriverForwardAcceleration', 'launchVehicleRampUpwardAcceleration']
     const backup = keys.map(k => s.get(k))
     const rows = []
     s.set(keys[0], 80)

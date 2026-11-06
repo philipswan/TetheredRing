@@ -232,9 +232,9 @@ export function define_genLauncherSpecs() {
 
     // Deceleration Screws
     // Borrowing the ramp values for screws from launcherMassDriver...
-    const launcherRampScrewMass = launcherMassDriverScrewMass
-    const launcherRampScrewMaterialCost = launcherMassDriverScrewMaterialCost
-    const launcherRampScrewMaterialProceedsFromRecycling = launcherMassDriverScrewMaterialProceedsFromRecycling
+    const launcherRampScrewMass = massDriverScrewCrosssectionalArea * this.rampDeccelerationScrewSegmentExactLength * launcherMassDriverScrewMaterialDensity
+    const launcherRampScrewMaterialCost = launcherRampScrewMass * launcherMassDriverScrewMaterialPricePerKgBuy
+    const launcherRampScrewMaterialProceedsFromRecycling = launcherRampScrewMass * launcherMassDriverScrewMaterialPricePerKgSell
 
     const launcherRampScrewsTotalMass =  this.rampDeccelerationScrewSegments * launcherMassDriverNumScrews * launcherRampScrewMass
     specs['launcherRampScrewsTotalMass'] = {value: launcherRampScrewsTotalMass, units: "kg"}
@@ -409,8 +409,8 @@ export function define_genLauncherSpecs() {
     const launchSpacingDuringWindow = (maxLaunchesPerMarsTransferWindow > 1) ? marsTransferWindowDuration / (maxLaunchesPerMarsTransferWindow-1) : marsTransferWindowDuration // sec // Note: Subtracting 1 because we can launch at the begining and end of the window.
     specs['launchSpacingDuringWindow'] = {value: launchSpacingDuringWindow, units: "sec"}
     print("launchSpacingDuringWindow, ", myFormat(launchSpacingDuringWindow), "sec")
-    const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
-    const launcherRampUpwardAcceleration = dParamWithUnits['launcherRampUpwardAcceleration'].value
+    const launchVehicleMassDriverForwardAcceleration = dParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value
+    const launchVehicleRampUpwardAcceleration = dParamWithUnits['launchVehicleRampUpwardAcceleration'].value
 
     // Air friction of screw flights
     const P = dParamWithUnits['evacuatedTubeInteriorPressure'].value // Pa
@@ -623,7 +623,7 @@ export function define_genLauncherSpecs() {
 
     // Calculate the power from the launch train's mass, acceleration, exit speed, and energy conversion efficiency
     const earlierEMLaunchersEnergyConversionEfficiency = 0.5
-    const peakPowerRequirementsOfEarlierEMLaunchers = launchTrainMass * launcherMassDriverForwardAcceleration * massDriverExitSpeed / earlierEMLaunchersEnergyConversionEfficiency
+    const peakPowerRequirementsOfEarlierEMLaunchers = launchTrainMass * launchVehicleMassDriverForwardAcceleration * massDriverExitSpeed / earlierEMLaunchersEnergyConversionEfficiency
     specs['peakPowerRequirementsOfEarlierEMLaunchers'] = {value: peakPowerRequirementsOfEarlierEMLaunchers, units: "W"}
     print("peakPowerRequirementsOfEarlierEMLaunchers, ", (peakPowerRequirementsOfEarlierEMLaunchers/1e6).toLocaleString('en-US', {maximumFractionDigits:2}), "MW")
   
@@ -652,7 +652,7 @@ export function define_genLauncherSpecs() {
     specs['launchSledAndSpacecraftTotalMass'] = {value: launchSledAndSpacecraftTotalMass, units: "kg"}
     print("launchSledAndSpacecraftTotalMass, ", myFormat(launchSledAndSpacecraftTotalMass), "kg")
 
-    const launchSledPeakNormalForce = launchSledAndSpacecraftTotalMass * (launcherRampUpwardAcceleration+9.81)  // N
+    const launchSledPeakNormalForce = launchSledAndSpacecraftTotalMass * (launchVehicleRampUpwardAcceleration+9.81)  // N
     specs['launchSledPeakNormalForce'] = {value: launchSledPeakNormalForce, units: "N"}
     print("launchSledPeakNormalForce, ", myFormat(launchSledPeakNormalForce/1e6, 2), "MN (", myFormat(launchSledPeakNormalForce/9.81/1e3, 2), "tons force)")
 
@@ -759,7 +759,7 @@ export function define_genLauncherSpecs() {
     print("screwFlightMaxSlope, ", screwFlightMaxSlope, "m/m")
 
     const accelleratedMass =  mAdaptiveNut + mSled + mVehicle + initialPropellantMass + mPayload
-    const forwardForce = accelleratedMass * launcherMassDriverForwardAcceleration
+    const forwardForce = accelleratedMass * launchVehicleMassDriverForwardAcceleration
     specs['forwardForce'] = {value: forwardForce, units: "N"}
     print("forwardForce, ", forwardForce, "N")
 
@@ -853,7 +853,7 @@ export function define_genLauncherSpecs() {
     specs['eddyCurrentPowerLoss'] = {value: peakEddyCurrentPowerLossPerStrip, units: 'W/kg'}
     print('peakEddyCurrentPowerLossPerStrip', myFormat(peakEddyCurrentPowerLossPerStrip), "W/kg")
 
-    const peakRateOfKineticEnergyTransfer = accelleratedMass * massDriverExitSpeed * launcherMassDriverForwardAcceleration
+    const peakRateOfKineticEnergyTransfer = accelleratedMass * massDriverExitSpeed * launchVehicleMassDriverForwardAcceleration
     specs['peakRateOfKineticEnergyTransfer'] = {value: peakRateOfKineticEnergyTransfer, units: 'W'}
     print('peakRateOfKineticEnergyTransfer', myFormat(peakRateOfKineticEnergyTransfer), "W")
 
@@ -907,7 +907,7 @@ export function define_genLauncherSpecs() {
     specs['flywheelFinalKineticEnergy'] = {value: flywheelFinalKineticEnergy, units: 'J'}
     print('flywheelFinalKineticEnergy', myFormat(flywheelFinalKineticEnergy/1e6, 3), "MJ")
 
-    const kineticEnergyTransferedByOneScrewSegment = launchTrainMass * launcherMassDriverForwardAcceleration * launcherMassDriverScrewRoughLength / launcherMassDriverNumScrews
+    const kineticEnergyTransferedByOneScrewSegment = launchTrainMass * launchVehicleMassDriverForwardAcceleration * launcherMassDriverScrewRoughLength / launcherMassDriverNumScrews
     specs['kineticEnergyTransferedByOneScrewSegment'] = {value: kineticEnergyTransferedByOneScrewSegment, units: 'J'}
     print('kineticEnergyTransferedByOneScrewSegment', myFormat(kineticEnergyTransferedByOneScrewSegment/1e6, 3), "MJ")
 
@@ -978,7 +978,7 @@ export function define_genLauncherSpecs() {
     specs['lastFlywheelsDecelerationTime'] = {value: lastFlywheelsDecelerationTime, units: 's'}
     print('lastFlywheelsDecelerationTime', myFormat(lastFlywheelsDecelerationTime*1e3, 2), "ms")
 
-    const energyDeliveredPerMeter = launchTrainMass * launcherMassDriverForwardAcceleration
+    const energyDeliveredPerMeter = launchTrainMass * launchVehicleMassDriverForwardAcceleration
     specs['energyDeliveredPerMeter'] = {value: energyDeliveredPerMeter, units: 'J/m'}
     print('energyDeliveredPerMeter', myFormat(energyDeliveredPerMeter*1e-6, 2), "MJ/m")
 
@@ -1003,7 +1003,7 @@ export function define_genLauncherSpecs() {
     specs['flywheelsBrakingPowerPerMeter'] = {value: flywheelsBrakingPowerPerMeter, units: 'W/m'}
     print('flywheelsBrakingPowerPerMeter', myFormat(flywheelsBrakingPowerPerMeter/1e6, 2), "MW/m")
 
-    const peakKineticPowerReceived = launchTrainMass * massDriverExitSpeed * launcherMassDriverForwardAcceleration
+    const peakKineticPowerReceived = launchTrainMass * massDriverExitSpeed * launchVehicleMassDriverForwardAcceleration
     specs['peakKineticPowerReceived'] = {value: peakKineticPowerReceived, units: 'W'}
     print('peakKineticPowerReceived', myFormat(peakKineticPowerReceived/1e6, 2), "MW")
 
@@ -1071,7 +1071,7 @@ export function define_genLauncherSpecs() {
     print("requiring a magnetic pad interface area of", myFormat(launcherGrapplerTotalContactArea), "m^2.")
     print("Assuming a pad radial length of", myFormat(grapplerPadContactWidth, 2), "m,")
     print("the adaptive nut must be", myFormat(grapplerPadContactLength), "m long.")
-    print("At", myFormat(launcherMassDriverForwardAcceleration, 2), "m/s^2 of acceleration,")
+    print("At", myFormat(launchVehicleMassDriverForwardAcceleration, 2), "m/s^2 of acceleration,")
     print("the launch section must be", myFormat(launcherMassDriverLength/1000), "km long,")
     print("with a", myFormat(launcherRampLength/1000), "km ramp and a", myFormat(launcherElevatedEvacuatedTubeLength/1000), "km elevated evacuated tube to reach an altitude of", myFormat(launcherEvacuatedTubeExitAltitude/1000), "km.")
 

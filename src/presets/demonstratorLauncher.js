@@ -91,8 +91,8 @@ export function demonstratorLauncher(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 34.88  
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 80  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 120
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000

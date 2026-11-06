@@ -53,7 +53,7 @@ function tipRadius(geometry) {
 test('a rebuilt screw pool does not serve shared geometry built for the old thread', () => {
   const v = virtualMassDriverScrew
   Object.assign(v, {
-    launcherMassDriverForwardAcceleration: thread.acceleration, launcherMassDriver1InitialVelocity: thread.initialVelocity,
+    launchVehicleMassDriverForwardAcceleration: thread.acceleration, launcherMassDriver1InitialVelocity: thread.initialVelocity,
     initialDistance: thread.initialDistance, launcherMassDriverScrewRevolutionsPerSecond: thread.revolutionsPerSecond,
     threadLayout: { threadStartDistance: thread.threadStartDistance },
     shaftOuterRadius: 0.25, shaftInnerRadius: 0.2, threadRadius: 0.33, threadThickness: 0.05, threadTaperRatio: 0.5,

@@ -47,7 +47,7 @@ export class massDriverScrewModel {
         const threadThickness = dParamWithUnits['launcherMassDriverScrewThreadThickness'].value
         const threadTaperRatio = dParamWithUnits['launcherMassDriverScrewThreadTaperRatio'].value
         const launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-        const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+        const launchVehicleMassDriverForwardAcceleration = dParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value
         const launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
         const bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
         
@@ -78,7 +78,7 @@ export class massDriverScrewModel {
             launcherMassDriver1InitialVelocity,
             initialDistance,
             launcherMassDriverScrewRevolutionsPerSecond,
-            launcherMassDriverForwardAcceleration,
+            launchVehicleMassDriverForwardAcceleration,
             modelRadialSegments,
             minLengthSegmentsPerMeter)
         const massDriverScrewMesh = new THREE.Mesh(massDriverScrewGeometry, massDriverScrewMaterials[segmentIndex%2])
@@ -190,9 +190,10 @@ export function clearSharedScrewGeometries() {
 
 export function sharedScrewGeometry(segment, levelIndex, level, sync) {
   const v = virtualMassDriverScrew
-  const a = v.launcherMassDriverForwardAcceleration, v0 = v.launcherMassDriver1InitialVelocity
+  const a = v.launchVehicleMassDriverForwardAcceleration, v0 = v.launcherMassDriver1InitialVelocity
   const x0 = v.initialDistance, rps = v.launcherMassDriverScrewRevolutionsPerSecond
   const start = v.threadLayout.threadStartDistance
+  if (v.motion && segment.baseDistanceAlongScrew + segment.screwLength > v.motion.horizontalLength) return null
   const share = sharedScrewBucket(segment.baseDistanceAlongScrew, segment.screwLength,
     { initialVelocity: v0, initialDistance: x0, acceleration: a, revolutionsPerSecond: rps, threadStartDistance: start })
   if (!share) return null
@@ -244,9 +245,9 @@ function screwGeometryFor(group, levelIndex) {
   const screwIndex = group._screwIndex
   let geometry, shared
   group.screwRotations.delete(levelIndex)
-  const threadsFit = !level.cylinder && screwLengthOffsets(segment.screwLength, segment.baseDistanceAlongScrew,
-    v.launcherMassDriver1InitialVelocity, v.initialDistance, v.launcherMassDriverForwardAcceleration,
-    v.launcherMassDriverScrewRevolutionsPerSecond, level.segmentsPerMeter, level.samplesPerTurn, level.maxSegments, v.threadLayout.threadStartDistance) !== null
+  const threadsFit = !level.cylinder && (v.threadLayout.flightsAt?.(segment.baseDistanceAlongScrew + segment.screwLength / 2) ?? 1) > 0 && screwLengthOffsets(segment.screwLength, segment.baseDistanceAlongScrew,
+    v.launcherMassDriver1InitialVelocity, v.initialDistance, v.launchVehicleMassDriverForwardAcceleration,
+    v.launcherMassDriverScrewRevolutionsPerSecond, level.segmentsPerMeter, level.samplesPerTurn, level.maxSegments, v.threadLayout.threadStartDistance, v.motion) !== null
   if (!threadsFit) {
     // Thread envelope, slightly thinner than the tips to account for the gaps between flights.
     geometry = new THREE.CylinderGeometry(v.threadRadius * 0.9, v.threadRadius * 0.9, segment.screwLength, 12, 1, false)
@@ -259,8 +260,8 @@ function screwGeometryFor(group, levelIndex) {
     geometry = buildScrewGeometry([
       segment.screwLength, v.shaftOuterRadius, v.shaftInnerRadius, v.threadRadius, v.threadThickness,
       v.threadTaperRatio, segment.threadStarts, segment.baseDistanceAlongScrew, v.launcherMassDriver1InitialVelocity,
-      v.initialDistance, v.launcherMassDriverScrewRevolutionsPerSecond, v.launcherMassDriverForwardAcceleration,
-      segment.radialSegments, level.segmentsPerMeter, level.samplesPerTurn, level.maxSegments, v.threadLayout.threadStartDistance],
+      v.initialDistance, v.launcherMassDriverScrewRevolutionsPerSecond, v.launchVehicleMassDriverForwardAcceleration,
+      segment.radialSegments, level.segmentsPerMeter, level.samplesPerTurn, level.maxSegments, v.threadLayout.threadStartDistance, v.motion],
       // The screws nearest to needing this level first; dropped once the screw is going away and smaller
       // than the level, or the model has moved to another segment.
       { async: !sync, priority: () => lod.onScreenPixels / level.minPixels, wanted: () => group._screwIndex === screwIndex && (lod.pixelGrowth >= 1 || lod.onScreenPixels >= level.minPixels) })
@@ -295,7 +296,7 @@ export class virtualMassDriverScrew extends VirtualObject {
 
   static signatureOf(dParamWithUnits) {
     return parameterSignature(dParamWithUnits,
-      ['launcherMassDriverScrew', 'launcherMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity', 'adaptiveNutBodyLength',
+      ['launcherMassDriverScrew', 'launchVehicleMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity', 'adaptiveNutBodyLength',
         'adaptiveNutGrapplerMagnetThickness', 'adaptiveNutGrapplerPadLiftAwayDistance', 'adaptiveNutShaftToGrapplerPad'],
       ['SidewaysOffset', 'UpwardsOffset', 'Material', 'Density', 'Cost', 'STL'])
   }
@@ -324,7 +325,7 @@ export class virtualMassDriverScrew extends VirtualObject {
     v.threadTaperRatio = dParamWithUnits['launcherMassDriverScrewThreadTaperRatio'].value
     v.threadStarts = dParamWithUnits['launcherMassDriverScrewThreadStarts'].value
     v.launcherMassDriverScrewRevolutionsPerSecond = dParamWithUnits['launcherMassDriverScrewRevolutionsPerSecond'].value
-    v.launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+    v.launchVehicleMassDriverForwardAcceleration = dParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value
     v.launcherMassDriver1InitialVelocity = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
     v.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     v.initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2

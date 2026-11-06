@@ -31,7 +31,7 @@ const TERRAIN_WAIT_TIMEOUT_MS = 15000
 const SETTLE_STALL_MS = 60000 // settleScene gives up after this long without anything arriving
 const MAX_REAL_STEP = 0.1 // s of wall-clock time per displayed frame (a backgrounded tab does not jump)
 const PICK_RADIUS_PX = 30
-export const PLAYBACK_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 100, 300, 1000]
+export const PLAYBACK_SPEEDS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 100]
 
 // The next display frame; in a hidden tab (no frames) the next task instead, so an unattended render
 // carries on. (Timers are throttled in hidden tabs; messages are not.)

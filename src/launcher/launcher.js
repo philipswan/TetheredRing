@@ -1,3 +1,4 @@
+import { screwStateAtDistance } from './rampMotion.js'
 import * as THREE from 'three'
 //import { XYChart } from '../scene/XYChart.js'
 import { SuperCurvePath } from '../curves/SuperCurves.js'
@@ -195,7 +196,7 @@ export class launcher {
         // While the elevated evacuated tube deployment is animated, the vehicles follow the drawn (coiled) tube.
         const tubeCurve = (this.animateElevatedEvacuatedTubeDeployment && this.coiledElevatedEvacuatedTubeCurve) ? this.coiledElevatedEvacuatedTubeCurve : this.evacuatedTubeCurve
         // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into the screws from
-        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver1Curve, this.massDriver2Curve])
+        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
         this.accelerationScrewLength = this.polyCurveForrf0.getLength()
         this.polyCurveForrf1 = makePath("adaptiveNutPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
         // The sled stays with the vehicle over the ramp, then brakes on the track in the elevated evacuated tube.
@@ -261,19 +262,37 @@ export class launcher {
     if (this.effectiveForwardAcceleration === undefined) return dParamWithUnits
     return {
       ...dParamWithUnits,
-      launcherMassDriverForwardAcceleration: { ...dParamWithUnits['launcherMassDriverForwardAcceleration'], value: this.effectiveForwardAcceleration },
+      launchVehicleMassDriverForwardAcceleration: { ...dParamWithUnits['launchVehicleMassDriverForwardAcceleration'], value: this.effectiveForwardAcceleration },
       launcherMassDriver1InitialVelocity: { ...dParamWithUnits['launcherMassDriver1InitialVelocity'], value: this.effectiveMassDriver1InitialVelocity },
     }
   }
 
   configureObjectClasses(dParamWithUnits, planetSpec) {
     dParamWithUnits = this.effectiveParams(dParamWithUnits)
-    const segments = this.massDriverAccelerationScrewSegments
+    const segments = this.massDriverScrewSegments
     const length = this.accelerationScrewLength
     this.tubeInnerRadius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
     // One thread layout (where the thread starts and how many starts it has where) for the screws and
     // the nuts' grapplers, so they always agree.
     this.threadLayout = tram.screwThreadLayout(dParamWithUnits, length / Math.max(1, segments))
+    this.threadLayout.motion = this.screwMotion
+    // Use the same clearance sequence while the pitch decreases on the braking screws.
+    const originalStartsAt = this.threadLayout.startsAt
+    this.threadLayout.startsAt = d => {
+      if (!this.screwMotion || d <= this.screwMotion.horizontalLength) return originalStartsAt(d)
+      const centre = Math.floor(d / (length / segments)) * (length / segments)
+      const speed = screwStateAtDistance(this.screwMotion, centre).v
+      const equivalentDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2 + (speed ** 2 - this.effectiveMassDriver1InitialVelocity ** 2) / (2 * this.effectiveForwardAcceleration)
+      return originalStartsAt(equivalentDistance)
+    }
+    this.threadLayout.flightsAt = d => {
+      if (!this.screwMotion || d <= this.screwMotion.horizontalLength) return d >= this.threadLayout.threadStartDistance ? this.threadLayout.startsAt(d) : 0
+      const speed = screwStateAtDistance(this.screwMotion, d).v
+      const equivalentDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2 + (speed ** 2 - this.effectiveMassDriver1InitialVelocity ** 2) / (2 * this.effectiveForwardAcceleration)
+      return equivalentDistance >= this.threadLayout.threadStartDistance ? this.threadLayout.startsAt(d) : 0
+    }
+    virtualMassDriverScrew.motion = this.screwMotion
+    virtualAdaptiveNut.motion = this.screwMotion
     virtualMassDriverScrew.threadLayout = this.threadLayout
     virtualAdaptiveNut.threadLayout = this.threadLayout
     this.objectClasses.forEach(objectClass => {
@@ -346,13 +365,13 @@ export class launcher {
       [virtualMassDriverScrew, () => {
         if (dParamWithUnits['saveMassDriverScrewSTL'].value) {
           const screwModelObject = new massDriverScrewModel()
-          const saveModel = screwModelObject.createModel(dParamWithUnits, this.accelerationScrewLength, this.massDriverAccelerationScrewSegments, 0, this.massDriverScrewMaterials, true)
+          const saveModel = screwModelObject.createModel(dParamWithUnits, this.accelerationScrewLength, this.massDriverScrewSegments, 0, this.massDriverScrewMaterials, true)
           this.saveGeometryAsSTL(saveModel, 'massDriverScrew.stl')
         }
         const threadRadius = dParamWithUnits['launcherMassDriverScrewThreadRadius'].value
         // Distant screws are plain cylinders; draw all of them with one instanced mesh.
         virtualMassDriverScrew.cylinderPool?.dispose()
-        const nominalLength = this.accelerationScrewLength / Math.max(1, this.massDriverAccelerationScrewSegments)
+        const nominalLength = this.accelerationScrewLength / Math.max(1, this.massDriverScrewSegments)
         const cylinderGeometry = new THREE.CylinderGeometry(threadRadius * 0.9, threadRadius * 0.9, nominalLength, 12, 1, false)
         const cylinderPool = new InstancedProxyPool({
           name: 'massDriverScrew',
@@ -372,7 +391,7 @@ export class launcher {
         // Brackets are identical, so they are drawn instanced: the pooled "models" are proxies whose
         // transforms InstancedProxyPool copies into a full-detail and a low-detail InstancedMesh.
         virtualMassDriverBracket.instancePool?.dispose()
-        const segmentSpacing = this.accelerationScrewLength / Math.max(1, this.massDriverAccelerationScrewSegments)
+        const segmentSpacing = this.accelerationScrewLength / Math.max(1, this.massDriverScrewSegments)
         const high = this.bracketModelObject.createModel(segmentSpacing)
         const low = this.bracketModelObject.createModel(segmentSpacing, this.bracketModelObject.lowDetailShape)
         const pool = new InstancedProxyPool({
@@ -725,7 +744,7 @@ export class launcher {
       // Shape-only or count changes: tear down just the affected classes
       const changed = new Set()
       this.objectClasses.forEach(objectClass => {
-        if (objectClass.isTeardownRequired(dParamWithUnits, this.massDriverAccelerationScrewSegments)) {
+        if (objectClass.isTeardownRequired(dParamWithUnits, this.massDriverScrewSegments)) {
           objectClass.removeAllVirtualObjects()
           changed.add(objectClass)
         }
@@ -948,4 +967,3 @@ launcher.prototype.orbitalElementsFromStateVector = OrbitMath.define_orbitalElem
 launcher.prototype.getAirDensity = OrbitMath.define_getAirDensity()
 launcher.prototype.saveGeometryAsSTL = SaveGeometryAsSTL.define_SaveGeometryAsSTL()
 launcher.prototype.genLauncherSpecs = EngineeringDetails.define_genLauncherSpecs()
-

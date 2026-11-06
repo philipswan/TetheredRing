@@ -1,3 +1,4 @@
+import { screwStateAtDistance } from './rampMotion.js'
 // Launcher specs, rocket engine models and vehicle sizing helpers.
 import * as THREE from 'three'
 import * as tram from '../utils/tram.js'
@@ -5,7 +6,7 @@ import * as tram from '../utils/tram.js'
 export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
 
   // Launcher Design Length
-  const launcherMassDriverForwardAcceleration = dParamWithUnits['launcherMassDriverForwardAcceleration'].value
+  const launchVehicleMassDriverForwardAcceleration = dParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value
   const launcherMassDriverExitVelocity = dParamWithUnits['launcherMassDriverExitVelocity'].value
   //console.log('launcherMassDriverExitVelocity', launcherMassDriverExitVelocity)
 
@@ -118,7 +119,7 @@ export function updateLauncherSpecs(dParamWithUnits, crv, launcher, specs) {
   specs['propellantCostPerKgOfPayload'] = {value: propellantCostPerKgOfPayload, units: 'USD'}
   
   //const launchVehiclePropellantMassFlowRate = dParamWithUnits['launchVehiclePropellantMassFlowRate'].value // kg/s
-  const launchSledDriveForce = launchSledAndVehicleTotalMass * launcherMassDriverForwardAcceleration
+  const launchSledDriveForce = launchSledAndVehicleTotalMass * launchVehicleMassDriverForwardAcceleration
   //console.log('launchSledDriveForce', launchSledDriveForce)
   specs['launchSledDriveForce'] = {value: launchSledDriveForce, units: 'N'}
   const numScrews = 2  // 2 counter-rotating screws per launch tube
@@ -342,16 +343,40 @@ export function nonZero(x, min) {
 // the negative root of d = d0 + v0 t + a t^2 / 2, which mirrors the helix (t = -t_launch - 2 v0 / a).
 // threadSpeed returns the matching signed forward speed (m/s), v0 + a t, whose magnitude is the
 // nut's speed. Callers apply nonZero() / Math.max(1, ...) to acceleration and initialVelocity.
-export function threadTime(distance, initialVelocity, initialDistance, acceleration) {
+export function threadTime(distance, initialVelocity, initialDistance, acceleration, motion = null) {
+  if (motion && distance - initialDistance >= motion.horizontalLength) return -2 * initialVelocity / acceleration - screwStateAtDistance(motion, distance - initialDistance).t
   const ahead = distance - initialDistance
   if (ahead >= 0) return (-initialVelocity - Math.sqrt(Math.max(0, initialVelocity**2 + 2 * acceleration * ahead))) / acceleration
   return -2 * initialVelocity / acceleration - ahead / initialVelocity
 }
 
-export function threadSpeed(distance, initialVelocity, initialDistance, acceleration) {
+export function threadSpeed(distance, initialVelocity, initialDistance, acceleration, motion = null) {
+  if (motion && distance - initialDistance >= motion.horizontalLength) return -Math.max(1e-3, screwStateAtDistance(motion, distance - initialDistance).v)
   const ahead = distance - initialDistance
   if (ahead >= 0) return -Math.sqrt(Math.max(0, initialVelocity**2 + 2 * acceleration * ahead))
   return -initialVelocity
+}
+
+// Angular extent of the flight's forward (+along-track) face at a pad radius.
+// ScrewGeometry's other face is at phase zero. Intersect its straight tapered wall with the circle
+// at radius, so pads agree with the actual mesh rather than treating a flight as infinitely thin.
+export function screwFlightFrontAngle(radius, shaftRadius, threadRadius, threadThickness, taperRatio, outerPitch) {
+  const crossWidth = Math.min(threadThickness * Math.hypot(outerPitch, 1) / Math.max(1e-12, Math.abs(outerPitch)), shaftRadius / 2)
+  const rootAngle = Math.asin(crossWidth / shaftRadius)
+  const tipAngle = Math.asin(crossWidth * taperRatio / threadRadius)
+  if (radius <= shaftRadius) return rootAngle
+  if (radius >= threadRadius) return tipAngle
+  const x = shaftRadius * Math.cos(rootAngle), y = shaftRadius * Math.sin(rootAngle)
+  const dx = threadRadius * Math.cos(tipAngle) - x, dy = threadRadius * Math.sin(tipAngle) - y
+  const a = dx * dx + dy * dy, b = x * dx + y * dy
+  const u = Math.max(0, Math.min(1, (-b + Math.sqrt(Math.max(0, b * b + a * (radius * radius - shaftRadius * shaftRadius)))) / a))
+  return Math.atan2(y + u * dy, x + u * dx)
+}
+
+// Magnetic attraction pulls a trailing pad forward during acceleration and a leading pad backward
+// during braking. This changes contact face, never the helix handedness.
+export function screwContactSide(motion, distance) {
+  return motion && motion.brakingDeceleration !== 0 && Number.isFinite(motion.brakingStartDistance) && distance >= motion.brakingStartDistance ? 1 : -1
 }
 
 // Distance along the screw from which a thread with threadStarts flights can drive the nut. A grappler pad engages by sitting
@@ -397,7 +422,7 @@ export function screwThreadLayout(dParamWithUnits, segmentLength = 0) {
   const common = {
     initialVelocity: p('launcherMassDriver1InitialVelocity'),
     initialDistance: p('adaptiveNutBodyLength') / 2,
-    acceleration: nonZero(p('launcherMassDriverForwardAcceleration'), 1e-3),
+    acceleration: nonZero(p('launchVehicleMassDriverForwardAcceleration'), 1e-3),
     revolutionsPerSecond: p('launcherMassDriverScrewRevolutionsPerSecond'),
     shaftRadius: p('launcherMassDriverScrewShaftOuterRadius'),
     threadRadius: p('launcherMassDriverScrewThreadRadius'),

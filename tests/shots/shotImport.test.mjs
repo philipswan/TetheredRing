@@ -20,7 +20,7 @@ registerHooks({
     return nextResolve(specifier, context)
   },
 })
-const { ShotController } = await import('../../src/shots/ShotController.js')
+const { ShotController, PLAYBACK_SPEEDS } = await import('../../src/shots/ShotController.js')
 const { ShotSidebar } = await import('../../src/ui/ShotSidebar.js')
 const { parseShot, serializeShot } = await import('../../src/shots/ShotFormat.js')
 const shotText = await readFile(new URL('../../shots/FollowLaunchVehicle.shot.json', import.meta.url), 'utf8')
@@ -34,6 +34,20 @@ function controller() {
   shots.loadShot = shot => { shots.shot = shot; shots.setStatus('Shot loaded.') }
   return shots
 }
+
+test('playback menu offers slow speeds through 100x and preserves playback direction', () => {
+  assert.deepEqual(PLAYBACK_SPEEDS, [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 100])
+  const shots = controller()
+  shots.emit = () => {}
+  for (const rate of [0, 1, -1]) {
+    for (const speed of PLAYBACK_SPEEDS) {
+      shots.rate = rate
+      shots.setPlaybackSpeed(speed)
+      assert.equal(shots.playbackSpeed, speed)
+      assert.equal(shots.rate, rate === 0 ? 0 : Math.sign(rate) * speed)
+    }
+  }
+})
 
 function globalValue(t, name, value) {
   const original = Object.getOwnPropertyDescriptor(globalThis, name)

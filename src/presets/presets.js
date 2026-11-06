@@ -964,7 +964,7 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit
@@ -977,8 +977,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
 
   switch (50) {
     case 0.5:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 70       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 70       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 500     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -986,8 +986,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s
       break
     case 1:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 140       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 140       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 1000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -996,8 +996,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       break
       // Mass Fraction = 0.013
     case 2:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 135       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 135       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 2000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1006,8 +1006,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       break
       // Mass Fraction = 0.075
     case 3:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 120       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1016,8 +1016,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       break
       // Mass Fraction = 0.146
     case 4:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 110       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 110       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 4000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1026,8 +1026,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       break
       // Mass Fraction = 0.232
     case 5:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 80       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 80       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1036,8 +1036,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       // Mass Fraction = 0.339
       break
     case 6:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 60       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 60       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 6000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1046,8 +1046,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       // Mass Fraction = 0.473
       break
     case 7:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 24       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 24       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 7000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2700           // m
@@ -1056,8 +1056,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       // Mass Fraction = 0.635
       break
     case 8:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 3300     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = 0         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 2900           // m
@@ -1066,8 +1066,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       // Mass Fraction =
       break
     case 50:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000     // m/s
       guidParamWithUnits['launcherMassDriverAltitude'].value = -100         // m
       guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m
@@ -1075,8 +1075,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
       break
     case 51:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
       guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2       // m/s
       guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40      // m/s
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 100     // m/s
@@ -1086,8 +1086,8 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
       guidParamWithUnits['launchVehiclePropellantMassFlowRate'].value = 514.49 // kg/s  (Based on RS-25)
       break
     case 52:
-      guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-      guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+      guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+      guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
       // guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2       // m/s
       // guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 40      // m/s
       guidParamWithUnits['launcherMassDriverExitVelocity'].value = 8000     // m/s
@@ -1247,7 +1247,7 @@ function bigIslandLauncher(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit
@@ -1257,13 +1257,13 @@ function bigIslandLauncher(guidParamWithUnits, nonGUIParams) {
   // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
   // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 70
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 70
   guidParamWithUnits['launcherRampDesignMode'].value = 0
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000
   guidParamWithUnits['launcherRampTurningRadius'].value = 49096
-  //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+  //guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
   guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
   guidParamWithUnits['launcherMassDriverAltitude'].value = -150        // m (submerged, moored to the sea floor; as in toMarsHawaii)
   guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit (4207) plus ~300 meters)
@@ -1425,7 +1425,7 @@ function equatorialLauncher(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit
@@ -1436,11 +1436,11 @@ function equatorialLauncher(guidParamWithUnits, nonGUIParams) {
   // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
   guidParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value = 100  // m
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 10  // m/s2
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 10  // m/s2
   guidParamWithUnits['launcherRampDesignMode'].value = 1
   guidParamWithUnits['launcherRampTurningRadius'].value = 25
   //guidParamWithUnits['launcherRampTurningRadius'].value = 10
-  //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+  //guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
   guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 1.6
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 3
   guidParamWithUnits['launcherMassDriverExitVelocity'].value = 30     // m/s
@@ -1744,7 +1744,7 @@ function christmasIslandLauncher(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit
@@ -1754,12 +1754,12 @@ function christmasIslandLauncher(guidParamWithUnits, nonGUIParams) {
   // So first, pick a launch angle. Then adjust propellant mass to achive an eliptical orbit with the desired appogee.
   // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 50  // m/s2
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 50  // m/s2
   guidParamWithUnits['launcherRampDesignMode'].value = 0
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000
   guidParamWithUnits['launcherRampTurningRadius'].value = 49096
-  //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+  //guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
   guidParamWithUnits['launcherMassDriverExitVelocity'].value = 5500     // m/s
   guidParamWithUnits['launcherMassDriverAltitude'].value = 100         // m
   guidParamWithUnits['launcherRampExitAltitude'].value = 4500           // m  (Altitute of Mauna Kea summit plus ~300 meters)

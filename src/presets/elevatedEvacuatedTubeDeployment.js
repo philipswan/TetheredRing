@@ -104,8 +104,8 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, nonGUIParams
   guidParamWithUnits['finalLocationRingCenterLongitude'].value = 203
   guidParamWithUnits['evacuatedTubeEntrancePositionAroundRing'].value =  0.681
 
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 120
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 80  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 120
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   //guidParamWithUnits['launcherRampTurningRadius'].value = 250000
@@ -302,7 +302,7 @@ export function elevatedEvacuatedTubeDeployment(guidParamWithUnits, nonGUIParams
 
  
   // Parameters that are going to effect the launch system's performance...
-  // Launch Angle (launcherRampUpwardAcceleration)
+  // Launch Angle (launchVehicleRampUpwardAcceleration)
   // Propellant Mass (launchVehiclePropellantMass)
   // Altitude of Ramp Exit
   // Altitude of Evauated Tube Exit

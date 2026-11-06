@@ -102,7 +102,7 @@ import * as THREE from 'three'
   //   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
   //   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   //   // Parameters that are going to effect the launch system's performance...
-  //   // Launch Angle (launcherRampUpwardAcceleration)
+  //   // Launch Angle (launchVehicleRampUpwardAcceleration)
   //   // Propellant Mass (launchVehiclePropellantMass)
   //   // Altitude of Ramp Exit
   //   // Altitude of Evauated Tube Exit
@@ -113,11 +113,11 @@ import * as THREE from 'three'
   //   // We need to keep some propellant in reserve to perform a circularization burn at that orbit's appogee.
 
   //   guidParamWithUnits['launchVehicleDesiredOrbitalAltitude'].value = 450000  // m
-  //   guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 10  // m/s2
+  //   guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 10  // m/s2
   //   guidParamWithUnits['launcherRampDesignMode'].value = 1
   //   guidParamWithUnits['launcherRampTurningRadius'].value = 250
   //   //guidParamWithUnits['launcherRampTurningRadius'].value = 10
-  //   //guidParamWithUnits['launcherRampUpwardAcceleration'].value = 50       // m/s2
+  //   //guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 50       // m/s2
   //   guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 1.6
   //   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 3
   //   guidParamWithUnits['launcherMassDriverExitVelocity'].value = 300     // m/s
@@ -271,8 +271,8 @@ export function toLowOrbitWithRocket(guidParamWithUnits, rocketLaunchPadLatitude
   guidParamWithUnits['launchVehicleEmptyMass'].value = dryMass    // kg
   guidParamWithUnits['launchVehiclePropellantMass'].value = propellantMass   // kg
   guidParamWithUnits['launchVehiclePayloadMass'].value = payloadMass   // kg
-  guidParamWithUnits['launcherMassDriverForwardAcceleration'].value = 80  // m/s2
-  guidParamWithUnits['launcherRampUpwardAcceleration'].value = 160
+  guidParamWithUnits['launchVehicleMassDriverForwardAcceleration'].value = 80  // m/s2
+  guidParamWithUnits['launchVehicleRampUpwardAcceleration'].value = 160
   guidParamWithUnits['launcherMaxEyesInAcceleration'].value = 80
   guidParamWithUnits['launcherMaxEyesOutAcceleration'].value = 80
   guidParamWithUnits['launcherRampTurningRadius'].value = 381000

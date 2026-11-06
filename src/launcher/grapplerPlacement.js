@@ -4,7 +4,7 @@
 //
 // All return the same pose, read the same way by AdaptiveNut.js:
 //   { lift, raise, neutral, alpha, attached }
-//     lift     0 (pad on the flight's face) -> 1 (lifted clear, forwards)
+//     lift     0 (pad on the flight's face) -> 1 (lifted clear, away from that face)
 //     raise    0 (on the flight) -> 1 (raised radially clear of the flights)
 //     neutral  0 (twisted to the flight's pitch) -> 1 (untwisted)
 //     alpha    the pad's angle (radians) from the middle of its travel

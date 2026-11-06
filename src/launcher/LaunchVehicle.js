@@ -1,3 +1,4 @@
+import { specificForceAt, capsuleLoad } from './crewAcceleration.js'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
@@ -11,7 +12,7 @@ const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
 export class launchVehicleModel {
-  constructor(dParamWithUnits, myScene, unallocatedModelsList, _unusedLegacyFlag, gravityAtLauncherLocation) {
+  constructor(dParamWithUnits, myScene, unallocatedModelsList, _unusedLegacyFlag, _gravityAtLauncherLocation) {
     const radius = dParamWithUnits['launchVehicleRadius'].value
     const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
     const lengthSegments = 2
@@ -257,12 +258,12 @@ export class launchVehicleModel {
       const forwardSpacing = dParamWithUnits['launchVehicleCrewForwardSpacing'].value
 
       // Passenger orientation (shared by both sexes): lying on the side, head to the
-      // vehicle's left, chest tilted toward the resultant of forward acceleration and
-      // local gravity so both act along the body's Gx (eyeballs-in) axis.
+      // vehicle's left, initially facing the nose. The complete capsule assembly
+      // pivots at placement time to put the current proper load along the body's Gx axis.
       const modelUp = new THREE.Vector3(0, 1, 0)             // head direction in model space
       const modelFace = new THREE.Vector3(1, 0, 0)           // look direction in model space
       const worldHead = new THREE.Vector3(-1, 0, 0)          // head to the vehicle's left
-      const worldFace = new THREE.Vector3(0, dParamWithUnits['launcherMassDriverForwardAcceleration'].value, gravityAtLauncherLocation).normalize()
+      const worldFace = new THREE.Vector3(0, 1, 0) // capsule pivot supplies the time-dependent load alignment
       const a1 = modelUp.clone().normalize()
       const a2 = modelFace.clone().projectOnPlane(a1).normalize()
       const a3 = new THREE.Vector3().crossVectors(a1, a2)
@@ -313,6 +314,7 @@ export class launchVehicleModel {
             scaleFactorVector.y / scaleFactorVector.z)
           for (let i = 0; i < figureCount; i++) {
             const pod = new THREE.Group()
+            pod.name = 'CrewCapsule'
             pod.position.set(0, baseForward + (i - (figureCount - 1) / 2) * forwardSpacing, 0)
             pod.add(figures[i % 2].clone())
             pod.add(new THREE.Mesh(containerGeometry, containerMaterial))
@@ -385,7 +387,7 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
   // Parameters that change the procedurally generated vehicle model (offsets/spacing only affect placement).
   static signatureOf(dParamWithUnits) {
     return parameterSignature(dParamWithUnits,
-      ['launchVehicle', 'launchSystem', 'launchFromPlanet', 'showLaunchVehiclePointLight', 'launcherMassDriverForwardAcceleration'],
+      ['launchVehicle', 'launchSystem', 'launchFromPlanet', 'showLaunchVehiclePointLight', 'launchVehicleMassDriverForwardAcceleration'],
       ['Spacing', 'Offset', 'CameraRange', 'Mass', 'Thrust', 'FlowRate', 'Exhaust', 'Desired', 'Drag', 'TipRadius', 'Plasma', 'ChamberPressure'])
   }
 
@@ -474,5 +476,12 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
     const { pointLight: pointlight_model } = om._parts
 
     if (pointlight_model) pointlight_model.visible = v.showLaunchVehiclePointLight
+    // Figures arrive asynchronously, including on models already in use.
+    om._crewRoot ??= om.getObjectByName('Crews')
+    if (om._crewRoot) {
+      const force = specificForceAt(frame.f.curve, frame.f.t, v.planetSpec)
+      const load = capsuleLoad(force, frame.orientation)
+      om._crewRoot.children.forEach(pod => pod.quaternion.copy(load.orientation))
+    }
   }
 }
