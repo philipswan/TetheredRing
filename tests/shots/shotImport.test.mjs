@@ -1245,3 +1245,102 @@ test('window regeneration continues only when requested and assembles after unfi
     })
   }
 })
+
+test('legacy shots reset new chart settings to the preset instead of inheriting another project', async () => {
+  const { ParameterStore } = await import('../../src/params/ParameterStore.js')
+  const { createParameterDefinitions } = await import('../../src/params/parameterDefinitions.js')
+  const store = new ParameterStore(createParameterDefinitions())
+  const presetParameters = store.snapshot()
+  store.set('showGrapplerAngleVersusTime', true)
+  store.set('chartStartTime', 137)
+  store.set('chartLeft', 44)
+  store.set('chartHiddenCurves', '["IFT8 Starship Angle"]')
+  const shots = controller()
+  let applied = false
+  shots.app = { store, presetParameters, applyAllParameters() { applied = true }, setAnimationState() {}, stopInteractiveAnimations() {} }
+  shots.restoreStart({ parameters: { showXYChart: true, showAltitudeVersusTime: false }, simulation: { animationState: {} } })
+  assert.ok(applied)
+  for (const key of ['showGrapplerAngleVersusTime', 'chartStartTime', 'chartLeft', 'chartHiddenCurves']) assert.equal(store.get(key), presetParameters[key])
+  assert.equal(store.get('showXYChart'), true)
+  assert.equal(store.get('showAltitudeVersusTime'), false)
+})
+
+test('Apply chart settings updates only the current shot chart parameters and schedules recovery', async () => {
+  const { ParameterStore } = await import('../../src/params/ParameterStore.js')
+  const { createParameterDefinitions } = await import('../../src/params/parameterDefinitions.js')
+  const store = new ParameterStore(createParameterDefinitions())
+  const shots = controller()
+  shots.shot = parseShot(shotText)
+  shots.app = { store }
+  let saves = 0
+  shots.autosave = () => { saves++ }
+  const oldCamera = structuredClone(shots.shot.camera)
+  const unrelated = shots.shot.parameters.launchVehicleMassDriverForwardAcceleration
+  store.set('launchVehicleMassDriverForwardAcceleration', unrelated + 1)
+  store.set('showXYChart', true)
+  store.set('chartLeft', 12.5)
+  store.set('chartTop', 22.5)
+  store.set('chartWidth', 45)
+  store.set('chartHeight', 35)
+  store.set('showGrapplerAngleVersusTime', true)
+  store.set('chartHiddenCurves', '["Extra telemetry"]')
+  assert.equal(shots.applyChartSettingsToShot(), true)
+  assert.equal(saves, 1)
+  for (const [key, def] of Object.entries(store.definitions)) {
+    if (def.folder === 'Chart') assert.equal(shots.shot.parameters[key], store.get(key), key)
+  }
+  assert.equal(shots.shot.parameters.launchVehicleMassDriverForwardAcceleration, unrelated)
+  assert.deepEqual(shots.shot.camera, oldCamera)
+  assert.equal(shots.applyChartSettingsToShot(), false)
+  assert.equal(saves, 1)
+  const previous = shots.shot
+  shots.shot = parseShot(shotText)
+  shots.shot.project = { id: 'different-project' }
+  store.set('chartWidth', 60)
+  shots.applyChartSettingsToShot()
+  assert.equal(previous.parameters.chartWidth, 45)
+  assert.equal(shots.shot.parameters.chartWidth, 60)
+})
+
+test('chart preview and camera updates stay separate until Apply chart settings is clicked', async t => {
+  const { ParameterStore } = await import('../../src/params/ParameterStore.js')
+  const { createParameterDefinitions } = await import('../../src/params/parameterDefinitions.js')
+  const store = new ParameterStore(createParameterDefinitions())
+  const shots = controller()
+  shots.shot = parseShot(shotText)
+  shots.shot.camera.keyframes = [shots.shot.camera.keyframes[0]]
+  shots.shot.parameters.showXYChart = false
+  store.restore(shots.shot.parameters)
+  const view = { position: [1, 2, 3], target: [4, 5, 6], up: [0, 1, 0], orbitUp: [0, 1, 0] }
+  shots.app = { store, presetId: shots.shot.preset, camera3d: { fov: 50 }, clock: { time: 42 }, getAnimationState: () => shots.shot.simulation.animationState, applyAllParameters() {}, setAnimationState() {}, stopInteractiveAnimations() {} }
+  shots.resolver = { localizeKey(key, pose) { Object.assign(key, structuredClone(pose)) } }
+  shots.currentWorldPose = () => view
+  shots.revision = 0
+  shots.emit = () => {}
+  shots.autosave = () => {}
+  let saved
+  globalValue(t, 'localStorage', { setItem(key, value) { saved = value } })
+  const layout = { showXYChart: true, chartLeft: 18, chartTop: 12, chartWidth: 46, chartHeight: 38 }
+  const baseline = structuredClone(shots.shot.parameters)
+  for (const [key, value] of Object.entries(layout)) store.set(key, value)
+  shots.selectKeyframe(0)
+  shots.updateKeyframeFromView()
+  shots.writeAutosave()
+  const cameraOnly = parseShot(saved)
+  for (const key of Object.keys(layout)) assert.equal(cameraOnly.parameters[key], baseline[key])
+  shots.syncShotFromApp()
+  for (const key of Object.keys(layout)) assert.equal(shots.shot.parameters[key], baseline[key])
+  shots.applyChartSettingsToShot()
+  shots.writeAutosave()
+  const recovered = parseShot(saved)
+  assert.equal(recovered.camera.keyframes.length, 1)
+  assert.equal(recovered.camera.keyframes[0].fov, 50)
+  assert.deepEqual(recovered.camera.keyframes[0].position, view.position)
+  for (const [key, value] of Object.entries(layout)) assert.equal(recovered.parameters[key], value)
+  store.set('showXYChart', false)
+  store.set('chartWidth', 80)
+  shots.syncShotFromApp()
+  for (const [key, value] of Object.entries(layout)) assert.equal(shots.shot.parameters[key], value)
+  shots.restoreStart(recovered)
+  for (const [key, value] of Object.entries(layout)) assert.equal(store.get(key), value)
+})

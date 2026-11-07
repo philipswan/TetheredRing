@@ -592,3 +592,47 @@ html, body {
 .ss-still-caption {
   color: #ccd;
 }
+
+/* Interaction targets align with the chart texture; the WebGL chart itself is recorded. */
+/* Layout handles stay above scene readouts and below the main control panels. */
+.lil-gui.root.autoPlace { z-index: 1002; }
+.chart-controls { position: fixed; z-index: 1001; pointer-events: none; container-type: inline-size; }
+.chart-controls[hidden] { display: none; }
+.chart-toolbar { z-index: 4; position: absolute; right: 12px; top: 10px; display: flex; gap: 6px; }
+.chart-toolbar button, .chart-picker button { color: #dceaf5; background: #263749; border: 1px solid #61788c; border-radius: 5px; padding: 3px 8px; font: inherit; cursor: pointer; }
+.chart-toolbar button { pointer-events: auto; font-size: 11px; }
+.chart-range-handle { position: absolute; bottom: 12px; height: 27px; width: 20px; border: 0; background: transparent; pointer-events: auto; cursor: ew-resize; touch-action: none; }
+.chart-range-handle:focus-visible { outline: 2px solid #fff; border-radius: 3px; }
+.chart-range-pan { cursor: grab; }
+.chart-range-pan:active { cursor: grabbing; }
+.chart-picker { width: min(610px, 86vw); max-height: 80vh; box-sizing: border-box; color: #e6edf5; background: #131f2e; border: 1px solid #62768c; border-radius: 12px; padding: 20px; }
+.chart-picker::backdrop { background: rgba(0, 0, 0, 0.4); }
+.chart-picker-heading, .chart-picker-actions { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.chart-picker-heading strong { font-size: 18px; }
+.chart-picker p { color: #b2c1d2; }
+.chart-picker input[type=search] { box-sizing: border-box; width: 100%; padding: 9px; color: #eef5ff; background: #0c1521; border: 1px solid #62768c; border-radius: 5px; font: inherit; }
+.chart-picker-actions { margin: 12px 0; font-size: 12px; }
+.chart-picker-list { max-height: 44vh; overflow-y: auto; }
+.chart-picker-list label { display: flex; align-items: center; gap: 10px; padding: 8px 3px; cursor: pointer; }
+.chart-picker-list label:hover { background: #213247; }
+.chart-picker-list input { accent-color: #9cd6ff; }
+.chart-picker-list small { color: #a9bdce; margin-left: auto; }
+.chart-swatch { width: 25px; flex-shrink: 0; border-top: 2px solid; }
+
+.chart-move-handle { position: absolute; z-index: 1; left: 8px; right: 8px; top: 8px; height: 40px; background: transparent; border: 0; color: #aec5d9; text-align: left; pointer-events: auto; cursor: grab; touch-action: none; user-select: none; }
+.chart-move-grip { position: absolute; left: 3px; top: 0; font-size: 21px; line-height: 24px; }
+.chart-move-hint { position: absolute; left: 172px; top: 5px; font: 11px system-ui, sans-serif; }
+@container (max-width: 500px) { .chart-move-hint { display: none; } }
+.chart-controls[data-editing] { outline: 1px solid #b5dff7; border-radius: 10px; }
+.chart-controls[data-editing=move] .chart-move-handle { cursor: grabbing; }
+.chart-resize-handle { position: absolute; z-index: 2; background: transparent; border: 0; padding: 0; pointer-events: auto; touch-action: none; }
+.chart-move-handle:focus-visible, .chart-resize-handle:focus-visible { outline: 2px solid #b5dff7; border-radius: 4px; }
+.chart-resize-n, .chart-resize-s { left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+.chart-resize-e, .chart-resize-w { top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+.chart-resize-n { top: 0; } .chart-resize-s { bottom: 0; }
+.chart-resize-e { right: 0; } .chart-resize-w { left: 0; }
+.chart-resize-ne, .chart-resize-nw, .chart-resize-se, .chart-resize-sw { width: 18px; height: 18px; }
+.chart-resize-ne { right: 0; top: 0; cursor: nesw-resize; }
+.chart-resize-nw { left: 0; top: 0; cursor: nwse-resize; }
+.chart-resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+.chart-resize-se { right: 0; bottom: 0; width: 24px; height: 24px; cursor: nwse-resize; color: #b5dff7; font: 22px/24px system-ui, sans-serif; }

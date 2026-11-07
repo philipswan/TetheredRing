@@ -17,17 +17,6 @@ export class Overlays {
 
     this.xyChart = new XYChart()
     const chart = this.xyChart
-    chart.setWidth(1000)
-    chart.setHeight(600)
-    chart.setMinX(0)
-    chart.setMinY(0)
-    chart.setMaxX(300)
-    chart.setMaxY(160)
-    chart.setMajorX(100)
-    chart.setMajorY(10)
-    chart.setMinorX(10)
-    chart.setMinorY(10)
-    chart.setLegendPosition(1600 - 400, 0)
     chart.name = 'xyChart'
     this.scene.add(chart)
   }
@@ -69,13 +58,21 @@ export class Overlays {
       this.logoSprite.position.set(-width / 2 + s.x / 2, height / 2 - s.y / 2, 1)
       this.logoSprite.visible = this.logoVisible
     }
-    xyChart.position.set(-width / 2 + 0.15 * xyChart.width / 2, height / 2 - 1.15 * xyChart.height, 1)
+    const p = this.chartParams
+    const cw = width * (p?.chartWidth.value ?? 66) / 100
+    const ch = height * (p?.chartHeight.value ?? 46) / 100
+    const x = Math.max(0, Math.min(width - cw, width * (p?.chartLeft.value ?? 32) / 100))
+    const y = Math.max(0, Math.min(height - ch, height * (p?.chartTop.value ?? 52) / 100))
+    xyChart.setSize(cw, ch)
+    xyChart.position.set(-width / 2 + x, height / 2 - y, 1)
+    this.chartRect = { x, y, width: cw, height: ch }
   }
 
-  redrawChartFrame() {
-    this.xyChart.drawAxes()
-    this.xyChart.drawGridlines()
-    this.xyChart.labelAxes('Time (s)', '')
+  configureChart(params) {
+    this.chartParams = params
+    this.xyChart.visible = params.showXYChart.value
+    this.xyChart.configure(params)
+    this.layout()
   }
 
   render(renderer) {

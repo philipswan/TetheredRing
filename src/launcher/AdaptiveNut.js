@@ -507,6 +507,49 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
     return { f, position, centre, forward, upward, rightward, orientation }
   }
 
+  // Shared by model placement and telemetry: no approximate switchover formulas in the chart.
+  static grapplerStateAt(distanceToSledAft, additionalRotation, deltaT, launchTurn, onScrews, speed) {
+    const v = virtualAdaptiveNut
+    const numGrapplers = v.adaptiveNutNumGrapplers
+    const firstGrapplerDistance = (v.adaptiveNutBodyLength - v.adaptiveNutGrapplerLength) / 2
+    const grapplerSpacing = numGrapplers > 0 ? v.adaptiveNutGrapplerLength / numGrapplers : 0
+    const makeInfo = (distance, rotation, side) => v.placementInfo(distance, rotation, side)
+    const facePlan = v.facePlan(launchTurn)
+    const info = makeInfo(distanceToSledAft, additionalRotation, facePlan ? -1 : tram.screwContactSide(v.motion, distanceToSledAft))
+    const front = facePlan ? makeInfo(distanceToSledAft, additionalRotation, 1) : null
+    info.nutSpeed = speed
+    const plan = onScrews && v.sequencingMode === grapplerSequencingModes.Scheduled
+      ? v.gripPlan(launchTurn)
+      : null
+    const grapplerOffset = []
+    const grapplerPoses = []
+    const grapplerThreadPitch = []
+    const grapplerThreadStarts = []
+    const grapplerFaceMix = []
+    for (let i = 0, grapplerDistance = firstGrapplerDistance; i<numGrapplers; i++, grapplerDistance += grapplerSpacing) {
+      info.generatePlacementInfo(grapplerDistance, v.adaptiveNutGrapplerRangeFactor)
+      const mix = facePlan ? facePlan.state(i, deltaT).mix : info.contactSide > 0 ? 1 : 0
+      if (front) {
+        front.generatePlacementInfo(grapplerDistance, v.adaptiveNutGrapplerRangeFactor)
+        blendGrapplerPlacement(info, front, mix)
+      }
+      grapplerFaceMix[i] = mix
+      // Which flight it grips, or where it is in a hop between them (grapplerPlacement.js selects the
+      // sequencing algorithm); off the screws, parked.
+      info.alpha = followingAngle(info)
+      grapplerPoses[i] = onScrews
+        ? grapplerPose(v.sequencingMode, { info, i, deltaT, plan, switchoverTime: v.switchoverTime, padLiftPortion: v.padLiftPortion, padTwistPortion: v.padTwistPortion }, {})
+        : { lift: 1, raise: 1, neutral: 1, alpha: 0, attached: false }
+      if (onScrews && facePlan) grapplerPoses[i] = facePlan.pose(i, deltaT, grapplerPoses[i])
+      grapplerOffset[i] = info.offset
+      grapplerThreadPitch[i] = info.threadPitch
+      grapplerThreadStarts[i] = info.threadStarts
+    }
+    if (facePlan) facePlan.assertSupport(deltaT, grapplerPoses)
+
+    return { info, grapplerOffset, grapplerPoses, grapplerThreadPitch, grapplerThreadStarts, grapplerFaceMix }
+  }
+
   placeAndOrientModel(om, refFrame) {
     const v = virtualAdaptiveNut
     om.visible = v.isVisible
@@ -572,39 +615,8 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
     const onScrews = (layout.flightsAt(distanceToSledAft + initialDistance) > 0) && !frame.f.egress && ((relevantCurve.name=='massDriver1Curve') || (relevantCurve.name=='massDriver2Curve') || (relevantCurve.name==='launchRampCurve0' && !frame.f.fallingBack))
     const speed = v.motion ? screwStateAtDistance(v.motion, distanceToSledAft).v : Math.sqrt(Math.max(1, initialVelocity**2 + 2 * acceleration * Math.max(0, distanceToSledAft)))
     const launchTurn = (((this.timeLaunched * screwRevolutionsPerSecond) % 1) + 1) % 1
-    const facePlan = v.facePlan(launchTurn)
-    const info = makeInfo(distanceToSledAft, additionalRotation, facePlan ? -1 : tram.screwContactSide(v.motion, distanceToSledAft))
-    const front = facePlan ? makeInfo(distanceToSledAft, additionalRotation, 1) : null
-    info.nutSpeed = speed
-    const plan = onScrews && v.sequencingMode === grapplerSequencingModes.Scheduled
-      ? v.gripPlan(launchTurn)
-      : null
-    const grapplerOffset = []
-    const grapplerPoses = []
-    const grapplerThreadPitch = []
-    const grapplerThreadStarts = []
-    const grapplerFaceMix = []
-    for (let i = 0, grapplerDistance = firstGrapplerDistance; i<numGrapplers; i++, grapplerDistance += grapplerSpacing) {
-      info.generatePlacementInfo(grapplerDistance, v.adaptiveNutGrapplerRangeFactor)
-      const mix = facePlan ? facePlan.state(i, deltaT).mix : info.contactSide > 0 ? 1 : 0
-      if (front) {
-        front.generatePlacementInfo(grapplerDistance, v.adaptiveNutGrapplerRangeFactor)
-        blendGrapplerPlacement(info, front, mix)
-      }
-      grapplerFaceMix[i] = mix
-      // Which flight it grips, or where it is in a hop between them (grapplerPlacement.js selects the
-      // sequencing algorithm); off the screws, parked.
-      info.alpha = followingAngle(info)
-      grapplerPoses[i] = onScrews
-        ? grapplerPose(v.sequencingMode, { info, i, deltaT, plan, switchoverTime: v.switchoverTime, padLiftPortion: v.padLiftPortion, padTwistPortion: v.padTwistPortion }, {})
-        : { lift: 1, raise: 1, neutral: 1, alpha: 0, attached: false }
-      if (onScrews && facePlan) grapplerPoses[i] = facePlan.pose(i, deltaT, grapplerPoses[i])
-      grapplerOffset[i] = info.offset
-      grapplerThreadPitch[i] = info.threadPitch
-      grapplerThreadStarts[i] = info.threadStarts
-    }
-    if (facePlan) facePlan.assertSupport(deltaT, grapplerPoses)
-
+    const { info, grapplerOffset, grapplerPoses, grapplerThreadPitch, grapplerThreadStarts, grapplerFaceMix } =
+      v.grapplerStateAt(distanceToSledAft, additionalRotation, deltaT, launchTurn, onScrews, speed)
 
     // Regenerate the pad geometry deterministically: the key depends only on the nut's speed (a pure
     // function of time), contact face, and acceleration/braking branch. Geometry is built at the

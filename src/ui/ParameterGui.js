@@ -1,6 +1,6 @@
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js'
 
-const FOLDER_ORDER = ['Geography', 'Engineering', 'Launcher', 'Rocket', 'Grapplers', 'Materials', 'Economics', 'Rendering', 'Camera', 'TextOutput']
+const FOLDER_ORDER = ['Geography', 'Engineering', 'Launcher', 'Rocket', 'Grapplers', 'Materials', 'Economics', 'Rendering', 'Chart', 'Camera', 'TextOutput']
 const FOLDER_TITLES = { Geography: 'Location' }
 
 // Builds the lil-gui panel for a ParameterStore. When a control changes, the parameter's `onChange`
@@ -14,7 +14,12 @@ export class ParameterGui {
     this.folders = {}
     for (const name of FOLDER_ORDER) this.folder(name)
 
-    for (const [key, def] of Object.entries(store.definitions)) {
+    // Put the chart's enable switch ahead of its telemetry duration and layout settings.
+    const entries = Object.entries(store.definitions)
+    entries.sort(([a], [b]) => Number(b === 'showXYChart') - Number(a === 'showXYChart'))
+    for (const [key, def] of entries) {
+      if (def.hidden) continue
+      if (def.folder === 'Chart' && key.endsWith('VersusTime')) continue
       const folder = this.folder(def.folder ?? 'Rendering')
       let controller
       if (def.options) {
@@ -26,7 +31,13 @@ export class ParameterGui {
       else {
         controller = folder.add(store.values, key, def.min, def.max, def.step)
       }
+      if (def.label) controller.name(def.label)
+      if (key === 'showXYChart') controller.name('Show chart')
+      if (key === 'launcherXyChartMaxT') controller.name('Telemetry duration (s)')
       controller.onChange(() => this.dispatch(key))
+      if (key === 'showXYChart' && handlers.applyChartSettingsToShot) {
+        folder.add({ apply: handlers.applyChartSettingsToShot }, 'apply').name('Apply chart settings to shot')
+      }
     }
   }
 

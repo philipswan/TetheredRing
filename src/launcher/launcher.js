@@ -1,3 +1,4 @@
+import { GRAPPLER_CURVES, grapplerTelemetry } from './grapplerTelemetry.js'
 import { screwStateAtDistance } from './rampMotion.js'
 import * as THREE from 'three'
 //import { XYChart } from '../scene/XYChart.js'
@@ -773,7 +774,13 @@ export class launcher {
 
     this.glow.configure(this.effectiveParams(dParamWithUnits), planetSpec)
 
-    // Update 2D chart
+    // Re-sample on range or engineering changes, only when grappler curves are selected.
+    this.xyChart.setProvider('grapplers', GRAPPLER_CURVES, (start, end) => {
+      const data = massDriverMode ? grapplerTelemetry(virtualAdaptiveNut, start, end, this.timeWithinFeederRail) : GRAPPLER_CURVES.map(() => [])
+      GRAPPLER_CURVES.forEach((name, i) => this.xyChart.addCurve(name, ['%', 'degrees', 'm', 'm'][i], data[i]))
+    })
+    this.chartTime = time => virtualAdaptiveNut.adjustedTime(time)
+    this.xyChart.configure(dParamWithUnits)
     this.xyChart.visible = dParamWithUnits['showXYChart'].value
 
   }

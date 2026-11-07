@@ -6,6 +6,7 @@ import { SimClock } from '../core/SimClock.js'
 import { ParameterStore } from '../params/ParameterStore.js'
 import { createParameterDefinitions } from '../params/parameterDefinitions.js'
 import { applyPreset, DEFAULT_PRESET_ID, findPreset, PRESETS } from '../presets/presets.js'
+import { ChartControls } from '../ui/ChartControls.js'
 import { ParameterGui } from '../ui/ParameterGui.js'
 import { createRenderer } from '../scene/createRenderer.js'
 import { Lighting } from '../scene/lighting.js'
@@ -188,7 +189,7 @@ export class App {
     if (this.d.showLogo.value) this.overlays.loadLogo('./textures/TransparentLogo.png')
     this.overlays.setLogoVisible(this.d.showLogo.value)
     this.overlays.setChartVisible(this.d.showXYChart.value)
-    this.overlays.redrawChartFrame()
+    this.updateChart()
     this.highlights = new Highlights()
     this.highlights.configure(this.d)
 
@@ -493,6 +494,7 @@ export class App {
 
   buildGui() {
     this.gui = new ParameterGui(this.store, this.parameterHandlers())
+    this.chartControls = new ChartControls(this)
     const gui = this.gui.gui
 
     const sceneFolder = gui.addFolder('Scene').close()
@@ -571,7 +573,8 @@ export class App {
       adjustTetherOpacity: () => this.ring.setTetherUniforms(),
       adjustStructureGlow: visibility((p) => StructureLines.setGlowDistance(p.structureGlowDistance.value)),
       adjustHighlights: visibility((p) => this.highlights.configure(p)),
-      updateXYChart: visibility((p) => this.overlays.setChartVisible(p.showXYChart.value)),
+      updateXYChart: () => this.updateChart(),
+      applyChartSettingsToShot: () => this.shots?.applyChartSettingsToShot(),
       updateLogoSprite: visibility((p) => this.overlays.setLogoVisible(p.showLogo.value)),
       updateCamerFieldOfView: visibility((p) => { this.camera3d.fov = p.cameraFieldOfView.value; this.camera3d.updateProjectionMatrix() }),
       resizeTrackingMarkers: () => {},
@@ -616,12 +619,23 @@ export class App {
     this.shots?.onSceneChanged()
   }
 
+  updateChart() {
+    this.overlays.configureChart(this.d)
+    const chart = this.overlays.xyChart
+    this.store.set('chartStartTime', chart.minX)
+    this.store.set('chartEndTime', chart.maxX)
+    this.store.derive()
+    this.gui?.refresh()
+    this.chartControls?.refresh()
+    this.shots?.onSceneChanged()
+  }
+
   updateLauncher() {
     if (!this.launchSystem) return
     const r = this.ring
     this.launchSystem.update(this.d, this.clock.time, this.planetCoordSys, this.planetSpec, r.refCoordSys, r.mainRingCurve, r.crv, this.specs, false, '')
     this.launchSystem.drawLaunchTrajectoryLine(this.d, this.planetCoordSys)
-    this.shots?.onSceneChanged()
+    this.updateChart()
   }
 
   recomputeLaunchTrajectory({ curvesOnly = false } = {}) {
@@ -1022,6 +1036,8 @@ export class App {
     // The highlighted classes, over everything (nothing to do while all are off).
     this.highlights.render(renderer, this.scene, this.camera3d)
     renderer.clearDepth()
+    this.overlays.xyChart.update(this.launchSystem?.chartTime?.(this.clock.time) ?? this.clock.time)
+    this.chartControls?.layout()
     this.overlays.render(renderer)
     this.quality.endGpuFrame()
     if ((this._framesRendered = (this._framesRendered ?? 0) + 1) % PRECOMPILE_INTERVAL === 1) this.precompileShaders()

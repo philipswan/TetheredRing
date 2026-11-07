@@ -918,6 +918,25 @@ export class ShotController {
     return recorder
   }
 
+  // Explicitly apply the preview chart to the current shot. Editing controls alone leaves the
+  // shot baseline intact, including during camera updates, autosave, export and render setup.
+  applyChartSettingsToShot() {
+    if (!this.shot || this.busy) return false
+    let changed = false
+    for (const [key, def] of Object.entries(this.app.store.definitions)) {
+      if (def.folder !== 'Chart') continue
+      const value = this.app.store.get(key)
+      if (!Object.is(this.shot.parameters[key], value)) {
+        this.shot.parameters[key] = value
+        changed = true
+      }
+    }
+    // Chart edits do not change camera timing or paths, so they need no keyframe UI rebuild.
+    if (changed) this.autosave()
+    this.setStatus(changed ? 'Chart settings applied to shot. Save to update the external shot file.' : 'The shot already uses these chart settings.')
+    return changed
+  }
+
   // Brings the shot's record of the scene up to date: the parameters (including the sun) and
   // animation state as they are now, which is what the shot is being edited against.
   syncShotFromApp() {
@@ -927,7 +946,14 @@ export class ShotController {
     output.width = evenDimension(output.width)
     output.height = evenDimension(output.height)
     shot.preset = app.presetId
-    shot.parameters = app.store.snapshot()
+    const parameters = app.store.snapshot()
+    // Saving or rendering must not silently apply a chart that the user is only previewing.
+    for (const [key, def] of Object.entries(app.store.definitions)) {
+      if (def.folder !== 'Chart') continue
+      if (Object.hasOwn(shot.parameters, key)) parameters[key] = shot.parameters[key]
+      else delete parameters[key]
+    }
+    shot.parameters = parameters
     shot.simulation.animationState = app.getAnimationState()
   }
 
@@ -1925,8 +1951,14 @@ export class ShotController {
   restoreStart(shot) {
     const app = this.app
     const current = app.store.snapshot()
-    const changed = Object.keys(shot.parameters).some(k => !Object.is(shot.parameters[k], current[k]))
-    const unknown = app.store.restore(shot.parameters)
+    // Older shots lack the chart's new settings. Start those from the preset, rather than
+    // carrying a different project's curve selections or layout into this project.
+    const parameters = { ...shot.parameters }
+    for (const [key, def] of Object.entries(app.store.definitions ?? {})) {
+      if (def.folder === 'Chart' && !Object.hasOwn(parameters, key) && Object.hasOwn(app.presetParameters ?? {}, key)) parameters[key] = app.presetParameters[key]
+    }
+    const changed = Object.keys(parameters).some(k => !Object.is(parameters[k], current[k]))
+    const unknown = app.store.restore(parameters)
     if (unknown.length) console.warn('Shot contains parameters this version does not know:', unknown)
     if (changed) app.applyAllParameters()
     app.setAnimationState(shot.simulation.animationState)

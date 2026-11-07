@@ -71,7 +71,7 @@ export function defineUpdateTrajectoryCurvesRocket () {
       Ae: Math.PI * rocketSeaLevelEngineRadius**2,          // Nozzle exit area (m^2)
       Tc: 3500,         // Chamber temperature (K)
       gamma: 1.22,      // Heat capacity ratio
-      R: 8.314,         // Universal gas constant (J/(mol·K))
+      R: 8.314,         // Universal gas constant (J/(molÂ·K))
       M: 0.023,         // Molar mass of exhaust gas (kg/mol) (e.g., CH4/LOX)
       mdot_max: rocketSeaLevelEnginePropellantFlowRate,    // Peak mass flow rate (kg/s)
       ve_max: rocketExhaustVelocitySLEngAtSeaLevel,        // Peak exhaust velocity (m/s)
@@ -367,160 +367,38 @@ export function defineUpdateTrajectoryCurvesRocket () {
     this.freeFlightPositionCurve.freeFlightOrientationCurve = this.freeFlightOrientationCurve
     this.freeFlightPositionCurve.freeFlightTelemetryCurve = this.freeFlightTelemetryCurve
 
-    if (dParamWithUnits['showForwardAccelerationVersusTime'].value) { 
-      this.xyChart.removeCurve("Forward Acceleration")
-      this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, (y)=>y*1, 0xff0000, "Bright Red", "Forward Acceleration (m/s2)")
-    }
-    
-    if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) {
-      this.xyChart.removeCurve("Upward Acceleration")
-      this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, (y)=>y*1, 0x00ff00, "Bright Green", "Upward Acceleration (m/s2)")
-    }
-    
-    if (dParamWithUnits['showAltitudeVersusTime'].value)  {
-      this.xyChart.removeCurve("Altitude")
-      this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, (y)=>y*0.001, 0x80ff00, "Bright Lime", "Altitude (km)")
-    }
-    
-    const airPressureAtSeaLevel = planetSpec.airPressureAtAltitude(0)
-    if (dParamWithUnits['showAirPressureVersusTime'].value) {
-      this.xyChart.removeCurve("Air Pressure")
-      this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, (y)=>y*100/airPressureAtSeaLevel, 0xff8000, "Bright Orange", "Air Pressure (% of sea level)")
-    }
-    
-    if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) {
-      this.xyChart.removeCurve("Downrange Distance")
-      this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, (y)=>y*.00001, 0xff00ff, "Bright Magenta", "Downrange Distance (100's of km)")
-    }
-    
-    if (dParamWithUnits['showAirSpeedVersusTime'].value) {
-      this.xyChart.removeCurve("Air Speed")
-      this.xyChart.addCurve("Air Speed", "m/s", "100's m/s", airSpeedVersusTimeData, (y)=>y*0.01, 0x00ffff, "Bright Cyan", "Air Speed (100's m/s)")
-    }
-    
-    if (dParamWithUnits['showAerodynamicDragVersusTime'].value) {
-      this.xyChart.removeCurve("Aerodynamic Drag")
-      this.xyChart.addCurve("Aerodynamic Drag", "N", "100's of kN", aerodynamicDragVersusTimeData, (y)=>y*0.00001, 0xff00ff, "Bright Magenta", "Aerodynamic Drag (100's of kN)")
-    }
-    
-    if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) {
-      this.xyChart.removeCurve("Propellant Mass Flow Rate")
-      this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "1000's of kg/s", propellantMassFlowRateVersusTimeData, (y)=>y*0.001, 0x00ff80, "Bright Teal", "Propellant Mass Flow Rate (1000's of kg/s)")
-    }
-    
-    if (dParamWithUnits['showTotalMassVersusTime'].value) {
-      this.xyChart.removeCurve("Vehicle Mass")
-      this.xyChart.addCurve("Vehicle Mass", "kg", "100000's of kg", totalMassVersusTimeData, (y)=>y*1e-5, 0xff007f, "Bright Pink", "Vehicle Mass (100000's of kg)")
-    }
+    // Store physical telemetry independently of which curves are currently selected.
+    const orbitalAltitudeData = [new THREE.Vector3(0, planetRadius + rocketDesiredOrbitalAltitude, 0), new THREE.Vector3(700, planetRadius + rocketDesiredOrbitalAltitude, 0)]
+    this.xyChart.addCurve("Forward Acceleration", "m/s2", forwardAccelerationVersusTimeData)
+    this.xyChart.addCurve("Upward Acceleration", "m/s2", upwardAccelerationVersusTimeData)
+    this.xyChart.addCurve("Altitude", "m", altitudeVersusTimeData)
+    this.xyChart.addCurve("Air Pressure", "Pa", airPressureVersusTimeData)
+    this.xyChart.addCurve("Downrange Distance", "m", downrangeDistanceVersusTimeData)
+    this.xyChart.addCurve("Air Speed", "m/s", airSpeedVersusTimeData)
+    this.xyChart.addCurve("Aerodynamic Drag", "N", aerodynamicDragVersusTimeData)
+    this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", propellantMassFlowRateVersusTimeData)
+    this.xyChart.addCurve("Vehicle Mass", "kg", totalMassVersusTimeData)
+    this.xyChart.addCurve("Booster CH4 Mass", "kg", boosterCH4MassVersusTimeData)
+    this.xyChart.addCurve("Booster LOX Mass", "kg", boosterLOXMassVersusTimeData)
+    this.xyChart.addCurve("Ship CH4 Mass", "kg", shipCH4MassVersusTimeData)
+    this.xyChart.addCurve("Ship LOX Mass", "kg", shipLOXMassVersusTimeData)
+    this.xyChart.addCurve("Orbital Apogee Altitude", "m", apogeeAltitudeVersusTimeData)
+    this.xyChart.addCurve("Orbital Perigee Distance", "m", perigeeAltitudeVersusTimeData)
+    this.xyChart.addCurve("Close Apsis", "m", closeApsisVersusTimeData)
+    this.xyChart.addCurve("Far Apsis", "m", farApsisVersusTimeData)
+    this.xyChart.addCurve("Orbital Altitude", "m", orbitalAltitudeData)
+    this.xyChart.addCurve("Delta-V", "m/s", deltaVVersusTimeData)
+    this.xyChart.addCurve("Orientation Correction", "rad", orientationCorrectionVersusTimeData)
+    this.xyChart.addCurve("Angular Momentum Vector", "m2/s", angularMomentumVectorVersusTimeData)
+    this.xyChart.addCurve("Eccentricity", "", eccentricityVersusTimeData)
+    this.xyChart.addCurve("Right Ascension Of Ascending Node", "rad", simResults.rightAscensionOfAscendingNodeVersusTimeData)
+    this.xyChart.addCurve("Inclination", "rad", inclinationVersusTimeData)
+    this.xyChart.addCurve("Argument Of Perigee", "rad", argumentOfPerigeeVersusTimeData)
+    this.xyChart.addCurve("True Anomaly", "rad", trueAnomalyVersusTimeData)
+    this.xyChart.addCurve("Semimajor Axis", "m", semimajorAxisVersusTimeData)
+    this.xyChart.addCurve("Predicted Altitude", "m", predictedAltitudeVersusTime)
 
-    if (dParamWithUnits['showBoosterCH4MassVersusTime'].value) {
-      this.xyChart.removeCurve("Booster CH4 Mass")
-      this.xyChart.addCurve("Booster CH4 Mass", "kg", "1000's of kg", boosterCH4MassVersusTimeData, (y)=>y*0.00005, 0x00ff80, "Bright Teal", "Booster CH4 Mass (20000's of kg)")
-    }
-
-    if (dParamWithUnits['showBoosterLOXMassVersusTime'].value) {
-      this.xyChart.removeCurve("Booster LOX Mass")
-      this.xyChart.addCurve("Booster LOX Mass", "kg", "1000's of kg", boosterLOXMassVersusTimeData, (y)=>y*0.00005, 0xff007f, "Bright Pink", "Booster LOX Mass (20000's of kg)")
-    }
-
-    if (dParamWithUnits['showShipCH4MassVersusTime'].value) {
-      this.xyChart.removeCurve("Ship CH4 Mass")
-      this.xyChart.addCurve("Ship CH4 Mass", "kg", "1000's of kg", shipCH4MassVersusTimeData, (y)=>y*0.00005, 0x00ff80, "Bright Teal", "Ship CH4 Mass (20000's of kg)")
-    }
-
-    if (dParamWithUnits['showShipLOXMassVersusTime'].value) {
-      this.xyChart.removeCurve("Ship LOX Mass")
-      this.xyChart.addCurve("Ship LOX Mass", "kg", "1000's of kg", shipLOXMassVersusTimeData, (y)=>y*0.00005, 0xff007f, "Bright Pink", "Ship LOX Mass (20000's of kg)")
-    }
-    
-    if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) {
-      this.xyChart.removeCurve("Orbital Apogee Altitude")
-      this.xyChart.addCurve("Orbital Apogee Altitude", "m", "100's km", apogeeAltitudeVersusTimeData, (y)=>y*1e-5, 0x0000ff, "Bright Blue", "Orbital Apogee Altitude (100's km)")
-    }
-    
-    if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) {
-      this.xyChart.removeCurve("Orbital Perigee Distance")
-      this.xyChart.addCurve("Orbital Perigee Distance", "m", "100's km", perigeeAltitudeVersusTimeData, (y)=>y*1e-5, 0xffc000, "Bright Golden", "Orbital Perigee Distance (100's km)")
-    }
-
-    if (dParamWithUnits['showCloseApsisVersusTime'].value) {
-      this.xyChart.removeCurve("Close Apsis")
-      this.xyChart.addCurve("Close Apsis", "m", "100's km", closeApsisVersusTimeData, (y)=>y*1e-5, 0x0000ff, "Bright Blue", "Close Apsis (100's km)")
-    }
-    
-    if (dParamWithUnits['showFarApsisVersusTime'].value) {
-      this.xyChart.removeCurve("Far Apsis")
-      this.xyChart.addCurve("Far Apsis", "m", "100's km", farApsisVersusTimeData, (y)=>y*1e-5, 0xffc000, "Bright Golden", "Far Apsis (100's km)")
-    }
-
-    if (dParamWithUnits['showOrbitalAltitudeVersusTime'].value) {
-      const a = planetRadius + rocketDesiredOrbitalAltitude
-      const orbitalAltitudeData = [new THREE.Vector3(0, a, 0), new THREE.Vector3(700, a, 0)]
-      this.xyChart.removeCurve("Orbital Altitude")
-      this.xyChart.addCurve("Orbital Altitude", "m", "100's km", orbitalAltitudeData, (y)=>y*1e-5, tram.tab10Colors[3].hex, tram.tab10Colors[3].name, "Orbital Altitude (100's of km)")
-    }
-    
-    //if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) {
-    //  this.xyChart.removeCurve("Convective Heating")
-    //  this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2", convectiveHeatingVersusTimeData, (y)=>y*1, 0xffff7f, "Bright Light Yellow", "Convective Heating (W/m2)")
-    // }
-    
-    //if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) {
-    //  this.xyChart.removeCurve("Convective Heating")
-    //  this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, (y)=>y*1, 0xffc080, "Bright Light Orange", "Radiative Heating (W/m2)")
-    // }
-
-    if (dParamWithUnits['showDeltaVVersusTime'].value) {
-      this.xyChart.removeCurve("Delta-V")
-      this.xyChart.addCurve("Delta-V", "m/s", "100's m/s", deltaVVersusTimeData, (y)=>y*0.01, 0xff00ff, "Bright Magenta", "Delta-V (100's m/s)")
-    }
-
-    if (dParamWithUnits['showOrientationCorrectionVersusTime'].value) {
-      this.xyChart.removeCurve("Orientation Correction")
-      this.xyChart.addCurve("Orientation Correction", "rad", "rad", orientationCorrectionVersusTimeData, (y)=>y*1, 0x0000ff, "Bright Blue", "Orientation Correction (rad)")
-    }
-
-    if (dParamWithUnits['showAngularMomentumVectorVersusTime'].value) {
-      this.xyChart.removeCurve("Angular Momentum Vector")
-      this.xyChart.addCurve("Angular Momentum Vector", "km2/s", "1000's km2/s", angularMomentumVectorVersusTimeData, (y)=>y*1e-6, 0xff00ff, "Bright Magenta", "Angular Momentum Vector (1000's km2/s)")
-    }
-
-    if (dParamWithUnits['showEccentricityVersusTime'].value) {
-      this.xyChart.removeCurve("Eccentricity")
-      this.xyChart.addCurve("Eccentricity", "", "", eccentricityVersusTimeData, (y)=>y*100, 0xff0000, "Bright Red", "Eccentricity")
-    }
-
-    if (dParamWithUnits['showRightAscensionOfAscendingNodeVersusTime'].value) {
-      this.xyChart.removeCurve("Right Ascension Of Ascending Node")
-      this.xyChart.addCurve("Right Ascension Of Ascending Node", "rad", "rad", simResults.rightAscensionOfAscendingNodeVersusTimeData, (y)=>y*1, 0x00ff00, "Bright Green", "Right Ascension Of Ascending Node (rad)")
-    }
-
-    if (dParamWithUnits['showInclinationVersusTime'].value) {
-      this.xyChart.removeCurve("Inclination")
-      this.xyChart.addCurve("Inclination", "rad", "rad", inclinationVersusTimeData, (y)=>y*100, 0xff8000, "Bright Orange", "Inclination (rad)")
-    }
-
-    if (dParamWithUnits['showArgumentOfPerigeeVersusTime'].value) {
-      this.xyChart.removeCurve("Argument Of Perigee")
-      this.xyChart.addCurve("Argument Of Perigee", "rad", "rad", argumentOfPerigeeVersusTimeData, (y)=>y*1000, 0x00ff00, "Bright Green", "Argument Of Perigee (rad)")
-    }
-
-    if (dParamWithUnits['showTrueAnomalyVersusTime'].value) {
-      this.xyChart.removeCurve("True Anomaly")
-      this.xyChart.addCurve("True Anomaly", "rad", "rad", trueAnomalyVersusTimeData, (y)=>y*10, 0xffc000, "Bright Golden", "True Anomaly (rad)")
-    }
-
-    if (dParamWithUnits['showSemimajorAxisVersusTime'].value) {
-      this.xyChart.removeCurve("Semimajor Axis")
-      this.xyChart.addCurve("Semimajor Axis", "m", "m", semimajorAxisVersusTimeData, (y)=>y*1e-5, 0x00ff00, "Bright Green", "Semimajor Axis (m)")
-    }
-
-    if (dParamWithUnits['showPredictedAltitudeVersusTime'].value) {
-      this.xyChart.removeCurve("Predicted Altitude")
-      this.xyChart.addCurve("Predicted Altitude", "m", "km", predictedAltitudeVersusTime, (y)=>y*0.001, 0xff8000, "Bright Orange", "Predicted Altitude (km)")
-    }
-    
-    this.xyChart.drawLegend(14, 22)
+    this.xyChart.drawLegend()
 
     // forwardAccelerationVersusTimeData.forEach(point => {
     //   if (point.y<0) {

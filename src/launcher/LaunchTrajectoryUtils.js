@@ -85,11 +85,6 @@ export function defineTrajectoryCurvesParametersHaveChanged() {
       'launchTrajectorySelector',
       'showStarshipIFT6Telemetry',
     ]
-    // The chart series toggles (show...VersusTime) also require the trajectory and chart to be recomputed
-    Object.keys(dParamWithUnits).forEach(key => {
-      if (key.startsWith('show') && key.endsWith('VersusTime')) paramsToCheck.push(key)
-    })
-
     for (const param of paramsToCheck) {
       const newValue = dParamWithUnits[param]?.value
       if (previousValues.has(param)) {
@@ -158,8 +153,8 @@ export function defineUpdateTrajectoryCurves () {
     const launchVehicleCoefficientOfDrag = dParamWithUnits['launchVehicleCoefficientOfDrag'].value
     const temperatureK = 20 + 273.15 // K
     const R_air = 287.05
-    const kConv = 1.83e-4  //W·s3·m-2·kg1/2
-    const kRad = 2e-7 //W·s4·m-6·kg-1
+    const kConv = 1.83e-4  //WÂ·s3Â·m-2Â·kg1/2
+    const kRad = 2e-7 //WÂ·s4Â·m-6Â·kg-1
 
     const evacuatedTubeInteriorGasDensity = evacuatedTubeInteriorPressure / (R_air * temperatureK) // kg/m3
     const launchVehicleCrossSectionalArea = Math.PI * (launchVehicleRadius**2) // m2
@@ -536,7 +531,6 @@ export function defineUpdateTrajectoryCurves () {
     let distanceTravelled
     let altitude
     let airPressureInPascals
-    const airPressureAtSeaLevel = planetSpec.airPressureAtAltitude(0)
 
     // Prep the vehicle's initial conditions
     const mVehicle = dParamWithUnits['launchVehicleEmptyMass'].value
@@ -1768,25 +1762,25 @@ export function defineUpdateTrajectoryCurves () {
     this.crewAccelerationData = crewSeries
 
     this.xyChart.clearCurves()
-    if (dParamWithUnits['showForwardAccelerationVersusTime'].value) this.xyChart.addCurve("Forward Acceleration", "m/s2", "m/s2", forwardAccelerationVersusTimeData, (y)=>y*1, 0xffff00, "Yellow", "Forward Acceleration (m/s2)")
-    if (dParamWithUnits['showUpwardAccelerationVersusTime'].value) this.xyChart.addCurve("Upward Acceleration", "m/s2", "m/s2", upwardAccelerationVersusTimeData, (y)=>y*1, 0xff8000, "Orange", "Upward Acceleration (m/s2)")
-    if (dParamWithUnits['showAltitudeVersusTime'].value) this.xyChart.addCurve("Altitude", "m", "km", altitudeVersusTimeData, (y)=>y*0.001, 0xffc080, "Light Brown", "Altitude (km)")
-    if (dParamWithUnits['showAirPressureVersusTime'].value) this.xyChart.addCurve("Air Pressure", "Pa", "% of Sea Level", airPressureVersusTimeData, (y)=>y*100/airPressureAtSeaLevel, 0xff0000, "Red", "Air Pressure (% of sea level)")
-    if (dParamWithUnits['showDownrangeDistanceVersusTime'].value) this.xyChart.addCurve("Downrange Distance", "m", "100's of km", downrangeDistanceVersusTimeData, (y)=>y*.00001, 0x0000ff, "Blue", "Downrange Distance (100's of km)")
-    if (dParamWithUnits['showAirSpeedVersusTime'].value) this.xyChart.addCurve("Air Speed", "m/s", "km/s", airSpeedVersusTimeData, (y)=>y*0.001, 0x00ffff, "Cyan", "Air Speed (km/s)")
-    if (dParamWithUnits['showAerodynamicDragVersusTime'].value) this.xyChart.addCurve("Aerodynamic Drag", "N", "10's of kN", aerodynamicDragVersusTimeData, (y)=>y*0.0001, 0x80ff80, "Bright Green", "Aerodynamic Drag (10's of kN)")
-    if (dParamWithUnits['showPropellantMassFlowRateVersusTime'].value) this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", "10's of kg/s", fuelMassFlowRateVersusTimeData, (y)=>y*0.1, 0x7f7fff, "Blue", "Propellant Mass Flow Rate (10's of kg/s)")
-    if (dParamWithUnits['showTotalMassVersusTime'].value) this.xyChart.addCurve("Vehicle Mass", "kg", "1000's of kg", totalMassVersusTimeData, (y)=>y*0.001, 0xff7fff, "Purple", "Vehicle Mass (1000's of kg)")
-    if (dParamWithUnits['showApogeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Apogee Altiude", "m", "m", apogeeAltitudeVersusTimeData, (y)=>y*0.001, 0xffffff, "White", "Orbital Apogee Altitude (km)")
-    if (dParamWithUnits['showPerigeeAltitudeVersusTime'].value) this.xyChart.addCurve("Orbital Perigee Distance", "m", "m", perigeeAltitudeVersusTimeData, (y)=>y*0.001, 0xffff7f, "White", "Orbital Perigee Distance (km)")
-    if (dParamWithUnits['showConvectiveHeatingVersusTime'].value) this.xyChart.addCurve("Convective Heating", "W/m2", "W/m2",  convectiveHeatingVersusTimeData, (y)=>y*1, 0xffff7f, "Light Yellow", "Convective Heating (W/m2)")
-    if (dParamWithUnits['showRadiativeHeatingVersusTime'].value) this.xyChart.addCurve("Radiative Heating", "W/m2", "W/m2", radiativeHeatingVersusTimeData, (y)=>y*1, 0xffc080, "Light Orange", "Radiative Heating (W/m2)")
-    if (dParamWithUnits['showHeatShieldTemperatureVersusTime'].value) this.xyChart.addCurve("Heat Shield Temperature", "K", "K", heatShieldTemperatureVersusTimeData, (y)=>y*0.1, 0xff0000, "Red", "Heat Shield Temperature (10's K)")
-    if (dParamWithUnits['showLaunchVehicleAccelerationDirectionVersusTime'].value) this.xyChart.addCurve('Vehicle load direction', 'degrees', 'degrees', crewSeries.direction, y => y, 0x80ffff, 'Pale cyan', 'Vehicle load direction (degrees from nose toward roof)')
-    if (dParamWithUnits['showLaunchVehicleAccelerationMagnitudeVersusTime'].value) this.xyChart.addCurve('Vehicle load magnitude', 'm/s2', 'm/s2', crewSeries.magnitude, y => y, 0xffffff, 'White', 'Vehicle proper acceleration (m/s2)')
-    if (dParamWithUnits['showCrewFrontBackAccelerationVersusTime'].value) this.xyChart.addCurve('Crew front-to-back acceleration', 'm/s2', 'm/s2', crewSeries.frontBack, y => y, 0x40ff80, 'Green', 'Crew front-to-back acceleration (m/s2)')
-    if (dParamWithUnits['showCrewSidewaysAccelerationVersusTime'].value) this.xyChart.addCurve('Crew sideways acceleration', 'm/s2', 'm/s2', crewSeries.sideways, y => y, 0xff40ff, 'Magenta', 'Crew sideways acceleration (m/s2)')
-    this.xyChart.drawLegend(14, 22)
+    this.xyChart.addCurve("Forward Acceleration", "m/s2", forwardAccelerationVersusTimeData)
+    this.xyChart.addCurve("Upward Acceleration", "m/s2", upwardAccelerationVersusTimeData)
+    this.xyChart.addCurve("Altitude", "m", altitudeVersusTimeData)
+    this.xyChart.addCurve("Air Pressure", "Pa", airPressureVersusTimeData)
+    this.xyChart.addCurve("Downrange Distance", "m", downrangeDistanceVersusTimeData)
+    this.xyChart.addCurve("Air Speed", "m/s", airSpeedVersusTimeData)
+    this.xyChart.addCurve("Aerodynamic Drag", "N", aerodynamicDragVersusTimeData)
+    this.xyChart.addCurve("Propellant Mass Flow Rate", "kg/s", fuelMassFlowRateVersusTimeData)
+    this.xyChart.addCurve("Vehicle Mass", "kg", totalMassVersusTimeData)
+    this.xyChart.addCurve("Orbital Apogee Altitude", "m", apogeeAltitudeVersusTimeData)
+    this.xyChart.addCurve("Orbital Perigee Distance", "m", perigeeAltitudeVersusTimeData)
+    this.xyChart.addCurve("Convective Heating", "W/m2", convectiveHeatingVersusTimeData)
+    this.xyChart.addCurve("Radiative Heating", "W/m2", radiativeHeatingVersusTimeData)
+    this.xyChart.addCurve("Heat Shield Temperature", "K", heatShieldTemperatureVersusTimeData)
+    this.xyChart.addCurve('Vehicle load direction', 'degrees', crewSeries.direction)
+    this.xyChart.addCurve('Vehicle load magnitude', 'm/s2', crewSeries.magnitude)
+    this.xyChart.addCurve('Crew front-to-back acceleration', 'm/s2', crewSeries.frontBack)
+    this.xyChart.addCurve('Crew sideways acceleration', 'm/s2', crewSeries.sideways)
+    this.xyChart.drawLegend()
 
     //print("Altitude (km)", "Air Pressure (Pa)", "Aerodynamic Drag (N)", "Convective Heating (W/mm2)")
     function list(array1, array2, array3, array4, array5) {

@@ -92,6 +92,18 @@ Mouse: drag to orbit, right-drag to pan, wheel to zoom. The **Controls** panel (
 
 Keys are ignored while you are typing in a GUI field.
 
+### Telemetry chart
+
+Open **Controls → Chart**, turn on **Show chart**, and use **Choose curves…** (or **Curves…** on the chart) to search and select curves. Each curve has a unique bright color and a line pattern. Scales use physical units; `k` means thousands. **Group curves by unit** shares a scale between comparable quantities; turn it off to give each curve its own scale.
+
+Drag the two handles below the plot to change the time window, or drag between them to pan. Focus a handle and use the arrow keys for fine adjustments; Shift makes larger steps. **Fit time** restores the full telemetry interval. Times are seconds since launch 0, after the launcher start delay and slowdown. The white cursor follows the current launch clock.
+
+**Drag the chart’s header to move it. Drag its edges or the ↘ bottom-right handle to resize it.** The chart stays inside the scene frame. Focus a layout handle and use arrow keys to adjust by one pixel, or Shift+arrow for ten pixels.
+
+For exact placement, **Left**, **Top**, **Width**, and **Height** in **Controls → Chart** are percentages of the scene frame, so layout stays consistent in different video resolutions. The background opacity is adjustable too. Chart edits affect the live preview. Click **Controls → Chart → Apply chart settings to shot** to copy the current chart settings into the shot and its browser recovery copy, then **Save** to update the external shot file. **Update from view** changes the camera only. Saving and rendering retain the chart settings last applied to the shot. The chart appears in recordings. The picker and editing buttons stay out of recordings.
+
+Open `shots/GrapplerSwitchover.shot.json` to try it: its lower-right chart shows engaged grapplers and grappler 1’s angle, lift, and radial travel, with individual scales and a 137–148 s launch-time window. The grappler curves use the animation’s actual pose calculation; zooming in increases sampling detail.
+
 ## Recording video and repeatable shots
 
 For a step-by-step walkthrough, see the [Shots and video capture user's guide](docs/SHOTS.md). The rest of this section is a quick reference.
