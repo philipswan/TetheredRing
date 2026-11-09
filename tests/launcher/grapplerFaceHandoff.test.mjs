@@ -1,3 +1,4 @@
+import { applyPreset } from '../../src/presets/presets.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Vector3, Matrix4, Quaternion, Scene, Color } from 'three'
@@ -8,7 +9,7 @@ import { SledGrapplerPlacementInfo, SledGrapplerGeometry, blendGrapplerGeometry 
 import { designRamp, easeQuadInOut } from '../../src/launcher/rampMotion.js'
 import { jerkLimitedBrakingProfile } from '../../src/launcher/trackBraking.js'
 import { screwContactSide } from '../../src/launcher/launcherPhysics.js'
-import { virtualAdaptiveNut, adaptiveNutModel } from '../../src/launcher/AdaptiveNut.js'
+import { virtualAdaptiveNut, adaptiveNutModel, adaptiveNutFrontReach } from '../../src/launcher/AdaptiveNut.js'
 import { createParameterDefinitions } from '../../src/params/parameterDefinitions.js'
 import { PixelLOD } from '../../src/scene/PixelLOD.js'
 import { grapplerSequencingModes } from '../../src/launcher/grapplerPlacement.js'
@@ -266,4 +267,25 @@ test('real pad and actuator instances change faces continuously and mirror the s
   }
   virtualAdaptiveNut.threadLayout.flightsAt = () => 0
   assert.throws(() => nut.placeAndOrientModel(model, { timeSinceStart: e.zero, curve: path }), /retain engaged support/)
+})
+
+
+test('legacy two-stage preset can transfer grapplers within its actual drive-to-brake force window', () => {
+  const params = createParameterDefinitions()
+  applyPreset('twoStageMassDriver', params, {})
+  const p = name => params[name].value
+  const radius = 6371000 + p('launcherMassDriverAltitude'), mu = 3.986004418e14
+  const ramp = designRamp({ radius, exitRadius: radius + p('launcherRampExitAltitude') - p('launcherMassDriverAltitude'),
+    entrySpeed: p('launcherMassDriverExitVelocity'), forwardAcceleration: p('launchVehicleMassDriverForwardAcceleration'),
+    upwardAcceleration: p('launchVehicleRampUpwardAcceleration'), mu,
+    transitionSeconds: p('launchVehicleAccelerationTransitionTime'), upwardJerk: p('launcherMassDriverUpwardJerk') })
+  const brake = jerkLimitedBrakingProfile({ initialSpeed: ramp.detach.v,
+    stopDistance: ramp.length - ramp.detach.s - adaptiveNutFrontReach(params) - p('adaptiveNutStopClearance'),
+    radiusAt: s => ramp.atDistance(ramp.detach.s + s).r, mu, jerk: p('adaptiveNutDecelerationJerk') })
+  const envelope = faceHandoffEnvelope(ramp, brake, 0, p('launchVehicleMassDriverForwardAcceleration'))
+  const count = p('adaptiveNutNumGrapplers')
+  assert.throws(() => new GrapplerFaceHandoffPlan(envelope, count, 0.6), /retain engaged support/)
+  const plan = new GrapplerFaceHandoffPlan(envelope, count, p('adaptiveNutGrapplerSwitchoverTime'))
+  assert.ok(plan.groups.length > 0)
+  assert.ok(plan.groups.at(-1).end <= envelope.end)
 })

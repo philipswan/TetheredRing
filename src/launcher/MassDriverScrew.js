@@ -58,7 +58,10 @@ export class massDriverScrewModel {
         //const minLengthSegmentsPerMeter = ((!highRes) ? 512 : 512)
 
         const segmentSpacing = launcherMassDriverLength / massDriverScrewSegments
-        const baseDistanceAlongScrew = segmentIndex * segmentSpacing
+        const v0 = dParamWithUnits['launcherMassDriver1InitialVelocity'].value
+        const v1 = Math.max(v0, dParamWithUnits['launcherMassDriver2InitialVelocity'].value)
+        const startDistance = (v1 * v1 - v0 * v0) / (2 * launchVehicleMassDriverForwardAcceleration)
+        const baseDistanceAlongScrew = startDistance + segmentIndex * segmentSpacing
         const threadStarts = Math.max(1, dParamWithUnits['launcherMassDriverScrewThreadStarts'].value)
         const screwLength = segmentSpacing - bracketThickness
         const initialDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2
@@ -296,7 +299,7 @@ export class virtualMassDriverScrew extends VirtualObject {
 
   static signatureOf(dParamWithUnits) {
     return parameterSignature(dParamWithUnits,
-      ['launcherMassDriverScrew', 'launchVehicleMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity', 'adaptiveNutBodyLength',
+      ['launcherMassDriverScrew', 'launchVehicleMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity', 'launcherMassDriver2InitialVelocity', 'adaptiveNutBodyLength',
         'adaptiveNutGrapplerMagnetThickness', 'adaptiveNutGrapplerPadLiftAwayDistance', 'adaptiveNutShaftToGrapplerPad'],
       ['SidewaysOffset', 'UpwardsOffset', 'Material', 'Density', 'Cost', 'STL'])
   }
@@ -378,7 +381,7 @@ export class virtualMassDriverScrew extends VirtualObject {
     // geometry; the PixelLOD children rebuild whichever level they need, when they need it.
     if (om._screwIndex !== this.index) {
       const segmentSpacing = v.launcherMassDriverLength / v.massDriverScrewSegments
-      const baseDistanceAlongScrew = this.index * segmentSpacing
+      const baseDistanceAlongScrew = (v.startDistance ?? 0) + this.index * segmentSpacing
       // (Each segment has a single number of starts: see screwThreadLayout.)
       const threadStarts = v.threadLayout.startsAt(baseDistanceAlongScrew)
       om.screwSegment = {

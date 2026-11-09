@@ -1,6 +1,7 @@
 import { screwStateAtTime, screwStateAtDistance, screwGeometryDistance } from './rampMotion.js'
 import * as THREE from 'three'
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
+import { createAdaptiveNutBodyGeometry } from './AdaptiveNutGeometry.js'
+import { adaptiveNutBodyEnvelope, launchBodyColors } from './launchAssemblyLayout.js'
 import { SledGrapplerPlacementInfo, SledGrapplerGeometry, blendGrapplerGeometry } from './SledGrapplerGeometry.js'
 import * as tram from '../utils/tram.js'
 import { quaternionFromFrame } from '../curves/SuperCurves.js'
@@ -149,20 +150,18 @@ function padSlant(geometry) {
   return slant
 }
 
-// The body starts at the path origin; longer grappler arrays may reach further forward.
+// The procedural body extends beyond the grappler span; include its front overhang in stopping clearance.
 export function adaptiveNutFrontReach(dParamWithUnits) {
   const p = name => dParamWithUnits[name].value
-  return Math.max(p('adaptiveNutBodyLength'), (p('adaptiveNutBodyLength') + p('adaptiveNutGrapplerLength')) / 2) * p('launchSystemForwardScaleFactor')
+  return adaptiveNutBodyEnvelope(dParamWithUnits).front * p('launchSystemForwardScaleFactor')
 }
 
 export class adaptiveNutModel {
   constructor(dParamWithUnits, myScene, unallocatedModelsList) {
     const p = (name) => dParamWithUnits[name].value
     const width = p('adaptiveNutWidth')
-    const height = p('adaptiveNutHeight')
     const bodyLength = p('adaptiveNutBodyLength')
     const grapplerLength = p('adaptiveNutGrapplerLength')
-    const forwardsOffset = p('adaptiveNutForwardsOffset')
     const numGrapplers = Math.max(0, Math.round(p('adaptiveNutNumGrapplers')))
     const ballJointClearance = p('adaptiveNutGrapplerBallJointClearance')
     const ballJointRadius = p('adaptiveNutGrapplerBallJointRadius')
@@ -170,10 +169,9 @@ export class adaptiveNutModel {
     const scaleFactor = new THREE.Vector3(p('launchSystemRightwardScaleFactor'), p('launchSystemForwardScaleFactor'), p('launchSystemUpwardScaleFactor'))
 
     // Shared by every pooled nut (y-axis is forward, z-axis is up).
-    const bodyGeometry = new THREE.BoxGeometry(width, bodyLength, height, 1, 1, 1)
-    bodyGeometry.translate(0, bodyLength/2 - forwardsOffset, 0)
+    const bodyGeometry = createAdaptiveNutBodyGeometry(dParamWithUnits)
     bodyGeometry.userData.shared = true
-    const bodyMaterial = new THREE.MeshPhongMaterial({color: 0x7f6f7f})
+    const bodyMaterial = new THREE.MeshPhongMaterial({color: launchBodyColors.adaptiveNut})
     const hardwareMaterial = new THREE.MeshPhongMaterial({color: 0x7f3f00})
     // Pad colour comes from per-instance colours (engaged green / disengaged red).
     const padMaterial = new THREE.MeshPhongMaterial({color: 0xffffff})
@@ -228,7 +226,6 @@ export class adaptiveNutModel {
     const padFadedMaterial = withSubPixelFade(padMaterial, { size: padSize })
     const padsMinPixels = fadedOutAt({ size: padSize, exponent: 2 })
 
-    let loadedBody = null
     const buildModel = () => {
       const nut = new THREE.Group()
       nut.name = 'adaptiveNut'
@@ -236,7 +233,6 @@ export class adaptiveNutModel {
       body.name = 'adaptiveNut_body'
       body.castShadow = true
       nut.add(body)
-      if (loadedBody) nut.add(loadedBody.clone())
 
       // Pads: geometry i is grappler i, geometry numGrapplers + i its mirror image.
       const pads = new InstancedParts(padFadedMaterial, { colors: true })
@@ -287,19 +283,7 @@ export class adaptiveNutModel {
     const count = Math.max(1, p('adaptiveNutNumModels')) // at least one model: the pool's template
     for (let i = 0; i < count; i++) unallocatedModelsList.push(buildModel())
 
-    // Higher-detail body from a model file, added to every nut (pooled or in the scene) once loaded.
-    new OBJLoader().load('models/AdaptiveNut.obj', (object) => {
-      object.children[0].scale.set(0.6, 1, 1.5)  // the source model is too wide and thin
-      object.children[0].position.set(0, 0, 0)
-      object.scale.set(0.001, 0.001*1.62, 0.001)  // mm -> m
-      object.name = 'adaptiveNut_bodyFromModel'
-      object.traverse(child => { if (child.isMesh) child.castShadow = true })
-      object.children[0].material.color.setHex(0x2f1f50)
-      loadedBody = object
-      const nuts = new Set(unallocatedModelsList)
-      myScene.traverse(child => { if (child.name === 'adaptiveNut' && child.grappler) nuts.add(child) })
-      nuts.forEach(nut => nut.add(object.clone()))
-    }, undefined, () => console.log('Error loading adaptive nut model'))
+
   }
 }
 
@@ -339,8 +323,8 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
 
   static signatureOf(dParamWithUnits) {
     return parameterSignature(dParamWithUnits,
-      ['adaptiveNut', 'launcherMassDriverScrew', 'launchSystem', 'launchVehicleMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity'],
-      ['Offset', 'CameraRange', 'RoughLength', 'NumBrackets', 'Bracket', 'Material', 'Density', 'Cost'])
+      ['adaptiveNut', 'launchSledHeight', 'launchRailUpwardsOffset', 'launcherMassDriverRail', 'launcherMassDriverScrew', 'launchSystem', 'launchVehicleMassDriverForwardAcceleration', 'launcherMassDriver1InitialVelocity'],
+      ['CameraRange', 'RoughLength', 'NumBrackets', 'Bracket', 'Material', 'Density', 'Cost'])
   }
 
   static isTeardownRequired(dParamWithUnits) {
@@ -498,8 +482,8 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
     const rightward = new THREE.Vector3().crossVectors(forward, upward)
     const orientation = quaternionFromFrame(forward, upward, MODEL_FORWARD, MODEL_UPWARD)
     const position = f.point.clone()
-    // The body geometry spans y in [-forwardsOffset, bodyLength - forwardsOffset] and is then offset by
-    // (sideways, forwards, upwards) inside the scaled model, so its centre is at y = bodyLength/2.
+    // The procedural overhangs are symmetric about the grappler span, whose
+    // centre stays at bodyLength/2 in the existing motion coordinates.
     const centre = position.clone()
       .addScaledVector(rightward, v.sidewaysOffset * v.rightwardScaleFactor)
       .addScaledVector(upward, v.upwardsOffset * v.upwardScaleFactor)
@@ -612,21 +596,27 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
 
     // Engage the grapplers only if we're on the part of the curve path that has the twin-screws (not
     // while still leaving the terminal)
-    const onScrews = (layout.flightsAt(distanceToSledAft + initialDistance) > 0) && !frame.f.egress && ((relevantCurve.name=='massDriver1Curve') || (relevantCurve.name=='massDriver2Curve') || (relevantCurve.name==='launchRampCurve0' && !frame.f.fallingBack))
+    const onScrews = (distanceToSledAft >= (v.screwStartDistance ?? 0)) && (layout.flightsAt(distanceToSledAft + initialDistance) > 0) && !frame.f.egress && ((relevantCurve.name=='massDriver1Curve') || (relevantCurve.name=='massDriver2Curve') || (relevantCurve.name==='launchRampCurve0' && !frame.f.fallingBack))
     const speed = v.motion ? screwStateAtDistance(v.motion, distanceToSledAft).v : Math.sqrt(Math.max(1, initialVelocity**2 + 2 * acceleration * Math.max(0, distanceToSledAft)))
     const launchTurn = (((this.timeLaunched * screwRevolutionsPerSecond) % 1) + 1) % 1
+    // Prepare the entry helix during the linear-motor phase, using the same global screw clock.
+    const preparing = !frame.f.egress && !frame.f.fallingBack && relevantCurve.name === 'massDriver1Curve'
+    const poseDistance = preparing ? Math.max(distanceToSledAft, v.screwStartDistance ?? 0) : distanceToSledAft
+    const poseSpeed = preparing && v.motion ? screwStateAtDistance(v.motion, poseDistance).v : speed
     const { info, grapplerOffset, grapplerPoses, grapplerThreadPitch, grapplerThreadStarts, grapplerFaceMix } =
-      v.grapplerStateAt(distanceToSledAft, additionalRotation, deltaT, launchTurn, onScrews, speed)
+      v.grapplerStateAt(poseDistance, additionalRotation, deltaT, launchTurn, onScrews || preparing, poseSpeed)
+
+    if (preparing) grapplerPoses.forEach(pose => { pose.attached = false })
 
     // Regenerate the pad geometry deterministically: the key depends only on the nut's speed (a pure
     // function of time), contact face, and acceleration/braking branch. Geometry is built at the
     // key speed on that same branch with zero phase (the phase is
     // applied by the per-frame rotations below).
     const onRamp = v.motion && distanceToSledAft >= v.motion.horizontalLength
-    const regenKey = `${onRamp ? 'ramp' : 'horizontal'}:` + Math.floor(Math.log(Math.max(1e-3, speed)) / GRAPPLER_REGEN_RELATIVE_SPEED_STEP)
+    const regenKey = `${onRamp ? 'ramp' : 'horizontal'}:` + Math.floor(Math.log(Math.max(1e-3, poseSpeed)) / GRAPPLER_REGEN_RELATIVE_SPEED_STEP)
     const geometryKeys = Array.from({ length: activeGrapplers }, (_, i) => `${regenKey}:${grapplerThreadStarts[i]}:${grapplerFaceMix[i]}`)
     if (padsWanted && geometryKeys.some((key, i) => g.keys[i] !== key)) {
-      const keySpeed = Math.exp(Math.floor(Math.log(Math.max(1e-3, speed)) / GRAPPLER_REGEN_RELATIVE_SPEED_STEP) * GRAPPLER_REGEN_RELATIVE_SPEED_STEP)
+      const keySpeed = Math.exp(Math.floor(Math.log(Math.max(1e-3, poseSpeed)) / GRAPPLER_REGEN_RELATIVE_SPEED_STEP) * GRAPPLER_REGEN_RELATIVE_SPEED_STEP)
       const keyDistance = v.motion ? screwGeometryDistance(v.motion, keySpeed, distanceToSledAft) : (Math.abs(acceleration) > 1e-9) ? Math.max(0, (keySpeed**2 - initialVelocity**2) / (2 * acceleration)) : distanceToSledAft
       const geometryRear = makeInfo(keyDistance, 0, -1), geometryFront = makeInfo(keyDistance, 0, 1)
       for (let i = 0, grapplerDistance = firstGrapplerDistance; i<activeGrapplers; i++, grapplerDistance += grapplerSpacing) {

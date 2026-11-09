@@ -1,3 +1,4 @@
+import { queuedTrainState } from './launchQueue.js'
 // Shared base classes for the launcher's "virtual objects".
 //
 // A virtual object is a lightweight record (position along a reference-frame curve, launch time...)
@@ -209,6 +210,9 @@ export class MovingVirtualObject extends VirtualObject {
   static slowDownPassageOfTime = 1
   static launcherStartDelayInSeconds = 0
   static launchStride = 1         // Only every launchStride-th launch is shown (see launcher.updateLaunchStride)
+  static prepopulatedLaunches = 0 // Include launches before t=0, as in the original launcher presets.
+  static stagedLaunches = 0       // Finite staged queue; 0 retains the repeating launch cadence.
+  static queueMotion = null
   static egress = null            // { duration, distance, endSpeed } (launchCadence.js), shared by every moving class; set by the launcher
 
   // Launcher time each launch spends leaving the terminal before it starts accelerating (0 without a terminal).
@@ -237,6 +241,19 @@ export class MovingVirtualObject extends VirtualObject {
   static activeLaunchIndices(adj, duration) {
     const indices = []
     if (!(this.numObjects > 0) || !Number.isFinite(adj)) return indices
+    if (MovingVirtualObject.stagedLaunches > 0) {
+      for (let k = 0; k < Math.min(this.numObjects, MovingVirtualObject.stagedLaunches); k++) {
+        if (adj - k * this.tInc <= duration) indices.push(k)
+      }
+      return indices
+    }
+    if (MovingVirtualObject.prepopulatedLaunches > 0 && this.tInc > 0 && duration >= 0) {
+      const last = Math.floor(adj / this.tInc)
+      const first = Math.max(1 - MovingVirtualObject.prepopulatedLaunches,
+        Math.ceil((adj - duration) / this.tInc), last - this.numObjects + 1)
+      for (let k = first; k <= last; k++) indices.push(k)
+      return indices
+    }
     const lead = this.egressDuration
     if (!(this.tInc > 0) || !(duration >= 0)) {
       // Degenerate spacing: a single launch at t = 0
@@ -301,20 +318,24 @@ export class MovingVirtualObject extends VirtualObject {
     refFrames.forEach(refFrame => { refFrame.forceVisibilityRefresh = true })
   }
 
+  static queueLead() {
+    return MovingVirtualObject.stagedLaunches > 0 ? Math.max(0, MovingVirtualObject.stagedLaunches - 1) * this.tInc : this.egressDuration
+  }
+
   // Time along this object's trajectory at (refFrame time + dt) (negative while leaving the terminal), or
   // null if it is not in flight.
   deltaTAt(refFrame, timeDeltaInSeconds = 0) {
     const ctor = this.constructor
     const adj = ctor.adjustedTime(refFrame.timeSinceStart + timeDeltaInSeconds)
     const deltaT = adj - this.timeLaunched
-    return (deltaT >= -ctor.egressDuration && deltaT <= pathDuration(refFrame.curve)) ? deltaT : null
+    return (deltaT >= -ctor.queueLead() && deltaT <= pathDuration(refFrame.curve)) ? deltaT : null
   }
 
   // Time along this object's trajectory at refFrame's time, kept to it (from its egress to its end).
   clampedDeltaT(refFrame) {
     const ctor = this.constructor
     const deltaT = ctor.adjustedTime(refFrame.timeSinceStart) - this.timeLaunched
-    return Math.max(-ctor.egressDuration, Math.min(pathDuration(refFrame.curve), deltaT))
+    return Math.max(-ctor.queueLead(), Math.min(pathDuration(refFrame.curve), deltaT))
   }
 
   // Default getFutureFrame: frameAt() is implemented by subclasses and returns the rendered model's
@@ -329,7 +350,7 @@ export class MovingVirtualObject extends VirtualObject {
     if (deltaT === null) {
       // Clamp to the trajectory so that trackers following an object that just finished get its end point
       const adj = this.constructor.adjustedTime(refFrame.timeSinceStart + timeDeltaInSeconds)
-      deltaT = Math.max(-this.constructor.egressDuration, Math.min(pathDuration(refFrame.curve), adj - this.timeLaunched))
+      deltaT = Math.max(-this.constructor.queueLead(), Math.min(pathDuration(refFrame.curve), adj - this.timeLaunched))
     }
     const frame = this.frameAt(refFrame, deltaT)
     return {
@@ -366,7 +387,9 @@ export function pathZoneIndex(path, deltaT) {
 export function curveFrameAtTime(path, deltaT, useT = false) {
   if (deltaT < 0) {
     const f = curveFrameAtTime(path, 0, useT)
-    const behind = egressDistanceBehind(deltaT, MovingVirtualObject.egress)
+    const behind = MovingVirtualObject.stagedLaunches > 0
+      ? queuedTrainState(deltaT, MovingVirtualObject.queueMotion).behind
+      : egressDistanceBehind(deltaT, MovingVirtualObject.egress)
     f.point.addScaledVector(f.forward, -behind)
     f.distance -= behind
     f.egress = true

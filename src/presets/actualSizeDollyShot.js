@@ -3,7 +3,7 @@ import { setAllShowsToFalse } from "./cameraShotHelperFunctions.js"
 
 export function actualSizeDollyShot(guidParamWithUnits, nonGUIParams) {
 
-  guidParamWithUnits['launchVehicleScaleFactor'].value = 1.5 //300
+  guidParamWithUnits['launchVehicleScaleFactor'].value = 1 // Geometry dimensions are already in metres.
   guidParamWithUnits['launchVehicleSpacingInSeconds'].value = 120
   guidParamWithUnits['numVirtualLaunchVehicles'].value = 1
   guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1

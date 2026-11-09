@@ -109,17 +109,23 @@ export class OceanTerminal {
     this._buildFlag(g.Flagpoll)
     this._buildBeams()
 
+    // See the staged vehicles through the submerged hull and shaft, from either side.
+    const submergedSurface = { transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }
     // The underwater terminal and the shaft (stretched to it in place())
     this.underwater = new THREE.Group()
     this.underwater.name = 'underwaterTerminal'
     this.root.add(this.underwater)
-    const hull = new THREE.Mesh(g.Underwater_Terminal, material(0x8b9096, { roughness: 0.6, metalness: 0.3 }))
+    const hull = new THREE.Mesh(g.Underwater_Terminal, material(0x8b9096, { roughness: 0.6, metalness: 0.3, ...submergedSurface }))
     hull.name = 'underwaterTerminalHull'
+    // Ocean's translucent underside draws at order 2. These submerged surfaces must blend
+    // over it when viewed from below; its opaque depth pass still occludes surfaces behind it.
+    hull.renderOrder = 3
     this.underwater.add(hull)
     this.shaftGeometry = g.Elevator_Shaft
     this.shaftHeights = Float32Array.from({ length: g.Elevator_Shaft.attributes.position.count }, (_, i) => g.Elevator_Shaft.attributes.position.getY(i))
-    this.shaft = new THREE.Mesh(g.Elevator_Shaft.clone(), material(0x9c9a94, { roughness: 0.85 }))
+    this.shaft = new THREE.Mesh(g.Elevator_Shaft.clone(), material(0x9c9a94, { roughness: 0.85, ...submergedSurface }))
     this.shaft.name = 'elevatorShaft'
+    this.shaft.renderOrder = 3
     this.root.add(this.shaft)
 
     this.traffic = new TerminalTraffic(this.surface, this.containerShips, shaft.z)

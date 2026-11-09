@@ -1,7 +1,6 @@
 import { specificForceAt, capsuleLoad } from './crewAcceleration.js'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacesGeometry } from './FacesGeometry.js'
 import * as tram from '../utils/tram.js'
@@ -11,12 +10,68 @@ import { MovingVirtualObject, curveFrameAtTime, parameterSignature } from './Vir
 const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
+export function launchVehicleNozzleDimensions(dParamWithUnits) {
+  const radius = dParamWithUnits.launchVehicleRadius.value
+  const length = Math.min(dParamWithUnits.launchVehicleRocketEngineLength.value, dParamWithUnits.launchVehicleBodyLength.value)
+  return { length, exitRadius: radius * 0.9, throatRadius: radius * 0.12,
+    lipAngle: Math.atan2(radius * 0.48, length * 0.3) }
+}
+
+// Local axes are x=sideways, y=forward, z=up; the tail is y=0.
+// Engine length occupies the aft part of bodyLength, preserving the body+nose envelope.
+export function createLaunchVehicleGeometry(dParamWithUnits) {
+  const p = name => dParamWithUnits[name].value
+  const radius = p('launchVehicleRadius')
+  const bodyLength = p('launchVehicleBodyLength')
+  const noseLength = p('launchVehicleNoseconeLength')
+  const totalLength = bodyLength + noseLength
+  if (dParamWithUnits.launchFromPlanet?.value === 'Moon') {
+    const length = Math.max(totalLength * 0.6, 2 * radius)
+    const geometry = new THREE.CapsuleGeometry(radius, length - 2 * radius, 16, 32)
+    geometry.translate(0, length / 2, 0)
+    geometry.name = 'lunarPillHullGeometry'
+    return geometry
+  }
+
+  const nozzle = launchVehicleNozzleDimensions(dParamWithUnits)
+  const engineLength = nozzle.length
+  // A bell nozzle, throat, and chamber, all proportional to the vehicle radius.
+  const profile = [new THREE.Vector2(0, engineLength)]
+  for (const [r, y] of [[0.2, 1], [0.2, 0.88], [nozzle.throatRadius / radius, 0.78], [nozzle.throatRadius / radius, 0.7],
+    [0.2, 0.55], [0.42, 0.3], [nozzle.exitRadius / radius, 0], [1, 0], [1, 1]]) {
+    profile.push(new THREE.Vector2(r * radius, y * engineLength))
+  }
+  profile.push(new THREE.Vector2(radius, bodyLength))
+  // Sample a Haack nose by fraction, so short or non-integral lengths still end at the tip.
+  for (let i = 1; i <= 64; i++) {
+    const fraction = i / 64
+    const theta = Math.acos(2 * fraction - 1)
+    const r = radius / Math.sqrt(Math.PI) * Math.sqrt(Math.max(0,
+      theta - Math.sin(2 * theta) / 2 + Math.sin(theta) ** 3 / 3))
+    profile.push(new THREE.Vector2(r, bodyLength + fraction * noseLength))
+  }
+  const hull = new THREE.LatheGeometry(profile, 32)
+  const finLength = bodyLength * 0.5
+  const finThickness = radius / 6
+  const fin = new FacesGeometry([
+    new THREE.Vector3(0, finLength, radius),
+    new THREE.Vector3(finThickness / 2, 0, radius),
+    new THREE.Vector3(-finThickness / 2, 0, radius),
+    new THREE.Vector3(0, 0, radius * 1.5),
+  ], [0, 1, 2, 0, 2, 3, 0, 3, 1, 3, 2, 1])
+  const fins = [fin, fin.clone(), fin.clone()]
+  fins.forEach((geometry, i) => geometry.rotateY((i + 1) * 2 * Math.PI / 3))
+  const parts = [hull, ...fins]
+  const geometry = mergeGeometries(parts, false)
+  parts.forEach(part => part.dispose())
+  geometry.name = 'launchVehicleHullGeometry'
+  return geometry
+}
+
 export class launchVehicleModel {
   constructor(dParamWithUnits, myScene, unallocatedModelsList, _unusedLegacyFlag, _gravityAtLauncherLocation) {
     const radius = dParamWithUnits['launchVehicleRadius'].value
     const bodyLength = dParamWithUnits['launchVehicleBodyLength'].value
-    const lengthSegments = 2
-    const radialSegments = 32
     const noseconeLength = dParamWithUnits['launchVehicleNoseconeLength'].value
     const objName = 'launchVehicle'
     const launchVehicleNumModels = dParamWithUnits['launchVehicleNumModels'].value
@@ -25,85 +80,9 @@ export class launchVehicleModel {
     // Proceedurally generate the Launch Vehicle body and point light meshes. (Its plasma and exhaust
     // plume are drawn by LaunchVehicleGlow.js.)
 
-    const profile = []
-    // Move to the starting point which is at the back of the combustion chamber
-    profile.push(new THREE.Vector2(0, 3.61674418604651))
-    profile.push(new THREE.Vector2(0.178604651162791, 3.61674418604651))
-    profile.push(new THREE.Vector2(0.20093023255814, 3.60558139534884))
-    profile.push(new THREE.Vector2(0.223255813953488, 3.57209302325581))
-    profile.push(new THREE.Vector2(0.234418604651163, 3.53860465116279))
-    profile.push(new THREE.Vector2(0.234418604651163, 3.13674418604651))
-    profile.push(new THREE.Vector2(0.223255813953488, 3.09209302325581))
-    profile.push(new THREE.Vector2(0.156279069767442, 2.98046511627907))
-    profile.push(new THREE.Vector2(0.133953488372093, 2.9246511627907))
-    profile.push(new THREE.Vector2(0.133953488372093, 2.86883720930233))
-    profile.push(new THREE.Vector2(0.167441860465116, 2.80186046511628))
-    profile.push(new THREE.Vector2(0.312558139534884, 2.58976744186046))
-    profile.push(new THREE.Vector2(0.491162790697674, 2.24372093023256))
-    profile.push(new THREE.Vector2(0.658604651162791, 1.85302325581395))
-    profile.push(new THREE.Vector2(0.814883720930233, 1.38418604651163))
-    profile.push(new THREE.Vector2(0.937674418604651, 0.915348837209302))
-    profile.push(new THREE.Vector2(1.02697674418605, 0.502325581395349))
-    profile.push(new THREE.Vector2(1.11627906976744, 0))
-    const totalLength = bodyLength+noseconeLength
-    const CValue = 1.0 // The C value optimized the hull profile for a given length and radius to minimize drag. Formulas from Haack series (https://en.wikipedia.org/wiki/Nose_cone_design)
-    for (let x = 0; x <= totalLength; x++) {
-      const theta = Math.acos(1-2*(totalLength-x)/totalLength)
-      const y = radius/Math.sqrt(Math.PI)*Math.sqrt(theta-Math.sin(2*theta)/2+CValue*Math.sin(theta)**3)
-      //console.log(theta, y)
-      profile.push(new THREE.Vector2(y, x))
-    }
-    const launchVehicleHullGeometry = new THREE.LatheGeometry(profile, 32)
-    
-    // Create the fins
-    const finLength = bodyLength * 0.5
-    const finThickness = 0.2
-    const finHeight = radius * 0.5
-    const finVertices = [
-        new THREE.Vector3(0, finLength, radius),   // Leading edge of fin
-        new THREE.Vector3(finThickness/2, 0.1, radius),  // Left trailing edge of fin
-        new THREE.Vector3(-finThickness/2, 0.1, radius),  // Right trailing edge of fin
-        new THREE.Vector3(0, 0, radius+finHeight)  // Back trailing edge of fin
-    ]
-    const finIndices = [
-        0, 1, 2,
-        0, 2, 3,
-        0, 3, 1,
-        3, 2, 1
-    ]
-    const launchVehicleTopFinGeometry = new FacesGeometry(finVertices, finIndices)
-    launchVehicleTopFinGeometry.rotateY(Math.PI*4/3)
-    launchVehicleTopFinGeometry.name = "topFin"
-    const launchVehicleRightFinGeometry = launchVehicleTopFinGeometry.clone()
-    launchVehicleRightFinGeometry.name = "rightFin"
-    launchVehicleRightFinGeometry.rotateY(Math.PI*2/3)
-    const launchVehicleLeftFinGeometry = launchVehicleTopFinGeometry.clone()
-    launchVehicleLeftFinGeometry.name = "leftFin"
-    launchVehicleLeftFinGeometry.rotateY(-Math.PI*2/3)
-    // Lunar mass-driver vehicles do not need an aerodynamic nose, fins, or an
-    // atmospheric rocket nozzle. Preserve the configured diameter, shorten the
-    // body-plus-nose length by 40%, and round both ends into a pressure hull.
-    let launchVehicleGeometry
-    let lunarTotalLength = totalLength
-    if (isLunarLaunch) {
-      lunarTotalLength = totalLength * 0.6
-      const cylindricalLength = Math.max(0, lunarTotalLength - 2 * radius)
-      launchVehicleGeometry = new THREE.CapsuleGeometry(
-        radius, cylindricalLength, 16, radialSegments)
-      // CapsuleGeometry is centered on the origin; the conventional vehicle
-      // geometry runs from y=0 at the tail toward positive y at the nose.
-      launchVehicleGeometry.translate(0, lunarTotalLength / 2, 0)
-      launchVehicleGeometry.name = 'lunarPillHullGeometry'
-    }
-    else {
-      // Merge the atmospheric nosecone, body, and fins.
-      launchVehicleGeometry = mergeGeometries([
-        launchVehicleHullGeometry,
-        launchVehicleTopFinGeometry,
-        launchVehicleRightFinGeometry,
-        launchVehicleLeftFinGeometry
-      ], false)
-    }
+    const totalLength = bodyLength + noseconeLength
+    const lunarTotalLength = Math.max(totalLength * 0.6, 2 * radius)
+    const launchVehicleGeometry = createLaunchVehicleGeometry(dParamWithUnits)
     //const launchVehicleTexture = new THREE.TextureLoader().load('textures/launchVehicleTexture.jpg', function(texture) {launchVehicleMaterial.needsUpdate = true})
     const launchVehicleMaterial = isLunarLaunch
       ? new THREE.MeshPhysicalMaterial({
@@ -135,6 +114,9 @@ export class launchVehicleModel {
     // } );
     let launchVehicleBodyMesh = new THREE.Mesh(launchVehicleGeometry, launchVehicleMaterial)
     launchVehicleBodyMesh.name = 'body'
+    // Ocean's translucent underside draws at order 2 and the terminal at 3.
+    // Blend the cutaway hull afterwards so looking upward through water cannot erase it.
+    launchVehicleBodyMesh.renderOrder = 4
     // Harmless when shadow maps are disabled; lunar close-up presets enable them
     // so the tracked vehicle can cast a real projected shadow on Planet2 terrain.
     launchVehicleBodyMesh.castShadow = true
@@ -155,8 +137,6 @@ export class launchVehicleModel {
     if (showCrew) {
       addHumanCrew(myScene, unallocatedModelsList, objName, isLunarLaunch ? lunarTotalLength : totalLength, radius, scaleFactorVector)
     }
-
-    // Load the launch vehicle body mesh from a model, and replace the proceedurally generated body with the body from the model
 
     function addLunarDecals(bodyMesh) {
       const canvas = document.createElement('canvas')
@@ -194,57 +174,16 @@ export class launchVehicleModel {
       firstSide.name = 'lunarContainerDecal'
       firstSide.position.set(sideOffset, lunarTotalLength / 2, 0)
       firstSide.rotation.y = Math.PI / 2
-      firstSide.renderOrder = 2
+      firstSide.renderOrder = 5
       bodyMesh.add(firstSide)
 
       const secondSide = new THREE.Mesh(geometry, material)
       secondSide.name = 'lunarContainerDecal'
       secondSide.position.set(-sideOffset, lunarTotalLength / 2, 0)
       secondSide.rotation.y = -Math.PI / 2
-      secondSide.renderOrder = 2
+      secondSide.renderOrder = 5
       bodyMesh.add(secondSide)
     }
-
-    function prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, scaleFactor, n, _unusedLegacyFlag) {
-
-      // This is the additional work we want to do later, after the loader gets around to loading our model...
-      return function(object) {
-        object.scale.set(scaleFactor, scaleFactor, scaleFactor)
-        object.name = 'launchVehicle_bodyFromModel'
-        object.traverse(child => {
-          if (child.isMesh) child.castShadow = true
-        })
-        //object.children[0].material.color.setHex(0xcfd4d9)
-        //object.children[0].material.map = launchVehicleTexture
-        object.children[0].material = launchVehicleMaterial
-        //object.children[0].material.wireframe = true
-        object.needsUpdate = true
-        myScene.traverse(child=> {
-          if (child.name==='launchVehicle_body') {
-            const parent = child.parent
-            parent.remove(child)
-            parent.add(object.clone())
-          }
-        })
-        unallocatedModelsList.forEach(element => {
-          element.traverse(child => {
-            if (child.name==='launchVehicle_body') {
-              const parent = child.parent
-              parent.remove(child)
-              parent.add(object.clone())
-            }
-          })
-        })
-      }
-
-    }
-
-    const loader = new OBJLoader();
-
-    const modelScaleFactor = 0.001 // Because Alastair's launch vehicle model used mm instead of meters
-    const addLaunchVehicles = prepareACallbackFunctionForFBXLoader (myScene, unallocatedModelsList, objName, modelScaleFactor, launchVehicleNumModels, _unusedLegacyFlag)
-        
-    //loader.loadAsync('models/LaunchVehicle.obj').then(addLaunchVehicles)
 
     function addHumanCrew(scene, unallocatedModelsList, objName, axialLength, vehicleRadius, scaleFactorVector) {
       // Place passenger scale figures inside every launch-vehicle body so the
@@ -306,18 +245,21 @@ export class launchVehicleModel {
           const baseForward = Math.max(vehicleRadius, axialLength * 0.12) * 3
           const figureAssembly = new THREE.Group()
           figureAssembly.name = 'Crews'
-          // The vehicle model carries a non-uniform scale (scaleFactorVector); counter its
-          // anisotropy here so the passengers stay rigid and their tilt isn't sheared.
+          // Cancel ALL vehicle/display scaling, including the uniform factor.
+          // Passengers and their capsules retain native metre dimensions as they tilt.
           figureAssembly.scale.set(
-            scaleFactorVector.y / scaleFactorVector.x,
-            1,
-            scaleFactorVector.y / scaleFactorVector.z)
+            1 / scaleFactorVector.x,
+            1 / scaleFactorVector.y,
+            1 / scaleFactorVector.z)
           for (let i = 0; i < figureCount; i++) {
             const pod = new THREE.Group()
             pod.name = 'CrewCapsule'
-            pod.position.set(0, baseForward + (i - (figureCount - 1) / 2) * forwardSpacing, 0)
+            // Keep the existing positions inside the scaled hull, independently of occupant size.
+            pod.position.set(0, (baseForward + (i - (figureCount - 1) / 2) * forwardSpacing) * scaleFactorVector.y, 0)
             pod.add(figures[i % 2].clone())
-            pod.add(new THREE.Mesh(containerGeometry, containerMaterial))
+            const capsule = new THREE.Mesh(containerGeometry, containerMaterial)
+            capsule.renderOrder = 4
+            pod.add(capsule)
             figureAssembly.add(pod)
           }
 
@@ -417,7 +359,9 @@ export class virtualLaunchVehicle extends MovingVirtualObject {
     v.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
     // Distance (in model units) from the model origin (tail) to the middle of the hull
     const isLunarLaunch = dParamWithUnits['launchFromPlanet']?.value === 'Moon'
-    v.hullCentre = (v.bodyLength + v.noseconeLength) / 2 * (isLunarLaunch ? 0.6 : 1)
+    v.hullCentre = isLunarLaunch
+      ? Math.max((v.bodyLength + v.noseconeLength) * 0.6, 2 * dParamWithUnits['launchVehicleRadius'].value) / 2
+      : (v.bodyLength + v.noseconeLength) / 2
     v.forwardScale = dParamWithUnits['launchSystemForwardScaleFactor'].value * dParamWithUnits['launchVehicleScaleFactor'].value
 
     v.isDynamic = true

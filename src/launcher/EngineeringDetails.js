@@ -1,3 +1,4 @@
+import { adaptiveNutEngineering } from './adaptiveNutEngineering.js'
 import { massDriverBracketModel } from "./MassDriverBracket.js"
 import { massDriverScrewModel } from "./MassDriverScrew.js"
 import * as tram from '../utils/tram.js'
@@ -151,7 +152,7 @@ export function define_genLauncherSpecs() {
 
     // Flywheels: one energy-storage flywheel is coaxial with each screw and runs the full length of the mass driver.
     const flywheelsCrosssectionalArea = Math.PI * (dParamWithUnits['launcherMassDriverFlywheelOuterRadius'].value**2 - dParamWithUnits['launcherMassDriverFlywheelInnerRadius'].value**2)
-    const launcherMassDriverFlywheelsTotalMass = flywheelsCrosssectionalArea * dParamWithUnits['launcherMassDriverFlywheelLengthFactor'].value * dParamWithUnits['launcherMassDriverFlywheelMaterialDensity'].value * launcherMassDriverLength * launcherMassDriverNumScrews
+    const launcherMassDriverFlywheelsTotalMass = flywheelsCrosssectionalArea * dParamWithUnits['launcherMassDriverFlywheelLengthFactor'].value * dParamWithUnits['launcherMassDriverFlywheelMaterialDensity'].value * this.launcherMassDriver2Length * launcherMassDriverNumScrews
     specs['launcherMassDriverFlywheelsTotalMass'] = {value: launcherMassDriverFlywheelsTotalMass, units: "kg"}
     print("launcherMassDriverFlywheelsTotalMass", myFormat(launcherMassDriverFlywheelsTotalMass/1e9, 2), "B kg")
 
@@ -419,10 +420,10 @@ export function define_genLauncherSpecs() {
     const airDensityInTube = P / (R * T) // kg/m3
     const fri = ro  // flight inner radius
     const fro = tr  // flight outer radius
-    const threadLayout = tram.screwThreadLayout(dParamWithUnits)
+    const threadLayout = this.threadLayout ?? tram.screwThreadLayout(dParamWithUnits)
     let totalFlightSpan = 0
     const dStep = 1000 // m
-    for (let d = 0; d<launcherMassDriverLength + launcherRampLength; d+=dStep) {
+    for (let d = this.launcherMassDriver1Length; d<launcherMassDriverLength + launcherRampLength; d+=dStep) {
       const starts = threadLayout.flightsAt(d)
       totalFlightSpan += launcherMassDriverNumScrews * starts * dStep
     }
@@ -767,7 +768,6 @@ export function define_genLauncherSpecs() {
     specs['maxForceOnScrewFlights'] = {value: maxForceOnScrewFlights, units: "N"}
     print("maxForceOnScrewFlights, ", maxForceOnScrewFlights, "N")
 
-    const numFlightsContactedPerScrew = dParamWithUnits['launcherMassDriverNumFlightsContactedPerScrew'].value
 
     const maxTorqueOnEachScrew = maxForceOnScrewFlights * midPadRadius / launcherMassDriverNumScrews  // torque = force x radius (was force / radius)
     specs['maxTorqueOnEachScrew'] = {value: maxTorqueOnEachScrew, units: "N*m"}
@@ -782,28 +782,10 @@ export function define_genLauncherSpecs() {
     specs['powerToClutches'] = {value: powerToClutches, units: "W"}
     print("powerToClutches, ", myFormat(powerToClutches/1e9, 3), "GW")
 
-    const launcherMassDriverScrewFlightSaturationFluxDensity = dParamWithUnits['launcherMassDriverScrewFlightSaturationFluxDensity'].value // T 
-    const launcherMassDriverScrewFlightMagneticFluxDensityPortion = dParamWithUnits['launcherMassDriverScrewFlightMagneticFluxDensityPortion'].value // T 
-    const launcherScrewFlightAverageMagneticFluxDensity = launcherMassDriverScrewFlightSaturationFluxDensity * launcherMassDriverScrewFlightMagneticFluxDensityPortion
-    specs['launcherScrewFlightAverageMagneticFluxDensity'] = {value: launcherScrewFlightAverageMagneticFluxDensity, units: 'T'}
-    print('launcherScrewFlightAverageMagneticFluxDensity', launcherScrewFlightAverageMagneticFluxDensity)
-  
-    const launcherGrapplerAttractiveForcePerMeterSquared = launcherScrewFlightAverageMagneticFluxDensity**2 / permeabilityOfFreeSpace
-    specs['launcherGrapplerAttractiveForcePerMeterSquared'] = {value: launcherGrapplerAttractiveForcePerMeterSquared, units: 'N/m^2'}
-    print('launcherGrapplerAttractiveForcePerMeterSquared', myFormat(launcherGrapplerAttractiveForcePerMeterSquared), "N/m^2")
-
-    const launcherGrapplerTotalContactArea = maxForceOnScrewFlights / launcherGrapplerAttractiveForcePerMeterSquared
-    specs['launcherGrapplerTotalContactArea'] = {value: launcherGrapplerTotalContactArea, units: 'm^2'}
-    print('launcherGrapplerTotalContactArea', launcherGrapplerTotalContactArea)
-
-    const launcherGrapplerTotalContactFlights = launcherMassDriverNumScrews * numFlightsContactedPerScrew
-    const grapplerPadContactWidth = tr - (ro + s2gp) // The width of the contact area on the grappler pad is the screw thread radius minus the distance from the screw shaft to the grappler pad
-    specs['grapplerPadContactWidth'] = {value: grapplerPadContactWidth, units: 'm'}
-    print('grapplerPadContactWidth', grapplerPadContactWidth)
-
-    const grapplerPadContactLength = launcherGrapplerTotalContactArea / grapplerPadContactWidth / launcherGrapplerTotalContactFlights
-    specs['grapplerPadContactLength'] = {value: grapplerPadContactLength, units: 'm'}
-    print('grapplerPadContactLength', grapplerPadContactLength)
+    const numFlightsContactedPerScrew = dParamWithUnits['launcherMassDriverNumFlightsContactedPerScrew'].value
+    const {grapplerPadContactLength,grapplerPadContactWidth,launcherGrapplerTotalContactFlights,
+      launcherScrewFlightAverageMagneticFluxDensity,launcherGrapplerAttractiveForcePerMeterSquared,launcherGrapplerTotalContactArea} =
+      adaptiveNutEngineering(dParamWithUnits,specs,maxForceOnScrewFlights)
 
     //const grapplerPowerPerNewton = dParamWithUnits['launcherGrapplerPowerPerNewton'].value // W/N
     let grapplerPowerPerNewton = 0

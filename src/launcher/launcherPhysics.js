@@ -417,7 +417,7 @@ export function threadStartDistance({ initialVelocity, initialDistance, accelera
 // screw is a plain shaft.
 // segmentLength: when given, extra starts begin at the next screw segment boundary, so each segment
 // has a single number of starts (the first flight can begin mid-segment).
-export function screwThreadLayout(dParamWithUnits, segmentLength = 0) {
+export function screwThreadLayout(dParamWithUnits, segmentLength = 0, segmentOrigin = 0) {
   const p = (name) => dParamWithUnits[name].value
   const common = {
     initialVelocity: p('launcherMassDriver1InitialVelocity'),
@@ -440,7 +440,7 @@ export function screwThreadLayout(dParamWithUnits, segmentLength = 0) {
   for (let starts = firstStarts; starts <= maxStarts; starts *= 2) {
     let distance = threadStartDistance({ ...common, threadStarts: starts })
     if (distance === Infinity) break
-    if (starts > firstStarts && segmentLength > 0 && Number.isFinite(distance)) distance = Math.ceil(distance / segmentLength - 1e-9) * segmentLength
+    if (starts > firstStarts && segmentLength > 0 && Number.isFinite(distance)) distance = segmentOrigin + Math.ceil((distance - segmentOrigin) / segmentLength - 1e-9) * segmentLength
     steps.push({ starts, distance })
   }
   const threadStart = steps.length ? steps[0].distance : Infinity

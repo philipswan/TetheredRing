@@ -1,4 +1,4 @@
-import { screwStateAtTime } from './rampMotion.js'
+import { screwStateAtDistance, screwStateAtTime } from './rampMotion.js'
 
 export const GRAPPLER_CURVES = ['Grapplers engaged', 'Grappler 1 angle', 'Grappler 1 lift', 'Grappler 1 radial travel']
 
@@ -13,9 +13,13 @@ export function grapplerTelemetry(nut, start, end, feederTime) {
   for (let i = 0; i <= count; i++) {
     const t = start + (end - start) * i / count
     const state = screwStateAtTime(nut.motion, t - feederTime)
-    const onScrews = t >= feederTime && nut.threadLayout.flightsAt(state.s + nut.initialDistance) > 0
+    const preparing = t >= feederTime && state.s < (nut.screwStartDistance ?? 0)
+    const poseDistance = preparing ? nut.screwStartDistance : state.s
+    const poseSpeed = preparing ? screwStateAtDistance(nut.motion, poseDistance).v : state.v
+    const onScrews = t >= feederTime && !preparing && nut.threadLayout.flightsAt(state.s + nut.initialDistance) > 0
     // Rotation and planner time use the same launch clock as AdaptiveNut.placeAndOrientModel.
-    const { grapplerPoses } = nut.grapplerStateAt(state.s, (t * nut.screwRevolutionsPerSecond) % 1, t, 0, onScrews, state.v)
+    const { grapplerPoses } = nut.grapplerStateAt(poseDistance, (t * nut.screwRevolutionsPerSecond) % 1, t, 0, onScrews || preparing, poseSpeed)
+    if (preparing) grapplerPoses.forEach(pose => { pose.attached = false })
     const first = grapplerPoses[0]
     const values = [100 * grapplerPoses.filter(p => p.attached).length / grapplerPoses.length,
       first.alpha * 180 / Math.PI, first.lift * nut.padLiftActuation, first.raise * nut.padRadialActuation]

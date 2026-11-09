@@ -159,7 +159,7 @@
     "launcherRampExitAltitude": 4000,
     "launcherEvacuatedTubeExitAltitude": 15000,
     "launcherMassDriver1InitialVelocity": 50,
-    "launcherMassDriver2InitialVelocity": 100,
+    "launcherMassDriver2InitialVelocity": 200,
     "launcherMassDriverExitVelocity": 11123.453988579335,
     "launchVehicleSeaLevelRocketExhaustVelocity": 3590,
     "launchVehicleVacuumRocketExhaustVelocity": 4436,
@@ -201,9 +201,9 @@
     "launchVehiclePayloadMass": 17140.37351104573,
     "launchVehicleNonPayloadMass": 400,
     "launchVehicleCostPerKg": 1000,
-    "launchVehicleScaleFactor": 1.5,
-    "launchVehicleSpacingInSeconds": 120,
-    "numVirtualLaunchVehicles": 1,
+    "launchVehicleScaleFactor": 1,
+    "launchVehicleSpacingInSeconds": 20,
+    "numVirtualLaunchVehicles": 4,
     "launchVehicleNumModels": 1,
     "launchVehicleShowCrew": true,
     "launchVehicleCrewCapsuleDiameter": 0.5,
@@ -216,7 +216,7 @@
     "launcherStartDelayInSeconds": 25,
     "launcherTerminalEgressDuration": 120,
     "numVirtualMassDriverTubes": 256,
-    "launcherMassDriverRailWidth": 1,
+    "launcherMassDriverRailWidth": 1.5,
     "launcherMassDriverRailHeight": 0.25,
     "launcherMassDriverRailMaterialDensity": 7930,
     "launcherMassDriverRailMaterialCost": 1,
@@ -295,7 +295,7 @@
     "launchSledUpwardsOffset": 0.5,
     "launchSledForwardsOffset": 13,
     "launchSledScaleFactor": 1,
-    "numVirtualLaunchSleds": 1,
+    "numVirtualLaunchSleds": 4,
     "launchSledNumModels": 40,
     "adaptiveNutSpacingInSeconds": 5,
     "adaptiveNutWidth": 2,
@@ -306,7 +306,7 @@
     "adaptiveNutUpwardsOffset": 0.5,
     "adaptiveNutForwardsOffset": -3,
     "adaptiveNutScaleFactor": 1,
-    "numVirtualAdaptiveNuts": 1,
+    "numVirtualAdaptiveNuts": 4,
     "adaptiveNutNumModels": 40,
     "launcherFlywheelRadius": 0.225,
     "launcherFlywheelThickness": 0.06,
@@ -553,7 +553,14 @@
     "cameraPreset": "Default",
     "tetherColor": "#8699c6",
     "tetherFiber": "CARBON_FIBER",
-    "coilConductorMaterial": "ALUMINUM"
+    "coilConductorMaterial": "ALUMINUM",
+    "launcherStagedLaunches": 4,
+    "launcherPrepopulatedLaunches": 0,
+    "launcherProportionalTubeRadius": true,
+    "launcherTubeRadiusToVehicleRadius": 3.75,
+    "launcherQueueAdvanceDelay": 2,
+    "launcherQueueAdvanceDuration": 10,
+    "adaptiveNutAutoSize": true
   },
   "simulation": {
     "startTime": 0,
@@ -601,24 +608,24 @@
         "motion": "auto",
         "fov": 45,
         "position": [
-          -18.052157588018545,
-          8.889744948174716,
-          -49.13565287468731
+          -876.5891195565812,
+          98.11627595011538,
+          -395.9011497921474
         ],
         "target": [
-          18.70448442935751,
-          -10.483872902827148,
-          -6.659271225208801
+          0,
+          -0.5,
+          -395.9011497921474
         ],
         "up": [
-          1.1102230246251565e-16,
-          0.9999999999984791,
-          -0.0000017441531693918044
+          0,
+          1,
+          0
         ],
         "orbitUp": [
-          1.1102230246251565e-16,
-          0.9999999999984791,
-          -0.0000017441531693918044
+          0,
+          1,
+          0
         ]
       },
       {
@@ -633,24 +640,24 @@
         "motion": "auto",
         "fov": 45,
         "position": [
-          -18.05215758697646,
-          8.890144043113317,
-          -49.135470851352075
+          -876.5891195565812,
+          98.11627595011538,
+          -395.9011497921474
         ],
         "target": [
-          18.70448442935751,
-          -10.483872902827148,
-          -6.659271225208801
+          0,
+          -0.5,
+          -395.9011497921474
         ],
         "up": [
-          4.9960036108132044e-15,
-          0.9999999999707232,
-          0.00000765137176367281
+          0,
+          1,
+          0
         ],
         "orbitUp": [
-          4.9960036108132044e-15,
-          0.9999999999707232,
-          0.00000765137176367281
+          0,
+          1,
+          0
         ]
       },
       {

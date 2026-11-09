@@ -1,3 +1,5 @@
+import { ParameterStore } from '../params/ParameterStore.js'
+import { launchQueueLayout } from '../launcher/launchQueue.js'
 // Scene presets. A preset sets parameter values and scene options (camera placement, which planet
 // assets to stream, lighting, ...) before the scene is built. Select one with the "Preset" dropdown
 // or the ?preset=<id> URL parameter; shot files record the preset id they were made with.
@@ -877,10 +879,19 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
   // guidParamWithUnits['numTethers'].value = 1300
   // guidParamWithUnits['numForkLevels'].value = 10
   guidParamWithUnits['showLogo'].value = true // It will automatically turn off later to indicate that the launch delay timer is about to expire...
-  guidParamWithUnits['showXYChart'].value = true
+  guidParamWithUnits['showXYChart'].value = false
   guidParamWithUnits['showEarthsSurface'].value = true
   //guidParamWithUnits['earthTextureOpacity'].value = 0.25
-  guidParamWithUnits['showEarthsAtmosphere'].value = true
+  guidParamWithUnits['showEarthsAtmosphere'].value = false
+  // Preserve this preset's early-refactor view: later visual additions are opt-in here.
+  for (const key of [
+    'showClouds', 'showOcean', 'showSeaIce', 'showSailboats', 'showContainerShips',
+    'showLauncherOceanTerminal', 'showMooringCables', 'showLaunchVehiclePlasma',
+    'showLaunchVehicleExhaust', 'showViewStatus',
+    'highlightRing', 'highlightRingTethers', 'highlightElevators', 'highlightMassDrivers',
+    'highlightMassDriverTethers', 'highlightLaunchVehicles',
+  ]) guidParamWithUnits[key].value = false
+
   guidParamWithUnits['showMoon'].value = true
   guidParamWithUnits['showStars'].value = true
   guidParamWithUnits['showEarthAxis'].value = false
@@ -913,18 +924,24 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
   guidParamWithUnits['showLaunchVehiclePointLight'].value = false
   guidParamWithUnits['pKeyAltitudeFactor'].value = 0
   guidParamWithUnits['massDriverCameraRange'].value = 300
-  guidParamWithUnits['launchSledCameraRange'].value = 10000
+  guidParamWithUnits['launchSledCameraRange'].value = 1500000
   guidParamWithUnits['vehicleInTubeCameraRange'].value = 1000000
   guidParamWithUnits['lauchVehicleCameraRange'].value = 1000000
   guidParamWithUnits['orbitControlsRotateSpeed'].value = .4
-  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 3
+  guidParamWithUnits['launcherSlowDownPassageOfTime'].value = 1
   guidParamWithUnits['logZoomRate'].value = -3
 
   guidParamWithUnits['launchVehicleScaleFactor'].value = 1
   guidParamWithUnits['launchSledScaleFactor'].value = 1
   guidParamWithUnits['launcherMassDriverTubeInnerRadius'].value = 3
-  guidParamWithUnits['numVirtualLaunchVehicles'].value = 6
-  guidParamWithUnits['numVirtualLaunchSleds'].value = 6
+  guidParamWithUnits['numVirtualLaunchVehicles'].value = 4
+  guidParamWithUnits['numVirtualLaunchSleds'].value = 4
+  guidParamWithUnits['numVirtualAdaptiveNuts'].value = 4
+  // Queue four complete assemblies at the entrance, rather than launches already downrange.
+  guidParamWithUnits['launcherPrepopulatedLaunches'].value = 0
+  guidParamWithUnits['launcherStagedLaunches'].value = 4
+  // Complete the drive-to-brake face transfer within the ramp's force transition.
+  guidParamWithUnits['adaptiveNutGrapplerSwitchoverTime'].value = 0.2
   guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 2
   guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 400
   guidParamWithUnits['launchVehicleRadius'].value = 1.5
@@ -1114,13 +1131,21 @@ function twoStageMassDriver(guidParamWithUnits, nonGUIParams) {
   // nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(392764.46257647, -4063550.977465477, -4914259.685875784)
   // nonGUIParams['cameraUp'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)
 
-  nonGUIParams['orbitControlsTarget'] = new THREE.Vector3(380525.60358032025, -4038146.2734964443, -4922552.789112389)
-  nonGUIParams['orbitControlsUpDirection'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)
-  nonGUIParams['orbitControlsObjectPosition'] = new THREE.Vector3(382481.65103939606, -4038404.374358447, -4922505.895094078)
-  nonGUIParams['cameraUp'] = new THREE.Vector3(0.059654109070758805, -0.6338627678877135, -0.7711416074604592)    
+  // Space the queue by the complete assembly envelope plus a visible gap.
+  guidParamWithUnits['launchVehicleSpacingInSeconds'].value = 20
+  guidParamWithUnits['launcherQueueAdvanceDelay'].value = 2
+  guidParamWithUnits['launcherQueueAdvanceDuration'].value = 10
+  const { queueLength, front: frontReach } = launchQueueLayout(new ParameterStore(guidParamWithUnits).derived)
+  const span = queueLength + frontReach
+  const centre = (frontReach - queueLength) / 2 - span / 4
+  nonGUIParams['initialReferencePoint'] = 'feederRailEntrancePosition'
+  nonGUIParams['launchTrackCamera'] = {
+    target: { forward: centre },
+    position: { forward: centre, right: span * 1.6, up: span * 0.2 },
+  }
 
   nonGUIParams['overrideClipPlanes'] = true
-  nonGUIParams['nearClip'] = 10
+  nonGUIParams['nearClip'] = 0.1
   nonGUIParams['farClip'] = 40000000
 
   // Improvements...

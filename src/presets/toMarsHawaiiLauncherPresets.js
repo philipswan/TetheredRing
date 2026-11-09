@@ -1,3 +1,5 @@
+import { ParameterStore } from '../params/ParameterStore.js'
+import { launchQueueLayout } from '../launcher/launchQueue.js'
 import * as THREE from 'three'
 import { actualSizeDollyShot } from './actualSizeDollyShot.js'
 import { showMassDriver } from "./cameraShotHelperFunctions.js"
@@ -278,6 +280,32 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, nonGUIParams) {
   //googleEarthStudioProvidedBackground(guidParamWithUnits, nonGUIParams)
   showMassDriver(guidParamWithUnits)
   actualSizeDollyShot(guidParamWithUnits, nonGUIParams)
+  // Four complete assemblies, with the same envelope-plus-10 m spacing as the two-stage preset.
+  const N = 4
+  guidParamWithUnits['launcherStagedLaunches'].value = N
+  guidParamWithUnits['launcherPrepopulatedLaunches'].value = 0
+  for (const key of ['numVirtualLaunchVehicles', 'numVirtualLaunchSleds', 'numVirtualAdaptiveNuts']) {
+    guidParamWithUnits[key].value = N
+  }
+  guidParamWithUnits['showAdaptiveNuts'].value = true
+  // The submerged terminal is transparent so the staged assemblies remain visible.
+  guidParamWithUnits['showLauncherOceanTerminal'].value = true
+  guidParamWithUnits['launcherProportionalTubeRadius'].value = true
+  guidParamWithUnits['launcherMassDriver1InitialVelocity'].value = 50
+  guidParamWithUnits['launcherMassDriver2InitialVelocity'].value = 200
+  guidParamWithUnits['launchVehicleSpacingInSeconds'].value = 20
+  guidParamWithUnits['launcherQueueAdvanceDelay'].value = 2
+  guidParamWithUnits['launcherQueueAdvanceDuration'].value = 10
+  // Frame the entire staged queue instead of keeping the old single-assembly close-up.
+  const { queueLength, front: frontReach } = launchQueueLayout(new ParameterStore(guidParamWithUnits).derived)
+  const span = queueLength + frontReach
+  // Shift the queue right in the viewport to leave room for the shot panel on the left.
+  const targetForward = (frontReach - queueLength) / 2 - span / 4
+  nonGUIParams['launchTrackCamera'] = {
+    target: { forward: targetForward },
+    position: { forward: targetForward, right: span * 1.6, up: span * 0.18 },
+  }
+
   guidParamWithUnits['showStars'].value = false
   guidParamWithUnits['showMoon'].value = false
   guidParamWithUnits['showLogo'].value = false

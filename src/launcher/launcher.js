@@ -1,3 +1,4 @@
+import { launchQueueInfrastructure, launchQueueLayout } from './launchQueue.js'
 import { GRAPPLER_CURVES, grapplerTelemetry } from './grapplerTelemetry.js'
 import { screwStateAtDistance } from './rampMotion.js'
 import * as THREE from 'three'
@@ -13,7 +14,7 @@ import { launchSledModel, virtualLaunchSled } from './LaunchSled.js'
 import { adaptiveNutModel, virtualAdaptiveNut } from './AdaptiveNut.js'
 import { massDriverTubeModel, virtualMassDriverTube } from './MassDriverTube.js'
 import { massDriverRailModel, virtualMassDriverRail } from './MassDriverRail.js'
-import { massDriverBracketModel, virtualMassDriverBracket } from './MassDriverBracket.js'
+import { massDriverBracketModel, virtualMassDriverBracket, virtualRailOnlyBracket } from './MassDriverBracket.js'
 import { massDriverScrewModel, virtualMassDriverScrew, createScrewModelPair } from './MassDriverScrew.js'
 import { InstancedProxyPool } from '../scene/InstancedProxyPool.js'
 import { Highlights } from '../scene/Highlights.js'
@@ -181,6 +182,7 @@ export class launcher {
     Highlights.disposeStandIn(this.highlightStandIn)
     this.highlightStandIn = null
 
+    this.queueInfrastructure = null
     const makePath = (name, curves) => {
       const path = new SuperCurvePath()
       path.name = name
@@ -197,7 +199,7 @@ export class launcher {
         // While the elevated evacuated tube deployment is animated, the vehicles follow the drawn (coiled) tube.
         const tubeCurve = (this.animateElevatedEvacuatedTubeDeployment && this.coiledElevatedEvacuatedTubeCurve) ? this.coiledElevatedEvacuatedTubeCurve : this.evacuatedTubeCurve
         // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into the screws from
-        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
+        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver2Curve, rampCurve(0)])
         this.accelerationScrewLength = this.polyCurveForrf0.getLength()
         this.polyCurveForrf1 = makePath("adaptiveNutPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
         // The sled stays with the vehicle over the ramp, then brakes on the track in the elevated evacuated tube.
@@ -211,12 +213,33 @@ export class launcher {
           new referenceFrame(this.polyCurveForrf2, numZones, this.cameraRange[1], 0, 0, 0, 'launchSledRefFrame'),
           new referenceFrame(this.polyCurveForrf3, numZones, this.cameraRange[2], 0, 0, 0, 'launchVehicleInTubeRefFrame'),
           new referenceFrame(this.polyCurveForrf4, numZones, this.cameraRange[3], 0, 0, 0, 'launchVehicleRefFrame'))
+        this.queueInfrastructure = launchQueueInfrastructure(dParamWithUnits, this.feederRailCurve)
+        if (this.queueInfrastructure) {
+          const tubePath = makePath('stagedLaunchTubePath', [this.queueInfrastructure.curve, ...this.polyCurveForrf3.superCurves])
+          this.refFrames.push(new referenceFrame(tubePath, numZones, this.cameraRange[2], 0, 0, 0, 'stagedLaunchTubeRefFrame'))
+        }
+        let railRefIndex = 2
+        if (this.queueInfrastructure) {
+          railRefIndex = this.refFrames.length
+          const railPath = makePath('stagedLaunchRailPath', [this.queueInfrastructure.curve, ...this.polyCurveForrf2.superCurves])
+          this.refFrames.push(new referenceFrame(railPath, numZones, this.cameraRange[1], 0, 0, 0, 'stagedLaunchRailRefFrame'))
+        }
+        const supportCurves = [this.queueInfrastructure?.curve, this.feederRailCurve, this.massDriver1Curve]
+          .filter(curve => curve && curve.getLength() > 0)
+        let supportRefIndex = null
+        this.railOnlySupportLength = 0
+        if (supportCurves.length > 0) {
+          supportRefIndex = this.refFrames.length
+          const supportPath = makePath('screwFreeRailSupportPath', supportCurves)
+          this.railOnlySupportLength = supportPath.getLength()
+          this.refFrames.push(new referenceFrame(supportPath, numZones, this.cameraRange[1], 0, 0, 0, 'screwFreeRailSupportRefFrame'))
+        }
         this.launchTrajectoryLine = this.polyCurveForrf4
         this.updateTerrainFits()
 
         // Which reference frame each class of virtual object lives in
         this.classRefFrameIndex = new Map([
-          [virtualMassDriverTube, 3], [virtualMassDriverRail, 2], [virtualMassDriverBracket, 0], [virtualMassDriverScrew, 0],
+          [virtualMassDriverTube, this.queueInfrastructure ? 5 : 3], [virtualMassDriverRail, railRefIndex], ...(supportRefIndex === null ? [] : [[virtualRailOnlyBracket, supportRefIndex]]), [virtualMassDriverBracket, 0], [virtualMassDriverScrew, 0],
           [virtualAdaptiveNut, 1], [virtualLaunchSled, 2], [virtualLaunchVehicle, 4], [virtualHumanFigure, 0]])
         this.virtualMassDriverTube = virtualMassDriverTube
         // The mass driver's highlight from afar, where its models are not drawn.
@@ -275,13 +298,13 @@ export class launcher {
     this.tubeInnerRadius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
     // One thread layout (where the thread starts and how many starts it has where) for the screws and
     // the nuts' grapplers, so they always agree.
-    this.threadLayout = tram.screwThreadLayout(dParamWithUnits, length / Math.max(1, segments))
+    this.threadLayout = tram.screwThreadLayout(dParamWithUnits, length / Math.max(1, segments), this.launcherMassDriver1Length)
     this.threadLayout.motion = this.screwMotion
     // Use the same clearance sequence while the pitch decreases on the braking screws.
     const originalStartsAt = this.threadLayout.startsAt
     this.threadLayout.startsAt = d => {
       if (!this.screwMotion || d <= this.screwMotion.horizontalLength) return originalStartsAt(d)
-      const centre = Math.floor(d / (length / segments)) * (length / segments)
+      const centre = this.launcherMassDriver1Length + Math.floor((d - this.launcherMassDriver1Length) / (length / segments)) * (length / segments)
       const speed = screwStateAtDistance(this.screwMotion, centre).v
       const equivalentDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2 + (speed ** 2 - this.effectiveMassDriver1InitialVelocity ** 2) / (2 * this.effectiveForwardAcceleration)
       return originalStartsAt(equivalentDistance)
@@ -292,6 +315,8 @@ export class launcher {
       const equivalentDistance = dParamWithUnits['adaptiveNutBodyLength'].value / 2 + (speed ** 2 - this.effectiveMassDriver1InitialVelocity ** 2) / (2 * this.effectiveForwardAcceleration)
       return equivalentDistance >= this.threadLayout.threadStartDistance ? this.threadLayout.startsAt(d) : 0
     }
+    virtualMassDriverScrew.startDistance = this.launcherMassDriver1Length
+    virtualAdaptiveNut.screwStartDistance = this.launcherMassDriver1Length
     virtualMassDriverScrew.motion = this.screwMotion
     virtualAdaptiveNut.motion = this.screwMotion
     virtualMassDriverScrew.threadLayout = this.threadLayout
@@ -301,6 +326,7 @@ export class launcher {
         case virtualLaunchVehicle: objectClass.update(dParamWithUnits, planetSpec); break
         case virtualLaunchSled: objectClass.update(dParamWithUnits); break
         case virtualAdaptiveNut: objectClass.update(dParamWithUnits, length); break
+        case virtualRailOnlyBracket: objectClass.update(dParamWithUnits, this.railOnlySupportLength, this.versionNumber); break
         case virtualMassDriverBracket: objectClass.update(dParamWithUnits, segments, length, this.versionNumber); break
         case virtualMassDriverScrew: objectClass.update(dParamWithUnits, length, segments, length, this.massDriverScrewMaterials, this.versionNumber); break
         case virtualMassDriverRail: objectClass.update(dParamWithUnits, this.versionNumber); objectClass.modelFactory = this.railModelObject; break
@@ -322,6 +348,10 @@ export class launcher {
       const geo = tram.ecefToGeodetic(breech.point.x, breech.point.y, breech.point.z, planetSpec.ellipsoid)
       terminal = geo.alt <= -MIN_DEPTH
     }
+    MovingVirtualObject.stagedLaunches = Math.max(0, Math.round(dParamWithUnits['launcherStagedLaunches']?.value ?? 0))
+    MovingVirtualObject.prepopulatedLaunches = Math.max(0, Math.round(dParamWithUnits['launcherPrepopulatedLaunches']?.value ?? 0))
+    MovingVirtualObject.queueMotion = launchQueueLayout(dParamWithUnits)
+    if (MovingVirtualObject.stagedLaunches > 0 || MovingVirtualObject.prepopulatedLaunches > 0) terminal = false
     this.cadence = launchCadence({
       spacing: dParamWithUnits['launchVehicleSpacingInSeconds'].value,
       slowDown: dParamWithUnits['launcherSlowDownPassageOfTime'].value,
@@ -346,6 +376,11 @@ export class launcher {
   updateLaunchStride() {
     const moving = this.objectClasses.filter(c => c.prototype instanceof MovingVirtualObject)
     let stride = 1
+    if (MovingVirtualObject.stagedLaunches > 0 || MovingVirtualObject.prepopulatedLaunches > 0) {
+      moving.forEach(c => { c.launchStride = 1 })
+      this.launchStride = 1
+      return
+    }
     moving.forEach(c => {
       if (c.numObjects > 0 && c.refFrames[0]) stride = Math.max(stride, c.strideNeeded(pathDuration(c.refFrames[0].curve) + c.egressDuration))
     })
@@ -414,12 +449,38 @@ export class launcher {
         }
         virtualMassDriverBracket.unallocatedModels.push(virtualMassDriverBracket.createPooledModel())
       }],
+      [virtualRailOnlyBracket, () => {
+        // Brackets are identical, so they are drawn instanced: the pooled "models" are proxies whose
+        // transforms InstancedProxyPool copies into a full-detail and a low-detail InstancedMesh.
+        virtualRailOnlyBracket.instancePool?.dispose()
+        const segmentSpacing = 0
+        const high = this.bracketModelObject.createModel(segmentSpacing, this.bracketModelObject.railSupportShapes)
+        const low = this.bracketModelObject.createModel(segmentSpacing, this.bracketModelObject.lowDetailRailSupportShapes)
+        const pool = new InstancedProxyPool({
+          name: 'railOnlyBracket',
+          highlight: 'massDriver',
+          parent: this.scene,
+          size: 2 * dParamWithUnits['launcherMassDriverTubeInnerRadius'].value,
+          castShadow: true,
+          levels: [
+            { geometry: high.geometry, material: high.material, minPixels: 40 },
+            { geometry: low.geometry, material: low.material, minPixels: 1 },
+          ],
+        })
+        virtualRailOnlyBracket.instancePool = pool
+        virtualRailOnlyBracket.createPooledModel = () => {
+          const proxy = pool.createProxy()
+          proxy.visible = false
+          return proxy
+        }
+        virtualRailOnlyBracket.unallocatedModels.push(virtualRailOnlyBracket.createPooledModel())
+      }],
     ])
     this.objectClasses.forEach(objectClass => {
       const build = builders.get(objectClass)
       if (!build) return
       // Screw and bracket templates are shaped by the trajectory curves too
-      const curveDependent = (objectClass === virtualMassDriverScrew) || (objectClass === virtualMassDriverBracket)
+      const curveDependent = (objectClass === virtualMassDriverScrew) || (objectClass === virtualMassDriverBracket) || (objectClass === virtualRailOnlyBracket)
       const signature = objectClass.signatureOf(dParamWithUnits) + (curveDependent ? '|' + this.trajectoryVersion : '')
       if (signature !== objectClass.poolSignature || objectClass.unallocatedModels.length === 0) {
         objectClass.removeAllVirtualObjects()
@@ -600,6 +661,11 @@ export class launcher {
     return curve ? { point: curve.getPointAt(0, new THREE.Vector3()), tangent: curve.getTangentAt(0, new THREE.Vector3()).normalize() } : null
   }
 
+  // The terminal's launcher connection sits just ahead of the rear train, enclosing it in the building.
+  terminalFrame() {
+    return this.queueInfrastructure?.terminalFrame ?? this.startFrame()
+  }
+
   // Points along the launcher's tube from its start, every `step` metres (planet coordinates); empty
   // before it is built.
   pathPoints(step = 1000) {
@@ -657,7 +723,7 @@ export class launcher {
     if (!objectClass) return null
     const refFrame = objectClass.refFrames[0]
     const adj = objectClass.adjustedTime(this.animationTimeAt(simTime))
-    const deltaT = Math.max(-objectClass.egressDuration, Math.min(pathDuration(refFrame.curve), adj - launchIndex * objectClass.tInc))
+    const deltaT = Math.max(-objectClass.queueLead(), Math.min(pathDuration(refFrame.curve), adj - launchIndex * objectClass.tInc))
     const object = Object.create(objectClass.prototype)
     object.launchIndex = launchIndex
     object.timeLaunched = launchIndex * objectClass.tInc

@@ -21,6 +21,8 @@ export class massDriverBracketModel {
     this.bracketThickness = dParamWithUnits['launcherMassDriverScrewBracketThickness'].value
     this.shape = this.createShape(dParamWithUnits)
     this.lowDetailShape = this.createShape(dParamWithUnits, 4)
+    this.railSupportShapes = this.createRailSupportShapes(dParamWithUnits)
+    this.lowDetailRailSupportShapes = this.createRailSupportShapes(dParamWithUnits, 4)
 
   }
 
@@ -108,6 +110,35 @@ export class massDriverBracketModel {
     return shape
   }
 
+  // A tube-wall rib and pedestal under the rail. No screw positions or bearing radii enter this shape.
+  createRailSupportShapes(params, arcSegments = 16) {
+    const p = key => params[key].value
+    const radius = p('launcherMassDriverTubeInnerRadius')
+    const rib = p('launcherMassDriverBracketRibWidth')
+    const offset = p('launchRailUpwardsOffset')
+    const halfWidth = p('launcherMassDriverRailWidth') / 4
+    const top = -p('launcherMassDriverRailHeight') / 2
+    const ring = new THREE.Shape(), hole = new THREE.Path()
+    const segments = arcSegments * 4
+    for (let i = 0; i <= segments; i++) {
+      const angle = i * Math.PI * 2 / segments
+      const outer = [radius * Math.cos(angle), radius * Math.sin(angle) - offset]
+      const inner = [(radius - rib) * Math.cos(-angle), (radius - rib) * Math.sin(-angle) - offset]
+      if (i === 0) { ring.moveTo(...outer); hole.moveTo(...inner) }
+      else { ring.lineTo(...outer); hole.lineTo(...inner) }
+    }
+    ring.closePath(); hole.closePath(); ring.holes.push(hole)
+    // Embed the bottom of the pedestal halfway into the rib for a continuous connection.
+    const bottom = -Math.sqrt((radius - rib / 2) ** 2 - halfWidth ** 2) - offset
+    const pedestal = new THREE.Shape()
+    pedestal.moveTo(-halfWidth, top)
+    pedestal.lineTo(halfWidth, top)
+    pedestal.lineTo(halfWidth, bottom)
+    pedestal.lineTo(-halfWidth, bottom)
+    pedestal.closePath()
+    return [ring, pedestal]
+  }
+
   genSpecs(dParamWithUnits, specs) {
     const shape = this.createShape(dParamWithUnits)
     const contour = []
@@ -177,4 +208,41 @@ export class virtualMassDriverBracket extends VirtualObject {
   placeAndOrientModel(om, refFrame) {
     this.placeAtD(om, refFrame, virtualMassDriverBracket.upwardsOffset)
   }
+}
+
+
+export class virtualRailOnlyBracket extends VirtualObject {
+  constructor(d, index) { super(); this.d = d; this.index = index }
+  static unallocatedModels = []
+  static className = 'virtualRailOnlyBrackets'
+  static modelsAreRecyleable = true
+  static highlightClass = 'massDriver'
+  static isDynamic = false
+
+  static signatureOf(params) {
+    return parameterSignature(params, ['launcherMassDriverRail', 'launchRailUpwardsOffset',
+      'launcherMassDriverTubeInnerRadius', 'launcherMassDriverBracketRibWidth', 'launcherMassDriverScrewBracketThickness'])
+  }
+
+  static countFor(params, length) {
+    return params.showMassDriverBrackets.value
+      ? Math.ceil(length / Math.max(0.1, params.launcherMassDriverScrewRoughLength.value)) : 0
+  }
+
+  static isTeardownRequired(params) {
+    return this.countFor(params, this.supportLength) !== this.numObjects
+  }
+
+  static update(params, length, versionNumber) {
+    this.supportLength = length
+    this.isVisible = params.showMassDriverBrackets.value
+    this.numObjects = this.countFor(params, length)
+    this.upwardsOffset = params.launchRailUpwardsOffset.value
+    this.versionNumber = versionNumber
+    this.hasChanged = true
+  }
+
+  static addNewVirtualObjects(refFrames) { this.addEvenlySpacedObjects(refFrames) }
+
+  placeAndOrientModel(model, refFrame) { this.placeAtD(model, refFrame, this.constructor.upwardsOffset) }
 }

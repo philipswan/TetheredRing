@@ -238,6 +238,12 @@ export function createParameterDefinitions() {
   launcherMassDriverAltitude: {value: -200, units: 'm', autoMap: true, min: -10000, max: 4000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherRampExitAltitude: {value: 2700, units: 'm', autoMap: true, min: -10000, max: 50000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherEvacuatedTubeExitAltitude: {value: 31700, units: "m", autoMap: true, min: -10000, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherPrepopulatedLaunches: {value: 0, units: '', autoMap: true, min: 0, max: 100, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherQueueAdvanceDelay: {value: 2, units: 's', autoMap: true, min: 0, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherQueueAdvanceDuration: {value: 10, units: 's', autoMap: true, min: 0.1, max: 60, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherStagedLaunches: {value: 0, units: '', autoMap: true, min: 0, max: 100, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherTubeRadiusToVehicleRadius: {value: 3.75, units: '', autoMap: true, min: 1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherProportionalTubeRadius: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriver1InitialVelocity: {value: 2, units: 'm/s', autoMap: true, min: 0, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriver2InitialVelocity: {value: 200, units: 'm/s', autoMap: true, min: 0, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverExitVelocity: {value: 8000-360, units: 'm/s', autoMap: true, min: 1, max: 50000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -271,7 +277,7 @@ export function createParameterDefinitions() {
   launchSystemRightwardScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -20, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -20, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchVehicleForwardsOffset: {value: 23, units: 'm', autoMap: true, min: -20, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchVehicleForwardsOffset: {value: 23, units: 'm', hidden: true, autoMap: false, min: -20, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleRadius: {value: 1.2, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleNoseconeLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 50, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -289,7 +295,7 @@ export function createParameterDefinitions() {
   launchVehiclePayloadMass: {value: 100, units: 'kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleNonPayloadMass: {value: 400, units: 'kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleCostPerKg: {value: 1000, units: 'USD/kg', autoMap: true, min: 0, max: 100000, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchVehicleScaleFactor: {value: 1.5, units: 'm', autoMap: true, min: .1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchVehicleScaleFactor: {value: 1, units: '', autoMap: true, min: .1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
   // The launch cadence (launcher time between launches); the ocean terminal's ships keep up with it (src/launcher/launchCadence.js).
   launchVehicleSpacingInSeconds: {value: 20, units: 's', autoMap: true, min: 0.1, max: 7200, onChange: 'updateLauncher', folder: 'Launcher'},
   numVirtualLaunchVehicles: {value: 1, units: '', autoMap: true, min: 0, max: 3600, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -307,7 +313,7 @@ export function createParameterDefinitions() {
   // Launcher time each launch's vehicle and nut take to be drawn out of the ocean terminal into the tube before accelerating (src/launcher/launchCadence.js).
   launcherTerminalEgressDuration: {value: 120, units: 's', autoMap: true, min: 0, max: 600, onChange: 'updateLauncher', folder: 'Launcher'},
   numVirtualMassDriverTubes: {value: 256, units: "", autoMap: true, min: 0, max: 3600, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
-  launcherMassDriverRailWidth: {value: 1.0, units: 'm', autoMap: true, min: 1, max: 2000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherMassDriverRailWidth: {value: 1.5, units: 'm', autoMap: true, min: 1, max: 2000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverRailHeight: {value: 0.25, units: 'm', autoMap: true, min: 1, max: 2000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverRailMaterialDensity: {value: 7930, units: "kg/m3", autoMap: true, min: 0, max: 20000, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverRailMaterialCost: {value: 1, units: "USD/kg", autoMap: true, min: 0, max: 100, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -387,11 +393,14 @@ export function createParameterDefinitions() {
 
   launchSledSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  // Thickness of the sled capture arms and the lips beneath the rail.
   launchSledHeight: {value: .25, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchSledBodyLength: {value: 10, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
+  // Legacy snapshot key; derived as 175% of vehicle body length, including display scale.
+  launchSledBodyLength: {value: 10, units: 'm', hidden: true, autoMap: false, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledAirgapWidth: {value: 0.48, units: 'm', autoMap: true, min: .001, max: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledUpwardsOffset: {value: 0.5, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
+  // Legacy saved-view field. Procedural sled placement follows vehicle tail/nut clearance.
   launchSledForwardsOffset: {value: 13, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   launchSledStopClearance: {value: 50, units: 'm', autoMap: true, min: 0, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},  // between the front of the stopped sled and the exit airlock's doors
   launchSledScaleFactor: {value: 1, units: '', autoMap: true, min: 0.1, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -401,6 +410,7 @@ export function createParameterDefinitions() {
   adaptiveNutSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutHeight: {value: 3.7, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  adaptiveNutAutoSize: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutBodyLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutGrapplerLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutSidewaysOffset: {value: 0, units: 'm', autoMap: true, min: -200, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},

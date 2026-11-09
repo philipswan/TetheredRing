@@ -876,7 +876,7 @@ export class App {
 
   // The ocean terminal at the launcher's breech, if the breech is under the sea (OceanTerminal.place).
   updateOceanTerminal(t) {
-    const breech = this.planetSpec.hasOcean && this.d.showLauncherOceanTerminal.value ? this.launchSystem?.startFrame() : null
+    const breech = this.planetSpec.hasOcean && this.d.showLauncherOceanTerminal.value ? this.launchSystem?.terminalFrame() : null
     if (!breech) {
       this.oceanTerminal?.setVisible(false)
       return

@@ -1,3 +1,4 @@
+import { upgradeFollowLaunchVehicleQueue } from './FollowLaunchVehicleQueue.js'
 import * as THREE from 'three'
 import {
   createShot, parseShot, serializeShot, shotDuration, sampleParameterTrack, validateShot, isWorldAnchor, sameAnchor,
@@ -1950,6 +1951,7 @@ export class ShotController {
   // Restores the parameters and simulation state the shot was made with.
   restoreStart(shot) {
     const app = this.app
+    upgradeFollowLaunchVehicleQueue(shot, app.presetParameters)
     const current = app.store.snapshot()
     // Older shots lack the chart's new settings. Start those from the preset, rather than
     // carrying a different project's curve selections or layout into this project.
@@ -1989,6 +1991,9 @@ export class ShotController {
   // Called when the page has started: loads a shot imported across a preset switch, and carries on
   // with a render queue run.
   async resumePendingShot() {
+    // Inspect the current preset without applying an older shot's parameters or camera.
+    // Leave recovery storage intact so the project can still be reopened normally.
+    if (new URLSearchParams(globalThis.location?.search ?? '').get('restoreShot') === 'false') return
     this.queue.resumeSoon()
     this.queue.ready.then(async () => {
       if (!this.queue.running) await this.restoreProjectRender()

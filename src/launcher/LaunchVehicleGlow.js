@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GlowTube } from '../scene/GlowTube.js'
 import { glowTubeMaterial } from '../scene/glowMaterials.js'
-import { virtualLaunchVehicle } from './LaunchVehicle.js'
+import { virtualLaunchVehicle, launchVehicleNozzleDimensions } from './LaunchVehicle.js'
 import { exhaustPlume, plasmaTrailPoint, shockLayerEmission } from './hypersonicGlow.js'
 
 // The light of the launch vehicles in flight through the air (physics in hypersonicGlow.js), from the
@@ -24,12 +24,6 @@ const TRAIL_RINGS = 96
 const PLUME_RINGS = 40
 const TRAIL_COOLING_TIMES = 6        // the trail is drawn back to this many cooling times (e^-6 = 0.25%)
 const MIN_EMISSION = 1e-4            // a trail or plume whose emissivity stays below this is not drawn
-
-// The procedural vehicle's nozzle (LaunchVehicle.js, model units before scaling): exit and throat
-// radii, and the angle of its wall at the exit.
-const NOZZLE_EXIT_RADIUS = 1.11627906976744
-const NOZZLE_THROAT_RADIUS = 0.133953488372093
-const NOZZLE_LIP_ANGLE = Math.atan2(1.11627906976744 - 1.02697674418605, 0.502325581395349)
 
 const STANDARD_PRESSURE = 101325  // Pa
 
@@ -68,17 +62,19 @@ export class LaunchVehicleGlow {
     const forwardScale = d['launchSystemForwardScaleFactor'].value * scale
     const radialScale = 0.5 * (d['launchSystemRightwardScaleFactor'].value + d['launchSystemUpwardScaleFactor'].value) * scale
     const bodyRadius = d['launchVehicleRadius'].value * radialScale
-    this.noseToBase = (d['launchVehicleBodyLength'].value + d['launchVehicleNoseconeLength'].value) * forwardScale * (isLunar ? 0.6 : 1)
+    const hullLength = d['launchVehicleBodyLength'].value + d['launchVehicleNoseconeLength'].value
+    this.noseToBase = (isLunar ? Math.max(hullLength * 0.6, 2 * d['launchVehicleRadius'].value) : hullLength) * forwardScale
     this.shape = {
       noseToBase: this.noseToBase,
       bodyRadius,
       dragArea: d['launchVehicleCoefficientOfDrag'].value * Math.PI * bodyRadius * bodyRadius,
     }
     // The lunar vehicle has no nozzle.
+    const nozzle = launchVehicleNozzleDimensions(d)
     this.engine = isLunar ? null : {
-      exitRadius: NOZZLE_EXIT_RADIUS * radialScale,
-      throatRadius: NOZZLE_THROAT_RADIUS * radialScale,
-      lipAngle: NOZZLE_LIP_ANGLE,
+      exitRadius: nozzle.exitRadius * radialScale,
+      throatRadius: nozzle.throatRadius * radialScale,
+      lipAngle: Math.atan2(Math.tan(nozzle.lipAngle) * radialScale, forwardScale),
       chamberPressure: d['launchVehicleEngineChamberPressure'].value,
       referenceMassFlowRate: d['launchVehiclePropellantMassFlowRate'].value,
     }

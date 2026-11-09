@@ -104,6 +104,26 @@ For exact placement, **Left**, **Top**, **Width**, and **Height** in **Controls 
 
 Open `shots/GrapplerSwitchover.shot.json` to try it: its lower-right chart shows engaged grapplers and grappler 1’s angle, lift, and radial travel, with individual scales and a 137–148 s launch-time window. The grappler curves use the animation’s actual pose calculation; zooming in increases sampling detail.
 
+To view the current preset without an automatically recovered shot overriding its parameters or camera, append `&restoreShot=false` to its URL (for example, `?preset=toMarsHawaii&restoreShot=false`). This does not delete the saved recovery copy.
+
+### Procedural launch vehicles and sleds
+
+Vehicle hulls, noses, fins and engine nozzles are generated from the configured dimensions in metres. The nose has its own configured length; nozzle and fin radii follow vehicle radius. Sleds use a single procedural body with the original model�s proportions and rounded end relief. The upper recess follows the launch vehicle hull radius with running clearance. The underside embraces the rail with side arms and inward capture lips; a central opening clears its support pedestal. The rail is 1.5 m wide by default (50% wider). Width grows with vehicle radius and rail width; `launchSledHeight` controls capture-arm and lip thickness. The sled begins 25 cm ahead of the adaptive nut body. The adaptive nut also has a procedural body, sharing the same rail pocket and capture lips, with a 25 cm overhang beyond each end of the grappler span. Sled bodies are muted green and adaptive-nut bodies are purple. The vehicle tail follows the sled rear. With `adaptiveNutAutoSize` enabled, nut length and grappler span follow `grapplerPadContactLength`, calculated from magnetic contact area, pad width and contacted flight count; body overhangs are added afterwards. Neither body loads an OBJ model. Crew scale figures still load their mannequin assets and remain at native size independently of spacecraft and launch-system display scaling.
+
+The default vehicle scale and the actual-size preset use 1:1 geometry. Explicit display scale controls remain available. Sled placement, tracking and stopping clearance use its configured length without the former 1.75× stretch.
+
+### Two-stage mass driver launcher
+
+This preset starts with four complete assemblies in a staged queue at the entrance, with a 10 m gap between their envelopes. The opening camera frames the entire queue. `launcherStagedLaunches` controls this queue; `launcherPrepopulatedLaunches` instead restores the historical behavior of placing past launches farther along the track.
+
+### HawaiiMars launcher
+
+The HawaiiMars preset stages four complete vehicle/sled/adaptive-nut assemblies (`N = 4` in `src/presets/toMarsHawaiiLauncherPresets.js`). The initial camera frames the full queue, with semi-transparent, double-sided submerged terminal surfaces so the assemblies remain visible. Both launch presets use 20-second departures, after the initial launcher start delay. Waiting trains hold for 2 seconds after each launch, ease forward one position over 10 seconds, then hold for 8 seconds. Quintic easing gives zero speed and acceleration at both ends of each advance. Physical spacing leaves at least 10 m between assembly envelopes and is independent of the launch interval. The tube and rail extend behind the entrance to enclose and support the queue, and the terminal surrounds its last train. Rail-only brackets connect the tube wall to the rail throughout the queue, feeder rail, and first mass driver; screw-bearing brackets begin at the second mass driver. Mass driver 1 accelerates them from 50 to 200 m/s without screws; mass driver 2 supplies screw acceleration from 200 m/s onward. The first phase has no linear-motor mesh yet. Grapplers prepare the entry helix during the first phase and share the screws' global rotation clock.
+
+`launcherStagedLaunches` selects a finite staged queue; zero restores the repeating launch cadence and terminal egress. Staging uses the path's entrance tangent behind the launcher instead of terminal loading. The three `numVirtual*` assembly counts should each be at least the staged count. `launchVehicleSpacingInSeconds`, `launcherQueueAdvanceDelay`, and `launcherQueueAdvanceDuration` control departure spacing, the initial hold, and the advance duration; the remaining interval is the final hold.
+
+With `launcherProportionalTubeRadius` enabled, tube inner radius is `launchVehicleRadius × launcherTubeRadiusToVehicleRadius`. HawaiiMars enables this with a ratio of 3.75; disabling it restores the independently configured tube radii. This currently links tube size only; rail, screw, and bracket dimensions remain independent inputs.
+
 ## Recording video and repeatable shots
 
 For a step-by-step walkthrough, see the [Shots and video capture user's guide](docs/SHOTS.md). The rest of this section is a quick reference.

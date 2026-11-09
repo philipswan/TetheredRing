@@ -1,3 +1,5 @@
+import { adaptiveNutContactSizing } from '../launcher/adaptiveNutEngineering.js'
+import { launchTrainOffsets } from '../launcher/launchAssemblyLayout.js'
 import { lerp } from '../utils/math.js'
 import { tetherFibers, coilConductorMaterials } from './parameterDefinitions.js'
 
@@ -43,6 +45,26 @@ export class ParameterStore {
     const d = this.derived
     for (const [k, v] of Object.entries(p)) {
       if (v.autoMap) d[k] = { value: v.value, units: v.units }
+    }
+    if (p.adaptiveNutAutoSize?.value && p.launchTrajectorySelector.value !== 1) {
+      const sizing = adaptiveNutContactSizing(d)
+      // Zero force or disabled magnetic contact has no useful positive sizing result.
+      if (Number.isFinite(sizing.grapplerPadContactLength) && sizing.grapplerPadContactLength > 0) {
+        d.adaptiveNutBodyLength = {value:sizing.grapplerPadContactLength,units:'m'}
+        d.adaptiveNutGrapplerLength = {value:sizing.grapplerPadContactLength,units:'m'}
+        // Retain the configured pad density when contact sizing lengthens the nut.
+        // An even count keeps a grappler centred on the screw's reference trajectory.
+        const count = p.adaptiveNutNumGrapplers.value
+        d.adaptiveNutNumGrapplers = {value:Math.max(count,2*Math.ceil(count*sizing.grapplerPadContactLength/p.adaptiveNutGrapplerLength.value/2)),units:''}
+      }
+    }
+    d.launchVehicleForwardsOffset = {value:launchTrainOffsets(d).vehicleForward,units:'m'}
+    d.launchSledBodyLength = { value: p.launchVehicleBodyLength.value * p.launchVehicleScaleFactor.value * 1.75, units: 'm' }
+    if (p.launcherProportionalTubeRadius?.value) {
+      const radius = p.launchVehicleRadius.value * p.launcherTubeRadiusToVehicleRadius.value
+      for (const key of ['launcherMassDriverTubeInnerRadius', 'elevatedEvacuatedTubeInnerRadius', 'elevateEvacuatedTubeInnerRadius']) {
+        d[key] = { value: radius, units: 'm' }
+      }
     }
     d.equivalentLatitude = { value: p.equivalentLatitude.value / 180 * Math.PI, units: 'radians' }
     d.ringEccentricity = {

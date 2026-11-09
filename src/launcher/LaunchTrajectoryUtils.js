@@ -32,6 +32,9 @@ export function defineTrajectoryCurvesParametersHaveChanged() {
     let changed = false;
     const paramsToCheck = [
       'launcherFeederRailLength',
+      'launcherStagedLaunches',
+      'launchVehicleForwardsOffset',
+      'launchVehicleScaleFactor',
       'launcherMassDriver1InitialVelocity',
       'launcherMassDriver2InitialVelocity',
       'launcherMassDriverExitVelocity',
@@ -1846,11 +1849,11 @@ export function defineUpdateTrajectoryCurves () {
     }
 
     // Note that each segment has launcherMassDriverNumScrews screws. The screws (and brackets) are spread
-    // over both horizontal mass drivers and the ramp, with acceleration and braking accounted separately.
+    // over the second horizontal mass driver and the ramp, with acceleration and braking accounted separately.
     // The rough length is clamped to avoid Infinity segments when it is set to 0.
     const screwRoughLength = Math.max(0.1, this.launcherMassDriverScrewRoughLength)
     const maxScrewSegments = 1e6
-    const acceleratingLength = launcherMassDriver1Length + launcherMassDriver2Length + this.adaptiveNutDetachDistance
+    const acceleratingLength = launcherMassDriver2Length + this.adaptiveNutDetachDistance
     const brakingLength = this.launcherRampLength - this.adaptiveNutDetachDistance
     this.massDriverScrewSegments = Math.min(maxScrewSegments, Math.max(2, Math.ceil(acceleratingLength / screwRoughLength) + Math.ceil(brakingLength / screwRoughLength)))
     this.massDriverAccelerationScrewSegments = Math.max(1, Math.min(this.massDriverScrewSegments - 1,
