@@ -10,11 +10,39 @@ import { MovingVirtualObject, curveFrameAtTime, parameterSignature } from './Vir
 const MODEL_FORWARD = new THREE.Vector3(0, 1, 0) // The direction that the model considers "forward"
 const MODEL_UPWARD = new THREE.Vector3(0, 0, 1)  // The direction that the model considers "upward"
 
+// Original bell and combustion-chamber contour, in metres at a 1.2 m vehicle radius.
+const nozzleReferenceProfile = [
+  [0, 3.61674418604651],
+  [0.178604651162791, 3.61674418604651],
+  [0.20093023255814, 3.60558139534884],
+  [0.223255813953488, 3.57209302325581],
+  [0.234418604651163, 3.53860465116279],
+  [0.234418604651163, 3.13674418604651],
+  [0.223255813953488, 3.09209302325581],
+  [0.156279069767442, 2.98046511627907],
+  [0.133953488372093, 2.9246511627907],
+  [0.133953488372093, 2.86883720930233],
+  [0.167441860465116, 2.80186046511628],
+  [0.312558139534884, 2.58976744186046],
+  [0.491162790697674, 2.24372093023256],
+  [0.658604651162791, 1.85302325581395],
+  [0.814883720930233, 1.38418604651163],
+  [0.937674418604651, 0.915348837209302],
+  [1.02697674418605, 0.502325581395349],
+  [1.11627906976744, 0],
+]
+const nozzleReferenceLength = nozzleReferenceProfile[0][1]
+
 export function launchVehicleNozzleDimensions(dParamWithUnits) {
   const radius = dParamWithUnits.launchVehicleRadius.value
-  const length = Math.min(dParamWithUnits.launchVehicleRocketEngineLength.value, dParamWithUnits.launchVehicleBodyLength.value)
-  return { length, exitRadius: radius * 0.9, throatRadius: radius * 0.12,
-    lipAngle: Math.atan2(radius * 0.48, length * 0.3) }
+  const length = Math.min(dParamWithUnits.launchVehicleRocketEngineLength.value / 4.3 * nozzleReferenceLength,
+    dParamWithUnits.launchVehicleBodyLength.value)
+  const radialScale = radius / 1.2
+  const [exitR] = nozzleReferenceProfile.at(-1)
+  const [previousR, previousY] = nozzleReferenceProfile.at(-2)
+  return { length, exitRadius: exitR * radialScale,
+    throatRadius: Math.min(...nozzleReferenceProfile.slice(1).map(([r]) => r)) * radialScale,
+    lipAngle: Math.atan2((exitR - previousR) * radialScale, previousY / nozzleReferenceLength * length) }
 }
 
 // Local axes are x=sideways, y=forward, z=up; the tail is y=0.
@@ -35,12 +63,10 @@ export function createLaunchVehicleGeometry(dParamWithUnits) {
 
   const nozzle = launchVehicleNozzleDimensions(dParamWithUnits)
   const engineLength = nozzle.length
-  // A bell nozzle, throat, and chamber, all proportional to the vehicle radius.
-  const profile = [new THREE.Vector2(0, engineLength)]
-  for (const [r, y] of [[0.2, 1], [0.2, 0.88], [nozzle.throatRadius / radius, 0.78], [nozzle.throatRadius / radius, 0.7],
-    [0.2, 0.55], [0.42, 0.3], [nozzle.exitRadius / radius, 0], [1, 0], [1, 1]]) {
-    profile.push(new THREE.Vector2(r * radius, y * engineLength))
-  }
+  const profile = nozzleReferenceProfile.map(([r, y]) =>
+    new THREE.Vector2(r / 1.2 * radius, y / nozzleReferenceLength * engineLength))
+  profile.push(new THREE.Vector2(radius, 0))
+  profile.push(new THREE.Vector2(radius, engineLength))
   profile.push(new THREE.Vector2(radius, bodyLength))
   // Sample a Haack nose by fraction, so short or non-integral lengths still end at the tip.
   for (let i = 1; i <= 64; i++) {

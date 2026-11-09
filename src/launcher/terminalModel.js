@@ -12,8 +12,7 @@ import * as THREE from 'three'
 //  - Elevator_Shaft: a vertical cylinder from the terminal down into the underwater terminal; its axis
 //    is the pivot the terminal and pier turn about.
 //  - Underwater_Terminal: a cylinder along Z, flat at the launcher's end (-Z) and rounded at the other.
-//    It is redrawn from its extent as a cylinder with a true hemispherical end (underwaterHull), so its
-//    tip stays where the model has it.
+//    It is redrawn as a pill with two hemispherical ends (underwaterHull), keeping its original extent.
 //
 // The file's normals are flat (one per face). The elevator shaft and the underwater terminal are curved
 // surfaces, so they are smooth-shaded: across edges sharper than CREASE_ANGLE (the shaft's rims, the
@@ -149,19 +148,18 @@ export function smoothNormals(polygons, creaseAngle = CREASE_ANGLE) {
 }
 
 /**
- * The underwater terminal's hull, from the model's: a cylinder along Z of the same radius and axis, a flat
- * end where the model's is (min Z), and a hemisphere ending at the model's tip (max Z). Polygons with
- * exact normals.
+ * The underwater terminal's hull: a cylinder along Z with hemispherical ends, preserving the
+ * model's radius and axis. Extend the -Z end to center the shaft when supplied.
  */
-export function underwaterHull(polygons) {
+export function underwaterHull(polygons, shaftZ) {
   const box = new THREE.Box3()
   for (const polygon of polygons) for (const p of polygon.points) box.expandByPoint(p)
   const cx = (box.min.x + box.max.x) / 2, cy = (box.min.y + box.max.y) / 2
   const radius = (box.max.y - box.min.y) / 2
-  const front = box.min.z, tip = box.max.z
+  const front = shaftZ === undefined ? box.min.z : Math.min(box.min.z, 2 * shaftZ - box.max.z)
+  const tip = box.max.z
   const domeStart = Math.max(front, tip - radius)
-  // Ring k of the hull (0 = the flat end's rim, 1 = the cylinder's far end, 1 + j = the dome's ring j),
-  // point i round it, with its normal. Points are shared between neighbouring polygons by reference.
+  // Rings run from the -Z dome through the cylinder to the +Z dome.
   const rings = []
   const ring = (z, r, normalAt) => {
     const points = [], normals = []
@@ -173,7 +171,14 @@ export function underwaterHull(polygons) {
     }
     rings.push({ points, normals })
   }
-  ring(front, radius, (c, s) => new THREE.Vector3(c, s, 0))
+  const frontDomeCentre = front + radius
+  for (let j = HULL_DOME_RINGS - 1; j > 0; j--) {
+    const phi = (Math.PI / 2) * j / HULL_DOME_RINGS
+    const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi)
+    ring(frontDomeCentre - radius * sinPhi, radius * cosPhi,
+      (c, s) => new THREE.Vector3(c * cosPhi, s * cosPhi, -sinPhi))
+  }
+  ring(frontDomeCentre, radius, (c, s) => new THREE.Vector3(c, s, 0))
   ring(domeStart, radius, (c, s) => new THREE.Vector3(c, s, 0))
   for (let j = 1; j < HULL_DOME_RINGS; j++) {
     const phi = (Math.PI / 2) * j / HULL_DOME_RINGS   // from the rim towards the tip
@@ -201,10 +206,15 @@ export function underwaterHull(polygons) {
     const i1 = (i + 1) % HULL_SEGMENTS
     out.push({ points: [last.points[i], last.points[i1], tipPoint], normals: [last.normals[i], last.normals[i1], tipNormal], uvs: [null, null, null] })
   }
-  // The flat end, facing -Z (wound clockwise seen from +Z).
-  const rim = rings[0].points
+  // The -Z tip, with the reverse winding of the +Z tip.
+  const first = rings[0]
+  const frontPoint = new THREE.Vector3(cx, cy, front)
   const frontNormal = new THREE.Vector3(0, 0, -1)
-  out.push({ points: [...rim].reverse(), normals: rim.map(() => frontNormal), uvs: rim.map(() => null) })
+  for (let i = 0; i < HULL_SEGMENTS; i++) {
+    const i1 = (i + 1) % HULL_SEGMENTS
+    out.push({ points: [first.points[i1], first.points[i], frontPoint],
+      normals: [first.normals[i1], first.normals[i], frontNormal], uvs: [null, null, null] })
+  }
   return out
 }
 
@@ -226,7 +236,8 @@ export function terminalModel(text) {
     if (objects[name]) geometries[name] = polygonsToGeometry(objects[name].polygons)
   }
   if (objects.Elevator_Shaft) geometries.Elevator_Shaft = polygonsToGeometry(smoothNormals(objects.Elevator_Shaft.polygons))
-  if (objects.Underwater_Terminal) geometries.Underwater_Terminal = polygonsToGeometry(underwaterHull(objects.Underwater_Terminal.polygons))
+  if (objects.Underwater_Terminal) geometries.Underwater_Terminal = polygonsToGeometry(underwaterHull(objects.Underwater_Terminal.polygons,
+    new THREE.Box3().setFromBufferAttribute(geometries.Elevator_Shaft.attributes.position).getCenter(new THREE.Vector3()).z))
 
   // The terminal's windows and doors: recessed vertical panes of their sizes.
   const walls = [], windows = [], doors = []
@@ -267,4 +278,15 @@ export function terminalModel(text) {
   const box = new THREE.Box3().setFromBufferAttribute(geometries.Elevator_Shaft.attributes.position)
   const shaft = { x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2, top: box.max.y, bottom: box.min.y }
   return { geometries, markers, shaft, lamps }
+}
+
+// Closely spaced fairleads on the outer (+Z, away from the ramp) dome.
+export function terminalPretensionAttachments(model) {
+  const box = new THREE.Box3().setFromBufferAttribute(model.geometries.Underwater_Terminal.attributes.position)
+  const centre = box.getCenter(new THREE.Vector3())
+  const radius = (box.max.y - box.min.y) / 2
+  const z = box.max.z - 2
+  const axial = radius - 2
+  return [-2, 2].map(x => new THREE.Vector3(centre.x + x,
+    centre.y - Math.sqrt(radius * radius - axial * axial - x * x), z))
 }

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { shipVisit, visitsAt, shipPose, craneAt, agvAt, containerAt, containerTimes, RACK_Z, CRANE, PIER, CONTAINER, siteSeed } from '../../src/launcher/terminalPort.js'
-import { terminalModel } from '../../src/launcher/terminalModel.js'
+import { terminalModel, terminalPretensionAttachments } from '../../src/launcher/terminalModel.js'
 
 const SITE = siteSeed(19.6234, -163.4055)
 const VISITS = Array.from({ length: 40 }, (_, k) => shipVisit(k - 10, SITE))
@@ -123,7 +123,7 @@ test('the model has its markers, lamps, windows and doors', () => {
   assert.ok(model.shaft.top > model.shaft.bottom)
 })
 
-test('the underwater terminal ends in a hemisphere, and it and the shaft are smooth-shaded with outward normals', () => {
+test('the underwater terminal has two hemispherical ends, and it and the shaft are smooth-shaded with outward normals', () => {
   const model = terminalModel(fs.readFileSync(new globalThis.URL('../../models/launcher_ocean_terminal.obj', import.meta.url), 'utf8'))
   const outward = (geometry, centreOf) => {
     const p = geometry.attributes.position, n = geometry.attributes.normal
@@ -151,11 +151,29 @@ test('the underwater terminal ends in a hemisphere, and it and the shaft are smo
   const { min, max } = hull.boundingBox
   const radius = (max.y - min.y) / 2, cy = (max.y + min.y) / 2
   const domeCentre = max.z - radius
-  // Every point of the dome is a radius from its centre.
+  // Both end caps lie on hemispheres of the same radius.
   const p = hull.attributes.position
   for (let i = 0; i < p.count; i++) {
+    if (p.getZ(i) < min.z + radius - 1e-3) assert.ok(Math.abs(Math.hypot(p.getX(i), p.getY(i) - cy, p.getZ(i) - (min.z + radius)) - radius) < 1e-3)
     if (p.getZ(i) > domeCentre + 1e-3) assert.ok(Math.abs(Math.hypot(p.getX(i), p.getY(i) - cy, p.getZ(i) - domeCentre) - radius) < 1e-3)
   }
-  assert.ok(outward(hull, ([, , z]) => [0, cy, Math.min(Math.max(z, min.z + 1), domeCentre)]) > 0)
+  assert.ok(outward(hull, ([, , z]) => [0, cy, Math.min(Math.max(z, min.z + radius), domeCentre)]) > 0)
   assert.ok(outward(model.geometries.Elevator_Shaft, ([, y]) => [model.shaft.x, y, model.shaft.z]) > 0)
+})
+
+test('the shaft is centered along the extended hull and pretension fairleads sit together on the outer dome', () => {
+  const model = terminalModel(fs.readFileSync(new globalThis.URL('../../models/launcher_ocean_terminal.obj', import.meta.url), 'utf8'))
+  const hull = model.geometries.Underwater_Terminal
+  hull.computeBoundingBox()
+  const { min, max } = hull.boundingBox
+  assert.ok(Math.abs((min.z + max.z) / 2 - model.shaft.z) < 1e-4)
+  const attachments = terminalPretensionAttachments(model)
+  assert.equal(attachments.length, 2)
+  assert.equal(attachments[0].distanceTo(attachments[1]), 4)
+  const radius = (max.y - min.y) / 2
+  for (const p of attachments) {
+    assert.ok(p.z > model.shaft.z, 'fairleads face away from the ramp')
+    assert.ok(Math.abs(Math.hypot(p.x, p.y - (min.y + max.y) / 2,
+      p.z - (max.z - radius)) - radius) < 1e-4, 'fairlead lies on the dome')
+  }
 })

@@ -70,12 +70,12 @@ export class AnchorCables {
       if (below.floor === null) return false
       const depth = below.alt - below.floor
       if (depth < 1) continue
-      const reach = SCOPE * depth
+      const reach = (leg.scope ?? SCOPE) * depth
       const [lat, lon] = offsetLatLon(this.ellipsoid, below.lat, below.lon, leg.east * reach, leg.north * reach)
       const at = this.sampleHeight(lat, lon)?.heightMeters ?? null
       if (at === null) return false
       const p = geodeticToECEF(lat, lon, Math.min(at, below.alt - 1), this.ellipsoid)
-      ends.push({ top: leg.top, anchor: new THREE.Vector3(p.x, p.y, p.z) })
+      ends.push({ top: leg.top, anchor: new THREE.Vector3(p.x, p.y, p.z), shape: leg.shape ?? 0.01 })
     }
     this.complete = true
     const signature = ends.map(({ anchor }) => anchor.toArray().map((x) => x.toFixed(0)).join(',')).join(';')
@@ -89,12 +89,12 @@ export class AnchorCables {
     this.clear()
     const positions = [], tubes = []
     let reach = 0
-    for (const { top, anchor } of ends) {
+    for (const { top, anchor, shape } of ends) {
       const a = this.toLocal(top, new THREE.Vector3())
       const b = this.toLocal(anchor, new THREE.Vector3())
       _up.copy(top).normalize()
       this.toLocal(_p.copy(top).add(_up), _up).sub(a).normalize()
-      const points = catenaryPoints(a, b, _up, 0.01, SEGMENTS)
+      const points = catenaryPoints(a, b, _up, shape, SEGMENTS)
       for (let i = 0; i < points.length - 1; i++) positions.push(...points[i].toArray(), ...points[i + 1].toArray())
       for (const p of points) reach = Math.max(reach, p.length())
       tubes.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), SEGMENTS, DIAMETER / 2, 6, false))

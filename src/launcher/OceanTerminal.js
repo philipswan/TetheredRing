@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { ecefToGeodetic, geodeticToECEF } from '../physics/geodesy.js'
 import { windAt } from '../scene/seaPlacement.js'
-import { terminalModel } from './terminalModel.js'
+import { terminalModel, terminalPretensionAttachments } from './terminalModel.js'
 import { DEFAULT_SCHEDULE, siteSeed } from './terminalPort.js'
 import { TerminalTraffic } from './TerminalTraffic.js'
 import { AnchorCables } from './AnchorCables.js'
@@ -243,6 +243,14 @@ export class OceanTerminal {
         const direction = new THREE.Vector3(sideways, 0, outward).normalize().applyQuaternion(this.root.quaternion)
         legs.push({ top, east: direction.dot(east), north: direction.dot(north) })
       }
+    }
+    // +Z points back from the breech, away from the ramp. The pair shares that
+    // direction so its seabed anchors remain close together rather than splaying out.
+    const pretensionDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(this.root.quaternion)
+    for (const fairlead of terminalPretensionAttachments(this.model)) {
+      const top = toPlanet(fairlead.add(new THREE.Vector3(-shaft.x, drop, -shaft.z)))
+      legs.push({ top, east: pretensionDirection.dot(east), north: pretensionDirection.dot(north),
+        scope: 1 / Math.tan(5 * Math.PI / 180), shape: 100 })
     }
     this.cables = new AnchorCables({ parent: this.root, toLocal, legs, ellipsoid: this.ellipsoid, sampleHeight: this.sampleHeight })
     this.site = siteSeed(geo.lat, geo.lon)
