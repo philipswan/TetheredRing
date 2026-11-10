@@ -255,6 +255,7 @@ export function createParameterDefinitions() {
   launchVehicleDesiredOrbitalAltitude: {value: 200000, units: 'm', autoMap: true, min: 0, max: 10000000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleNoseConeTipRadius: {value: 0.001, units: 'm', autoMap: true, min: 0, max: 10, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
+  numLaunchesPerDay: {value: 4, units: 'launches/day', autoMap: true, min: 1, max: 10000, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   numLaunchesPerMarsTransferSeason: {value: 14*4, units: '', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
   numberOfMarsTransferSeasons: {value: 10, units: '', autoMap: true, min: 1, max: 100, onChange: 'updateLauncher', folder: 'Launcher'},
   launchFromPlanet: {value: "Earth", autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -409,6 +410,7 @@ export function createParameterDefinitions() {
 
   adaptiveNutSpacingInSeconds: {value: 5, units: 's', autoMap: true, min: 0.1, max: 60, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutWidth: {value: 2, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
+  adaptiveNutElectromagneticBrakingEntrySpeed: {value: 200, units: 'm/s', autoMap: true, min: 1, max: 1000, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutHeight: {value: 3.7, units: 'm', autoMap: true, min: .1, max: 20, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutAutoSize: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
   adaptiveNutBodyLength: {value: 20, units: 'm', autoMap: true, min: .1, max: 200, onChange: 'updateLauncher', folder: 'Launcher'},

@@ -3,15 +3,15 @@ import { SuperCurve, quaternionFromFrame } from './SuperCurve.js'
 
 // Geometry is parametrized by true distance, independently of the vehicle/nut's time laws.
 export class RampSuperCurve3 extends SuperCurve {
-  constructor(profile, start, axis) {
+  constructor(profile, start, axis, maxDistance = profile.length) {
     super()
     this.profile = profile
     this.start = start.clone().normalize()
     this.axis = axis.clone().normalize()
     this.downrange = new Vector3().crossVectors(this.axis, this.start)
     this.specificForceAt = t => { const a = profile.atTime(t); return this.toWorld(a.fx, a.fy, a.fz) }
-    this.length = profile.length
-    this.duration = profile.duration
+    this.length = Math.min(profile.length, Math.max(0, maxDistance))
+    this.duration = this.length < profile.length ? profile.atDistance(this.length).t : profile.duration
     this.tTod = t => profile.atTime(t).s
     this.tTos = t => profile.atTime(t).v
     this.tToi = t => this.tTod(t) / this.length
@@ -41,7 +41,8 @@ export class RampSuperCurve3 extends SuperCurve {
   getStartFinishZoneIndices(centre, radius) {
     // Conservative bounds around the dense design samples; include the gap to the next sample so
     // visibility cannot disappear when a small camera sphere falls between two design points.
-    this.zoneSamples ??= this.profile.samples.map(a => ({ s: a.s, point: this.toWorld(a.px, a.py, a.pz) }))
+    this.zoneSamples ??= [...this.profile.samples.filter(a => a.s < this.length), this.profile.atDistance(this.length)]
+      .map(a => ({ s: a.s, point: this.toWorld(a.px, a.py, a.pz) }))
     let start = Infinity, end = -Infinity
     for (let i = 0; i < this.zoneSamples.length - 1; i++) {
       const a = this.zoneSamples[i], b = this.zoneSamples[i + 1]

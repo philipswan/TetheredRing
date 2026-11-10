@@ -99,6 +99,7 @@ export function toMarsHawaiiLauncherPresets(guidParamWithUnits, nonGUIParams) {
   //launchVehicleDesiredOrbitalAltitude
   //launchVehicleNoseConeTipRadius
   //launcherPayloadDeliveredToOrbit
+  guidParamWithUnits['numLaunchesPerDay'].value = 4
   guidParamWithUnits['numLaunchesPerMarsTransferSeason'].value = 14*4 // 14 days, four lauches per day
   guidParamWithUnits['numberOfMarsTransferSeasons'].value = 10
   //launchVehicleCoefficientOfDrag

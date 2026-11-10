@@ -1,3 +1,4 @@
+import { dailyStashingCapacity, TRANSFER_SEASON_DAYS } from './stashingFacility.js'
 import { adaptiveNutEngineering } from './adaptiveNutEngineering.js'
 import { massDriverBracketModel } from "./MassDriverBracket.js"
 import { massDriverScrewModel } from "./MassDriverScrew.js"
@@ -37,6 +38,14 @@ export function define_genLauncherSpecs() {
     const mVehicle = dParamWithUnits['launchVehicleEmptyMass'].value
     const mPayload = dParamWithUnits['launchVehiclePayloadMass'].value
     const initialPropellantMass = dParamWithUnits['launchVehiclePropellantMass'].value
+    const launchSledCoastBackToRampTime = this.launchSledCoastBackToRampTime ?? 0
+    specs['launchSledCoastBackToRampTime'] = {value: launchSledCoastBackToRampTime, units: 's'}
+    print('launchSledCoastBackToRampTime:', myFormat(launchSledCoastBackToRampTime/60, 2), 'min')
+    if (this.adaptiveNutElectromagneticBrakingProfile) {
+      print('Third electromagnetic nut braking section:', myFormat(this.adaptiveNutElectromagneticEntrySpeed), 'm/s to rest over',
+        myFormat(this.adaptiveNutElectromagneticBrakingProfile.stopDistance), 'm in',
+        myFormat(this.adaptiveNutElectromagneticBrakingProfile.duration), 's')
+    }
     const mSled = dParamWithUnits['launchSledMass'].value
     const mAdaptiveNut = dParamWithUnits['launcherAdaptiveNutMass'].value
 
@@ -398,12 +407,16 @@ export function define_genLauncherSpecs() {
 
     // Operating costs
     const marsTransferWindowDurationInHours = 2 // hours
-    const marsTransferSeasonDurationInDays = 14 // days
+    const marsTransferSeasonDurationInDays = TRANSFER_SEASON_DAYS // days
     const numLaunchesPerMarsTransferSeason = dParamWithUnits['numLaunchesPerMarsTransferSeason'].value
     const marsTransferWindowDuration = marsTransferWindowDurationInHours * 3600 // sec
     const marsTransferSeasonDuration = marsTransferSeasonDurationInDays * 24 * 3600 // sec
     const averageLaunchesPerMarsTransferWindow = numLaunchesPerMarsTransferSeason / marsTransferSeasonDurationInDays
-    const maxLaunchesPerMarsTransferWindow = Math.ceil(averageLaunchesPerMarsTransferWindow)
+    specs['averageLaunchesPerMarsTransferWindow'] = {value: averageLaunchesPerMarsTransferWindow, units: 'launches'}
+    const numLaunchesPerDay = dailyStashingCapacity(dParamWithUnits)
+    specs['numLaunchesPerDay'] = {value: numLaunchesPerDay, units: 'launches/day'}
+    const maxLaunchesPerMarsTransferWindow = numLaunchesPerDay
+    specs['stashingFacilityDailyCapacity'] = {value: maxLaunchesPerMarsTransferWindow, units: 'launches'}
     specs['maxLaunchesPerMarsTransferWindow'] = {value: maxLaunchesPerMarsTransferWindow, units: "launches"}
     print("maxLaunchesPerMarsTransferWindow, ", myFormat(maxLaunchesPerMarsTransferWindow), "launches")
     const numberOfMarsTransferSeasons = dParamWithUnits['numberOfMarsTransferSeasons'].value
@@ -423,9 +436,10 @@ export function define_genLauncherSpecs() {
     const threadLayout = this.threadLayout ?? tram.screwThreadLayout(dParamWithUnits)
     let totalFlightSpan = 0
     const dStep = 1000 // m
-    for (let d = this.launcherMassDriver1Length; d<launcherMassDriverLength + launcherRampLength; d+=dStep) {
+    const screwEndDistance = this.screwMotion?.screwEndDistance ?? launcherMassDriverLength + launcherRampLength
+    for (let d = this.launcherMassDriver1Length; d<screwEndDistance; d+=dStep) {
       const starts = threadLayout.flightsAt(d)
-      totalFlightSpan += launcherMassDriverNumScrews * starts * dStep
+      totalFlightSpan += launcherMassDriverNumScrews * starts * Math.min(dStep, screwEndDistance - d)
     }
     const Cd = 1.2 // Drag coefficient of flat plate perpendicular to flow
     // Fusion360 stress simulations determined that the screw flight tips can travel at 530 m/s with an engineering factor of 1.5

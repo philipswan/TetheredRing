@@ -1,3 +1,5 @@
+import { brakingProfile } from './trackBraking.js'
+
 // An adaptive nut or launch sled that has stopped on the launcher's track falls back down it: it slides
 // backwards from rest under gravity alone (the track is frictionless: it is levitated), from path distance
 // `startDistance` to `endDistance` (< startDistance), where it disappears (underground).
@@ -55,4 +57,49 @@ export function fallBackProfile({ startDistance, endDistance, radiusAt, mu, segm
     return v[k] + acceleration * x
   }
   return { duration, distanceAt, speedAt }
+}
+
+// Coast under gravity, then brake on the final stretch to rest at the recovery point.
+export function sledReturnProfile(options) {
+  const { startDistance, endDistance, radiusAt, mu } = options
+  const length = startDistance - endDistance
+  if (!(length > 0)) return fallBackProfile(options)
+  const brakingDistance = Math.min(1000, length / 4)
+  const brakingStart = endDistance + brakingDistance
+  const coast = fallBackProfile({ ...options, endDistance: brakingStart })
+  const braking = brakingProfile({ initialSpeed: coast.speedAt(coast.duration),
+    stopDistance: brakingDistance, radiusAt: s => radiusAt(brakingStart - s), mu })
+  const duration = coast.duration + braking.duration
+  return { duration, coastDuration: coast.duration, brakingDuration: braking.duration,
+    distanceAt: t => t >= duration ? endDistance : t <= coast.duration
+      ? coast.distanceAt(t) : brakingStart - braking.tTod(t - coast.duration),
+    speedAt: t => t >= duration ? 0 : t <= coast.duration
+      ? coast.speedAt(t) : braking.tTos(t - coast.duration) }
+}
+
+// Conservative headway: the next train's nose must not reach the recovery corridor
+// until the returning object has stopped and despawned. Forward and return motion
+// are monotone, so clearance at the return endpoint ensures clearance throughout.
+export function recoveryHeadway({ returnEndTime, returnEndDistance, frontReach, outboundDuration, distanceAt }) {
+  const limit = returnEndDistance - frontReach
+  let lo = 0, hi = outboundDuration
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (distanceAt(mid) < limit) lo = mid
+    else hi = mid
+  }
+  return Math.max(0, returnEndTime - lo)
+}
+
+// Locate a recovery point on a rising ramp by vertical drop from its top.
+export function rampRecoveryDistance({ rampStart, rampEnd, radiusAt, drop = 300 }) {
+  const target = radiusAt(rampEnd) - drop
+  if (radiusAt(rampStart) > target) throw new Error(`The ramp needs at least ${drop} m of rise for sled recovery.`)
+  let lo = rampStart, hi = rampEnd
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (radiusAt(mid) <= target) lo = mid
+    else hi = mid
+  }
+  return lo
 }

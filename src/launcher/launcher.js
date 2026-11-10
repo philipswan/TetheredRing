@@ -1,3 +1,5 @@
+import { StashingFacility, dailyStashingCapacity, aboveGroundStashingStation, STASH_WAIT, STASH_TRANSFER } from './stashingFacility.js'
+import { launchSledLayout } from './LaunchSledGeometry.js'
 import { launchQueueInfrastructure, launchQueueLayout } from './launchQueue.js'
 import { GRAPPLER_CURVES, grapplerTelemetry } from './grapplerTelemetry.js'
 import { screwStateAtDistance } from './rampMotion.js'
@@ -6,7 +8,7 @@ import * as THREE from 'three'
 import { SuperCurvePath } from '../curves/SuperCurves.js'
 import * as tram from '../utils/tram.js'
 import { MovingVirtualObject, disposeModels, pathDuration } from './VirtualObject.js'
-import { fallBackProfile } from './fallBack.js'
+import { sledReturnProfile, recoveryHeadway } from './fallBack.js'
 import { coiledTubeShape } from './launcherAnimate.js'
 import { referenceFrame } from '../core/ReferenceFrame.js'
 import { launchVehicleModel, virtualLaunchVehicle } from './LaunchVehicle.js'
@@ -173,6 +175,12 @@ export class launcher {
   // Rebuilds the trajectory curves, the reference frames and every virtual object. Safe to call on its
   // own (main.js's parameter sweep does): existing models are released first.
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
+    this.referenceFrameArgs = Array.from(arguments)
+    this.stashingRampDistance = null
+    this.stashingFacility?.dispose()
+    this.stashingFacility = null
+    this.recoveryParams = dParamWithUnits
+    this.recoverySpecs = specs
 
     this.objectClasses.forEach(objectClass => objectClass.removeAllVirtualObjects())
 
@@ -199,7 +207,7 @@ export class launcher {
         // While the elevated evacuated tube deployment is animated, the vehicles follow the drawn (coiled) tube.
         const tubeCurve = (this.animateElevatedEvacuatedTubeDeployment && this.coiledElevatedEvacuatedTubeCurve) ? this.coiledElevatedEvacuatedTubeCurve : this.evacuatedTubeCurve
         // ToDo: We need another curve right before the mass driver curve for feeding the launch vehicles and sleds into the screws from
-        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver2Curve, rampCurve(0)])
+        this.polyCurveForrf0 = makePath("massDriver2Path", [this.massDriver2Curve, this.launchScrewRampCurve])
         this.accelerationScrewLength = this.polyCurveForrf0.getLength()
         this.polyCurveForrf1 = makePath("adaptiveNutPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(0)])
         // The sled stays with the vehicle over the ramp, then brakes on the track in the elevated evacuated tube.
@@ -274,6 +282,7 @@ export class launcher {
 
     this.configureObjectClasses(dParamWithUnits, planetSpec)
     this.buildModelPools(dParamWithUnits)
+    this.configureStashingFacility(dParamWithUnits)
     this.objectClasses.forEach(objectClass => {
       if (objectClass.numObjects > 0) objectClass.addNewVirtualObjects(objectClass.refFrames)
     })
@@ -493,34 +502,156 @@ export class launcher {
   }
 
   // ---- Fitting the launcher to the terrain ------------------------------------------------------
-  // Where the nuts and sleds go out of sight underground (updateFallBacks) and how low the coiled-up tube rests
-  // (updateCoilRest) come from fixed terrain data (setFixedTerrainHeight), which loads asynchronously; until it
-  // has, the nuts and sleds fall back to the bottom of the ramp and the coil rests where it was designed to.
+  // The stashing facility is fitted to the mountain portal and the coiled tube to the ground using
+  // fixed terrain data (setFixedTerrainHeight), which loads asynchronously. Until it arrives, storage
+  // uses the upper-ramp design station and the coil rests where it was designed to.
   // terrainReady resolves once the terrain has been consulted. Recordings wait for it, also when a shot's
   // parameter track rebuilds the launcher partway through (it counts as pending work: PendingWork.js).
 
   updateTerrainFits() {
     const generation = this.terrainFitGeneration = (this.terrainFitGeneration ?? 0) + 1
-    this.terrainReady = track(Promise.all([this.updateFallBacks(generation), this.updateCoilRest(generation)])
+    this.terrainReady = track(Promise.all([this.updateFallBacks(), this.updateCoilRest(generation), this.fitStashingSite(generation)])
       .catch(error => console.warn('Could not fit the launcher to the terrain:', error)))
   }
 
-  // Once it has stopped, each adaptive nut and launch sled falls back down its path (fallBack.js) until it is
-  // out of sight: it disappears at the first point on the way down where the path is underground (or, on a
-  // planet with an ocean, under the sea), or failing that at the bottom of the ramp. The Moon's launcher is
-  // still to be redesigned: there they just disappear when they stop, as before.
-  updateFallBacks(generation) {
-    const paths = (this.planetSpec?.name === 'Moon') ? [] : [this.polyCurveForrf1, this.polyCurveForrf2].filter(Boolean)
-    paths.forEach(path => { path.fallBack = this.fallBackFor(path, this.rampStartDistance(path)) })
-    if (!this.fixedTerrainHeight || paths.length === 0) return Promise.resolve()
-    return Promise.all(paths.map(async path => {
-      const end = await this.groundEntryDistance(path)
-      if (generation === this.terrainFitGeneration && end !== null) path.fallBack = this.fallBackFor(path, end)
-    })).then(() => {
-      if (generation !== this.terrainFitGeneration) return
-      this.updateLaunchStride()
-      this.refFrames.forEach(refFrame => { refFrame.forceVisibilityRefresh = true })
-    })
+  // The nut stops on its uphill run; the sled coasts back to the same storage
+  // station. The facility takes over each model at rest, so neither falls farther.
+  updateFallBacks() {
+    if (this.polyCurveForrf1) delete this.polyCurveForrf1.fallBack
+    if (this.polyCurveForrf2) {
+      delete this.polyCurveForrf2.fallBack
+      if (this.stashingRampDistance !== null && this.planetSpec?.name !== 'Moon') {
+        this.polyCurveForrf2.fallBack = this.fallBackFor(this.polyCurveForrf2)
+      }
+    }
+    this.checkRecoveryClearance()
+    return Promise.resolve()
+  }
+
+  async fitStashingSite(generation) {
+    await Promise.resolve()
+    const facility = this.stashingFacility
+    if (!facility || !this.fixedTerrainHeight || this.stashingRampDistance === null) return
+    const ramp = this.launchRampCurve[1], bounds = facility.plan.bounds
+    const start = this.stashingRampDistance
+    const end = Math.min(ramp.getLength(), start + Math.max(0,
+      this.adaptiveNutTubeClearance - this.recoveryParams.adaptiveNutStopClearance.value))
+    const clearanceAt = async distance => {
+      const u = distance / ramp.getLength()
+      const point = ramp.getPointAt(u), forward = ramp.getTangentAt(u), upward = ramp.getNormalAt(u)
+      const rightward = new THREE.Vector3().crossVectors(forward, upward).normalize()
+      let clearance = Infinity
+      for (let ix = 0; ix <= 8; ix++) for (let iy = 0; iy <= 8; iy++) {
+        const position = point.clone().addScaledVector(rightward, THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, ix / 8))
+          .addScaledVector(forward, THREE.MathUtils.lerp(bounds.min.y, bounds.max.y, iy / 8))
+          .addScaledVector(upward, bounds.min.z)
+        const geo = tram.ecefToGeodetic(position.x, position.y, position.z, this.planetSpec.ellipsoid)
+        const height = await this.fixedTerrainHeight(geo.lat, geo.lon)
+        if (height === null) return null
+        clearance = Math.min(clearance, geo.alt - height)
+      }
+      return clearance
+    }
+    const distance = await aboveGroundStashingStation({ startDistance: start, endDistance: end, clearanceAt })
+    if (generation !== this.terrainFitGeneration || facility !== this.stashingFacility) return
+    if (distance === null) {
+      this.recoverySpecs.stashingFacilityAboveGround = {value: 0, units: ''}
+      return
+    }
+    if (Math.abs(distance - start) < 0.1) {
+      this.recoverySpecs.stashingFacilityAboveGround = {value: 1, units: ''}
+      return
+    }
+    this.stashingSiteOverride = { key: this.stashingSiteKey, distance }
+    this.trajectoryVersion = (this.trajectoryVersion ?? 0) + 1
+    const args = [...this.referenceFrameArgs]
+    args[1] = this.timeSinceStart ?? args[1]
+    this.updateReferenceFrames(...args)
+    return this.terrainReady
+  }
+
+  configureStashingFacility(params) {
+    if (!this.polyCurveForrf2?.fallBack || this.stashingRampDistance === null) return
+    this.stashingFacility?.dispose()
+    const ramp = this.launchRampCurve[1]
+    const u = this.stashingRampDistance / ramp.getLength()
+    const point = ramp.getPointAt(u)
+    const forward = ramp.getTangentAt(u), upward = ramp.getNormalAt(u)
+    const frame = { point, forward, upward,
+      rightward: new THREE.Vector3().crossVectors(forward, upward).normalize() }
+    const geo = tram.ecefToGeodetic(point.x, point.y, point.z, this.planetSpec.ellipsoid)
+    const longitude = geo.lon * Math.PI / 180
+    const east = new THREE.Vector3(Math.cos(longitude), 0, -Math.sin(longitude))
+    const side = east.dot(frame.rightward) >= 0 ? 1 : -1
+    const tubeOuterRadius = params.launcherMassDriverTubeInnerRadius.value + params.launcherMassDriverTubeWallThickness.value
+    const inverseFrame = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(frame.rightward, forward, upward)).invert()
+    const obstacleBoundsAtRange = (lowY, highY) => {
+      const distanceAtY = y => {
+        let lo = 0, hi = ramp.getLength()
+        for (let i = 0; i < 40; i++) {
+          const mid = (lo + hi) / 2
+          if (ramp.getPointAt(mid / ramp.getLength()).sub(point).dot(forward) < y) lo = mid; else hi = mid
+        }
+        return (lo + hi) / 2
+      }
+      const lo = distanceAtY(lowY), hi = distanceAtY(highY)
+      const bounds = new THREE.Box3()
+      for (let i = 0; i <= 32; i++) {
+        const fraction = THREE.MathUtils.lerp(lo, hi, i / 32) / ramp.getLength()
+        const centre = ramp.getPointAt(fraction), normal = ramp.getNormalAt(fraction)
+        const right = new THREE.Vector3().crossVectors(ramp.getTangentAt(fraction), normal).normalize()
+        for (let j = 0; j < 32; j++) {
+          const angle = 2 * Math.PI * j / 32
+          const edge = centre.clone().addScaledVector(normal, tubeOuterRadius * Math.cos(angle))
+            .addScaledVector(right, tubeOuterRadius * Math.sin(angle)).sub(point).applyQuaternion(inverseFrame)
+          bounds.expandByPoint(edge)
+        }
+      }
+      return bounds.expandByScalar(0.01)
+    }
+    const makeComponent = (Class, path) => {
+      const refFrame = Class.refFrames[0]
+      const stopTime = path.getDuration() + (path.fallBack?.duration ?? 0)
+      const object = new Class(0)
+      object.clampedDeltaT = () => stopTime
+      const poseFrame = { ...refFrame, timeSinceStart: Class.launcherStartDelayInSeconds + stopTime / Class.slowDownPassageOfTime }
+      return { stopTime, visible: () => Class.isVisible,
+        create: () => Class.acquireModel(object, refFrame),
+        pose: (model, launchIndex = 0) => {
+          object.launchIndex = launchIndex
+          object.timeLaunched = launchIndex * Class.tInc
+          poseFrame.timeSinceStart = Class.launcherStartDelayInSeconds + (stopTime + object.timeLaunched) / Class.slowDownPassageOfTime
+          if (model.grappler) {
+            model.grappler.padsLod.onScreenPixels = Infinity
+            model.grappler.hardwareLod.onScreenPixels = Infinity
+          }
+          const wasVisible = Class.isVisible
+          Class.isVisible = true
+          try { object.placeAndOrientModel(model, poseFrame) }
+          finally { Class.isVisible = wasVisible }
+        },
+        release: model => { model.removeFromParent(); Class.releaseModel(model) } }
+    }
+    const capacity = Math.max(dailyStashingCapacity(params), MovingVirtualObject.stagedLaunches, MovingVirtualObject.prepopulatedLaunches)
+    this.stashingFacility = new StashingFacility({ parent: this.scene, frame, capacity, side, obstacleBoundsAtRange,
+      tubeRadius: tubeOuterRadius,
+      screwTop: params.launcherMassDriverScrewUpwardsOffset.value + Math.max(
+        params.launcherMassDriverScrewThreadRadius.value, params.launcherMassDriverScrewShaftOuterRadius.value),
+      components: { nut: makeComponent(virtualAdaptiveNut, this.polyCurveForrf1),
+        sled: makeComponent(virtualLaunchSled, this.polyCurveForrf2) } })
+    const storageCentre = this.stashingFacility.plan.centre.clone().applyQuaternion(this.stashingFacility.root.quaternion).add(point)
+    const location = tram.ecefToGeodetic(storageCentre.x, storageCentre.y, storageCentre.z, this.planetSpec.ellipsoid)
+    const specs = this.recoverySpecs
+    specs.stashingFacilityLatitude = {value: location.lat, units: 'degrees'}
+    specs.stashingFacilityLongitude = {value: location.lon, units: 'degrees'}
+    specs.stashingFacilityAltitude = {value: location.alt, units: 'm'}
+    specs.stashingFacilityCapacity = {value: capacity, units: 'launches'}
+    for (const [axis, name] of [['x', 'Width'], ['y', 'Length'], ['z', 'Height']]) {
+      specs[`stashingFacility${name}`] = {value: this.stashingFacility.plan.size[axis], units: 'm'}
+    }
+    specs.stashingFacilityStorageLift = {value: this.stashingFacility.plan.storageFloor, units: 'm'}
+    this.terrainReady = track(Promise.all([this.terrainReady, this.fitStashingSite(this.terrainFitGeneration)])
+      .catch(error => console.warn('Could not fit stashing storage to the terrain:', error)))
   }
 
   // While it is fully coiled up (its deployment is animated), the elevated evacuated tube rests as close to the
@@ -584,14 +715,46 @@ export class launcher {
     return distance
   }
 
-  fallBackFor(path, endDistance) {
+  fallBackFor(path) {
     const length = path.getLength()
-    return fallBackProfile({
-      startDistance: this.stopDistance(path),
-      endDistance,
-      radiusAt: (s) => path.getPointAt(Math.max(0, Math.min(1, s / length))).length(),
-      mu: this.mu,
-    })
+    const layout = launchSledLayout(this.recoveryParams)
+    const centreOffset = (layout.aft + layout.length / 2) * this.recoveryParams.launchSystemForwardScaleFactor.value
+    const endDistance = this.rampStartDistance(path) + this.stashingRampDistance - centreOffset
+    this.recoverySpecs.launchSledStashingStopDistance = {value: endDistance, units: 'm'}
+    return sledReturnProfile({ startDistance: this.stopDistance(path), endDistance,
+      radiusAt: s => path.getPointAt(Math.max(0, Math.min(1, s / length))).length(), mu: this.mu })
+  }
+
+  checkRecoveryClearance() {
+    const params = this.recoveryParams, specs = this.recoverySpecs
+    if (!params || !specs) return
+    const outbound = this.polyCurveForrf3
+    const layout = launchQueueLayout(params)
+    const frontReach = layout.front - layout.aft
+    const distanceAt = time => {
+      let distance = 0
+      for (const curve of outbound.superCurves) {
+        if (time <= curve.getDuration()) return distance + curve.tTod(Math.max(0, time))
+        distance += curve.getLength()
+        time -= curve.getDuration()
+      }
+      return distance
+    }
+    let required = 0
+    for (const path of [this.polyCurveForrf1, this.polyCurveForrf2]) {
+      if (!path || this.stashingRampDistance === null) continue
+      required = Math.max(required, recoveryHeadway({
+        returnEndTime: path.getDuration() + (path.fallBack?.duration ?? 0) + STASH_WAIT + STASH_TRANSFER,
+        returnEndDistance: path.fallBack ? path.fallBack.distanceAt(path.fallBack.duration) : this.stopDistance(path),
+        frontReach, outboundDuration: outbound.getDuration(), distanceAt }))
+    }
+    this.launchSledCoastBackToRampTime = this.polyCurveForrf2?.fallBack?.duration ?? 0
+    specs.launchSledCoastBackToRampTime = {value: this.launchSledCoastBackToRampTime, units: 's'}
+    specs.launchReturnMinimumSpacing = { value: required, units: 's' }
+    const spacing = params.launchVehicleSpacingInSeconds.value
+    this.launchReturnClearanceSafe = spacing > required
+    specs.launchReturnClearanceSafe = { value: this.launchReturnClearanceSafe ? 1 : 0, units: '' }
+    if (!this.launchReturnClearanceSafe) console.warn(`Launch return collision condition detected: launch spacing ${spacing} s must exceed the required ${required.toFixed(1)} s needed for the sled and adaptive nut to stop, wait, and transfer into storage.`)
   }
 
   // The first path distance below where the object on `path` stops at which the path is out of sight under
@@ -777,6 +940,8 @@ export class launcher {
 
   update(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
 
+    this.stashingFacility?.dispose()
+    this.stashingFacility = null
     this.versionNumber++
 
     // radiusAtLatitude takes geodetic latitude in degrees
@@ -831,6 +996,7 @@ export class launcher {
         if (objectClass.numObjects > 0) objectClass.addNewVirtualObjects(objectClass.refFrames)
       })
       this.refFrames.forEach(refFrame => { refFrame.forceVisibilityRefresh = true })
+      this.configureStashingFacility(dParamWithUnits)
     }
 
     // Update launch trajectory markers

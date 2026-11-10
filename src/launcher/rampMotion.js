@@ -195,7 +195,9 @@ export function screwStateAtDistance(motion, s) {
 export function screwGeometryDistance(motion, speed, distance) {
   if (distance < motion.horizontalLength) return Math.max(0, (speed * speed - motion.initialVelocity ** 2) / (2 * motion.acceleration))
   const braking = distance >= motion.brakingStartDistance
-  const samples = motion.samples.filter(a => braking ? a.s >= motion.brakingStartDistance - 1e-6 : a.s <= motion.brakingStartDistance + 1e-6)
+  const samples = motion.samples.filter(a => (braking ? a.s >= motion.brakingStartDistance - 1e-6 : a.s <= motion.brakingStartDistance + 1e-6)
+    && (motion.screwEndDistance === undefined || a.s < motion.screwEndDistance))
+  if (braking && motion.screwEndTime !== undefined) samples.push(screwStateAtTime(motion, motion.screwEndTime))
   let best = samples.reduce((a, b) => Math.abs(a.v - speed) <= Math.abs(b.v - speed) ? a : b)
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1], b = samples[i]

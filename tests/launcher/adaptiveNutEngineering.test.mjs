@@ -23,7 +23,7 @@ test('automatic contact sizing moves vehicle and sled together and preserves gra
   near(d.adaptiveNutGrapplerLength.value,sizing.grapplerPadContactLength)
   const aft = launchSledLayout(d).aft
   near(d.launchVehicleForwardsOffset.value,aft*d.launchSystemForwardScaleFactor.value)
-  near(aft-adaptiveNutBodyEnvelope(d).front,0.25)
+  near(aft-adaptiveNutBodyEnvelope(d).front,0)
   assert.ok(d.adaptiveNutGrapplerLength.value/d.adaptiveNutNumGrapplers.value <= p.adaptiveNutGrapplerLength.value/p.adaptiveNutNumGrapplers.value)
   p.launchVehiclePayloadMass.value *= 2
   store.derive()

@@ -11,9 +11,10 @@ import { RampSuperCurve3 } from '../curves/RampSuperCurve3.js'
 import { arrow } from '../ring/markers.js'
 import { exitAirlockDistanceFromTubeExit } from './EngineeringDetails.js'
 import { launchSledFrontReach } from './LaunchSled.js'
-import { brakingProfile, jerkLimitedBrakingProfile } from './trackBraking.js'
+import { brakingProfile, jerkLimitedBrakingProfile, nutElectromagneticHandoff } from './trackBraking.js'
 import { faceHandoffEnvelope } from './grapplerFaceHandoff.js'
 import { adaptiveNutFrontReach } from './AdaptiveNut.js'
+import { stashingRampStation } from './stashingFacility.js'
 import { print } from '../utils/print.js'
 
 // The points of the CatmullRomSuperCurve3 `curve` up to `fraction` of its length: its control points before
@@ -55,6 +56,7 @@ export function defineTrajectoryCurvesParametersHaveChanged() {
       'launchVehicleAccelerationTransitionTime',
       'launcherMassDriverUpwardJerk',
       'adaptiveNutDecelerationJerk',
+      'adaptiveNutElectromagneticBrakingEntrySpeed',
       'adaptiveNutStopClearance',
       'adaptiveNutBodyLength',
       'adaptiveNutGrapplerLength',
@@ -451,7 +453,16 @@ export function defineUpdateTrajectoryCurves () {
     const detach = rampProfile.detach
     const nutFrontReach = adaptiveNutFrontReach(dParamWithUnits)
     const nutStopClearance = dParamWithUnits['adaptiveNutStopClearance'].value
-    const nutStopDistance = rampProfile.length - detach.s - nutFrontReach - nutStopClearance
+    // The storage station sets the physical centre of each recovered assembly.
+    this.stashingSiteKey = [...massDriver2ExitPosition.toArray(), ...evacuatedTubeEntrancePosition.toArray(), rampProfile.length].join(',')
+    const portal = this.stashingSiteOverride?.key === this.stashingSiteKey ? this.stashingSiteOverride.distance : null
+    this.stashingRampDistance = planetSpec.name === 'Moon' ? null : Math.min(
+      stashingRampStation(rampProfile, portal),
+      rampProfile.length - (nutFrontReach - dParamWithUnits.adaptiveNutBodyLength.value / 2 * dParamWithUnits.launchSystemForwardScaleFactor.value) - nutStopClearance)
+    const nutStopOrigin = this.stashingRampDistance === null
+      ? rampProfile.length - nutFrontReach - nutStopClearance
+      : this.stashingRampDistance - dParamWithUnits.adaptiveNutBodyLength.value / 2 * dParamWithUnits.launchSystemForwardScaleFactor.value
+    const nutStopDistance = nutStopOrigin - detach.s
     if (!(nutStopDistance > 0)) throw new Error('The ramp has no braking distance left after allowing for the adaptive nut body and stop clearance.')
     const nutBraking = jerkLimitedBrakingProfile({
       initialSpeed: detach.v, stopDistance: nutStopDistance, jerk: dParamWithUnits['adaptiveNutDecelerationJerk'].value,
@@ -462,6 +473,11 @@ export function defineUpdateTrajectoryCurves () {
         return -0.5 * ((w[1] * a.pz - w[2] * a.py) ** 2 + (w[2] * a.px - w[0] * a.pz) ** 2 + (w[0] * a.py - w[1] * a.px) ** 2)
       },
     })
+    const handoff = nutElectromagneticHandoff(nutBraking, dParamWithUnits.adaptiveNutElectromagneticBrakingEntrySpeed.value)
+    this.adaptiveNutElectromagneticBrakingProfile = handoff.electromagnetic
+    this.adaptiveNutScrewRampEndDistance = detach.s + handoff.distance
+    this.adaptiveNutScrewRampEndTime = detach.t + handoff.time
+    this.adaptiveNutElectromagneticEntrySpeed = handoff.speed
     this.adaptiveNutDetachTime = detach.t
     this.adaptiveNutDetachDistance = detach.s
     this.adaptiveNutBrakingDeceleration = nutBraking.deceleration
@@ -481,14 +497,23 @@ export function defineUpdateTrajectoryCurves () {
     }
     this.screwMotion = { samples: nutSamples, horizontalLength, horizontalTime, brakingStartDistance: horizontalLength + detach.s, brakingStartTime: horizontalTime + detach.t, duration: horizontalTime + this.adaptiveNutTimeWithinRamp,
       initialVelocity: launcherMassDriver1InitialVelocity, acceleration: forwardAcceleration }
+    this.screwMotion.screwEndDistance = horizontalLength + this.adaptiveNutScrewRampEndDistance
+    this.screwMotion.screwEndTime = horizontalTime + this.adaptiveNutScrewRampEndTime
+    this.screwMotion.screwEndSpeed = handoff.speed
     this.screwMotion.faceHandoff = faceHandoffEnvelope(rampProfile, nutBraking, horizontalTime, forwardAcceleration)
     this.screwMotion.brakingDeceleration = nutBraking.deceleration
     this.screwDriveEndDistance = horizontalLength + detach.s
+    specs['stashingFacilityRampDistance'] = {value: this.stashingRampDistance ?? 0, units: 'm'}
+    specs['adaptiveNutStashingStopDistance'] = {value: this.adaptiveNutRampStopDistance, units: 'm'}
     specs['adaptiveNutDetachTime'] = {value: horizontalTime + detach.t, units: 's'}
     specs['adaptiveNutDetachDistance'] = {value: this.screwDriveEndDistance, units: 'm'}
     specs['adaptiveNutRampBrakingAcceleration'] = {value: -nutBraking.deceleration, units: 'm/s2'}
     specs['adaptiveNutBrakingRampTime'] = {value: nutBraking.rampTime, units: 's'}
     specs['adaptiveNutBrakingHoldTime'] = {value: nutBraking.holdTime, units: 's'}
+    specs['adaptiveNutScrewBrakingEndDistance'] = {value: this.screwMotion.screwEndDistance, units: 'm'}
+    specs['adaptiveNutElectromagneticEntrySpeed'] = {value: handoff.speed, units: 'm/s'}
+    specs['adaptiveNutElectromagneticBrakingDistance'] = {value: handoff.electromagnetic.stopDistance, units: 'm'}
+    specs['adaptiveNutElectromagneticBrakingTime'] = {value: handoff.electromagnetic.duration, units: 's'}
     specs['adaptiveNutBrakingDuration'] = {value: nutBraking.duration, units: 's'}
     specs['adaptiveNutTubeClearance'] = {value: this.adaptiveNutTubeClearance, units: 'm'}
 
@@ -754,6 +779,15 @@ export function defineUpdateTrajectoryCurves () {
       curve.name = 'launchRampCurve' + index
       return curve
     })
+
+    // Screw/support geometry ends at a finite nut speed. The full ramp curve
+    // remains available to the nut through the electromagnetic stopping section.
+    this.launchScrewRampCurve = new RampSuperCurve3(rampProfile, massDriver2ExitPosition,
+      this.axisOfRotation, this.adaptiveNutScrewRampEndDistance)
+    this.launchScrewRampCurve.name = 'launchScrewBrakingCurve'
+    this.launchScrewRampCurve.addtTodConvertor(t => Math.min(this.adaptiveNutScrewRampEndDistance, adaptiveNutRamptTodConvertor(t)))
+    this.launchScrewRampCurve.addtTosConvertor(adaptiveNutRamptTosConvertor)
+    this.launchScrewRampCurve.setDuration(this.adaptiveNutScrewRampEndTime)
 
     forwardAcceleration = 0
     upwardAcceleration = launchVehicleRampUpwardAcceleration
@@ -1854,13 +1888,14 @@ export function defineUpdateTrajectoryCurves () {
     const screwRoughLength = Math.max(0.1, this.launcherMassDriverScrewRoughLength)
     const maxScrewSegments = 1e6
     const acceleratingLength = launcherMassDriver2Length + this.adaptiveNutDetachDistance
-    const brakingLength = this.launcherRampLength - this.adaptiveNutDetachDistance
+    const brakingLength = Math.max(0, this.adaptiveNutScrewRampEndDistance - this.adaptiveNutDetachDistance)
     this.massDriverScrewSegments = Math.min(maxScrewSegments, Math.max(2, Math.ceil(acceleratingLength / screwRoughLength) + Math.ceil(brakingLength / screwRoughLength)))
-    this.massDriverAccelerationScrewSegments = Math.max(1, Math.min(this.massDriverScrewSegments - 1,
-      Math.round(this.massDriverScrewSegments * acceleratingLength / (acceleratingLength + brakingLength))))
+    this.massDriverAccelerationScrewSegments = brakingLength > 0 ? Math.max(1, Math.min(this.massDriverScrewSegments - 1,
+      Math.round(this.massDriverScrewSegments * acceleratingLength / (acceleratingLength + brakingLength)))) : this.massDriverScrewSegments
     this.rampDeccelerationScrewSegments = this.massDriverScrewSegments - this.massDriverAccelerationScrewSegments
     this.massDriverAccelerationScrewSegmentExactLength = acceleratingLength / this.massDriverAccelerationScrewSegments - launcherMassDriverScrewBracketThickness
-    this.rampDeccelerationScrewSegmentExactLength = brakingLength / this.rampDeccelerationScrewSegments - launcherMassDriverScrewBracketThickness
+    this.rampDeccelerationScrewSegmentExactLength = this.rampDeccelerationScrewSegments > 0
+      ? Math.max(0, brakingLength / this.rampDeccelerationScrewSegments - launcherMassDriverScrewBracketThickness) : 0
     specs['launchVehicleAccelerationTransitionTime'] = {value: rampProfile.transitionSeconds, units: 's'}
     specs['launchVehicleRampReleaseTime'] = {value: rampProfile.releaseSeconds, units: 's'}
     specs['launchVehicleRampPeakUpwardAcceleration'] = {value: rampProfile.peakUpwardAcceleration, units: 'm/s2'}

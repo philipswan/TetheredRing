@@ -112,6 +112,16 @@ export function defineAnimate () {
       })
     })
 
+    if (this.stashingFacility) {
+      const sledClass = this.movingObjectClass('virtualLaunchSleds')
+      const time = sledClass.adjustedTime(frameTime)
+      const firstLaunch = MovingVirtualObject.prepopulatedLaunches > 0 ? 1 - MovingVirtualObject.prepopulatedLaunches : 0
+      let lastLaunch = Math.floor(time / this.cadence.spacing)
+      if (MovingVirtualObject.stagedLaunches > 0) lastLaunch = Math.min(lastLaunch, MovingVirtualObject.stagedLaunches - 1)
+      this.stashingFacility.update({ time, spacing: this.cadence.spacing, firstLaunch, lastLaunch,
+        visible: this.stashingFacility.components.sled.visible() || this.stashingFacility.components.nut.visible() })
+    }
+
     // Clear all of the "hasChanged" flags
     this.objectClasses.forEach(objectClass => {
       objectClass.hasChanged = false

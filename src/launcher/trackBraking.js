@@ -179,3 +179,23 @@ export function jerkLimitedBrakingProfile({ initialSpeed, stopDistance, radiusAt
     holdTime: Math.max(0, duration - 4 * peak / jerk), samples,
     brakingAt: t => brake(t, peak, duration), tTod: t => atTime(t).s, tTos: t => atTime(t).v }
 }
+
+// Split actuator responsibility while preserving the solved smooth time law.
+// The low-speed tail is handled by a third electromagnetic section instead of
+// requiring screw pitch to collapse to zero at the storage stopping point.
+export function nutElectromagneticHandoff(braking, entrySpeed) {
+  if (!(entrySpeed > 0) || !Number.isFinite(entrySpeed)) throw new Error('Electromagnetic braking entry speed must be positive.')
+  let lo = 0, hi = braking.duration
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (braking.tTos(mid) > entrySpeed) lo = mid; else hi = mid
+  }
+  const time = (lo + hi) / 2, distance = braking.tTod(time), speed = braking.tTos(time)
+  return { time, distance, speed,
+    electromagnetic: { duration: braking.duration - time, stopDistance: braking.stopDistance - distance,
+      tTod: t => braking.tTod(time + Math.max(0, t)) - distance,
+      tTos: t => braking.tTos(time + Math.max(0, t)),
+      brakingAt: t => braking.brakingAt(time + Math.max(0, t)) },
+    screwBrakingAt: t => t < time ? braking.brakingAt(t) : 0,
+    electromagneticBrakingAt: t => t >= time ? braking.brakingAt(t) : 0 }
+}

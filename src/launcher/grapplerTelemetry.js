@@ -16,7 +16,7 @@ export function grapplerTelemetry(nut, start, end, feederTime) {
     const preparing = t >= feederTime && state.s < (nut.screwStartDistance ?? 0)
     const poseDistance = preparing ? nut.screwStartDistance : state.s
     const poseSpeed = preparing ? screwStateAtDistance(nut.motion, poseDistance).v : state.v
-    const onScrews = t >= feederTime && !preparing && nut.threadLayout.flightsAt(state.s + nut.initialDistance) > 0
+    const onScrews = (nut.motion.screwEndDistance === undefined || state.s < nut.motion.screwEndDistance) && t >= feederTime && !preparing && nut.threadLayout.flightsAt(state.s + nut.initialDistance) > 0
     // Rotation and planner time use the same launch clock as AdaptiveNut.placeAndOrientModel.
     const { grapplerPoses } = nut.grapplerStateAt(poseDistance, (t * nut.screwRevolutionsPerSecond) % 1, t, 0, onScrews || preparing, poseSpeed)
     if (preparing) grapplerPoses.forEach(pose => { pose.attached = false })

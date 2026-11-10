@@ -521,10 +521,12 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
       // Which flight it grips, or where it is in a hop between them (grapplerPlacement.js selects the
       // sequencing algorithm); off the screws, parked.
       info.alpha = followingAngle(info)
-      grapplerPoses[i] = onScrews
+      const onPhysicalScrew = onScrews && (v.motion?.screwEndDistance === undefined
+        || distanceToSledAft + grapplerDistance < v.motion.screwEndDistance)
+      grapplerPoses[i] = onPhysicalScrew
         ? grapplerPose(v.sequencingMode, { info, i, deltaT, plan, switchoverTime: v.switchoverTime, padLiftPortion: v.padLiftPortion, padTwistPortion: v.padTwistPortion }, {})
         : { lift: 1, raise: 1, neutral: 1, alpha: 0, attached: false }
-      if (onScrews && facePlan) grapplerPoses[i] = facePlan.pose(i, deltaT, grapplerPoses[i])
+      if (onPhysicalScrew && facePlan) grapplerPoses[i] = facePlan.pose(i, deltaT, grapplerPoses[i])
       grapplerOffset[i] = info.offset
       grapplerThreadPitch[i] = info.threadPitch
       grapplerThreadStarts[i] = info.threadStarts
@@ -596,7 +598,7 @@ export class virtualAdaptiveNut extends MovingVirtualObject {
 
     // Engage the grapplers only if we're on the part of the curve path that has the twin-screws (not
     // while still leaving the terminal)
-    const onScrews = (distanceToSledAft >= (v.screwStartDistance ?? 0)) && (layout.flightsAt(distanceToSledAft + initialDistance) > 0) && !frame.f.egress && ((relevantCurve.name=='massDriver1Curve') || (relevantCurve.name=='massDriver2Curve') || (relevantCurve.name==='launchRampCurve0' && !frame.f.fallingBack))
+    const onScrews = (v.motion?.screwEndDistance === undefined || distanceToSledAft < v.motion.screwEndDistance) && (distanceToSledAft >= (v.screwStartDistance ?? 0)) && (layout.flightsAt(distanceToSledAft + initialDistance) > 0) && !frame.f.egress && ((relevantCurve.name=='massDriver1Curve') || (relevantCurve.name=='massDriver2Curve') || (relevantCurve.name==='launchRampCurve0' && !frame.f.fallingBack))
     const speed = v.motion ? screwStateAtDistance(v.motion, distanceToSledAft).v : Math.sqrt(Math.max(1, initialVelocity**2 + 2 * acceleration * Math.max(0, distanceToSledAft)))
     const launchTurn = (((this.timeLaunched * screwRevolutionsPerSecond) % 1) + 1) % 1
     // Prepare the entry helix during the linear-motor phase, using the same global screw clock.
