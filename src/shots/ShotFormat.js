@@ -1,3 +1,4 @@
+import {TRACKED_OBJECTS} from '../camera/TrackedObjects.js'
 // Shot files (*.shot.json) describe a repeatable piece of footage: which preset and parameter
 // values to use, the simulated time it starts at (which fixes where every vehicle is), the camera
 // path, any parameters that change during the shot, and the output video settings. Importing the
@@ -46,14 +47,8 @@ export const SHOT_FORMAT = 'tethered-ring-shot'
 export const SHOT_VERSION = 2
 
 // Anchor types and the fields that identify the object.
-export const ANCHOR_TYPES = {
-  world: [],
-  launchVehicle: ['launchIndex'],
-  launchSled: ['launchIndex'],
-  adaptiveNut: ['launchIndex'],
-  transitVehicle: ['lane', 'p'],
-  elevatorCar: ['p'],
-}
+export const ANCHOR_TYPES = {world: [], ...Object.fromEntries(
+  Object.entries(TRACKED_OBJECTS).map(([type, kind]) => [type, kind.anchorFields ?? []]))}
 // How the anchor's frame turns: with the object (follow), with its heading but kept level with the
 // local horizon (level), or not at all (translate: world axes, moving with the object).
 export const ANCHOR_ORIENTS = ['follow', 'level', 'translate']

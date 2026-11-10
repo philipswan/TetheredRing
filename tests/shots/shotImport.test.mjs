@@ -1181,7 +1181,7 @@ test('enabled window dispatch uses the current edited shot instead of the saved 
 
 test('window regeneration continues only when requested and assembles after unfinished frames are saved', async t => {
   globalValue(t, 'VideoEncoder', class { static async isConfigSupported() { return { supported: true } } })
-  for (const scenario of ['off', 'on', 'complete', 'pause-window', 'pause-continuation', 'fail-continuation']) {
+  for (const scenario of ['off', 'on', 'complete', 'pause-window', 'pause-continuation', 'fail-continuation', 'fail-assembly']) {
     await t.test(scenario, async t => {
       const shots = controller()
       const shot = structuredClone(expectedShot)
@@ -1227,16 +1227,17 @@ test('window regeneration continues only when requested and assembles after unfi
           if (scenario === 'fail-continuation') return failure
         }
       }
-      shots.assembleJob = async () => { events.push('assemble'); return 'video' }
+      shots.assembleJob = async () => { events.push('assemble'); if (scenario === 'fail-assembly') throw new Error('disk full'); return 'video' }
       const run = shots.regenerateSegments(job, shot)
       if (scenario.startsWith('pause-')) await assert.rejects(run, { name: 'AbortError' })
       else if (scenario === 'fail-continuation') await assert.rejects(run, failure)
+      else if (scenario === 'fail-assembly') await assert.rejects(run, /segments are saved, but the combined video was not updated.*disk full.*Export full video/)
       else assert.equal(await run, 'video')
       const expected = scenario === 'pause-window' ? ['render-window', 'cancel-replacement']
         : scenario === 'off' || scenario === 'complete' ? ['render-window', 'replace', 'assemble']
         : ['render-window', 'replace', 'update-output', 'render-continuation',
           scenario === 'fail-continuation' ? 'cancel-continuation' : 'save-continuation',
-          ...(scenario === 'on' ? ['assemble'] : [])]
+          ...(['on', 'fail-assembly'].includes(scenario) ? ['assemble'] : [])]
       assert.deepEqual(events, expected)
       assert.equal(shots._regenerating, false)
       if (scenario === 'pause-continuation') assert.equal(job.savedFrames, 45)
@@ -1343,4 +1344,98 @@ test('chart preview and camera updates stay separate until Apply chart settings 
   for (const [key, value] of Object.entries(layout)) assert.equal(shots.shot.parameters[key], value)
   shots.restoreStart(recovered)
   for (const [key, value] of Object.entries(layout)) assert.equal(store.get(key), value)
+})
+
+
+test('explicit Spaceport file Open survives preset reload when automatic shot recovery is disabled', async t => {
+  const text = await readFile(new URL('../../shots/SpaceportConceptual.shot.json', import.meta.url), 'utf8')
+  const expected = parseShot(text), stored = new Map()
+  globalValue(t, 'location', {search: '?preset=toMarsHawaii&restoreShot=false'})
+  globalValue(t, 'sessionStorage', {
+    getItem: key => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, value),
+    removeItem: key => stored.delete(key),
+  })
+  const shots = controller()
+  shots.app.switchPreset = preset => { shots.app.presetId = preset }
+  shots.queue.resumeSoon = () => {}
+  shots.restoreProjectRender = async () => {}
+  shots.restoreAutosave = () => assert.fail('An explicit Open must not restore an unrelated autosave')
+  await shots.importShotText(text, {fromFile: true})
+  assert.equal(shots.app.presetId, 'SpaceportLauncher')
+  await shots.resumePendingShot()
+  assert.equal(shots.shot?.project?.id, expected.project.id)
+  assert.equal(shots.shot.name, expected.name)
+  assert.deepEqual(shots.shot.camera.keyframes, expected.camera.keyframes)
+  assert.equal(stored.has('tetheredRing.pendingShot'), false)
+})
+
+test('disabling shot recovery still leaves autosave and render queues alone without an explicit pending Open', async t => {
+  globalValue(t, 'location', {search: '?restoreShot=false'})
+  globalValue(t, 'sessionStorage', {getItem: () => null})
+  const shots = controller()
+  shots.queue.resumeSoon = () => assert.fail('Should not resume a queue')
+  shots.restoreAutosave = () => assert.fail('Should not restore autosave')
+  await shots.resumePendingShot()
+})
+
+
+test('tracking registry automatically populates both anchor dropdowns and saved-shot validation', async () => {
+  const {TRACKED_OBJECTS} = await import('../../src/camera/TrackedObjects.js')
+  const {TRACKABLE_TYPES} = await import('../../src/camera/ObjectTracker.js')
+  const {ANCHOR_KINDS} = await import('../../src/shots/Anchors.js')
+  const {ANCHOR_TYPES} = await import('../../src/shots/ShotFormat.js')
+  const types = Object.keys(TRACKED_OBJECTS)
+  assert.deepEqual(TRACKABLE_TYPES, types)
+  assert.deepEqual(Object.keys(ANCHOR_KINDS), types)
+  assert.deepEqual(Object.keys(ANCHOR_TYPES).filter(type => type !== 'world'), types)
+  for (const includeSame of [false, true]) {
+    const options = ShotSidebar.prototype.anchorOptions.call({}, includeSame)
+    assert.deepEqual(options.filter(([type]) => !['world', 'same'].includes(type)).map(([type]) => type), types)
+  }
+})
+
+test('spaceport shot anchors resolve at arbitrary times and round-trip without changing the saved view', async () => {
+  const {Group, Vector3} = await import('three')
+  const {AnchorResolver} = await import('../../src/shots/Anchors.js')
+  const parent = new Group(), root = new Group()
+  parent.position.set(10, 20, 30); parent.add(root)
+  const app = {scene: parent, launchSystem: {
+    spaceportReleaseTime: 5,
+    movingObjectClass: () => ({adjustedTime: t => 2 * t}),
+    spaceportStation: {root, frameAt: t => ({position: new Vector3(7000000, t, 1000),
+      forward: new Vector3(0, 1, 0), upward: new Vector3(1, 0, 0)})},
+  }}
+  const resolver = new AnchorResolver(app), anchor = {type: 'spaceport', orient: 'follow'}
+  const object = resolver.objectFrame(anchor, 20)
+  assert.deepEqual(object.position, [7000010, 55, 1030])
+  assert.equal(resolver.nearestToPoint(20, object.position, ['spaceport']).anchor.type, 'spaceport')
+  const shot = parseShot(shotText), key = shot.camera.keyframes[0]
+  const world = {position: [7000100, 80, 1200], target: object.position, up: [1, 0, 0], orbitUp: [1, 0, 0], fov: 45}
+  key.anchor = anchor; key.lookAt = anchor
+  resolver.localizeKey(key, world, 20)
+  const restored = parseShot(serializeShot(shot))
+  const pose = resolver.resolveKey(restored.camera.keyframes[0], 20)
+  assert.deepEqual(pose.position, world.position)
+  assert.deepEqual(pose.target, world.target)
+  const later = resolver.resolveKey(restored.camera.keyframes[0], 30)
+  assert.deepEqual(later.position, [7000100, 100, 1200])
+  assert.deepEqual(later.target, [7000010, 75, 1030])
+  assert.equal(resolver.label(anchor), 'Spaceport')
+  app.launchSystem.spaceportStation = null
+  assert.equal(resolver.candidates(30, ['spaceport']).length, 0)
+})
+
+test('coil-marker shot anchors have stable distinct identities and resolve their world frames', async () => {
+  const {Group} = await import('three')
+  const {AnchorResolver, anchorKey} = await import('../../src/shots/Anchors.js')
+  const scene = new Group()
+  for (let i = 0; i < 2; i++) {
+    const marker = new Group(); marker.name = 'coilCenterMarker'; marker.position.set(7000000, i * 100, 0); scene.add(marker)
+  }
+  const resolver = new AnchorResolver({scene})
+  const candidates = resolver.candidates(0, ['coilCenterMarker'])
+  assert.equal(candidates.length, 2)
+  assert.notEqual(anchorKey(candidates[0].anchor), anchorKey(candidates[1].anchor))
+  assert.deepEqual(candidates[1].position, [7000000, 100, 0])
 })

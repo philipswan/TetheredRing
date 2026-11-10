@@ -1,15 +1,11 @@
 import * as THREE from 'three'
 
-// Things the camera can lock onto. The number keys 0-5 select them in this order.
-export const TRACKABLE_TYPES = ['launchVehicle', 'adaptiveNut', 'launchSled', 'transitVehicle', 'elevatorCar', 'coilCenterMarker']
+import {TRACKED_OBJECTS} from './TrackedObjects.js'
 
-const SOURCES = {
-  launchVehicle: { system: 'launch', className: 'virtualLaunchVehicles', frame: 'world' },
-  adaptiveNut: { system: 'launch', className: 'virtualAdaptiveNuts', frame: 'world' },
-  launchSled: { system: 'launch', className: 'virtualLaunchSleds', frame: 'world' },
-  transitVehicle: { system: 'transit', className: 'virtualTransitVehicles', frame: 'ring' },
-  elevatorCar: { system: 'transit', className: 'virtualElevatorCars', frame: 'ring' },
-}
+export const TRACKABLE_TYPES = Object.keys(TRACKED_OBJECTS)
+const SOURCES = Object.fromEntries(Object.entries(TRACKED_OBJECTS)
+  .filter(([, kind]) => kind.className)
+  .map(([type, kind]) => [type, {...kind, frame: kind.sourceFrame}]))
 
 const finiteVector = (v) => v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z)
 
@@ -52,11 +48,18 @@ export class ObjectTracker {
         }
       }
     }
-    else if (type === 'coilCenterMarker') {
-      const markers = []
-      ctx.scene.traverse((child) => { if (child.name === 'coilCenterMarker') markers.push(child) })
-      for (const marker of markers) {
-        yield { type, frame: 'world', getPosition: () => marker.getWorldPosition(new THREE.Vector3()), getFrame: null }
+    else {
+      const kind = TRACKED_OBJECTS[type]
+      if (!kind?.frameAt) return
+      const anchors = kind.anchors?.(ctx) ?? [{type, orient: 'follow'}]
+      for (const anchor of anchors) {
+        const frameAt = (dt = 0) => {
+          const context = this.getContext()
+          const time = kind.liveTime?.(context) ?? context.simTime ?? 0
+          return kind.frameAt(context, anchor, time + dt)
+        }
+        if (!frameAt()) continue
+        yield {type, frame: 'world', getPosition: dt => frameAt(dt)?.position ?? null, getFrame: frameAt}
       }
     }
   }

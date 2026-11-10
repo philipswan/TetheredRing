@@ -1,3 +1,4 @@
+import { solveSpaceportSizing } from '../launcher/spaceportOrbit.js'
 import { adaptiveNutContactSizing } from '../launcher/adaptiveNutEngineering.js'
 import { launchTrainOffsets } from '../launcher/launchAssemblyLayout.js'
 import { lerp } from '../utils/math.js'
@@ -45,6 +46,12 @@ export class ParameterStore {
     const d = this.derived
     for (const [k, v] of Object.entries(p)) {
       if (v.autoMap) d[k] = { value: v.value, units: v.units }
+    }
+    if (d.spaceportRendezvousEnabled?.value) {
+      const sizing = solveSpaceportSizing(d)
+      d.launcherMassDriverExitVelocity = {value: sizing.entrySpeed, units: 'm/s'}
+      d.launchVehicleRampUpwardAcceleration = {value: sizing.upwardAcceleration, units: 'm/s2'}
+      d.launchVehicleDesiredOrbitalAltitude = {value: d.spaceportApogeeAltitude.value, units: 'm'}
     }
     if (p.adaptiveNutAutoSize?.value && p.launchTrajectorySelector.value !== 1) {
       const sizing = adaptiveNutContactSizing(d)

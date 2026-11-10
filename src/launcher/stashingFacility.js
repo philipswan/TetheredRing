@@ -1,3 +1,4 @@
+import { resetLauncherVisualScale } from './launcherVisuals.js'
 import * as THREE from 'three'
 import { rampRecoveryDistance } from './fallBack.js'
 
@@ -145,7 +146,7 @@ export class StashingFacility {
     this.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(frame.rightward, frame.forward, frame.upward))
     parent.add(this.root)
     const inverse = this.root.quaternion.clone().invert()
-    const halfSizes = {}, stopCentres = {}
+    const halfSizes = {}, visualHalfSizes = {}, stopCentres = {}
     for (const kind of ['nut', 'sled']) {
       const component = components[kind]
       const model = component.create()
@@ -159,6 +160,10 @@ export class StashingFacility {
       component.localCentre = box.getCenter(new THREE.Vector3())
       const orientedBox = box.clone().applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(orientation))
       halfSizes[kind] = orientedBox.getSize(new THREE.Vector3()).multiplyScalar(0.5)
+      const scale = component.visualScale ?? {radius: 1, length: 1}
+      const visualBox = box.clone().applyMatrix4(new THREE.Matrix4().makeScale(scale.radius, scale.length, scale.radius))
+        .applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(orientation))
+      visualHalfSizes[kind] = visualBox.getSize(new THREE.Vector3()).multiplyScalar(0.5)
       component.startOrientation = orientation
       stopCentres[kind] = position.add(component.localCentre.clone().applyQuaternion(orientation))
       component.startCentre = stopCentres[kind]
@@ -173,12 +178,24 @@ export class StashingFacility {
     }
     this.layoutInput = { halfSizes, stopCentres, tubeRadius, screwTop, tubeTop, tubeBounds, side }
     this.plan = planStashingStorage({ capacity, ...this.layoutInput })
-    const geometry = storageBoxGeometry(this.plan.size)
+    // A separate display plan keeps exaggerated models inside the displayed box
+    // without changing physical storage dimensions, terrain fitting or stop positions.
+    const radiusScale = Math.max(...Object.values(components).map(c => c.visualScale?.radius ?? 1))
+    const visualTube = tubeBounds?.clone()
+    if (visualTube) {
+      visualTube.min.x -= tubeRadius * (radiusScale - 1); visualTube.max.x += tubeRadius * (radiusScale - 1)
+      visualTube.min.z -= tubeRadius * (radiusScale - 1); visualTube.max.z += tubeRadius * (radiusScale - 1)
+    }
+    this.visualLayoutInput = {...this.layoutInput, halfSizes: visualHalfSizes,
+      tubeRadius: tubeRadius * radiusScale, tubeTop: tubeTop * radiusScale, tubeBounds: visualTube,
+      screwTop: screwTop * radiusScale}
+    this.visualPlan = planStashingStorage({capacity, ...this.visualLayoutInput})
+    const geometry = storageBoxGeometry(this.visualPlan.size)
     const material = new THREE.MeshPhongMaterial({ color: 0x80bdce, transparent: true,
       opacity: 0.13, side: THREE.DoubleSide, depthWrite: false })
     this.box = new THREE.Mesh(geometry, material)
     this.box.name = 'stashingFacilityWalls'
-    this.box.position.copy(this.plan.centre)
+    this.box.position.copy(this.visualPlan.centre)
     this.box.renderOrder = 3
     this.root.add(this.box)
   }
@@ -194,8 +211,9 @@ export class StashingFacility {
       this.capacity = needed
       this.plan = planStashingStorage({ capacity: needed, ...this.layoutInput })
       this.box.geometry.dispose()
-      this.box.geometry = storageBoxGeometry(this.plan.size)
-      this.box.position.copy(this.plan.centre)
+      this.visualPlan = planStashingStorage({capacity: needed, ...this.visualLayoutInput})
+      this.box.geometry = storageBoxGeometry(this.visualPlan.size)
+      this.box.position.copy(this.visualPlan.centre)
     }
     for (let k = firstLaunch; k <= lastLaunch; k++) {
       for (const kind of ['nut', 'sled']) {
@@ -213,11 +231,13 @@ export class StashingFacility {
           this.entries.set(key, entry)
         }
         const pose = stashingTransferPose({ startCentre: component.startCentre,
-          startOrientation: component.startOrientation, targetCentre: this.plan.slots[kind][k - firstLaunch],
-          transferHeight: this.plan.transferHeights[kind], elapsed })
+          startOrientation: component.startOrientation, targetCentre: this.visualPlan.slots[kind][k - firstLaunch],
+          transferHeight: this.visualPlan.transferHeights[kind], elapsed })
+        resetLauncherVisualScale(entry.model)
         entry.model.visible = true
         entry.model.quaternion.copy(pose.orientation)
         entry.model.position.copy(pose.centre).sub(component.localCentre.clone().applyQuaternion(pose.orientation))
+        component.render?.(entry.model, pose.centre)
       }
     }
     for (const [key, entry] of this.entries) {

@@ -1,3 +1,4 @@
+import {upgradeSpaceportAtmosphere} from './SpaceportShotUpgrade.js'
 import { upgradeFollowLaunchVehicleQueue } from './FollowLaunchVehicleQueue.js'
 import * as THREE from 'three'
 import {
@@ -402,13 +403,15 @@ export class ShotController {
 
   createShotNow(name = 'Untitled shot') {
     const app = this.app
-    return createShot({
+    const shot = createShot({
       name,
       preset: app.presetId,
       parameters: app.store.snapshot(),
       startTime: app.clock.time,
       animationState: app.getAnimationState(),
     })
+    if (app.nonGUIParams.initialShotDuration) shot.output.duration = app.nonGUIParams.initialShotDuration
+    return shot
   }
 
   // A new, empty shot starting at the current simulated time.
@@ -1434,7 +1437,13 @@ export class ShotController {
         await this.generateUnfinishedSegments(job, shot.output, onProgress)
       }
       this.setStatus(`Regenerated ${completed} segments. Assembling all saved segments…`)
-      return await this.assembleJob(job, writable, outputStorage)
+      try { return await this.assembleJob(job, writable, outputStorage) }
+      catch (cause) {
+        const retry = job.complete ? 'Export full video' : 'Export saved video'
+        const message = `Regenerated ${completed} segments are saved, but the combined video was not updated. ${cause.message} Use "${retry}" to retry assembly without rendering again.`
+        if (cause.name === 'AbortError') throw new DOMException(message, 'AbortError')
+        throw new Error(message, { cause })
+      }
     }
     finally { this._regenerating = false; this.emit('renderJob') }
   }
@@ -1952,6 +1961,7 @@ export class ShotController {
   restoreStart(shot) {
     const app = this.app
     upgradeFollowLaunchVehicleQueue(shot, app.presetParameters)
+    upgradeSpaceportAtmosphere(shot, app.presetParameters)
     const current = app.store.snapshot()
     // Older shots lack the chart's new settings. Start those from the preset, rather than
     // carrying a different project's curve selections or layout into this project.
@@ -1991,14 +2001,17 @@ export class ShotController {
   // Called when the page has started: loads a shot imported across a preset switch, and carries on
   // with a render queue run.
   async resumePendingShot() {
-    // Inspect the current preset without applying an older shot's parameters or camera.
-    // Leave recovery storage intact so the project can still be reopened normally.
-    if (new URLSearchParams(globalThis.location?.search ?? '').get('restoreShot') === 'false') return
-    this.queue.resumeSoon()
-    this.queue.ready.then(async () => {
-      if (!this.queue.running) await this.restoreProjectRender()
-    }).catch(error => { console.error(error); this.setStatus(`Saved render: ${error.message}`) })
     const text = sessionStorage.getItem(PENDING_SHOT_KEY)
+    const automaticRecovery = new URLSearchParams(globalThis.location?.search ?? '').get('restoreShot') !== 'false'
+    // Disabling automatic recovery must not discard a file explicitly opened by
+    // the user: its preset switch reloads the page with the same URL flags.
+    if (!text && !automaticRecovery) return
+    if (automaticRecovery) {
+      this.queue.resumeSoon()
+      this.queue.ready.then(async () => {
+        if (!this.queue.running) await this.restoreProjectRender()
+      }).catch(error => { console.error(error); this.setStatus(`Saved render: ${error.message}`) })
+    }
     if (!text) {
       this.restoreAutosave()
       return

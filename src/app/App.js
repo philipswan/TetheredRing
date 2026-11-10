@@ -1,3 +1,4 @@
+import { spaceportOverview } from '../launcher/SpaceportRendezvous.js'
 import * as THREE from 'three'
 import { VRButton } from 'three/addons/webxr/VRButton.js'
 import * as tram from '../utils/tram.js'
@@ -223,6 +224,7 @@ export class App {
     const n = this.nonGUIParams
     const d = this.d
     const assets = n.planet2Assets ?? defaultPlanetAssets(this.planetSpec)
+      .filter(name => !n.excludedPlanetAssets?.includes(name))
     this.planet = new Planet(this.planetSpec, {
       renderer: this.renderer,
       assets,
@@ -369,6 +371,21 @@ export class App {
       n.orbitControlsUpDirection = direction(cameraFrame.cameraUp)
       n.cameraUp = direction(cameraFrame.cameraUp)
     }
+    if (n.spaceportOverviewCamera && this.launchSystem.spaceportMission) {
+      n.initialShotDuration = Math.ceil(this.launchSystem.spaceportReleaseTime + this.launchSystem.spaceportMission.duration)
+      const overview = spaceportOverview(this.launchSystem, this.camera3d.fov, this.camera3d.aspect)
+      if (n.spaceportInitialZoom) {
+        const offset = overview.position.clone().sub(overview.target).divideScalar(n.spaceportInitialZoom)
+        const vehicle = this.launchSystem.movingObjectFrameAt('virtualLaunchVehicles', 0, 0)
+        overview.target.copy(vehicle.position)
+        overview.position.copy(vehicle.position).add(offset)
+      }
+      const reference = n.initialReferencePoint === 'feederRailEntrancePosition' ? origin : new THREE.Vector3()
+      n.orbitControlsTarget = overview.target.sub(reference)
+      n.orbitControlsObjectPosition = overview.position.sub(reference)
+      n.orbitControlsUpDirection = overview.up.clone()
+      n.cameraUp = overview.up.clone()
+    }
     const lightFrame = n.launchTrackLightDirection
     if (lightFrame) {
       const sunDirection = new THREE.Vector3()
@@ -413,6 +430,7 @@ export class App {
       nonGUIParams: this.nonGUIParams,
       enableVR: this.enableVR,
       getTrackerContext: () => ({
+        simTime: this.clock.time,
         scene: this.scene,
         launchSystem: this.launchSystem,
         transitSystem: this.transitSystem,

@@ -1,3 +1,4 @@
+import { resetLauncherVisualScale, applyLauncherVisualScale } from './launcherVisuals.js'
 import { queuedTrainState } from './launchQueue.js'
 // Shared base classes for the launcher's "virtual objects".
 //
@@ -233,7 +234,7 @@ export class MovingVirtualObject extends VirtualObject {
   static strideNeeded(duration) {
     const n = this.numObjects
     if (!(n > 0) || !(this.tInc > 0) || !(duration > 0)) return 1
-    return Math.floor(duration / (n * this.tInc)) + 1
+    return Number.isFinite(duration) ? Math.floor(duration / (n * this.tInc)) + 1 : 1
   }
 
   // Launch indices in flight (or leaving the terminal) at adjusted time `adj` on a trajectory lasting
@@ -290,13 +291,21 @@ export class MovingVirtualObject extends VirtualObject {
       // (While leaving the terminal it is in the zone of the start of its path.)
       const zoneIndex = pathZoneIndex(refFrame.curve, adj - obj.timeLaunched)
       refFrame.wedges[zoneIndex][this.className].push(obj)
-      const visible = this.isVisible && visibleZones[zoneIndex] === 1
+      const visible = this.isVisible && (visibleZones[zoneIndex] === 1 ||
+        (refFrame.curve.continuation && adj - obj.timeLaunched > refFrame.curve.getDuration()))
       if (visible && !obj.model) obj.model = this.acquireModel(obj, refFrame)
       else if (!visible && obj.model) {
         this.releaseModel(obj.model)
         obj.model = null
       }
-      if (obj.model) obj.placeAndOrientModel(obj.model, refFrame)
+      if (obj.model) {
+        resetLauncherVisualScale(obj.model)
+        obj.placeAndOrientModel(obj.model, refFrame)
+        if (this.visualScale) {
+          const frame = obj.frameAt(refFrame, obj.clampedDeltaT(refFrame))
+          applyLauncherVisualScale(obj.model, this.visualScale, frame.centre)
+        }
+      }
     })
     this.activeObjects = next
   }
@@ -366,11 +375,12 @@ export class MovingVirtualObject extends VirtualObject {
 // How long a moving object is on `path`: along it, and then (path.fallBack, which the launcher gives the
 // nuts' and sleds' paths: see fallBack.js) back down it.
 export function pathDuration(path) {
-  return path.getDuration() + (path.fallBack?.duration ?? 0)
+  return path.continuation ? Infinity : path.getDuration() + (path.fallBack?.duration ?? 0)
 }
 
 // The zone of `path` an object is in `deltaT` seconds after it entered it.
 export function pathZoneIndex(path, deltaT) {
+  if (path.continuation && deltaT > path.getDuration()) return path.getZoneIndexAt(1)
   if (path.fallBack && deltaT > path.getDuration()) {
     return path.getZoneIndexAt(path.fallBack.distanceAt(deltaT - path.getDuration()) / path.getLength())
   }
@@ -385,6 +395,7 @@ export function pathZoneIndex(path, deltaT) {
 // line of the path's start, `egress` behind it, and the result has egress: true and a negative distance.
 // After the path's duration, an object whose path has a fallBack is falling back down it (fallingBack: true).
 export function curveFrameAtTime(path, deltaT, useT = false) {
+  if (path.continuation && deltaT >= (path.continuationStartTime ?? path.getDuration())) return path.continuation(deltaT)
   if (deltaT < 0) {
     const f = curveFrameAtTime(path, 0, useT)
     const behind = MovingVirtualObject.stagedLaunches > 0

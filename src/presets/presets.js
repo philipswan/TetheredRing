@@ -1,3 +1,4 @@
+import { SpaceportLauncher } from './SpaceportLauncher.js'
 import { ParameterStore } from '../params/ParameterStore.js'
 import { launchQueueLayout } from '../launcher/launchQueue.js'
 // Scene presets. A preset sets parameter values and scene options (camera placement, which planet
@@ -51,6 +52,7 @@ export const PRESETS = [
   { id: 'christmasIslandLauncher', label: 'Christmas Island launcher', apply: christmasIslandLauncher },
   { id: 'flightPaths', label: 'Flight paths', apply: flightPaths },
   { id: 'grapplerEngineering', label: 'Grappler engineering', apply: grapplerEngineeringPresets },
+  { id: 'SpaceportLauncher', label: 'SpaceportLauncher', apply: SpaceportLauncher },
   { id: 'toMarsHawaii', label: 'To Mars from Hawaii (planet2 terrain)', apply: toMarsHawaiiLauncherPresets },
   { id: 'elevatedEvacuatedTubeDeployment', label: 'Elevated evacuated tube deployment', apply: elevatedEvacuatedTubeDeployment },
   { id: 'olympusMonsLauncher', label: 'Olympus Mons launcher (Mars)', apply: olympusMonsLauncher },

@@ -119,7 +119,12 @@ export function defineAnimate () {
       let lastLaunch = Math.floor(time / this.cadence.spacing)
       if (MovingVirtualObject.stagedLaunches > 0) lastLaunch = Math.min(lastLaunch, MovingVirtualObject.stagedLaunches - 1)
       this.stashingFacility.update({ time, spacing: this.cadence.spacing, firstLaunch, lastLaunch,
-        visible: this.stashingFacility.components.sled.visible() || this.stashingFacility.components.nut.visible() })
+        visible: this.showStashingFacility && (this.stashingFacility.components.sled.visible() || this.stashingFacility.components.nut.visible()) })
+    }
+
+    if (this.spaceportStation) {
+      const vehicleClass = this.movingObjectClass('virtualLaunchVehicles')
+      this.spaceportStation.update(vehicleClass.adjustedTime(frameTime) - this.spaceportReleaseTime)
     }
 
     // Clear all of the "hasChanged" flags

@@ -205,6 +205,7 @@ export class massDriverTubeModel {
   update(dParamWithUnits) {
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
     this.radius = dParamWithUnits['launcherMassDriverTubeInnerRadius'].value
+    this.visualRadiusScale = dParamWithUnits.launcherVisualRadiusScale?.value ?? 1
     this.showLiftFans = dParamWithUnits['showLiftFans'].value
     this.showMooringCables = dParamWithUnits['showMooringCables'].value
     this.mooringSpacing = dParamWithUnits['launcherMassDriverMooringSpacing'].value
@@ -251,6 +252,7 @@ export class massDriverTubeModel {
       modelLengthSegments = 64
       aboveGround = true
     }
+    exagerateTubeFactor *= this.visualRadiusScale
     // End Hack
     //modelLengthSegments = 4
 

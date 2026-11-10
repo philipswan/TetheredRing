@@ -1,3 +1,5 @@
+import { attachSpaceportContinuation } from './SpaceportRendezvous.js'
+import { launcherVisualScales, resetLauncherVisualScale, applyLauncherVisualScale } from './launcherVisuals.js'
 import { StashingFacility, dailyStashingCapacity, aboveGroundStashingStation, STASH_WAIT, STASH_TRANSFER } from './stashingFacility.js'
 import { launchSledLayout } from './LaunchSledGeometry.js'
 import { launchQueueInfrastructure, launchQueueLayout } from './launchQueue.js'
@@ -175,6 +177,9 @@ export class launcher {
   // Rebuilds the trajectory curves, the reference frames and every virtual object. Safe to call on its
   // own (main.js's parameter sweep does): existing models are released first.
   updateReferenceFrames(dParamWithUnits, timeSinceStart, planetCoordSys, planetSpec, tetheredRingRefCoordSys, mainRingCurve, crv, specs, genLauncherKMLFile, kmlFile) {
+    this.spaceportStation?.dispose()
+    this.spaceportStation = null
+    this.spaceportMission = null
     this.referenceFrameArgs = Array.from(arguments)
     this.stashingRampDistance = null
     this.stashingFacility?.dispose()
@@ -214,6 +219,8 @@ export class launcher {
         this.polyCurveForrf2 = makePath("launchSledPath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), this.launchSledBrakingCurve])
         this.polyCurveForrf3 = makePath("launchVehicleInTubePath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), tubeCurve])
         this.polyCurveForrf4 = makePath("launchVehiclePath", [this.feederRailCurve, this.massDriver1Curve, this.massDriver2Curve, rampCurve(1), tubeCurve, this.freeFlightPositionCurve])
+
+        attachSpaceportContinuation(this)
 
         this.refFrames.push(
           new referenceFrame(this.polyCurveForrf0, numZones, this.cameraRange[0], 0, 0, 0, 'massDriver2RefFrame'),
@@ -343,6 +350,9 @@ export class launcher {
         case virtualHumanFigure: objectClass.update(dParamWithUnits, this.versionNumber); objectClass.modelFactory = this.humanFigureModelObject; break
       }
     })
+    for (const Class of [virtualLaunchVehicle, virtualLaunchSled, virtualAdaptiveNut]) {
+      Class.visualScale = launcherVisualScales(dParamWithUnits)
+    }
     this.updateCadence(dParamWithUnits, planetSpec)
     this.updateLaunchStride()
   }
@@ -615,9 +625,10 @@ export class launcher {
       const object = new Class(0)
       object.clampedDeltaT = () => stopTime
       const poseFrame = { ...refFrame, timeSinceStart: Class.launcherStartDelayInSeconds + stopTime / Class.slowDownPassageOfTime }
-      return { stopTime, visible: () => Class.isVisible,
+      return { stopTime, visualScale: Class.visualScale, visible: () => Class.isVisible,
         create: () => Class.acquireModel(object, refFrame),
         pose: (model, launchIndex = 0) => {
+          resetLauncherVisualScale(model)
           object.launchIndex = launchIndex
           object.timeLaunched = launchIndex * Class.tInc
           poseFrame.timeSinceStart = Class.launcherStartDelayInSeconds + (stopTime + object.timeLaunched) / Class.slowDownPassageOfTime
@@ -630,7 +641,8 @@ export class launcher {
           try { object.placeAndOrientModel(model, poseFrame) }
           finally { Class.isVisible = wasVisible }
         },
-        release: model => { model.removeFromParent(); Class.releaseModel(model) } }
+        render: (model, centre) => applyLauncherVisualScale(model, Class.visualScale, centre),
+        release: model => { resetLauncherVisualScale(model); model.removeFromParent(); Class.releaseModel(model) } }
     }
     const capacity = Math.max(dailyStashingCapacity(params), MovingVirtualObject.stagedLaunches, MovingVirtualObject.prepopulatedLaunches)
     this.stashingFacility = new StashingFacility({ parent: this.scene, frame, capacity, side, obstacleBoundsAtRange,
@@ -639,6 +651,7 @@ export class launcher {
         params.launcherMassDriverScrewThreadRadius.value, params.launcherMassDriverScrewShaftOuterRadius.value),
       components: { nut: makeComponent(virtualAdaptiveNut, this.polyCurveForrf1),
         sled: makeComponent(virtualLaunchSled, this.polyCurveForrf2) } })
+    this.stashingFacility.root.visible = this.showStashingFacility
     const storageCentre = this.stashingFacility.plan.centre.clone().applyQuaternion(this.stashingFacility.root.quaternion).add(point)
     const location = tram.ecefToGeodetic(storageCentre.x, storageCentre.y, storageCentre.z, this.planetSpec.ellipsoid)
     const specs = this.recoverySpecs
@@ -934,7 +947,13 @@ export class launcher {
       stages.push({ name: 'fallBack', deltaT: t })
       t += path.fallBack.duration
     }
+    if (className === 'virtualLaunchVehicles' && this.spaceportMission) {
+      const rendezvous = this.spaceportReleaseTime + this.spaceportMission.apogeeTime
+      stages.push({name: 'spaceportRendezvous', deltaT: rendezvous},
+        {name: 'spaceportCaptureComplete', deltaT: rendezvous + this.spaceportMission.captureDuration})
+    }
     stages.push({ name: 'end', deltaT: t })
+    stages.sort((a, b) => a.deltaT - b.deltaT)
     return stages
   }
 
@@ -962,6 +981,7 @@ export class launcher {
     this.slowDownPassageOfTime = dParamWithUnits['launcherSlowDownPassageOfTime'].value
     this.launcherStartDelayInSeconds = dParamWithUnits['launcherStartDelayInSeconds'].value
     this.showMarkers = dParamWithUnits['showMarkers'].value
+    this.showStashingFacility = dParamWithUnits.showStashingFacility?.value ?? true
     this.massDriverTubeSegments = dParamWithUnits['numVirtualMassDriverTubes'].value
     this.massDriverRailSegments = dParamWithUnits['numVirtualMassDriverRails'].value
     this.frozenTimeSinceStart = timeSinceStart
@@ -1035,10 +1055,17 @@ export class launcher {
     }
 
     const color = new THREE.Color()
-    const totalDuration = this.launchTrajectoryLine.getDuration()
+    const mission = this.spaceportMission
+    const returnTime = mission?.ballisticReturnTime(this.planetRadius)
+    const totalDuration = returnTime != null
+      ? this.spaceportReleaseTime + returnTime : this.launchTrajectoryLine.getDuration()
     const tStep = 1 // second
 
     const pointAt = (deltaT) => {
+      // Display the missed-capture descent without changing the actual spacecraft's motion.
+      if (returnTime != null && deltaT >= this.spaceportReleaseTime + mission.apogeeTime) {
+        return mission.ballisticStateAt(deltaT - this.spaceportReleaseTime).position
+      }
       const res = this.launchTrajectoryLine.findRelevantCurve(deltaT)
       const relevantCurve = res.relevantCurve
       const length = res.relevantCurveLength
@@ -1056,8 +1083,8 @@ export class launcher {
     const colors = []
     let prev = origin
     if (Number.isFinite(totalDuration)) {
-      for (let deltaT = tStep; deltaT < totalDuration; deltaT += tStep) {
-        const curr = pointAt(deltaT)
+      for (let deltaT = tStep; deltaT < totalDuration + tStep; deltaT += tStep) {
+        const curr = pointAt(Math.min(deltaT, totalDuration))
         offsets.push(prev.x - origin.x, prev.y - origin.y, prev.z - origin.z)
         offsets.push(curr.x - origin.x, curr.y - origin.y, curr.z - origin.z)
         // Major hash marks every 60 seconds and minor ones every 10 seconds

@@ -1,3 +1,4 @@
+import {TRACKED_OBJECTS} from '../camera/TrackedObjects.js'
 // Camera anchors: what a shot keyframe's camera position is relative to.
 //
 // An anchor is plain JSON (see ShotFormat.js): the world, or one particular moving object, such as
@@ -14,16 +15,10 @@
 //   level      y is the local vertical at the object, z its heading along the horizon
 //   translate  world axes: the frame moves with the object but does not turn
 import * as THREE from 'three'
-import { WORLD_ANCHOR, isWorldAnchor } from './ShotFormat.js'
+import { WORLD_ANCHOR, isWorldAnchor, ANCHOR_TYPES } from './ShotFormat.js'
 
-export const ANCHOR_KINDS = {
-  launchVehicle: { label: 'Launch vehicle', className: 'virtualLaunchVehicles' },
-  launchSled: { label: 'Launch sled', className: 'virtualLaunchSleds' },
-  adaptiveNut: { label: 'Adaptive nut', className: 'virtualAdaptiveNuts' },
-  transitVehicle: { label: 'Transit vehicle' },
-  elevatorCar: { label: 'Elevator car' },
-}
-const LAUNCH_KINDS = ['launchVehicle', 'launchSled', 'adaptiveNut']
+export const ANCHOR_KINDS = TRACKED_OBJECTS
+const LAUNCH_KINDS = Object.keys(TRACKED_OBJECTS).filter(type => TRACKED_OBJECTS[type].anchorGroup === 'launch')
 const LANE_NAMES = ['express, clockwise', 'express, anticlockwise', 'collector, clockwise', 'collector, anticlockwise']
 const STAGE_NAMES = {
   egress: 'Leaves the terminal',
@@ -36,6 +31,8 @@ const STAGE_NAMES = {
   freeFlightPositionCurve: 'Free flight',
   launchSledBrakingCurve: 'Sled starts braking',
   fallBack: 'Falls back down the track',
+  spaceportRendezvous: 'Spaceport rendezvous at apogee',
+  spaceportCaptureComplete: 'Spaceport capture complete',
   end: 'End of the path',
 }
 
@@ -51,7 +48,7 @@ function normalize(v) {
 }
 
 export function anchorKey(anchor) {
-  return isWorldAnchor(anchor) ? 'world' : JSON.stringify([anchor.type, anchor.orient ?? 'follow', anchor.launchIndex, anchor.lane, anchor.p])
+  return isWorldAnchor(anchor) ? 'world' : JSON.stringify([anchor.type, anchor.orient ?? 'follow', ...(ANCHOR_TYPES[anchor.type] ?? []).map(field => anchor[field])])
 }
 
 // Applies a frame to a local vector: a point (origin + axes * v) or a direction (axes * v).
@@ -84,6 +81,11 @@ export class AnchorResolver {
 
   // The object's own frame (world coordinates): { position, forward, upward } as arrays, or null.
   objectFrame(anchor, simTime) {
+    const kind = TRACKED_OBJECTS[anchor.type]
+    if (kind?.frameAt) {
+      const frame = kind.frameAt(this.app, anchor, simTime)
+      return frame && {position: toArray(frame.position), forward: toArray(frame.forward), upward: toArray(frame.upward)}
+    }
     if (LAUNCH_KINDS.includes(anchor.type)) {
       const f = this.launchSystem?.movingObjectFrameAt(ANCHOR_KINDS[anchor.type].className, anchor.launchIndex, simTime)
       if (!f) return null
@@ -186,6 +188,10 @@ export class AnchorResolver {
       else if (type === 'elevatorCar') {
         for (const c of this.transitSystem?.listElevatorCars() ?? []) add({ type, p: c.p, orient: 'level' })
       }
+      else if (TRACKED_OBJECTS[type]?.frameAt) {
+        const kind = TRACKED_OBJECTS[type]
+        for (const anchor of kind.anchors?.(this.app, simTime) ?? [{type, orient: 'follow'}]) add(anchor)
+      }
     }
     return list
   }
@@ -246,6 +252,11 @@ export class AnchorResolver {
         if (!(t <= toSimTime)) break
         events.push({ simTime: t, name: `Launch #${k}` })
         k += Math.max(1, launch.movingObjectClass(className).launchStride | 0)
+      }
+      if (launch?.spaceportMission) {
+        for (const stage of launch.launchStages(className).filter(s => s.name.startsWith('spaceport'))) {
+          events.push({simTime: launch.launchSimTime(className, 0, stage.deltaT), name: STAGE_NAMES[stage.name]})
+        }
       }
     }
     else if (LAUNCH_KINDS.includes(anchor.type)) {

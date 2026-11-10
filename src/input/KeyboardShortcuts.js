@@ -10,7 +10,8 @@ export const KEY_BINDINGS = [
   { code: 'Digit3', label: '3', help: 'Track the nearest transit vehicle', action: (app) => app.camera.toggleTracking(3) },
   { code: 'Digit4', label: '4', help: 'Track the nearest elevator car', action: (app) => app.camera.toggleTracking(4) },
   { code: 'Digit5', label: '5', help: 'Track the launcher coil centre marker', action: (app) => app.camera.toggleTracking(5) },
-  { code: 'Digit6', label: '6', help: 'Log a count of scene objects by name to the console', action: (app) => app.logObjectCounts() },
+  { code: 'Digit6', label: '6', help: 'Track the spaceport (press again to release)', action: (app) => app.camera.toggleTracking(6) },
+  { code: 'Digit6', shiftKey: true, label: 'Shift+6', help: 'Log a count of scene objects by name to the console', action: (app) => app.logObjectCounts() },
   { code: 'Digit7', label: '7', help: 'Analyse terrain clearance under the launcher ramp (console)', action: (app) => app.analyseLauncherTerrain() },
   { code: 'Digit8', label: '8', help: 'Place the Moon (or Earth, on the Moon) in view behind the camera target', action: (app) => app.placeCompanionBodyInView() },
   { code: 'Digit9', label: '9', help: 'Toggle stationary tracking (camera stays put and turns to follow)', action: (app) => app.toggleStationaryTracking() },
@@ -52,10 +53,10 @@ function isTypingTarget(target) {
 }
 
 export function installKeyboardShortcuts(app, target = document) {
-  const byCode = new Map(KEY_BINDINGS.map(b => [b.code, b]))
+  const byCode = new Map(KEY_BINDINGS.map(b => [`${b.shiftKey ? 'Shift+' : ''}${b.code}`, b]))
   const onKeyDown = (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return
-    const binding = byCode.get(event.code)
+    const binding = (event.shiftKey ? byCode.get(`Shift+${event.code}`) : null) ?? byCode.get(event.code)
     if (!binding) return
     event.preventDefault()
     binding.action(app, event)

@@ -255,6 +255,13 @@ export function createParameterDefinitions() {
   launchVehicleDesiredOrbitalAltitude: {value: 200000, units: 'm', autoMap: true, min: 0, max: 10000000, onChange: 'updateLauncher', folder: 'Launcher'},
   launchVehicleNoseConeTipRadius: {value: 0.001, units: 'm', autoMap: true, min: 0, max: 10, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherPayloadDeliveredToOrbit: {value: 100, units: 'kg', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
+  spaceportRendezvousEnabled: {value: false, autoMap: true, onChange: 'updateLauncher', folder: 'Launcher'},
+  spaceportApogeeAltitude: {value: 300000, units: 'm', autoMap: true, min: 100000, max: 2000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  spaceportVelocityDeficit: {value: 1000, units: 'm/s', autoMap: true, min: 100, max: 3000, onChange: 'updateLauncher', folder: 'Launcher'},
+  spaceportStationLength: {value: 110000, units: 'm', autoMap: true, min: 1000, max: 2000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  spaceportCaptureAcceleration: {value: 5, units: 'm/s2', autoMap: true, min: 0.1, max: 100, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherVisualRadiusScale: {value: 1, units: '', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launcherVisualLengthScale: {value: 1, units: '', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
   numLaunchesPerDay: {value: 4, units: 'launches/day', autoMap: true, min: 1, max: 10000, step: 1, onChange: 'updateLauncher', folder: 'Launcher'},
   numLaunchesPerMarsTransferSeason: {value: 14*4, units: '', autoMap: true, min: 1, max: 10000, onChange: 'updateLauncher', folder: 'Launcher'},
   numberOfMarsTransferSeasons: {value: 10, units: '', autoMap: true, min: 1, max: 100, onChange: 'updateLauncher', folder: 'Launcher'},
@@ -443,10 +450,10 @@ export function createParameterDefinitions() {
   launcherMassDriverConcreteTubeOuterRadius: {value: 1.125, units: 'm', autoMap: true, min: 0.01, max: 2, onChange: 'updateLauncher', folder: 'Launcher'},
   launcherMassDriverConcreteTubeJacketThickness: {value: 0.002, units: 'm', autoMap: true, min: 0, max: 1000, onChange: 'updateLauncher', folder: 'Launcher'},
 
-  massDriverCameraRange: {value: 500, units: 'm', autoMap: true, min: 0, max: 1000000, onChange: 'updateLauncher', folder: 'Launcher'},
-  launchSledCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 1000000, onChange: 'updateLauncher', folder: 'Launcher'},
-  vehicleInTubeCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, onChange: 'updateLauncher', folder: 'Launcher'},
-  lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 1000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  massDriverCameraRange: {value: 500, units: 'm', autoMap: true, min: 0, max: 20000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  launchSledCameraRange: {value: 2000, units: 'm', autoMap: true, min: 0, max: 20000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  vehicleInTubeCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 20000000, onChange: 'updateLauncher', folder: 'Launcher'},
+  lauchVehicleCameraRange: {value: 1000000, units: 'm', autoMap: true, min: 0, max: 20000000, onChange: 'updateLauncher', folder: 'Launcher'},
 
   // Grapplers
   adaptiveNutNumGrapplers: {value: 64, units: '', autoMap: true, min: 0, max: 3600, step: 1, onChange: 'updateLauncher', folder: 'Grapplers'},
@@ -612,6 +619,7 @@ export function createParameterDefinitions() {
   showContainerShips: {value: true, units: '', autoMap: true, onChange: 'adjustContainerShips', folder: 'Rendering'},
   // The ocean terminal at an underwater launcher's breech, with its pier, cargo ships and mooring chains
   // (see src/launcher/OceanTerminal.js).
+  showStashingFacility: {value: true, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showLauncherOceanTerminal: {value: true, units: '', autoMap: true, onChange: 'adjustOceanTerminal', folder: 'Rendering'},
   underwaterVisibility: {value: 20000, units: 'm', autoMap: true, min: 100, max: 200000, onChange: 'adjustOcean', folder: 'Rendering'},   // distance at which things underwater have almost faded into the water colour (a visual cue, not realism)
   earthTextureOpacity: {value: 1, units: '', autoMap: true, min: 0, max: 1, onChange: 'adjustEarthTextureOpacity', folder: 'Rendering'},

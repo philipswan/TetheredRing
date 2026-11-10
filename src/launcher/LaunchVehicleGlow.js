@@ -42,12 +42,16 @@ export class LaunchVehicleGlow {
     this.spare = [this.newTubes()]
     this.anyVisible = false
     this.rgb = [0, 0, 0]
+    this.visualRadiusScale = 1
+    this.visualLengthScale = 1
     this.showPlasma = false
     this.showExhaust = false
   }
 
   configure(d, planetSpec) {
     this.planetSpec = planetSpec
+    this.visualRadiusScale = d.launcherVisualRadiusScale?.value ?? 1
+    this.visualLengthScale = d.launcherVisualLengthScale?.value ?? 1
     this.showPlasma = d['showLaunchVehiclePlasma']?.value ?? true
     this.showExhaust = d['showLaunchVehicleExhaust']?.value ?? true
     this.plasmaBrightness = d['launchVehiclePlasmaBrightness'].value
@@ -140,8 +144,15 @@ export class LaunchVehicleGlow {
     const altitude = f.point.length() - planetRadius
     const density = this.planetSpec.airDensityAtAltitude(altitude)
     const tc = f.curve.freeFlightTelemetryCurve
-    const telemetry = tc ? (f.byT ? tc.getPoint(f.i) : tc.getPointAt(f.d)) : null
+    const telemetry = f.curve.telemetryAtTime?.(f.t) ?? (tc ? (f.byT ? tc.getPoint(f.i) : tc.getPointAt(f.d)) : null)
     return { altitude, density, airSpeed: telemetry ? telemetry.x : 0, massFlowRate: telemetry ? telemetry.z : 0 }
+  }
+
+  displayPoint(frame, point) {
+    const offset = point.clone().sub(frame.centre)
+    const along = offset.dot(frame.modelForward)
+    return frame.centre.clone().addScaledVector(offset, this.visualRadiusScale)
+      .addScaledVector(frame.modelForward, along * (this.visualLengthScale - this.visualRadiusScale))
   }
 
   nose(frame) {
@@ -173,7 +184,14 @@ export class LaunchVehicleGlow {
       const area = Math.PI * sigma * sigma
       // At the tube's exit the trail starts: fade its last ring out so it does not end in a disc.
       const end = (k === TRAIL_RINGS - 1 && span >= sinceExit) ? 0 : 1
-      tube.addRing(p.x, p.y, p.z, sigma, end * rgb[0] / area, end * rgb[1] / area, end * rgb[2] / area)
+      const displayed = this.displayPoint(frame, p).addScaledVector(frame.modelForward,
+        -Math.min(s, this.noseToBase) * (this.visualLengthScale - 1))
+      // Enlarge the envelope around the displayed hull, but keep the wake's additional
+      // spreading in metres. Scaling that spreading too makes a kilometre-wide flare.
+      const envelope = 1.2 * this.shape.bodyRadius
+      const displayedSigma = Math.min(sigma, envelope) * this.visualRadiusScale + Math.max(0, sigma - envelope)
+      tube.addRing(displayed.x, displayed.y, displayed.z, displayedSigma,
+        end * rgb[0] / area, end * rgb[1] / area, end * rgb[2] / area)
       peak = Math.max(peak, rgb[0] / area)
     }
     tube.end()
@@ -197,7 +215,7 @@ export class LaunchVehicleGlow {
       wakeRadius: 1.2 * this.shape.bodyRadius,
     }, this.exhaustBrightness)
     if (!plume) return false
-    const exit = now.position
+    const exit = this.displayPoint(now, now.position)
     const back = now.modelForward
     tube.begin(exit)
     const rgb = this.rgb
@@ -208,7 +226,7 @@ export class LaunchVehicleGlow {
       const sigma = plume.radiusAt(x) / 1.5
       plume.lineEmissionAt(x, rgb)
       const area = Math.PI * sigma * sigma
-      tube.addRing(exit.x - back.x * x, exit.y - back.y * x, exit.z - back.z * x, sigma, rgb[0] / area, rgb[1] / area, rgb[2] / area)
+      tube.addRing(exit.x - back.x * x * this.visualLengthScale, exit.y - back.y * x * this.visualLengthScale, exit.z - back.z * x * this.visualLengthScale, sigma * this.visualRadiusScale, rgb[0] / area, rgb[1] / area, rgb[2] / area)
       peak = Math.max(peak, rgb[2] / area)
     }
     tube.end()

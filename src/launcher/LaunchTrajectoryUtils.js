@@ -1,3 +1,4 @@
+import { configureSpaceportFlight } from './SpaceportRendezvous.js'
 import { specificForceAt, capsuleLoad } from './crewAcceleration.js'
 import { quaternionFromFrame } from '../curves/SuperCurve.js'
 import * as THREE from 'three'
@@ -32,6 +33,7 @@ export function defineTrajectoryCurvesParametersHaveChanged() {
   return function (dParamWithUnits, previousValues) {
     let changed = false;
     const paramsToCheck = [
+      'spaceportRendezvousEnabled', 'spaceportApogeeAltitude', 'spaceportVelocityDeficit', 'spaceportStationLength', 'spaceportCaptureAcceleration',
       'launcherFeederRailLength',
       'launcherStagedLaunches',
       'launchVehicleForwardsOffset',
@@ -1770,6 +1772,11 @@ export function defineUpdateTrajectoryCurves () {
     // Add the orientation curve to the position curve
     this.freeFlightPositionCurve.freeFlightOrientationCurve = this.freeFlightOrientationCurve
     this.freeFlightPositionCurve.freeFlightTelemetryCurve = this.freeFlightTelemetryCurve
+    configureSpaceportFlight(this, dParamWithUnits, planetSpec, R0, V0PlusPlanetRotation, specs, {
+      altitude: altitudeVersusTimeData, pressure: airPressureVersusTimeData, airSpeed: airSpeedVersusTimeData,
+      drag: aerodynamicDragVersusTimeData, flow: fuelMassFlowRateVersusTimeData, mass: totalMassVersusTimeData,
+      forwardAcceleration: forwardAccelerationVersusTimeData, upwardAcceleration: upwardAccelerationVersusTimeData,
+    })
 
     // Use the same proper force and capsule alignment as the animated vehicle, including each
     // transition boundary in the sampling so short jerk ramps remain visible at wide chart scales.
@@ -1788,7 +1795,7 @@ export function defineUpdateTrajectoryCurves () {
         if (t > launcherXyChartMaxT) continue
         const u = Math.max(0, Math.min(1, curve.tTod(time) / curve.getLength()))
         const forward = curve.getTangentAt(u), upward = curve.getNormalAt(u)
-        const modelForward = curve === this.freeFlightPositionCurve ? this.freeFlightOrientationCurve.getPoint(freeFlighttToiConvertor(time)).normalize() : forward
+        const modelForward = curve.freeFlightOrientationCurve ? curve.freeFlightOrientationCurve.getPoint(curve.tToi(time)).normalize() : forward
         const right = new THREE.Vector3().crossVectors(forward, upward)
         const orientation = quaternionFromFrame(modelForward, right.cross(modelForward))
         const load = capsuleLoad(specificForceAt(curve, time, planetSpec), orientation)
