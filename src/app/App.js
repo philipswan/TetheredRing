@@ -1,3 +1,4 @@
+import { EvidenceLedgerCallouts } from '../scene/EvidenceLedgerCallouts.js'
 import { spaceportOverview } from '../launcher/SpaceportRendezvous.js'
 import * as THREE from 'three'
 import { VRButton } from 'three/addons/webxr/VRButton.js'
@@ -1057,6 +1058,8 @@ export class App {
     this.overlays.xyChart.update(this.launchSystem?.chartTime?.(this.clock.time) ?? this.clock.time)
     this.chartControls?.layout()
     this.overlays.render(renderer)
+    if (this.d.showObjectLabels.value || this.d.showEvidenceLedgerLinks.value) this.evidenceCallouts ??= new EvidenceLedgerCallouts(this)
+    this.evidenceCallouts?.render(renderer)
     this.quality.endGpuFrame()
     if ((this._framesRendered = (this._framesRendered ?? 0) + 1) % PRECOMPILE_INTERVAL === 1) this.precompileShaders()
     warmPrograms(renderer)

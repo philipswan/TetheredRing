@@ -75,7 +75,7 @@ export class AnchorCables {
       const at = this.sampleHeight(lat, lon)?.heightMeters ?? null
       if (at === null) return false
       const p = geodeticToECEF(lat, lon, Math.min(at, below.alt - 1), this.ellipsoid)
-      ends.push({ top: leg.top, anchor: new THREE.Vector3(p.x, p.y, p.z), shape: leg.shape ?? 0.01 })
+      ends.push({ top: leg.top, anchor: new THREE.Vector3(p.x, p.y, p.z), shape: leg.shape ?? 0.01, pretension: !!leg.pretension })
     }
     this.complete = true
     const signature = ends.map(({ anchor }) => anchor.toArray().map((x) => x.toFixed(0)).join(',')).join(';')
@@ -87,9 +87,10 @@ export class AnchorCables {
 
   build(ends) {
     this.clear()
-    const positions = [], tubes = []
+    const cablePositions = { mooring: [], pretension: [] }, tubes = []
     let reach = 0
-    for (const { top, anchor, shape } of ends) {
+    for (const { top, anchor, shape, pretension } of ends) {
+      const positions = cablePositions[pretension ? 'pretension' : 'mooring']
       const a = this.toLocal(top, new THREE.Vector3())
       const b = this.toLocal(anchor, new THREE.Vector3())
       _up.copy(top).normalize()
@@ -104,14 +105,17 @@ export class AnchorCables {
       block.name = 'anchor'
       this.group.add(block)
     }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    StructureLines.constantAttributes(geometry, positions.length / 3, DIAMETER)
-    geometry.computeBoundingSphere()
-    const lines = new THREE.LineSegments(geometry, lineMaterial)
-    lines.name = 'anchorCableLines'
-    lines.renderOrder = 1
-    this.group.add(lines)
+    for (const [kind, positions] of Object.entries(cablePositions)) {
+      if (!positions.length) continue
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+      StructureLines.constantAttributes(geometry, positions.length / 3, DIAMETER)
+      geometry.computeBoundingSphere()
+      const lines = new THREE.LineSegments(geometry, lineMaterial)
+      lines.name = kind === 'pretension' ? 'pretensionCableLines' : 'anchorCableLines'
+      lines.renderOrder = 1
+      this.group.add(lines)
+    }
     if (tubes.length === 0) return
     // The solid cables, while they are at least CABLE_PIXELS across at their nearest point.
     const cables = new THREE.Mesh(mergeGeometries(tubes), cableMaterial)

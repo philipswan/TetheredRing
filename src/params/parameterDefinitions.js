@@ -677,6 +677,8 @@ export function createParameterDefinitions() {
   showLaunchVehiclePointLight: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showLaunchVehiclePlasma: {value: true, units: '', autoMap: true, onChange: 'adjustLaunchVehicleGlow', folder: 'Rendering'},
   showLaunchVehicleExhaust: {value: true, units: '', autoMap: true, onChange: 'adjustLaunchVehicleGlow', folder: 'Rendering'},
+  showObjectLabels: {value: false, units: '', autoMap: true, folder: 'Rendering'},
+  showEvidenceLedgerLinks: {value: false, units: '', autoMap: true, folder: 'Rendering'},
   showMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   showTrackingMarkers: {value: false, units: '', autoMap: true, onChange: 'updateLauncher', folder: 'Rendering'},
   trackingMarkerSize: {value: 500, units: '', autoMap: true, min: 0, max: 10000, onChange: 'resizeTrackingMarkers', folder: 'Rendering'},

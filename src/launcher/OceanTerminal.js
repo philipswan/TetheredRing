@@ -227,6 +227,7 @@ export class OceanTerminal {
       p.setY(i, shaft.top - (shaft.top - y) * (span - drop) / span)
     }
     p.needsUpdate = true
+    this.shaft.geometry.computeBoundingBox()
     this.shaft.geometry.computeBoundingSphere()   // (its walls are vertical, so their normals stay as they are)
     this.shaft.position.set(-shaft.x, 0, -shaft.z)
 
@@ -250,7 +251,7 @@ export class OceanTerminal {
     for (const fairlead of terminalPretensionAttachments(this.model)) {
       const top = toPlanet(fairlead.add(new THREE.Vector3(-shaft.x, drop, -shaft.z)))
       legs.push({ top, east: pretensionDirection.dot(east), north: pretensionDirection.dot(north),
-        scope: 1 / Math.tan(5 * Math.PI / 180), shape: 100 })
+        scope: 1 / Math.tan(5 * Math.PI / 180), shape: 100, pretension: true })
     }
     this.cables = new AnchorCables({ parent: this.root, toLocal, legs, ellipsoid: this.ellipsoid, sampleHeight: this.sampleHeight })
     this.site = siteSeed(geo.lat, geo.lon)

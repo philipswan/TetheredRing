@@ -292,6 +292,7 @@ export class massDriverTubeModel {
     //const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, (!aboveGround) ? this.massDriverTubeMaterial1 : this.massDriverTubeMaterial2)
     const tubeMesh = new THREE.Mesh(massDriverTubeGeometry, massDriverTubeMaterial)
     tubeMesh.name = "massDriverTubeSegment"
+    tubeMesh.userData.calloutSection = aboveGround ? 'tube' : res.relevantCurve.name.startsWith('launchRampCurve') ? 'ramp' : 'acceleration'
     // Once the tube is under about a pixel across, draw it as a line along its centre instead, so the
     // track stays visible from far away (as a 1 px line) without exaggerating its size up close.
     const tubeLod = new PixelLOD(2 * this.radius * exagerateTubeFactor, { extent: tubeSegmentLength / 2 })
@@ -300,6 +301,7 @@ export class massDriverTubeModel {
     tubeLod.addLevel(0, () => {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(tubePoints), this.massDriverTubeMaterial5)
       line.name = 'massDriverTubeLine'
+      line.userData.calloutSection = tubeMesh.userData.calloutSection
       return line
     })
     const massDriverTubeMesh = new THREE.Group().add(tubeLod)

@@ -75,9 +75,19 @@ export class GrapplerFaceHandoffPlan {
         }
       }
     }
-    if (previous[count] < 0) throw new Error(ERROR)
+    this.supportWarningIssued = false
     this.groups = []
-    for (let to = count; to > 0;) {
+    if (previous[count] < 0) {
+      this.warnSupport()
+      // Keep the face change usable even when the force window is too short.
+      // Transfer two banks in sequence, centered on the drive-to-brake boundary.
+      const middle = Math.ceil(count / 2)
+      this.groups.push(
+        { from: 0, to: middle, start: zero - switchoverTime, end: zero },
+        { from: middle, to: count, start: zero, end: zero + switchoverTime },
+      )
+    }
+    for (let to = previous[count] < 0 ? 0 : count; to > 0;) {
       const from = previous[to], start = release[to]
       this.groups.unshift({ from, to, start, end: start + switchoverTime })
       to = from
@@ -112,6 +122,12 @@ export class GrapplerFaceHandoffPlan {
     }
   }
 
+  warnSupport() {
+    if (this.supportWarningIssued) return
+    this.supportWarningIssued = true
+    console.warn(ERROR)
+  }
+
   assertSupport(time, poses) {
     if (poses.length !== this.count) throw new Error('Incomplete grappler face-handoff poses.')
     if (time < this.groups[0].start || time > this.groups.at(-1).end) return
@@ -122,7 +138,7 @@ export class GrapplerFaceHandoffPlan {
         else if (this.state(i, time).mix === 1) front++
       }
     })
-    if (!rear && !front || time < this.zero && !rear || time > this.zero && !front) throw new Error(ERROR)
+    if (!rear && !front || time < this.zero && !rear || time > this.zero && !front) this.warnSupport()
   }
 }
 

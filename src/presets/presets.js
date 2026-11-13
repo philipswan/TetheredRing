@@ -1,3 +1,4 @@
+import { EvidenceLedgerLinks } from './EvidenceLedgerLinks.js'
 import { SpaceportLauncher } from './SpaceportLauncher.js'
 import { ParameterStore } from '../params/ParameterStore.js'
 import { launchQueueLayout } from '../launcher/launchQueue.js'
@@ -52,6 +53,7 @@ export const PRESETS = [
   { id: 'christmasIslandLauncher', label: 'Christmas Island launcher', apply: christmasIslandLauncher },
   { id: 'flightPaths', label: 'Flight paths', apply: flightPaths },
   { id: 'grapplerEngineering', label: 'Grappler engineering', apply: grapplerEngineeringPresets },
+  { id: 'EvidenceLedgerLinks', label: 'Evidence Ledger Links', apply: EvidenceLedgerLinks },
   { id: 'SpaceportLauncher', label: 'SpaceportLauncher', apply: SpaceportLauncher },
   { id: 'toMarsHawaii', label: 'To Mars from Hawaii (planet2 terrain)', apply: toMarsHawaiiLauncherPresets },
   { id: 'elevatedEvacuatedTubeDeployment', label: 'Elevated evacuated tube deployment', apply: elevatedEvacuatedTubeDeployment },
@@ -84,6 +86,16 @@ export function applyPreset(id, guidParamWithUnits, nonGUIParams) {
   nonGUIParams['startTimerActions'] = (startTimerParams) => {}
   nonGUIParams['setResolutionFromBackgroundVideo'] = false
   preset.apply(guidParamWithUnits, nonGUIParams)
+  // Apply after inherited presets finish choosing their location (e.g. SpaceportLauncher
+  // inherits Hawaii settings but moves to Ecuador). 18:00 HST is 04:00 UTC.
+  const inHawaii = (lat, lon) => lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154
+  const hawaiiLocation = inHawaii(guidParamWithUnits.launcherRampEndLatitude.value,
+    guidParamWithUnits.launcherRampEndLongitude.value) ||
+    nonGUIParams.locationInterests?.some(({ lat, lon }) => inHawaii(lat, lon))
+  if (guidParamWithUnits.planetName.value === 'Earth' && hawaiiLocation) {
+    guidParamWithUnits.sunTimeOfDayUTC.value = 4
+    guidParamWithUnits.showOcean.value = true
+  }
   return preset
 }
 

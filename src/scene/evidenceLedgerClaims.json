@@ -1,0 +1,489 @@
+{
+  "reviewed": "2026-11-11",
+  "conceptUrl": "https://evidence-ledger.project-atlantis.com/concept/variable-pitch-screw-launcher-from-earth-to-mars",
+  "claims": [
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/momentum-transfer-is-cheaper-to-gate-or-modulate-than-high-power-magnetic-fields",
+      "target": "screws",
+      "label": "Power modulation costs",
+      "title": "Momentum transfer is cheaper to modulate than the high-power magnetic fields used for electromagnetic acceleration",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to a visible screw segment: the claim compares its flywheel clutch and momentum-transfer mechanism with electromagnetic acceleration."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/momentum-transfer-through-the-screws-to-the-adaptive-nut-is-feasible-dc874d",
+      "target": "screws",
+      "label": "Flywheel-to-nut momentum transfer",
+      "title": "Momentum Transfer from the Flywheels, through the Screws, to the Adaptive Nut is Feasible",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-exit-airlock-mechanism-can-be-engineered-to-work-reliably-53c2c9",
+      "target": "airlock",
+      "label": "The Exit Airlock Mechanism Can Be Engineered to Work Reliably",
+      "title": "The Exit Airlock Mechanism Can Be Engineered to Work Reliably",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/an-elevated-evacuated-tube-can-be-supported-at-altitudes-of-up-to-15km-by-electrically-powered-lift-fans-supplied-with-p",
+      "target": "fans",
+      "label": "Powered lift at altitude",
+      "title": "An Elevated Evacuated Tube can be supported at altitudes of up to 15km by electrically powered lift fans supplied with power from the ground.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-submerged-acceleration-tunnel-can-withstand-launch-induced-longitudinal-forces-without-buckling",
+      "target": "acceleration",
+      "label": "Longitudinal load and buckling",
+      "title": "The submerged acceleration tunnel can withstand launch-induced longitudinal forces without buckling.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/earlier-electromagnetic-launcher-designs-showed-steep-often-near-cubic-power-electronics-cost-scaling-with-exit-velocity",
+      "target": "economy",
+      "label": "Electromagnetic launcher cost scaling",
+      "title": "Earlier electromagnetic launcher designs showed steep, often near-cubic power-electronics cost scaling with exit velocity",
+      "display": {
+        "phase": "topic",
+        "instructions": "Historical electromagnetic-launcher comparison; the compared architecture is not modeled in this VPSL scene. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-energy-losses-due-to-air-friction-on-the-spinning-screws-are-accepta-27e735",
+      "target": "screws",
+      "label": "Windage energy losses",
+      "title": "The Energy Losses Due to Air Friction on the Spinning Screws are Acceptable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/an-exit-altitude-of-15-km-enables-safe-endoatmospheric-transit-cf9f7a",
+      "target": "airlock",
+      "label": "Atmospheric transit after tube exit",
+      "title": "An Exit Altitude of Approximately 15 km (~49,000 ft) Enables Safe Endoatmospheric Transit",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-significantly-lowers-land-use-and-externality-costs-compared-to-conventional-rocket-based-launch",
+      "target": "mountain",
+      "label": "Land use and externalities",
+      "title": "The system significantly lowers land-use and externality costs compared to conventional rocket-based launch.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to the launch-site terrain: the claim discusses underground and offshore construction, surface footprint and neighboring land use."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/variable-pitch-screw-launch-offers-a-compelling-risk-adjusted-return-on-investment",
+      "target": "economy",
+      "label": "Risk-adjusted investment returns",
+      "title": "Variable Pitch Screw Launch offers a compelling risk-adjusted return on investment",
+      "display": {
+        "phase": "topic",
+        "instructions": "Project-wide investment assessment; there is no modeled financial object. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/heat-can-be-transferred-out-of-the-screws-c129a0",
+      "target": "screws",
+      "label": "Removing screw heat",
+      "title": "Heat Can Be Transferred Out of the Screws",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-s-rate-of-wear-is-very-low-compared-to-rockets-and-railguns",
+      "target": "screws",
+      "label": "Wear and service life",
+      "title": "The System's Rate of Wear is Very Low Compared to Rockets and Railguns",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/a-suitable-site-can-be-found-for-the-system-39dba5",
+      "target": "mountain",
+      "label": "Launch-site suitability",
+      "title": "A Suitable Site Can be Found For The System",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to the launch-site mountain, at the fixed terrain landmark. This claim concerns geography and siting, not an operations icon."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-adaptive-nut-can-be-reused-52873c",
+      "target": "nut",
+      "label": "Nut recovery and reuse",
+      "title": "The Adaptive Nut Can be Reused",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-elevated-evacuated-tube-can-be-designed-so-that-lift-fan-power-loss-will-not-endanger-people-or-infrastructure-below",
+      "target": "fans",
+      "label": "Lift-power failure safety",
+      "title": "The Elevated Evacuated Tube can be designed so that lift-fan power-loss will not endanger people or infrastructure below.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-architecture-does-require-any-unobtainium",
+      "target": "acceleration",
+      "label": "Commercially available materials",
+      "title": "No unobtanium - VPSL can be built from well-understood materials that are already commercially available",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to the horizontal acceleration structure as a representative of the conventional tunnel, liner and mechanical construction described in the claim."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-launch-system-can-safely-abort-at-any-point-during-the-launch-2252b3",
+      "target": "sled",
+      "label": "Launch-abort capability",
+      "title": "The launch system can safely abort at any point during the launch",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/a-long-tube-equipped-with-a-vacuum-pumping-system-can-be-built-to-achieve-the-required-vacuum-level-cost-effectively",
+      "target": "tube",
+      "label": "Vacuum pumping and construction costs",
+      "title": "A long tube equipped with a vacuum pumping system can be built to achieve the required vacuum level cost-effectively",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-is-capable-of-launching-four-spacecraft-per-day-to-mars-aimin-73a917",
+      "target": "vehicle",
+      "label": "Four daily Mars departures",
+      "title": "The System Is Capable of Launching Four Spacecraft per Day to Mars (Aiming system, endoatmospheric maneuvering, rate of launch)",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to an identifiable spacecraft, on the launcher or in flight. The claim concerns back-to-back spacecraft departures, aiming and course correction."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-inherently-produces-low-electromagnetic-emissions-avoiding-interference-or-payload-damage",
+      "target": "screws",
+      "label": "Electromagnetic emissions",
+      "title": "The system inherently produces low electromagnetic emissions, avoiding interference or payload damage",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/target-screw-face-velocity-of-525-m-s-is-attainable-c1d9d6",
+      "target": "screws",
+      "label": "Screw-tip speed",
+      "title": "The Targeted Screw Flight Tip Velocity of 525 m/s is Attainable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-adaptive-nut-s-mechatronics-can-adapt-to-the-changing-geometry-of-th-2bcfbe",
+      "target": "nut",
+      "label": "Adapting to changing screw geometry",
+      "title": "The Adaptive Nut's Mechatronics Can Adapt to the Changing Geometry of the Screws",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/adaptive-nut-magnetic-drag-is-within-acceptable-limits-b4c45b",
+      "target": "nut",
+      "label": "Magnetic coupling drag",
+      "title": "Adaptive Nut Magnetic Drag is Within Acceptable Limits",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-required-geometric-straightness-of-the-submerged-acceleration-section-is-achievable",
+      "target": "acceleration",
+      "label": "Underwater alignment",
+      "title": "The Required Geometric Straightness of the Submerged Acceleration Section is Achievable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/an-operational-vacuum-level-of-5-pa-inside-the-tube-is-sufficient-3ceedc",
+      "target": "tube",
+      "label": "Operating vacuum requirement",
+      "title": "An Operational Vacuum Level of 5 Pa inside the Tube is Sufficient",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/given-the-above-claims-the-capital-cost-is-x-and-the-operating-cost-is-y-4e5dc7",
+      "target": "economy",
+      "label": "Capital and operating costs",
+      "title": "If the Other Claims are Accepted, the Capital Cost is X and the Operating Cost is Y",
+      "display": {
+        "phase": "topic",
+        "instructions": "Whole-system capital and operating costs, rather than the cost of one visible component. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/station-keeping-systems-can-actively-position-the-elevated-evacuated-tub-2c6bd8",
+      "target": "tube",
+      "label": "Flight-corridor station keeping",
+      "title": "Station-keeping systems can actively position the Elevated Evacuated Tube to keep it centered around the flightpath",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-launch-sled-can-be-reused-eddy-current-breaking-a8acd6",
+      "target": "sled",
+      "label": "Sled recovery and reuse",
+      "title": "The Launch Sled Can be Reused",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-significantly-reduces-the-environmental-impact-on-earth-of-large-scale-mars-settlement-efforts",
+      "target": "environment",
+      "label": "Lifecycle carbon emissions",
+      "title": "The System Can Reduce the CO2-Equivalent Emissions on Earth of a Large-Scale Mars Settlement Effort by at least 100x",
+      "display": {
+        "phase": "topic",
+        "instructions": "Whole Mars-settlement lifecycle comparison, including avoided refueling launches; no single modeled component represents that accounting. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/compared-to-conventional-coastal-spaceports-the-system-offers-greater-long-term-resilience-to-the-risk-of-sea-level-rise",
+      "target": "terminal",
+      "label": "Sea-level resilience",
+      "title": "Compared to conventional coastal spaceports, the system offers greater long-term resilience to the risk of sea-level rise.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/this-project-puts-american-companies-in-declining-sectors-back-to-work-keeps-skilled-people-employed-and-helps-rebuild-i",
+      "target": "industry",
+      "label": "Industrial capacity and skilled jobs",
+      "title": "The project puts U.S. companies in declining sectors back to work, keeps their people employed, and rebuilds industries we want to bring home",
+      "display": {
+        "phase": "topic",
+        "instructions": "Industrial workforce and factories are not modeled in this scene. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-sonic-boom-impacts-from-endoatmospheric-transit-are-tolerable-for-ci-ca635a",
+      "target": "vehicle",
+      "label": "Sonic-boom exposure",
+      "title": "The Sonic Boom Impacts from Endoatmospheric Transit are Tolerable for Civilian and Environmental Exposure",
+      "display": {
+        "phase": "atmosphericFlight",
+        "maxAltitude": 100000,
+        "minMach": 1,
+        "instructions": "Attach to the spacecraft only in supersonic free flight outside the tube and below 100 km altitude."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/launch-train-mass-target-of-39-000-kg-is-achievable-13175e",
+      "target": "vehicle",
+      "label": "Combined launch-train mass",
+      "title": "Launch Train Mass Target of ~39,000 kg is Achievable",
+      "display": {
+        "phase": "onLauncher",
+        "instructions": "Attach to the spacecraft while the launch train is still in the launcher."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/when-not-launching-spacecraft-the-system-can-offset-costs-by-converting-intermittent-renewable-energy-into-steady-dispat",
+      "target": "screws",
+      "label": "Renewable-energy storage services",
+      "title": "When not launching spacecraft, the system can offset costs by converting intermittent renewable energy into steady, dispatchable power.",
+      "display": {
+        "phase": "visible",
+        "instructions": "Attach to a visible screw segment, whose rotating mass provides the proposed energy storage. This is a hardware association, not a simulated grid-service mode."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/damaged-sections-of-the-submerged-evacuated-tube-can-be-rapidly-isolated-3fd8a6",
+      "target": "acceleration",
+      "label": "Isolating damaged tunnel sections",
+      "title": "Damaged Sections of the Submerged Evacuated Tube Can be Rapidly Isolated",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-required-geometric-straightness-of-the-underground-ramp-section-is-achievable",
+      "target": "ramp",
+      "label": "Underground ramp alignment",
+      "title": "The Required Geometric Straightness of the Underground Ramp Section is Achievable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-spacecraft-that-are-launched-during-a-mars-transfer-season-can-be-ag-88098a",
+      "target": "vehicle",
+      "label": "Spacecraft aggregation during Mars transfer",
+      "title": "Some of the Spacecraft That Are Launched During a Mars Transfer Season Can Be Aggregated on the Way to Mars",
+      "display": {
+        "phase": "spaceFlight",
+        "minAltitude": 100000,
+        "instructions": "Attach to the spacecraft after atmospheric ascent, above 100 km."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-elevated-evacuated-tube-can-survive-inclement-weather-de4d93",
+      "target": "tube",
+      "label": "Severe-weather survival",
+      "title": "The Elevated Evacuated Tube Can Survive Inclement Weather",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-spacecraft-s-rocket-engine-can-be-fired-up-very-quickly-78058a",
+      "target": "engine",
+      "label": "Reliable rapid engine ignition",
+      "title": "The Spacecraft's Rocket Engine Can Be Fired Up Quickly and Reliably",
+      "display": {
+        "phase": "poweredFlight",
+        "instructions": "Attach to the spacecraft engine during powered free flight."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-upward-acceleration-target-of-16-g-s-for-6-8-seconds-is-reasonable-56e4ed",
+      "target": "ramp",
+      "label": "Crew tolerance of upward acceleration",
+      "title": "The Upward Acceleration Target of 17.3 G's for 6.8 Seconds is Reasonable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-forward-acceleration-target-of-8-g-s-for-2-3-minutes-is-reasonable-424216",
+      "target": "acceleration",
+      "label": "Crew tolerance of forward acceleration",
+      "title": "The Forward Acceleration Target of 8 G's for 2.3 Minutes is Reasonable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/the-system-can-tolerate-occasional-screw-segment-failures-a7e208",
+      "target": "screws",
+      "label": "Screw-segment failure tolerance",
+      "title": "The system can tolerate occasional screw segment failures",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/maglev-guideway-magnetic-drag-is-within-acceptable-limits-84c6bd",
+      "target": "rail",
+      "label": "Guideway magnetic drag",
+      "title": "Maglev Guideway Magnetic Drag is Within Acceptable Limits",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/investment-in-launch-infrastructure-will-have-greater-spinoff-benefits-t-25a24a",
+      "target": "industry",
+      "label": "Infrastructure spinoffs",
+      "title": "Investment in launch infrastructure will have greater spinoff benefits than continued investment in rockets.",
+      "display": {
+        "phase": "topic",
+        "instructions": "Project-wide downstream benefits, with no corresponding modeled spinoff infrastructure. Show in the fixed topic icon panel."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/spacecraft-mass-target-of-28-000-kg-is-achievable-109008",
+      "target": "vehicle",
+      "label": "Spacecraft mass budget",
+      "title": "Spacecraft Mass Target of ~28,000 kg is Achievable",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/unit-cost-of-the-elevated-evacuated-tube-is",
+      "target": "tube",
+      "label": "Elevated tube unit costs",
+      "title": "Unit Cost of the Elevated Evacuated Tube is...",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/unit-cost-of-the-ramp-section-is",
+      "target": "ramp",
+      "label": "Ramp unit costs",
+      "title": "Unit Cost of the Ramp Section is...",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    },
+    {
+      "url": "https://evidence-ledger.project-atlantis.com/claim/unit-cost-of-the-submerged-acceleration-section-is",
+      "target": "acceleration",
+      "label": "Underwater acceleration-section unit costs",
+      "title": "Unit Cost of the Submerged Acceleration Section is...",
+      "display": {
+        "phase": "visible",
+        "instructions": "Show when the associated component is prominent and identifiable."
+      }
+    }
+  ]
+}

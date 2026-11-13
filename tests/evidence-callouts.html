@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><link rel="icon" href="data:,"><title>Callout rendering regression</title></head>
+<body style="margin:0">
+<div id="fixture"></div>
+<script type="module">
+  import * as THREE from 'three'
+  import {EvidenceLedgerCallouts} from '../src/scene/EvidenceLedgerCallouts.js'
+  const container = document.querySelector('#fixture')
+  const renderer = new THREE.WebGLRenderer({antialias: false, preserveDrawingBuffer: true})
+  renderer.autoClear = false
+  renderer.setSize(1280, 720)
+  container.append(renderer.domElement)
+  const app = {container, renderer, d: {showObjectLabels: {value: true}, showEvidenceLedgerLinks: {value: false}}}
+  const labels = new EvidenceLedgerCallouts(app)
+  labels.candidates = (width, height) => [{id: 'vehicle', label: 'Spacecraft', priority: 100,
+    x: width * 0.6, y: height * 0.55, claims: []}]
+  window.calloutFixture = {app, labels, THREE}
+</script>
+</body>
+</html>

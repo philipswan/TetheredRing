@@ -92,16 +92,31 @@ test('face motion is continuous and preserves ordinary poses outside transfers',
   }
 })
 
-test('impossible timing, a single grappler, invalid envelopes, and lost ordinary support fail explicitly', () => {
-  for (const [e, count, duration] of [[envelope(0.1, 0.1), 64, 0.6], [envelope(), 1, 0.6], [envelope(), 64, 10]]) {
-    assert.throws(() => new GrapplerFaceHandoffPlan(e, count, duration), /Increase launchVehicleAccelerationTransitionTime/)
+test('impossible timing warns once and provides usable poses; invalid inputs still fail', t => {
+  const warnings = []
+  t.mock.method(console, 'warn', message => warnings.push(message))
+  for (const [e, duration] of [[envelope(0.1, 0.1), 0.6], [envelope(), 10]]) {
+    const plan = new GrapplerFaceHandoffPlan(e, 64, duration)
+    const before = warnings.length
+    assert.match(warnings.at(-1), /Increase launchVehicleAccelerationTransitionTime/)
+    for (const time of [plan.groups[0].start - 1, e.zero, plan.groups.at(-1).end + 1, e.zero]) {
+      const poses = Array.from({ length: 64 }, (_, i) => plan.pose(i, time, ordinary))
+      assert.ok(poses.every((_, i) => Number.isFinite(plan.state(i, time).mix)))
+      assert.doesNotThrow(() => plan.assertSupport(time, poses))
+      plan.assertSupport(time, poses.map(pose => ({ ...pose, attached: false })))
+    }
+    assert.equal(warnings.length, before)
   }
+  assert.throws(() => new GrapplerFaceHandoffPlan(envelope(), 1, 0.6), /Increase launchVehicleAccelerationTransitionTime/)
   const invalid = envelope()
   invalid.drive[10].fraction = 2
   assert.throws(() => new GrapplerFaceHandoffPlan(invalid, 64, 0.6), /Invalid.*envelope/)
   const plan = new GrapplerFaceHandoffPlan(envelope(), 64, 0.6)
   const poses = Array.from({ length: 64 }, () => ({ ...ordinary, attached: false }))
-  assert.throws(() => plan.assertSupport(12, poses), /retain engaged support/)
+  const before = warnings.length
+  assert.doesNotThrow(() => plan.assertSupport(12, poses))
+  plan.assertSupport(12, poses)
+  assert.equal(warnings.length, before + 1)
 })
 
 function pad(side) {
@@ -146,7 +161,7 @@ test('production ramp and jerk-limited braking supply the handoff window without
   near(e.start, 99.375)
   near(e.zero, 99.375 + ramp.detach.t)
   near(e.end, e.zero + brake.rampTime)
-  assert.throws(() => new GrapplerFaceHandoffPlan(e, 64, 0.6), /retain engaged support/)
+  assert.doesNotThrow(() => new GrapplerFaceHandoffPlan(e, 64, 0.6))
   const plan = new GrapplerFaceHandoffPlan(e, 64, 0.3)
   assert.ok(plan.groups.at(-1).end <= e.end)
   assert.equal(faceHandoffEnvelope(ramp, { rampTime: 0 }, 0, 80), null)
@@ -266,7 +281,7 @@ test('real pad and actuator instances change faces continuously and mirror the s
     }
   }
   virtualAdaptiveNut.threadLayout.flightsAt = () => 0
-  assert.throws(() => nut.placeAndOrientModel(model, { timeSinceStart: e.zero, curve: path }), /retain engaged support/)
+  assert.doesNotThrow(() => nut.placeAndOrientModel(model, { timeSinceStart: e.zero, curve: path }))
 })
 
 
@@ -284,7 +299,7 @@ test('legacy two-stage preset can transfer grapplers within its actual drive-to-
     radiusAt: s => ramp.atDistance(ramp.detach.s + s).r, mu, jerk: p('adaptiveNutDecelerationJerk') })
   const envelope = faceHandoffEnvelope(ramp, brake, 0, p('launchVehicleMassDriverForwardAcceleration'))
   const count = p('adaptiveNutNumGrapplers')
-  assert.throws(() => new GrapplerFaceHandoffPlan(envelope, count, 0.6), /retain engaged support/)
+  assert.doesNotThrow(() => new GrapplerFaceHandoffPlan(envelope, count, 0.6))
   const plan = new GrapplerFaceHandoffPlan(envelope, count, p('adaptiveNutGrapplerSwitchoverTime'))
   assert.ok(plan.groups.length > 0)
   assert.ok(plan.groups.at(-1).end <= envelope.end)
