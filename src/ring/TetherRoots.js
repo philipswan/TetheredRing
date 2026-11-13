@@ -59,7 +59,7 @@ export class TetherRoots {
       }
       const mesh = new THREE.LineSegments(geometry, material)
       mesh.name = 'tetherRoots'
-      mesh.renderOrder = 1
+      mesh.renderOrder = 3 // match the tether forks: above water, fading along submerged spans
       mesh.position.copy(chunk.origin)
       refCoordSys.add(mesh)
       this.meshes.push(mesh)

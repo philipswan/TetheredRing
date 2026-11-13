@@ -37,7 +37,7 @@ export class RingAssembly {
 
     const d = store.derived
     // Tethers are drawn at their real diameters (see src/scene/structureLines.js).
-    this.tetherMaterial = StructureLines.createMaterial(store.get('tetherColor'))
+    this.tetherMaterial = StructureLines.createMaterial(store.get('tetherColor'), { fog: true })
 
     this.createSystems()
     // Tethers first: computing them fills this.ctv, which the force arrows read.
@@ -134,7 +134,7 @@ export class RingAssembly {
           for (const { origin, geometry: chunk } of geometry.localChunks ?? []) {
             const tether = new THREE.LineSegments(chunk, this.tetherMaterial)
             tether.name = 'tether'
-            tether.renderOrder = 1
+            tether.renderOrder = 3 // above the transparent sea surface; submerged spans fade in water
             tether.position.copy(origin)
             list.push(tether)
             refCoordSys.add(tether)
@@ -157,7 +157,7 @@ export class RingAssembly {
       lod.addLevel(nextFan ? TETHER_MERGE_PIXELS / nextFan : 0, () => {
         const line = new THREE.LineSegments(g, this.tetherMaterial)
         line.name = 'tether'
-        line.renderOrder = 1 // after the planet, so the ring is visible through it
+        line.renderOrder = 3 // above the transparent sea surface; submerged spans fade in water
         return line
       })
     })
